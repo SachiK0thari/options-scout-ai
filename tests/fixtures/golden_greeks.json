@@ -1,0 +1,131 @@
+{
+  "note": "Computed independently with statistics.NormalDist + textbook BSM (continuous dividend yield). theta per calendar day, vega per 1 vol point.",
+  "greeks": [
+    {
+      "S": 100,
+      "K": 100,
+      "T": 1,
+      "r": 0.05,
+      "q": 0,
+      "sigma": 0.2,
+      "kind": "call",
+      "expected": {
+        "price": 10.4506,
+        "delta": 0.6368,
+        "gamma": 0.01876,
+        "theta": -0.0176,
+        "vega": 0.3752,
+        "prob_otm": 0.4404
+      }
+    },
+    {
+      "S": 100,
+      "K": 100,
+      "T": 1,
+      "r": 0.05,
+      "q": 0,
+      "sigma": 0.2,
+      "kind": "put",
+      "expected": {
+        "price": 5.5735,
+        "delta": -0.3632,
+        "gamma": 0.01876,
+        "theta": -0.0045,
+        "vega": 0.3752,
+        "prob_otm": 0.5596
+      }
+    },
+    {
+      "S": 100,
+      "K": 90,
+      "T": 0.1095890410958904,
+      "r": 0.045,
+      "q": 0.0,
+      "sigma": 0.3,
+      "kind": "put",
+      "expected": {
+        "price": 0.6311,
+        "delta": -0.123,
+        "gamma": 0.02049,
+        "theta": -0.0237,
+        "vega": 0.0674,
+        "prob_otm": 0.8556
+      }
+    },
+    {
+      "S": 100,
+      "K": 70,
+      "T": 2,
+      "r": 0.04,
+      "q": 0.01,
+      "sigma": 0.28,
+      "kind": "call",
+      "expected": {
+        "price": 35.7464,
+        "delta": 0.8767,
+        "gamma": 0.00452,
+        "theta": -0.0081,
+        "vega": 0.2531,
+        "prob_otm": 0.1965
+      }
+    },
+    {
+      "S": 50,
+      "K": 55,
+      "T": 0.5,
+      "r": 0.03,
+      "q": 0.02,
+      "sigma": 0.45,
+      "kind": "put",
+      "expected": {
+        "price": 9.1524,
+        "delta": -0.5442,
+        "gamma": 0.02463,
+        "theta": -0.0156,
+        "vega": 0.1386,
+        "prob_otm": 0.3289
+      }
+    }
+  ],
+  "margin": [
+    {
+      "S": 100,
+      "K": 90,
+      "premium": 1.5,
+      "expected": 1150.0
+    },
+    {
+      "S": 100,
+      "K": 100,
+      "premium": 3.0,
+      "expected": 2300.0
+    },
+    {
+      "S": 100,
+      "K": 60,
+      "premium": 0.5,
+      "expected": 650.0
+    }
+  ],
+  "csp": [
+    {
+      "K": 90,
+      "premium": 1.5,
+      "dte": 40,
+      "collateral": 8850.0,
+      "annualized": 0.15466
+    }
+  ],
+  "leaps": [
+    {
+      "S": 100,
+      "K": 70,
+      "price": 33,
+      "intrinsic": 30,
+      "extrinsic": 3,
+      "breakeven": 103,
+      "dte": 730,
+      "extrinsic_per_year_pct": 0.015
+    }
+  ]
+}

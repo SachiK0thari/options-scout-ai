@@ -572,8 +572,8 @@ Does the Social Arbitrage Score have any predictive value?
 - **Accept:** `make lint test` passes on an empty skeleton; CI green.
 
 ### Phase 1 — Core math (no LLM, no network)
-- [ ] `pricing.py` (BSM, Greeks, POP), `margin.py`, `volatility.py` (HV, IV rank, VIX percentile).
-- [ ] Golden-value + hypothesis tests.
+- [x] `pricing.py` (BSM, Greeks, POP), `margin.py`, `volatility.py` (HV, IV rank, VIX percentile).
+- [x] Golden-value + hypothesis tests.
 - **Accept:** all section 3.6 golden values pass; mypy strict clean on `core/`.
 
 ### Phase 2 — Market data layer
