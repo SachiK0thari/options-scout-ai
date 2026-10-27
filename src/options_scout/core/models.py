@@ -5,7 +5,7 @@ from __future__ import annotations
 from datetime import UTC, date, datetime
 from typing import Literal
 
-from pydantic import BaseModel, ConfigDict, Field, PositiveFloat, model_validator
+from pydantic import BaseModel, ConfigDict, Field, PositiveFloat, field_validator
 
 AccountType = Literal["cash", "margin", "portfolio_margin"]
 RiskProfile = Literal["conservative", "balanced", "aggressive"]
@@ -43,13 +43,21 @@ class UserProfile(Model):
     max_positions: int = Field(default=8, ge=1, le=50)
     options_level: int | None = None  # broker approval level, informational only
 
-    @model_validator(mode="after")
-    def _normalise_tickers(self) -> UserProfile:
-        self.watchlist = sorted({t.upper().strip() for t in self.watchlist if t.strip()})
-        self.exclude = sorted({t.upper().strip() for t in self.exclude if t.strip()})
-        if not self.strategies:
+    @field_validator("watchlist", "exclude", mode="before")
+    @classmethod
+    def _normalise_tickers(cls, v: object) -> list[str]:
+        if v is None:
+            return []
+        if not isinstance(v, list | tuple | set):
+            raise ValueError("expected a list of tickers")
+        return sorted({str(t).upper().strip() for t in v if str(t).strip()})
+
+    @field_validator("strategies")
+    @classmethod
+    def _non_empty(cls, v: set[Strategy]) -> set[Strategy]:
+        if not v:
             raise ValueError("at least one strategy is required")
-        return self
+        return v
 
 
 class ProfileParse(Model):

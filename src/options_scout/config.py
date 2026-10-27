@@ -164,6 +164,8 @@ class RiskProfiles(_Strict):
 class CSPRules(_Strict):
     dte_min: int
     dte_max: int
+    dte_fallback_min: int
+    dte_fallback_max: int
     delta_min: float
     delta_max: float
     min_open_interest: int
@@ -190,6 +192,8 @@ class LEAPSRules(_Strict):
 class PMCCRules(_Strict):
     dte_min: int
     dte_max: int
+    dte_fallback_min: int
+    dte_fallback_max: int
     delta_min: float
     delta_max: float
 

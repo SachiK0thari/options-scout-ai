@@ -2,6 +2,10 @@
 csp:
   dte_min: 30
   dte_max: 45
+  # Fallback used ONLY when the strict window has no liquid candidates (weeklies-only weeks):
+  # the nearest expiry inside this wider window is allowed and flagged `dte_outside_preferred`.
+  dte_fallback_min: 21
+  dte_fallback_max: 60
   delta_min: 0.15
   delta_max: 0.30
   min_open_interest: 500
@@ -26,6 +30,8 @@ leaps:
 pmcc:
   dte_min: 30
   dte_max: 45
+  dte_fallback_min: 21
+  dte_fallback_max: 60
   delta_min: 0.20
   delta_max: 0.30
   # safety rule (always on): short strike >= LEAPS strike + LEAPS net debit

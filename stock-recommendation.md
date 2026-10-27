@@ -582,8 +582,8 @@ Does the Social Arbitrage Score have any predictive value?
 - **Accept:** `TickerSnapshot` builds offline from fixtures; live test marked `@live` works.
 
 ### Phase 3 — Screeners, allocation, sizing, risk
-- [ ] CSP, LEAPS, PMCC screeners per sections 3.3–3.5.
-- [ ] Allocation with regime tilt; sizing with all constraints; stress tests.
+- [x] CSP, LEAPS, PMCC screeners per sections 3.3–3.5.
+- [x] Allocation with regime tilt; sizing with all constraints; stress tests.
 - **Accept:** `make demo` (no LLM yet) prints a sized, constraint-passing portfolio for each risk profile and account type from fixtures.
 
 ### Phase 4 — Social arbitrage engine
