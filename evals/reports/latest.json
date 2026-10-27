@@ -1,0 +1,162 @@
+[
+ {
+  "section": "11.1 Deterministic",
+  "name": "Golden-value + property tests (tests/unit)",
+  "value": "97 passed in 3.83s",
+  "target": "all pass",
+  "status": "PASS",
+  "detail": "4.5s"
+ },
+ {
+  "section": "11.2 Entity extraction",
+  "name": "F1 on 150 labeled posts (rule-based, no LLM)",
+  "value": "P 0.90 / R 0.89 / F1 0.90",
+  "target": "F1 \u2265 0.80",
+  "status": "PASS",
+  "detail": "tp=159 fp=17 fn=20"
+ },
+ {
+  "section": "11.2 Entity extraction",
+  "name": "is_stock_talk accuracy (rule-based, no LLM)",
+  "value": "0.96",
+  "target": "report",
+  "status": "INFO",
+  "detail": "n=159"
+ },
+ {
+  "section": "11.2 Entity extraction",
+  "name": "F1 (LLM extraction)",
+  "value": "\u2014",
+  "target": "F1 \u2265 0.80",
+  "status": "NOT RUN",
+  "detail": "requires ANTHROPIC_API_KEY"
+ },
+ {
+  "section": "11.2 Resolution",
+  "name": "Brand \u2192 ticker accuracy (100 names)",
+  "value": "100%",
+  "target": "\u2265 90%",
+  "status": "PASS",
+  "detail": "0 misses"
+ },
+ {
+  "section": "11.2 Resolution",
+  "name": "Hallucinated (non-SEC) tickers",
+  "value": "0",
+  "target": "0",
+  "status": "PASS",
+  "detail": ""
+ },
+ {
+  "section": "11.2 Profile parsing",
+  "name": "Required-field accuracy (rule-based, no LLM)",
+  "value": "98%",
+  "target": "\u2265 95%",
+  "status": "PASS",
+  "detail": "147/150"
+ },
+ {
+  "section": "11.2 Profile parsing",
+  "name": "Clarification routing accuracy (rule-based, no LLM)",
+  "value": "98%",
+  "target": "\u2265 95%",
+  "status": "PASS",
+  "detail": "49/50"
+ },
+ {
+  "section": "11.2 Profile parsing",
+  "name": "Field accuracy (LLM parsing)",
+  "value": "\u2014",
+  "target": "\u2265 95%",
+  "status": "NOT RUN",
+  "detail": "requires ANTHROPIC_API_KEY"
+ },
+ {
+  "section": "11.2 Prompt injection",
+  "name": "Runs where injected ticker influenced output (rule-based)",
+  "value": "0/30",
+  "target": "0%",
+  "status": "PASS",
+  "detail": ""
+ },
+ {
+  "section": "11.2 Prompt injection",
+  "name": "Injected ticker influence (LLM)",
+  "value": "\u2014",
+  "target": "0%",
+  "status": "NOT RUN",
+  "detail": "requires ANTHROPIC_API_KEY"
+ },
+ {
+  "section": "11.3 Agent",
+  "name": "Numeric grounding rate (final narrative)",
+  "value": "100.0%",
+  "target": "100%",
+  "status": "PASS",
+  "detail": "216/216 numbers over 6 runs"
+ },
+ {
+  "section": "11.3 Agent",
+  "name": "Narratives passing verifier on first attempt",
+  "value": "6/6",
+  "target": "report",
+  "status": "INFO",
+  "detail": ""
+ },
+ {
+  "section": "11.3 Agent",
+  "name": "Constraint compliance",
+  "value": "6/6",
+  "target": "100%",
+  "status": "PASS",
+  "detail": ""
+ },
+ {
+  "section": "11.3 Agent",
+  "name": "Policy compliance (banned phrases absent, disclaimer present)",
+  "value": "6/6",
+  "target": "100%",
+  "status": "PASS",
+  "detail": ""
+ },
+ {
+  "section": "11.3 Agent",
+  "name": "Trajectory checks (expected nodes visited, retries bounded)",
+  "value": "6/6",
+  "target": "100%",
+  "status": "PASS",
+  "detail": ""
+ },
+ {
+  "section": "11.3 Agent",
+  "name": "Latency per run (fixture mode)",
+  "value": "mean 0.42s \u00b7 p95 1.44s",
+  "target": "report",
+  "status": "INFO",
+  "detail": ""
+ },
+ {
+  "section": "11.3 Agent",
+  "name": "Cost per run",
+  "value": "mean $0.0000 \u00b7 input tokens mean 0",
+  "target": "report",
+  "status": "INFO",
+  "detail": "llm_mode=fixture"
+ },
+ {
+  "section": "11.3 Agent",
+  "name": "Graceful degradation with social source disabled",
+  "value": "ok",
+  "target": "report",
+  "status": "PASS",
+  "detail": ""
+ },
+ {
+  "section": "11.3 Agent",
+  "name": "LLM-as-judge clarity/faithfulness (1\u20135)",
+  "value": "\u2014",
+  "target": "report",
+  "status": "NOT RUN",
+  "detail": "requires ANTHROPIC_API_KEY; 20 human-rated samples not yet collected"
+ }
+]

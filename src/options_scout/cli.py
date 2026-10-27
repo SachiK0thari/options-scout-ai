@@ -140,7 +140,8 @@ def render_demo(cfg: AppConfig, profile: UserProfile, out: dict[str, Any]) -> st
     return "\n".join(parts)
 
 
-def cmd_demo(args: argparse.Namespace) -> int:
+def cmd_demo_core(args: argparse.Namespace) -> int:
+    """Deterministic pipeline only (Phase 3 acceptance): no agent, no social engine, no LLM."""
     cfg = get_config()
     profiles = [args.risk] if args.risk else ["conservative", "balanced", "aggressive"]
     accounts = [args.account] if args.account else ["cash", "margin"]
@@ -170,21 +171,72 @@ def cmd_demo(args: argparse.Namespace) -> int:
     return 0
 
 
+def cmd_demo(args: argparse.Namespace) -> int:
+    """Full LangGraph pipeline in fixture mode (Phase 8 acceptance). ``--no-llm`` skips the LLM."""
+    import os
+
+    if args.no_llm:
+        os.environ["OPTIONS_SCOUT_LLM_MODE"] = "none"
+    get_config.cache_clear()
+    cfg = get_config()
+    from options_scout.agent.deps import Deps
+    from options_scout.agent.graph import (
+        build_graph,
+        initial_state,
+        pending_interrupt,
+        stream_run,
+        thread_config,
+    )
+
+    deps = Deps.from_config(cfg)
+    graph = build_graph(deps)
+    thread = f"demo-{os.getpid()}"
+    text = args.request or (
+        f"I have ${args.buying_power:,.0f} of buying power in a {args.account or 'margin'} "
+        f"account, {args.risk or 'balanced'} risk tolerance. Show me CSPs and LEAPS/PMCC ideas."
+    )
+    print(f"# OptionsScout AI demo — {cfg.settings.data_mode} data, LLM mode {deps.llm.mode}\n")
+    print(f"> {text}\n")
+    for update in stream_run(graph, initial_state(text), thread):
+        for node in update:
+            if node == "__interrupt__":
+                intr = pending_interrupt(graph, thread)
+                print("Run paused for human review:", intr and intr.get("needs_clarification"))
+                return 2
+            print(f"  ✓ {node}", file=sys.stderr)
+    state = graph.get_state(thread_config(thread)).values
+    print(state.get("report_markdown", ""))
+    rep = state.get("report")
+    return 0 if rep is not None and rep.verification.passed and rep.risk.passed else 1
+
+
 def main(argv: Sequence[str] | None = None) -> int:
     parser = argparse.ArgumentParser(
-        prog="options-scout", description="Educational options screener."
+        prog="options-scout", description="Educational options screener. Not investment advice."
     )
     sub = parser.add_subparsers(dest="cmd", required=True)
+
     demo = sub.add_parser(
-        "demo", help="deterministic pipeline on fixtures; prints a markdown report"
+        "demo", help="full agent pipeline on fixtures; prints the markdown report"
     )
+    demo.add_argument("--request", default=None, help="free-text request")
     demo.add_argument("--buying-power", type=float, default=100_000)
-    demo.add_argument("--account-value", type=float, default=None)
     demo.add_argument("--risk", choices=["conservative", "balanced", "aggressive"])
     demo.add_argument("--account", choices=["cash", "margin", "portfolio_margin"])
-    demo.add_argument("--max-positions", type=int, default=8)
-    demo.add_argument("tickers", nargs="*")
+    demo.add_argument("--no-llm", action="store_true", help="skip LLM steps (rule-based stand-ins)")
     demo.set_defaults(func=cmd_demo)
+
+    core = sub.add_parser(
+        "demo-core", help="deterministic screeners/sizing/risk, every profile × account"
+    )
+    core.add_argument("--buying-power", type=float, default=100_000)
+    core.add_argument("--account-value", type=float, default=None)
+    core.add_argument("--risk", choices=["conservative", "balanced", "aggressive"])
+    core.add_argument("--account", choices=["cash", "margin", "portfolio_margin"])
+    core.add_argument("--max-positions", type=int, default=8)
+    core.add_argument("tickers", nargs="*")
+    core.set_defaults(func=cmd_demo_core)
+
     args = parser.parse_args(argv)
     return int(args.func(args))
 

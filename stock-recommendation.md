@@ -587,28 +587,28 @@ Does the Social Arbitrage Score have any predictive value?
 - **Accept:** `make demo` (no LLM yet) prints a sized, constraint-passing portfolio for each risk profile and account type from fixtures.
 
 ### Phase 4 — Social arbitrage engine
-- [ ] Adapters: Reddit (PRAW), Wikipedia pageviews, news RSS; fixture mode for all.
-- [ ] Filters, LLM entity extraction (structured), resolution with SEC validation, signals, score.
-- [ ] Label 150 posts for the extraction eval.
+- [x] Adapters: Reddit (PRAW), Wikipedia pageviews, news RSS; fixture mode for all.
+- [x] Filters, LLM entity extraction (structured), resolution with SEC validation, signals, score.
+- [x] Label 150 posts for the extraction eval.
 - **Accept:** trend board generated from fixtures; extraction eval runs; zero unvalidated tickers.
 
 ### Phase 5 — LangGraph agent
-- [ ] State, nodes, graph per section 5; `Send` fan-out; `interrupt()` HITL; SQLite checkpointer; retry loops.
-- [ ] Explainer + verifier.
+- [x] State, nodes, graph per section 5; `Send` fan-out; `interrupt()` HITL; SQLite checkpointer; retry loops.
+- [x] Explainer + verifier.
 - **Accept:** end-to-end run in fixture mode produces a `ScreeningReport` with 100% numeric grounding; interrupted run resumes correctly.
 
 ### Phase 6 — API + UI
-- [ ] FastAPI endpoints with SSE streaming; Streamlit pages per section 10.
+- [x] FastAPI endpoints with SSE streaming; Streamlit pages per section 10.
 - **Accept:** full flow works from the browser in fixture mode; disclaimer everywhere.
 
 ### Phase 7 — Evals + observability
-- [ ] All section 11 evals in `make eval`; tracing; cost tracking.
-- [ ] Signal study notebook.
+- [x] All section 11 evals in `make eval`; tracing; cost tracking.
+- [x] Signal study notebook.
 - **Accept:** `evals/reports/latest.md` committed with real numbers.
 
 ### Phase 8 — Polish & ship
-- [ ] Docker compose (api + ui + scheduler); deploy demo (Hugging Face Spaces, Render or Fly.io) in **fixture mode by default** with a toggle for live data.
-- [ ] README per section 15, architecture diagram, 60–90s demo GIF/video.
+- [x] Docker compose (api + ui + scheduler); deploy demo (Hugging Face Spaces, Render or Fly.io) in **fixture mode by default** with a toggle for live data. _(compose done; hosted deploy not performed — needs an account; see README → Deploy.)_
+- [x] README per section 15, architecture diagram, 60–90s demo GIF/video. _(README + diagram done; GIF/video not recorded — needs a screen recording session.)_
 - **Accept:** a stranger can clone, `make install && make demo`, and see results with no API keys except optionally the LLM key (provide a `--no-llm` mode that skips extraction/explanation using cached outputs).
 
 ### Stretch goals (pick 1–2 after Phase 8)

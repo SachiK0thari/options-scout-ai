@@ -41,8 +41,11 @@ api: ## FastAPI on :8000
 ui: ## Streamlit on :8501
 	$(PY) -m streamlit run ui/streamlit_app.py --server.port $(PORT_UI)
 
-demo: ## full pipeline in fixture mode, prints a report
+demo: ## full agent pipeline in fixture mode, prints a report (ARGS="--no-llm" to skip LLM steps)
 	$(PY) -m options_scout.cli demo $(ARGS)
+
+demo-core: ## deterministic screeners + sizing + risk for every profile × account type
+	$(PY) -m options_scout.cli demo-core $(ARGS)
 
 clean:
 	rm -rf .venv .pytest_cache .mypy_cache .ruff_cache data/cache.sqlite data/checkpoints.sqlite

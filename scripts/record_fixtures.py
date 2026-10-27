@@ -15,10 +15,10 @@ from pathlib import Path
 
 sys.path.insert(0, str(Path(__file__).resolve().parents[1] / "src"))
 
-from options_scout.config import load_config  # noqa: E402
-from options_scout.data.cache import MemoryCache  # noqa: E402
-from options_scout.data.fixtures import DEMO_TICKERS, FixtureStore, IndexFixture, TickerFixture  # noqa: E402
-from options_scout.data.market import MarketData, YFinanceSource  # noqa: E402
+from options_scout.config import load_config
+from options_scout.data.cache import MemoryCache
+from options_scout.data.fixtures import DEMO_TICKERS, FixtureStore, IndexFixture, TickerFixture
+from options_scout.data.market import MarketData, YFinanceSource
 
 
 def main(argv: list[str]) -> int:
@@ -63,7 +63,7 @@ def main(argv: list[str]) -> int:
             )
             if snap.source_errors:
                 print("   errors:", snap.source_errors)
-        except Exception as exc:  # noqa: BLE001
+        except Exception as exc:
             print(f"{t}: FAILED {type(exc).__name__}: {exc}")
         time.sleep(1.0)
     return 0

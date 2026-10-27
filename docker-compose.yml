@@ -1,0 +1,49 @@
+services:
+  api:
+    build: .
+    command: ["python", "-m", "uvicorn", "options_scout.api.main:app", "--host", "0.0.0.0", "--port", "8000"]
+    ports: ["8000:8000"]
+    environment:
+      OPTIONS_SCOUT_DATA_MODE: ${OPTIONS_SCOUT_DATA_MODE:-fixture}   # fixture by default; set live to use real sources
+      OPTIONS_SCOUT_LLM_MODE: ${OPTIONS_SCOUT_LLM_MODE:-fixture}
+      ANTHROPIC_API_KEY: ${ANTHROPIC_API_KEY:-}
+      OPTIONS_SCOUT_API_KEY: ${OPTIONS_SCOUT_API_KEY:-}
+      LANGSMITH_API_KEY: ${LANGSMITH_API_KEY:-}
+    volumes: ["scout-data:/app/data"]
+    healthcheck:
+      test: ["CMD", "python", "-c", "import urllib.request; urllib.request.urlopen('http://localhost:8000/healthz')"]
+      interval: 30s
+      timeout: 5s
+      retries: 3
+
+  ui:
+    build: .
+    command: ["python", "-m", "streamlit", "run", "ui/streamlit_app.py", "--server.port", "8501", "--server.address", "0.0.0.0", "--server.headless", "true"]
+    ports: ["8501:8501"]
+    environment:
+      OPTIONS_SCOUT_DATA_MODE: ${OPTIONS_SCOUT_DATA_MODE:-fixture}
+      OPTIONS_SCOUT_LLM_MODE: ${OPTIONS_SCOUT_LLM_MODE:-fixture}
+      ANTHROPIC_API_KEY: ${ANTHROPIC_API_KEY:-}
+    volumes: ["scout-data:/app/data"]
+    depends_on: [api]
+
+  scheduler:
+    # Daily jobs: ATM IV snapshot per watchlist ticker and trend-board refresh.
+    build: .
+    command: >
+      sh -c "while true; do
+        python -m options_scout.jobs.snapshot_iv || true;
+        python -m options_scout.jobs.refresh_trends || true;
+        sleep 86400;
+      done"
+    environment:
+      OPTIONS_SCOUT_DATA_MODE: ${OPTIONS_SCOUT_DATA_MODE:-fixture}
+      OPTIONS_SCOUT_LLM_MODE: ${OPTIONS_SCOUT_LLM_MODE:-fixture}
+      ANTHROPIC_API_KEY: ${ANTHROPIC_API_KEY:-}
+      REDDIT_CLIENT_ID: ${REDDIT_CLIENT_ID:-}
+      REDDIT_CLIENT_SECRET: ${REDDIT_CLIENT_SECRET:-}
+      REDDIT_USER_AGENT: ${REDDIT_USER_AGENT:-options-scout-ai/0.1 (educational screener)}
+    volumes: ["scout-data:/app/data"]
+
+volumes:
+  scout-data:

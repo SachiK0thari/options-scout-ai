@@ -1,0 +1,100 @@
+{"id": "res-001", "entity": "Hokas", "expected_ticker": "DECK", "expected_company": "Deckers Outdoor Corporation", "investable": true}
+{"id": "res-002", "entity": "lulu leggings", "expected_ticker": "LULU", "expected_company": "Lululemon Athletica Inc.", "investable": true}
+{"id": "res-003", "entity": "Kirkland vodka", "expected_ticker": "COST", "expected_company": "Costco Wholesale Corporation", "investable": true}
+{"id": "res-004", "entity": "Quencher", "expected_ticker": null, "expected_company": "Stanley 1913 (PMI Worldwide, private)", "investable": false}
+{"id": "res-005", "entity": "Owala bottle", "expected_ticker": null, "expected_company": "Owala (Trove Brands, private)", "investable": false}
+{"id": "res-006", "entity": "Dutch Bros", "expected_ticker": "BROS", "expected_company": "Dutch Bros Inc.", "investable": true}
+{"id": "res-007", "entity": "Air Jordans", "expected_ticker": "NKE", "expected_company": "Nike, Inc.", "investable": true}
+{"id": "res-008", "entity": "Beats headphones", "expected_ticker": "AAPL", "expected_company": "Apple Inc.", "investable": true}
+{"id": "res-009", "entity": "Oreos", "expected_ticker": "MDLZ", "expected_company": "Mondelez International, Inc.", "investable": true}
+{"id": "res-010", "entity": "Pop-Tarts", "expected_ticker": null, "expected_company": "Kellanova, acquired by Mars, Incorporated (private) in December 2025", "investable": false}
+{"id": "res-011", "entity": "Gatorade", "expected_ticker": "PEP", "expected_company": "PepsiCo, Inc.", "investable": true}
+{"id": "res-012", "entity": "Tide pods", "expected_ticker": "PG", "expected_company": "The Procter & Gamble Company", "investable": true}
+{"id": "res-013", "entity": "Old Spice", "expected_ticker": "PG", "expected_company": "The Procter & Gamble Company", "investable": true}
+{"id": "res-014", "entity": "Cheerios", "expected_ticker": "GIS", "expected_company": "General Mills, Inc.", "investable": true}
+{"id": "res-015", "entity": "Taco Bell", "expected_ticker": "YUM", "expected_company": "Yum! Brands, Inc.", "investable": true}
+{"id": "res-016", "entity": "Chick-fil-A", "expected_ticker": null, "expected_company": "Chick-fil-A, Inc. (private)", "investable": false}
+{"id": "res-017", "entity": "In-N-Out", "expected_ticker": null, "expected_company": "In-N-Out Burgers (private)", "investable": false}
+{"id": "res-018", "entity": "Trader Joe's", "expected_ticker": null, "expected_company": "Trader Joe's (Aldi Nord, private)", "investable": false}
+{"id": "res-019", "entity": "Shein", "expected_ticker": null, "expected_company": "Shein (private)", "investable": false}
+{"id": "res-020", "entity": "Temu", "expected_ticker": "PDD", "expected_company": "PDD Holdings Inc.", "investable": true}
+{"id": "res-021", "entity": "Lego", "expected_ticker": null, "expected_company": "The LEGO Group (private)", "investable": false}
+{"id": "res-022", "entity": "Bluey", "expected_ticker": null, "expected_company": "BBC Studios / Ludo Studio (not US-listed)", "investable": false}
+{"id": "res-023", "entity": "Crumbl", "expected_ticker": null, "expected_company": "Crumbl LLC (private)", "investable": false}
+{"id": "res-024", "entity": "Dr. Martens", "expected_ticker": null, "expected_company": "Dr. Martens plc (London Stock Exchange only)", "investable": false}
+{"id": "res-025", "entity": "Uniqlo", "expected_ticker": null, "expected_company": "Fast Retailing Co., Ltd. (Tokyo Stock Exchange; no US-listed options)", "investable": false}
+{"id": "res-026", "entity": "Celsius energy", "expected_ticker": "CELH", "expected_company": "Celsius Holdings, Inc.", "investable": true}
+{"id": "res-027", "entity": "Alani Nu", "expected_ticker": "CELH", "expected_company": "Celsius Holdings, Inc.", "investable": true}
+{"id": "res-028", "entity": "elf lip oil", "expected_ticker": "ELF", "expected_company": "e.l.f. Beauty, Inc.", "investable": true}
+{"id": "res-029", "entity": "Crocs", "expected_ticker": "CROX", "expected_company": "Crocs, Inc.", "investable": true}
+{"id": "res-030", "entity": "HEYDUDE shoes", "expected_ticker": "CROX", "expected_company": "Crocs, Inc.", "investable": true}
+{"id": "res-031", "entity": "chipotle bowl", "expected_ticker": "CMG", "expected_company": "Chipotle Mexican Grill, Inc.", "investable": true}
+{"id": "res-032", "entity": "Starbies", "expected_ticker": "SBUX", "expected_company": "Starbucks Corporation", "investable": true}
+{"id": "res-033", "entity": "AirPods", "expected_ticker": "AAPL", "expected_company": "Apple Inc.", "investable": true}
+{"id": "res-034", "entity": "CAVA", "expected_ticker": "CAVA", "expected_company": "CAVA Group, Inc.", "investable": true}
+{"id": "res-035", "entity": "Sweetgreen", "expected_ticker": "SG", "expected_company": "Sweetgreen, Inc.", "investable": true}
+{"id": "res-036", "entity": "Oura Ring", "expected_ticker": null, "expected_company": "Oura Health Oy (private)", "investable": false}
+{"id": "res-037", "entity": "Liquid Death", "expected_ticker": null, "expected_company": "Liquid Death Mountain Water (private)", "investable": false}
+{"id": "res-038", "entity": "GameStop", "expected_ticker": "GME", "expected_company": "GameStop Corp.", "investable": true}
+{"id": "res-039", "entity": "Cybertruck", "expected_ticker": "TSLA", "expected_company": "Tesla, Inc.", "investable": true}
+{"id": "res-040", "entity": "Birkenstock Bostons", "expected_ticker": "BIRK", "expected_company": "Birkenstock Holding plc", "investable": true}
+{"id": "res-041", "entity": "Xbox Game Pass", "expected_ticker": "MSFT", "expected_company": "Microsoft Corporation", "investable": true}
+{"id": "res-042", "entity": "Hollister", "expected_ticker": "ANF", "expected_company": "Abercrombie & Fitch Co.", "investable": true}
+{"id": "res-043", "entity": "Olipop", "expected_ticker": null, "expected_company": "Olipop PBC (private)", "investable": false}
+{"id": "res-044", "entity": "Poppi", "expected_ticker": "PEP", "expected_company": "PepsiCo, Inc. (acquired Poppi in 2025)", "investable": true}
+{"id": "res-045", "entity": "Costco", "expected_ticker": "COST", "expected_company": "Costco Wholesale Corporation", "investable": true}
+{"id": "res-046", "entity": "UGGs", "expected_ticker": "DECK", "expected_company": "Deckers Outdoor Corporation", "investable": true}
+{"id": "res-047", "entity": "Teva sandals", "expected_ticker": "DECK", "expected_company": "Deckers Outdoor Corporation", "investable": true}
+{"id": "res-048", "entity": "Converse Chucks", "expected_ticker": "NKE", "expected_company": "Nike, Inc.", "investable": true}
+{"id": "res-049", "entity": "Vans", "expected_ticker": "VFC", "expected_company": "V.F. Corporation", "investable": true}
+{"id": "res-050", "entity": "North Face puffer", "expected_ticker": "VFC", "expected_company": "V.F. Corporation", "investable": true}
+{"id": "res-051", "entity": "Timbs", "expected_ticker": "VFC", "expected_company": "V.F. Corporation", "investable": true}
+{"id": "res-052", "entity": "Yeti cooler", "expected_ticker": "YETI", "expected_company": "YETI Holdings, Inc.", "investable": true}
+{"id": "res-053", "entity": "Peloton", "expected_ticker": "PTON", "expected_company": "Peloton Interactive, Inc.", "investable": true}
+{"id": "res-054", "entity": "Ozempic", "expected_ticker": "NVO", "expected_company": "Novo Nordisk A/S", "investable": true}
+{"id": "res-055", "entity": "Zyn", "expected_ticker": "PM", "expected_company": "Philip Morris International Inc.", "investable": true}
+{"id": "res-056", "entity": "Monster energy", "expected_ticker": "MNST", "expected_company": "Monster Beverage Corporation", "investable": true}
+{"id": "res-057", "entity": "Bang energy", "expected_ticker": "MNST", "expected_company": "Monster Beverage Corporation", "investable": true}
+{"id": "res-058", "entity": "Red Bull", "expected_ticker": null, "expected_company": "Red Bull GmbH (private)", "investable": false}
+{"id": "res-059", "entity": "Prime hydration", "expected_ticker": null, "expected_company": "Prime Hydration LLC (private)", "investable": false}
+{"id": "res-060", "entity": "Dr Pepper", "expected_ticker": "KDP", "expected_company": "Keurig Dr Pepper Inc.", "investable": true}
+{"id": "res-061", "entity": "Keurig", "expected_ticker": "KDP", "expected_company": "Keurig Dr Pepper Inc.", "investable": true}
+{"id": "res-062", "entity": "Coke Zero", "expected_ticker": "KO", "expected_company": "The Coca-Cola Company", "investable": true}
+{"id": "res-063", "entity": "Bud Light", "expected_ticker": "BUD", "expected_company": "Anheuser-Busch InBev SA/NV", "investable": true}
+{"id": "res-064", "entity": "Modelo", "expected_ticker": "STZ", "expected_company": "Constellation Brands, Inc. (US rights)", "investable": true}
+{"id": "res-065", "entity": "White Claw", "expected_ticker": null, "expected_company": "Mark Anthony Brands (private)", "investable": false}
+{"id": "res-066", "entity": "Doritos", "expected_ticker": "PEP", "expected_company": "PepsiCo, Inc.", "investable": true}
+{"id": "res-067", "entity": "Lay's", "expected_ticker": "PEP", "expected_company": "PepsiCo, Inc.", "investable": true}
+{"id": "res-068", "entity": "Wingstop", "expected_ticker": "WING", "expected_company": "Wingstop Inc.", "investable": true}
+{"id": "res-069", "entity": "Shake Shack", "expected_ticker": "SHAK", "expected_company": "Shake Shack Inc.", "investable": true}
+{"id": "res-070", "entity": "Domino's", "expected_ticker": "DPZ", "expected_company": "Domino's Pizza, Inc.", "investable": true}
+{"id": "res-071", "entity": "Popeyes", "expected_ticker": "QSR", "expected_company": "Restaurant Brands International Inc.", "investable": true}
+{"id": "res-072", "entity": "Tim Hortons", "expected_ticker": "QSR", "expected_company": "Restaurant Brands International Inc.", "investable": true}
+{"id": "res-073", "entity": "Frosty", "expected_ticker": "WEN", "expected_company": "The Wendy's Company", "investable": true}
+{"id": "res-074", "entity": "McFlurry", "expected_ticker": "MCD", "expected_company": "McDonald's Corporation", "investable": true}
+{"id": "res-075", "entity": "Dunkin", "expected_ticker": null, "expected_company": "Dunkin' (Inspire Brands, private)", "investable": false}
+{"id": "res-076", "entity": "Panera", "expected_ticker": null, "expected_company": "Panera Brands (JAB Holding, private)", "investable": false}
+{"id": "res-077", "entity": "Raising Cane's", "expected_ticker": null, "expected_company": "Raising Cane's Restaurants (private)", "investable": false}
+{"id": "res-078", "entity": "Ulta", "expected_ticker": "ULTA", "expected_company": "Ulta Beauty, Inc.", "investable": true}
+{"id": "res-079", "entity": "Good & Gather", "expected_ticker": "TGT", "expected_company": "Target Corporation", "investable": true}
+{"id": "res-080", "entity": "Great Value", "expected_ticker": "WMT", "expected_company": "Walmart Inc.", "investable": true}
+{"id": "res-081", "entity": "Sam's Club", "expected_ticker": "WMT", "expected_company": "Walmart Inc.", "investable": true}
+{"id": "res-082", "entity": "Whole Foods", "expected_ticker": "AMZN", "expected_company": "Amazon.com, Inc.", "investable": true}
+{"id": "res-083", "entity": "PS5", "expected_ticker": "SONY", "expected_company": "Sony Group Corporation", "investable": true}
+{"id": "res-084", "entity": "Shark FlexStyle", "expected_ticker": "SN", "expected_company": "SharkNinja, Inc.", "investable": true}
+{"id": "res-085", "entity": "Ninja Creami", "expected_ticker": "SN", "expected_company": "SharkNinja, Inc.", "investable": true}
+{"id": "res-086", "entity": "Hydro Flask", "expected_ticker": "HELE", "expected_company": "Helen of Troy Limited", "investable": true}
+{"id": "res-087", "entity": "On Clouds", "expected_ticker": "ONON", "expected_company": "On Holding AG", "investable": true}
+{"id": "res-088", "entity": "Brooks Ghost", "expected_ticker": "BRK.B", "expected_company": "Berkshire Hathaway Inc.", "investable": true}
+{"id": "res-089", "entity": "Levi's 501s", "expected_ticker": "LEVI", "expected_company": "Levi Strauss & Co.", "investable": true}
+{"id": "res-090", "entity": "Old Navy", "expected_ticker": "GAP", "expected_company": "Gap Inc.", "investable": true}
+{"id": "res-091", "entity": "Aerie", "expected_ticker": "AEO", "expected_company": "American Eagle Outfitters, Inc.", "investable": true}
+{"id": "res-092", "entity": "Victoria's Secret", "expected_ticker": "VSXY", "expected_company": "Victoria's Secret & Co.", "investable": true}
+{"id": "res-093", "entity": "Bath & Body Works", "expected_ticker": "BBWI", "expected_company": "Bath & Body Works, Inc.", "investable": true}
+{"id": "res-094", "entity": "Chewy", "expected_ticker": "CHWY", "expected_company": "Chewy, Inc.", "investable": true}
+{"id": "res-095", "entity": "Reese's", "expected_ticker": "HSY", "expected_company": "The Hershey Company", "investable": true}
+{"id": "res-096", "entity": "Quest bars", "expected_ticker": "SMPL", "expected_company": "The Simply Good Foods Company", "investable": true}
+{"id": "res-097", "entity": "Liquid I.V.", "expected_ticker": "UL", "expected_company": "Unilever PLC", "investable": true}
+{"id": "res-098", "entity": "Dove soap", "expected_ticker": "UL", "expected_company": "Unilever PLC", "investable": true}
+{"id": "res-099", "entity": "Cash App", "expected_ticker": "XYZ", "expected_company": "Block, Inc.", "investable": true}
+{"id": "res-100", "entity": "Birks", "expected_ticker": "BIRK", "expected_company": "Birkenstock Holding plc", "investable": true}
