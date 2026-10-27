@@ -577,8 +577,8 @@ Does the Social Arbitrage Score have any predictive value?
 - **Accept:** all section 3.6 golden values pass; mypy strict clean on `core/`.
 
 ### Phase 2 — Market data layer
-- [ ] yfinance wrapper with retries, caching, fixture mode; record fixtures for 10 tickers (e.g. AAPL, MSFT, COST, NKE, SBUX, CMG, ELF, DECK, SPY, QQQ).
-- [ ] `jobs/snapshot_iv.py` daily ATM IV snapshot.
+- [x] yfinance wrapper with retries, caching, fixture mode; record fixtures for 10 tickers (e.g. AAPL, MSFT, COST, NKE, SBUX, CMG, ELF, DECK, SPY, QQQ).
+- [x] `jobs/snapshot_iv.py` daily ATM IV snapshot.
 - **Accept:** `TickerSnapshot` builds offline from fixtures; live test marked `@live` works.
 
 ### Phase 3 — Screeners, allocation, sizing, risk
