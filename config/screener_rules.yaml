@@ -1,0 +1,31 @@
+# Sections 3.3–3.5. Deltas are absolute values. Percentages are fractions.
+csp:
+  dte_min: 30
+  dte_max: 45
+  delta_min: 0.15
+  delta_max: 0.30
+  min_open_interest: 500
+  max_spread_pct: 0.10
+  min_bid: 0.10
+  exclude_earnings_before_expiry: true
+  min_underlying_price: 10.0
+  min_avg_volume: 1000000
+  preferred_iv_rank_min: 0.30         # soft score, not a hard filter
+
+leaps:
+  dte_min: 365
+  dte_preferred: 540
+  delta_min: 0.70
+  delta_max: 0.85
+  max_extrinsic_per_year_pct: 0.05
+  min_open_interest: 100
+  max_spread_pct: 0.05
+  preferred_iv_rank_max: 0.40         # soft score
+  roll_warning_dte: 240
+
+pmcc:
+  dte_min: 30
+  dte_max: 45
+  delta_min: 0.20
+  delta_max: 0.30
+  # safety rule (always on): short strike >= LEAPS strike + LEAPS net debit

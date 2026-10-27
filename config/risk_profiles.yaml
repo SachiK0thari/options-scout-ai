@@ -1,0 +1,37 @@
+# Section 3.1 — allocation of buying power (fractions, must sum to 1.0 per profile)
+allocation:
+  conservative: {csp: 0.50, leaps: 0.15, cash: 0.35}
+  balanced:     {csp: 0.45, leaps: 0.25, cash: 0.30}
+  aggressive:   {csp: 0.45, leaps: 0.35, cash: 0.20}
+
+# Volatility regime tilt on the VIX 1-year percentile (0-100)
+regime_tilt:
+  high_iv_percentile: 70      # >= this: shift from LEAPS to CSP
+  low_iv_percentile: 30       # <= this: shift from CSP to LEAPS
+  shift: 0.10                 # 10 points; never touches the cash reserve
+
+# Section 3.2 — portfolio risk constraints (fractions of account value unless noted)
+constraints:
+  conservative:
+    max_short_put_notional_x: 1.0     # strike*100*contracts / account value
+    max_margin_usage: 0.30            # of buying power (margin accounts only)
+    max_loss_per_position: 0.02       # realistic loss / account value
+    max_exposure_per_ticker: 0.05     # realistic loss per ticker / account value
+    max_per_sector: 0.25              # realistic loss per sector / account value
+    max_dollar_delta_x: 0.8           # total dollar delta / account value
+  balanced:
+    max_short_put_notional_x: 1.0
+    max_margin_usage: 0.40
+    max_loss_per_position: 0.03
+    max_exposure_per_ticker: 0.08
+    max_per_sector: 0.30
+    max_dollar_delta_x: 1.0
+  aggressive:
+    max_short_put_notional_x: 1.5
+    max_margin_usage: 0.50
+    max_loss_per_position: 0.05
+    max_exposure_per_ticker: 0.10
+    max_per_sector: 0.35
+    max_dollar_delta_x: 1.5
+
+realistic_loss_drop: 0.30   # CSP realistic loss = loss if the stock drops 30% at expiry

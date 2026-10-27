@@ -1,0 +1,36 @@
+# score = 100 * sigmoid(sum(w_i * signal_i) - penalties)  (section 4.5)
+weights:
+  velocity_z: 0.9            # w1
+  acceleration_norm: 0.5     # w2
+  sentiment: 0.6             # w3
+  purchase_intent_rate: 0.8  # w4
+  cross_source_norm: 0.7     # w5
+  coverage_gap: 0.6          # w6
+  materiality: 0.5           # w7
+  novelty_penalty: 0.8       # w8 (subtracted)
+  stock_hype_penalty: 1.5    # w9 (subtracted)
+bias: -1.5                   # centres a "nothing special" entity near score 18
+
+normalization:
+  velocity_z_clip: 4.0       # z-scores clipped to [-clip, clip]
+  acceleration_clip: 3.0     # 7d/prev-7d ratio - 1, clipped
+  cross_source_max: 3        # sources available
+  cross_source_z_threshold: 1.5
+  novelty_hot_weeks: 8       # hot for > 8 weeks -> penalty
+  novelty_hot_z: 1.0
+
+materiality:                 # curated field in data/brand_map.yaml -> numeric weight
+  high: 1.0
+  medium: 0.5
+  low: 0.2
+
+filters:
+  min_account_age_days: 30
+  min_author_karma: 50
+  max_author_share: 0.05     # cap one author's share of an entity's mentions
+  dedupe_jaccard: 0.8        # 3-shingle Jaccard similarity above which posts are duplicates
+  stock_talk_flag_share: 0.5 # flag entity when > 50% of mentions are stock talk
+
+windows:
+  recent_days: 7
+  baseline_weeks: 8
