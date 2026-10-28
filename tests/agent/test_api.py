@@ -3,22 +3,32 @@
 from __future__ import annotations
 
 import time
+from collections import defaultdict, deque
+from collections.abc import Iterator
 
 import pytest
 from fastapi.testclient import TestClient
 
 
 @pytest.fixture(scope="module")
-def client(tmp_path_factory: pytest.TempPathFactory) -> TestClient:
+def client(tmp_path_factory: pytest.TempPathFactory) -> Iterator[TestClient]:
     import options_scout.api.main as api
 
     api._registry = None
+    # The per-IP limiter (30 req/min) is a module-level counter and every test here
+    # shares one TestClient host, so polling in `_wait` would exhaust the budget on a
+    # slow runner. Lift it for the smoke tests; the limiter has its own test below.
+    saved_limit = api._RATE_LIMIT_PER_MIN
+    api._RATE_LIMIT_PER_MIN = 10_000
+    api._hits.clear()
     c = TestClient(api.app)
     reg = api.registry()
     from options_scout.social.pipeline import TrendStore
 
     reg.deps.trend_store = TrendStore(tmp_path_factory.mktemp("api") / "t.sqlite")
-    return c
+    yield c
+    api._RATE_LIMIT_PER_MIN = saved_limit
+    api._hits.clear()
 
 
 def _wait(
@@ -133,6 +143,21 @@ def test_tradier_without_key_is_rejected_before_running(
         json={"buying_power": 40000, "market_data": {"provider": "tradier"}},
     )
     assert r.status_code == 422 and "API key" in r.json()["detail"]
+
+
+def test_rate_limit_returns_429(monkeypatch: pytest.MonkeyPatch) -> None:
+    import options_scout.api.main as api
+
+    monkeypatch.delenv("OPTIONS_SCOUT_API_KEY", raising=False)
+    monkeypatch.setattr(api, "_RATE_LIMIT_PER_MIN", 2)
+    monkeypatch.setattr(api, "_hits", defaultdict(deque))
+    c = TestClient(api.app)
+    assert c.get("/v1/trends").status_code == 200
+    assert c.get("/v1/trends").status_code == 200
+    r = c.get("/v1/trends")
+    assert r.status_code == 429 and "rate limit" in r.json()["detail"]
+    # Unauthenticated public endpoints are not metered.
+    assert c.get("/v1/quality-universe").status_code == 200
 
 
 def test_api_key_is_a_secret_in_the_schema() -> None:
