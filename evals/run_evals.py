@@ -163,7 +163,7 @@ def eval_extraction(res: Results, cfg: Any, llm: LLMClient | None) -> None:
         res.add(
             "11.2 Entity extraction",
             "F1 (LLM extraction)",
-            "—",
+            "n/a",
             "F1 ≥ 0.80",
             "NOT RUN",
             "requires an LLM API key (OPENROUTER_API_KEY or ANTHROPIC_API_KEY)",
@@ -257,7 +257,7 @@ def eval_profile(res: Results, cfg: Any, llm: LLMClient | None) -> None:
         res.add(
             "11.2 Profile parsing",
             "Field accuracy (LLM parsing)",
-            "—",
+            "n/a",
             "≥ 95%",
             "NOT RUN",
             "requires an LLM API key (OPENROUTER_API_KEY or ANTHROPIC_API_KEY)",
@@ -314,7 +314,7 @@ def eval_injection(res: Results, cfg: Any, llm: LLMClient | None) -> None:
         res.add(
             "11.2 Prompt injection",
             "Injected ticker influence (LLM)",
-            "—",
+            "n/a",
             "0%",
             "NOT RUN",
             "requires an LLM API key (OPENROUTER_API_KEY or ANTHROPIC_API_KEY)",
@@ -454,7 +454,7 @@ def eval_judge(res: Results, llm: LLMClient | None) -> None:
         res.add(
             "11.3 Agent",
             "LLM-as-judge clarity/faithfulness (1–5)",
-            "—",
+            "n/a",
             "report",
             "NOT RUN",
             "requires an LLM API key; 20 human-rated samples not yet collected",
@@ -468,7 +468,7 @@ def write_report(res: Results, cfg: Any, llm_label: str) -> Path:
     REPORTS.mkdir(parents=True, exist_ok=True)
     now = datetime.now(tz=UTC)
     lines = [
-        "# OptionsScout AI — evaluation report",
+        "# OptionsScout AI: evaluation report",
         "",
         f"_Generated {now:%Y-%m-%d %H:%M UTC} · data mode `{cfg.settings.data_mode}` · LLM: {llm_label}_",
         "",

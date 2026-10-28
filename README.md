@@ -1,6 +1,6 @@
 # OptionsScout AI
 
-**Type in your buying power, pick cash-secured puts, LEAPS or both, and get option candidates on good-to-own stocks only — sized to your account, under explicit risk limits, with every number computed by tested Python and the LLM only writing the explanation.**
+**Type in your buying power, pick cash-secured puts, LEAPS or both, and get option candidates on good-to-own stocks only, sized to your account, under explicit risk limits, with every number computed by tested Python and the LLM only writing the explanation.**
 
 > Educational screening tool. Not investment, tax or legal advice. Options involve significant risk, including loss exceeding the premium received on margin. Data may be delayed or inaccurate. The app never places trades and never connects to a brokerage.
 
@@ -10,7 +10,7 @@ _Demo GIF: not recorded yet. `make demo` prints the full report in about one sec
 
 ## How it works in one paragraph
 
-The universe is a **curated list of ~30 good-to-own names** (large, profitable companies with long dividend records or dominant franchises, plus SPY and QQQ) in [`config/quality_universe.yaml`](config/quality_universe.yaml). On every run each ticker — including any you add — must pass a **deterministic quality gate**: price ≥ $20, average volume ≥ 1M, 30-day realised volatility ≤ 35%, implied volatility ≤ 45%, and no more than 20% below its 90-day high. Whatever fails is listed with the reason and never reaches the option screeners. Survivors get a quality score that carries 35% of the final ranking; the option's own economics carry 50% and the consumer-trend signal 15%. Buying power is split by risk profile, buckets for strategies you did not ask for are held as cash, and positions are sized greedily under six portfolio constraints with a −10/−20/−30% stress test. Prices come from bundled fixtures, Yahoo Finance (no key) or **your own Tradier API key pasted into the page** (used for that run only, never stored).
+The universe is a **curated list of ~30 good-to-own names** (large, profitable companies with long dividend records or dominant franchises, plus SPY and QQQ) in [`config/quality_universe.yaml`](config/quality_universe.yaml). On every run each ticker, including any you add, must pass a **deterministic quality gate**: price ≥ $20, average volume ≥ 1M, 30-day realised volatility ≤ 35%, implied volatility ≤ 45%, and no more than 20% below its 90-day high. Whatever fails is listed with the reason and never reaches the option screeners. Survivors get a quality score that carries 35% of the final ranking; the option's own economics carry 50% and the consumer-trend signal 15%. Buying power is split by risk profile, buckets for strategies you did not ask for are held as cash, and positions are sized greedily under six portfolio constraints with a −10/−20/−30% stress test. Prices come from bundled fixtures, Yahoo Finance (no key) or **your own Tradier API key pasted into the page** (used for that run only, never stored).
 
 ---
 
@@ -77,7 +77,7 @@ Measured by `make eval` on 2026-10-27 in fixture mode with **no LLM key** (the r
 | Numeric grounding rate (6 end-to-end runs) | 100% (216/216 numbers) | 100% |
 | Constraint / policy / trajectory compliance | 6/6 each | 100% |
 | Latency per run (fixture mode) | mean 0.43 s, p95 1.46 s | report |
-| LLM extraction / parsing / judge | NOT RUN (no key) | — |
+| LLM extraction / parsing / judge | NOT RUN (no key) | n/a |
 
 ## Signal study (honest version)
 

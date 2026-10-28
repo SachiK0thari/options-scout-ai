@@ -27,7 +27,7 @@ def config_hash(deps: Deps) -> str:
 def render_markdown(rep: ScreeningReport) -> str:
     pairs = rep.pmcc_candidates
     parts = [
-        f"# OptionsScout AI screening report — run `{rep.run_id}`",
+        f"# OptionsScout AI screening report: run `{rep.run_id}`",
         f"_As of {rep.as_of:%Y-%m-%d %H:%M UTC} · {rep.metadata.data_mode} market data · "
         f"LLM mode {rep.metadata.llm_mode} · delayed data, for education only._",
         "",
@@ -44,7 +44,7 @@ def render_markdown(rep: ScreeningReport) -> str:
         "## Trend board (consumer trends)",
         md.render_trends(rep.trends),
         "",
-        f"Universe considered: {', '.join(rep.universe) if rep.universe else '—'}",
+        f"Universe considered: {', '.join(rep.universe) if rep.universe else 'n/a'}",
         "",
         "## Good-to-own quality screen",
         md.render_quality(rep.quality),
@@ -66,7 +66,7 @@ def render_markdown(rep: ScreeningReport) -> str:
         "",
         "## Verification",
         (
-            f"{'PASS' if rep.verification.passed else 'FAIL'} — "
+            f"{'PASS' if rep.verification.passed else 'FAIL'}: "
             f"{rep.verification.numbers_checked} numbers checked, "
             f"{len(rep.verification.ungrounded_numbers)} ungrounded, banned phrases: "
             f"{', '.join(rep.verification.banned_phrases_found) or 'none'}, disclaimer "

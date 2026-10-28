@@ -19,11 +19,11 @@ from options_scout.core.models import (
 
 
 def money(x: float | None) -> str:
-    return "—" if x is None else f"${x:,.0f}"
+    return "n/a" if x is None else f"${x:,.0f}"
 
 
 def pct(x: float | None, digits: int = 1) -> str:
-    return "—" if x is None else f"{x * 100:.{digits}f}%"
+    return "n/a" if x is None else f"{x * 100:.{digits}f}%"
 
 
 def _table(headers: Sequence[str], rows: Iterable[Sequence[str]]) -> str:
@@ -71,7 +71,7 @@ def render_trends(trends: Sequence[TrendSignal], limit: int = 10) -> str:
             [
                 t.entity,
                 t.entity_type,
-                t.ticker or "—",
+                t.ticker or "n/a",
                 "yes" if t.investable else "no",
                 f"{t.score:.0f}",
                 f"{t.components.get('velocity_z', 0):+.1f}",
@@ -117,7 +117,7 @@ def render_quality(checks: Sequence[QualityCheck]) -> str:
                 [
                     [
                         q.ticker,
-                        q.name or "—",
+                        q.name or "n/a",
                         q.sector,
                         f"{q.score * 100:.0f}",
                         pct(q.metrics.get("hv30"), 0),
@@ -209,7 +209,7 @@ def render_leaps(
                     f"Δ{p.short_call.delta:.2f} mid {p.short_call.mid:.2f} "
                     f"(net Δ {p.net_delta:.2f}, safety +{p.safety_margin:.2f})"
                     if p
-                    else "—"
+                    else "n/a"
                 ),
                 ", ".join(f for f in c.flags if f not in {"iv_rank_is_hv_proxy"}),
             ]
@@ -245,12 +245,12 @@ def render_portfolio(port: SizedPortfolio, ranked: Sequence[RankedCandidate] | N
                 f"{p.strike:g}",
                 p.expiry.isoformat(),
                 money(p.capital_used),
-                money(p.margin_used) if p.margin_used else "—",
+                money(p.margin_used) if p.margin_used else "n/a",
                 money(p.realistic_loss),
                 f"{p.dollar_delta:,.0f}",
                 f"{p.premium:,.0f}",
-                f"{score[p.candidate_id].final_score:.2f}" if p.candidate_id in score else "—",
-                p.pmcc_short_call_id or "—",
+                f"{score[p.candidate_id].final_score:.2f}" if p.candidate_id in score else "n/a",
+                p.pmcc_short_call_id or "n/a",
             ]
             for p in port.positions
         ]

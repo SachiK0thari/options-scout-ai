@@ -1,4 +1,4 @@
-# OptionsScout AI — developer commands. Run `make help`.
+# OptionsScout AI: developer commands. Run `make help`.
 PY        ?= .venv/bin/python
 UV        ?= uv
 PORT_API  ?= 8000

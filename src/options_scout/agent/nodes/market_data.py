@@ -36,7 +36,7 @@ def make(deps: Deps) -> Callable[[AgentState], dict[str, Any]]:
         errors = [f"market_data {ticker}: {e}" for e in snap.source_errors]
         status = "ok" if not snap.source_errors else "partial"
         if not quality.passed:
-            errors.append(f"quality {ticker}: excluded — {'; '.join(quality.reasons)}")
+            errors.append(f"quality {ticker}: excluded: {'; '.join(quality.reasons)}")
             return {
                 "quality": {ticker: quality},
                 "errors": errors,

@@ -62,7 +62,7 @@ def run_deterministic_pipeline(
             continue
         quality[t] = check_quality(snap, closes, cfg.quality, cfg.quality.get(t))
         if not quality[t].passed:
-            errors.append(f"{t}: excluded by quality gate — {'; '.join(quality[t].reasons)}")
+            errors.append(f"{t}: excluded by quality gate: {'; '.join(quality[t].reasons)}")
             continue
         snapshots[t] = snap
         errors.extend(f"{t}: {e}" for e in snap.source_errors)
@@ -160,7 +160,7 @@ def cmd_demo_core(args: argparse.Namespace) -> int:
     accounts = [args.account] if args.account else ["cash", "margin"]
     tickers = [t.upper() for t in args.tickers] or list(DEMO_TICKERS)
     md = MarketData.from_config(cfg)
-    print(f"# OptionsScout AI demo — {cfg.settings.data_mode} data, no LLM\n")
+    print(f"# OptionsScout AI demo: {cfg.settings.data_mode} data, no LLM\n")
     print(f"_Data as of {md.now():%Y-%m-%d %H:%M UTC}. Delayed data, for education only._\n")
     failures = 0
     for risk_name in profiles:
@@ -213,7 +213,7 @@ def cmd_demo(args: argparse.Namespace) -> int:
         f"I have ${args.buying_power:,.0f} of buying power in a {args.account or 'margin'} "
         f"account, {args.risk or 'balanced'} risk tolerance. {wants}"
     )
-    print(f"# OptionsScout AI demo — {cfg.settings.data_mode} data, LLM mode {deps.llm.mode}\n")
+    print(f"# OptionsScout AI demo: {cfg.settings.data_mode} data, LLM mode {deps.llm.mode}\n")
     print(f"> {text}\n")
     for update in stream_run(graph, initial_state(text), thread):
         for node in update:

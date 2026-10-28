@@ -34,7 +34,7 @@ def main(argv: list[str] | None = None) -> int:
     )
     for s in run.signals[: args.top]:
         flags = f" [{', '.join(s.flags)}]" if s.flags else ""
-        print(f"{s.score:6.1f}  {s.entity:<20} {s.ticker or '—':<6}{flags}")
+        print(f"{s.score:6.1f}  {s.entity:<20} {s.ticker or 'n/a':<6}{flags}")
     for e in run.errors:
         print("error:", e, file=sys.stderr)
     return 0

@@ -1,7 +1,7 @@
 # "Good to own" universe (CLAUDE.md section 3.7).
 #
 # The screener only looks at stocks on this curated list (plus tickers the user adds), and every
-# ticker — curated or not — must also pass the deterministic numeric gates below on the day of the
+# ticker, curated or not, must also pass the deterministic numeric gates below on the day of the
 # run. Nothing here is a recommendation: the list is a *filter* that keeps volatile, speculative or
 # distressed names out of a put-selling / LEAPS screen aimed at stocks the user would be happy to
 # own if assigned.

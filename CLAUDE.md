@@ -1,4 +1,4 @@
-# CLAUDE.md — OptionsScout AI
+# CLAUDE.md: OptionsScout AI
 
 > Build spec and working agreement for Claude Code.
 > Read this whole file before writing any code. Work through the **Build Phases** (section 14) in order, and do not start a phase until the previous phase's acceptance criteria pass.
@@ -44,7 +44,7 @@
 ## 2. Product Overview
 
 ### 2.1 User story
-> "I have $50,000. Show me cash-secured puts (or LEAPS, or both) on stocks I'd be happy to own if assigned — nothing speculative — sized so I stay inside sensible risk limits."
+> "I have $50,000. Show me cash-secured puts (or LEAPS, or both) on stocks I'd be happy to own if assigned, nothing speculative, sized so I stay inside sensible risk limits."
 
 The web page asks for exactly three things: **buying power**, **CSP / LEAPS / both**, and (optionally) a **market-data API key**. Account type defaults to `cash`, risk profile to `conservative`; both are under "More options".
 
@@ -206,7 +206,7 @@ Spam/bot filter                                    Validate ticker vs SEC compan
 
 | Source | Use | Access notes |
 |---|---|---|
-| Reddit via **PRAW** | Consumer subreddits (r/BuyItForLife, r/sneakers, r/skincareaddiction, r/fastfood, r/gadgets, r/Costco, r/gaming, etc. — list in `config/subreddits.yaml`) and stock subs (hype penalty) | Free for non-commercial use, OAuth required, ~100 queries/min per client. Respect rate limits, descriptive User-Agent, cache everything. |
+| Reddit via **PRAW** | Consumer subreddits (r/BuyItForLife, r/sneakers, r/skincareaddiction, r/fastfood, r/gadgets, r/Costco, r/gaming, etc.; the list is in `config/subreddits.yaml`) and stock subs (hype penalty) | Free for non-commercial use, OAuth required, ~100 queries/min per client. Respect rate limits, descriptive User-Agent, cache everything. |
 | **Wikimedia Pageviews API** | Attention proxy for brands/products (daily article views) | Free, official, no key; send a descriptive User-Agent. Replaces Google Trends. |
 | **Google News RSS / Yahoo Finance RSS** | "Wall Street awareness" baseline for the coverage gap | Free RSS; parse with `feedparser`. |
 | **SEC `company_tickers.json`** | Ticker validation and company names | Free, requires User-Agent with contact email. |
@@ -529,11 +529,11 @@ Add simple API-key auth via header for the hosted demo, and per-IP rate limiting
 
 ---
 
-## 10. UI (Streamlit) — one page
+## 10. UI (Streamlit): one page
 
 **Form (top of page):**
-1. **Buying power ($)** — number input.
-2. **What are you looking for?** — radio: *Cash-secured puts* / *LEAPS calls* / *Both*, each with a one-line caption.
+1. **Buying power ($)**: number input.
+2. **What are you looking for?** Radio: *Cash-secured puts* / *LEAPS calls* / *Both*, each with a one-line caption.
 3. **More options** (collapsed): account type (default `cash`), risk appetite (default `conservative`), max positions, "also consider these tickers", "never show these tickers", PMCC pairing checkbox (only when LEAPS is selected).
 4. **Data source** (collapsed): *Bundled sample data (offline)* / *Yahoo Finance (free, delayed, no key)* / *Tradier (paste your API key)* with a password field, a sandbox checkbox and the sentence "Your key is used for this run only. It is never written to disk, logged, cached or shown in the report." Choosing Tradier with an empty key shows an error and does not run.
 5. **Find candidates** button → streamed node progress.
@@ -597,53 +597,53 @@ Does the Consumer-Trend Score have any predictive value?
 
 ## 14. Build Phases (work in order)
 
-### Phase 0 — Scaffold
+### Phase 0: Scaffold
 - [x] `pyproject.toml` (uv), ruff, mypy, pytest, pre-commit, Makefile, `.env.example`, Dockerfile.
 - [x] Settings loader for `config/*.yaml` with Pydantic.
 - [x] CI (GitHub Actions): lint + unit tests on push.
 - **Accept:** `make lint test` passes on an empty skeleton; CI green.
 
-### Phase 1 — Core math (no LLM, no network)
+### Phase 1: Core math (no LLM, no network)
 - [x] `pricing.py` (BSM, Greeks, POP), `margin.py`, `volatility.py` (HV, IV rank, VIX percentile).
 - [x] Golden-value + hypothesis tests.
 - **Accept:** all section 3.6 golden values pass; mypy strict clean on `core/`.
 
-### Phase 2 — Market data layer
+### Phase 2: Market data layer
 - [x] yfinance wrapper with retries, caching, fixture mode; record fixtures for 10 tickers (e.g. AAPL, MSFT, COST, NKE, SBUX, CMG, ELF, DECK, SPY, QQQ).
 - [x] `jobs/snapshot_iv.py` daily ATM IV snapshot.
 - **Accept:** `TickerSnapshot` builds offline from fixtures; live test marked `@live` works.
 
-### Phase 3 — Screeners, allocation, sizing, risk
+### Phase 3: Screeners, allocation, sizing, risk
 - [x] CSP, LEAPS, PMCC screeners per sections 3.3–3.5.
 - [x] Allocation with regime tilt; sizing with all constraints; stress tests.
 - **Accept:** `make demo` (no LLM yet) prints a sized, constraint-passing portfolio for each risk profile and account type from fixtures.
 
-### Phase 4 — Consumer-trend engine
+### Phase 4: Consumer-trend engine
 - [x] Adapters: Reddit (PRAW), Wikipedia pageviews, news RSS; fixture mode for all.
 - [x] Filters, LLM entity extraction (structured), resolution with SEC validation, signals, score.
 - [x] Label 150 posts for the extraction eval.
 - **Accept:** trend board generated from fixtures; extraction eval runs; zero unvalidated tickers.
 
-### Phase 5 — LangGraph agent
+### Phase 5: LangGraph agent
 - [x] State, nodes, graph per section 5; `Send` fan-out; `interrupt()` HITL; SQLite checkpointer; retry loops.
 - [x] Explainer + verifier.
 - **Accept:** end-to-end run in fixture mode produces a `ScreeningReport` with 100% numeric grounding; interrupted run resumes correctly.
 
-### Phase 6 — API + UI
+### Phase 6: API + UI
 - [x] FastAPI endpoints with SSE streaming; Streamlit pages per section 10.
 - **Accept:** full flow works from the browser in fixture mode; disclaimer everywhere.
 
-### Phase 7 — Evals + observability
+### Phase 7: Evals + observability
 - [x] All section 11 evals in `make eval`; tracing; cost tracking.
 - [x] Signal study notebook.
 - **Accept:** `evals/reports/latest.md` committed with real numbers.
 
-### Phase 8 — Polish & ship
-- [x] Docker compose (api + ui + scheduler); deploy demo (Hugging Face Spaces, Render or Fly.io) in **fixture mode by default** with a toggle for live data. _(compose done; hosted deploy not performed — needs an account; see README → Deploy.)_
-- [x] README per section 15, architecture diagram, 60–90s demo GIF/video. _(README + diagram done; GIF/video not recorded — needs a screen recording session.)_
+### Phase 8: Polish & ship
+- [x] Docker compose (api + ui + scheduler); deploy demo (Hugging Face Spaces, Render or Fly.io) in **fixture mode by default** with a toggle for live data. _(compose done; hosted deploy not performed; needs an account; see README → Deploy.)_
+- [x] README per section 15, architecture diagram, 60–90s demo GIF/video. _(README + diagram done; GIF/video not recorded; needs a screen recording session.)_
 - **Accept:** a stranger can clone, `make install && make demo`, and see results with no API keys except optionally the LLM key (provide a `--no-llm` mode that skips extraction/explanation using cached outputs).
 
-### Phase 9 — Product restructure: one page, good-to-own only, bring-your-own data key (2026-10-28)
+### Phase 9: Product restructure (one page, good-to-own only, bring-your-own data key, 2026-10-28)
 - [x] `config/quality_universe.yaml` + `core/quality.py` (section 3.7): curated list, numeric gate with reasons, quality score; golden + fixture tests (`tests/unit/test_quality.py`).
 - [x] `universe_node` builds from the curated list; `market_data_node` applies the gate; `ranker_node` blends `quality_score` (`ranking.weights` replaces `alpha`); unrequested strategy buckets are held as cash.
 - [x] `QualityCheck` in state/report/Markdown/explainer payload; prompt `explain_report` 1.1.0 covers the screen.

@@ -1,4 +1,4 @@
-"""OptionsScout — one page: buying power in, good-to-own option candidates out.
+"""OptionsScout one-page app: buying power in, good-to-own option candidates out.
 
 Run: make ui  (or: streamlit run ui/streamlit_app.py)
 
@@ -113,11 +113,11 @@ def run_graph(graph: Any, stream: Any, thread_id: str) -> None:
 
 
 def money(x: float | None) -> str:
-    return "—" if x is None else f"${x:,.0f}"
+    return "n/a" if x is None else f"${x:,.0f}"
 
 
 def pct(x: float | None, d: int = 1) -> str:
-    return "—" if x is None else f"{x * 100:.{d}f}%"
+    return "n/a" if x is None else f"{x * 100:.{d}f}%"
 
 
 # =================================================================================== page
@@ -282,8 +282,8 @@ else:
     )
     m = st.columns(5)
     m[0].metric("Stocks passing quality gate", f"{len(kept)} / {len(report.quality)}")
-    m[1].metric("CSP candidates", len(report.csp_candidates) if show_csp else "—")
-    m[2].metric("LEAPS candidates", len(report.leaps_candidates) if show_leaps else "—")
+    m[1].metric("CSP candidates", len(report.csp_candidates) if show_csp else "n/a")
+    m[2].metric("LEAPS candidates", len(report.leaps_candidates) if show_leaps else "n/a")
     m[3].metric("Positions sized", len(report.portfolio.positions))
     m[4].metric("Cash kept in reserve", money(report.portfolio.totals.cash_reserve))
 
@@ -295,7 +295,7 @@ else:
                 [
                     {
                         "Ticker": q.ticker,
-                        "Name": q.name or "—",
+                        "Name": q.name or "n/a",
                         "Sector": q.sector,
                         "Quality (0–100)": round(q.score * 100),
                         "30-day volatility": pct(q.metrics.get("hv30"), 0),
@@ -527,14 +527,16 @@ else:
                     [
                         {
                             "Entity": t.entity,
-                            "Ticker": t.ticker or "—",
+                            "Ticker": t.ticker or "n/a",
                             "Score": round(t.score),
                             "Velocity z": round(t.components.get("velocity_z", 0), 2),
                             "Coverage gap": round(t.components.get("coverage_gap", 0), 2),
                             "Stock-hype penalty": round(
                                 t.components.get("stock_hype_penalty", 0), 2
                             ),
-                            "On good-to-own list": "✅" if t.ticker in CFG.quality.symbols else "—",
+                            "On good-to-own list": "✅"
+                            if t.ticker in CFG.quality.symbols
+                            else "no",
                         }
                         for t in report.trends
                     ]

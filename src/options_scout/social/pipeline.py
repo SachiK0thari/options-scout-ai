@@ -176,7 +176,7 @@ class TrendScout:
             p = posts.get(pid)
             if p is None:
                 continue
-            excerpt = (p.title + (" — " + p.body if p.body else "")).strip()
+            excerpt = (p.title + (": " + p.body if p.body else "")).strip()
             items.append(
                 EvidenceItem(
                     post_id=p.id,

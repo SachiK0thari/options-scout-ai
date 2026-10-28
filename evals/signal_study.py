@@ -93,7 +93,7 @@ def run_study() -> str:
         spy_r = {h: forward_return(spy, t0, td) for h, td in horizons.items()}
         obs.append(Observation(d, entity, ticker, score, fwd, spy_r))
     lines = [
-        "## Signal study — point-in-time Consumer-Trend Score vs forward returns",
+        "## Signal study: point-in-time Consumer-Trend Score vs forward returns",
         "",
         f"_Run {datetime.now(tz=UTC):%Y-%m-%d} on the fixture corpus (synthetic social data, real closes "
         f"for {len(closes)} tickers recorded {record_date:%Y-%m-%d})._",
@@ -105,7 +105,7 @@ def run_study() -> str:
     ]
     if len(obs) < 10:
         lines += [
-            "**Result: insufficient data — no predictive claim is made.** Fewer than 10 scored "
+            "**Result: insufficient data; no predictive claim is made.** Fewer than 10 scored "
             "observations have forward prices, because the offline fixture bundle only carries closes "
             "for the 10 demo tickers while the trend board surfaces ~20 other names. The decile "
             "comparison below is therefore illustrative of the method, not evidence of an edge.",

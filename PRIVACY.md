@@ -1,4 +1,4 @@
-# Privacy and Data-Handling Policy — OptionsScout AI
+# Privacy and Data-Handling Policy: OptionsScout AI
 
 _Last updated: 2026-10-28_
 
