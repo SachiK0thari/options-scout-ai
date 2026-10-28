@@ -1,16 +1,17 @@
-"""Combine option quality with the social arbitrage score (section 5.2, ranker_node)."""
+"""Blend option quality, 'good to own' stock quality and the social score (ranker_node)."""
 
 from __future__ import annotations
 
 import math
 from collections.abc import Iterable, Mapping
 
-from options_scout.config import OptionQualityWeights, ScreenerRules
+from options_scout.config import OptionQualityWeights, RankingWeights, ScreenerRules
 from options_scout.core.models import OptionCandidate, PMCCCandidate, RankedCandidate
 
 ANNUALIZED_RETURN_CAP = 0.40  # a 40%+ annualised CSP return scores 1.0
 OI_SATURATION = 5000  # open interest at which the liquidity sub-score saturates
 NEUTRAL_SOCIAL_SCORE = 50.0  # used when a ticker has no trend signal
+NEUTRAL_QUALITY_SCORE = 0.5  # used when a ticker has no quality check (e.g. demo-core CLI)
 
 
 def _clip01(x: float) -> float:
@@ -43,30 +44,40 @@ def option_quality(c: OptionCandidate, w: OptionQualityWeights, rules: ScreenerR
     )
 
 
+def blend(option_q: float, stock_q: float, social: float, w: RankingWeights) -> float:
+    """final = w1·option_quality + w2·stock_quality + w3·social/100, clipped to [0, 1]."""
+    return _clip01(
+        w.option_quality * option_q + w.stock_quality * stock_q + w.social * social / 100.0
+    )
+
+
 def rank_candidates(
     candidates: Iterable[OptionCandidate],
     social_scores: Mapping[str, float],
+    quality_scores: Mapping[str, float] | None = None,
     *,
-    alpha: float,
-    weights: OptionQualityWeights,
+    weights: RankingWeights,
+    option_weights: OptionQualityWeights,
     rules: ScreenerRules,
     pmcc_pairs: Iterable[PMCCCandidate] = (),
 ) -> list[RankedCandidate]:
-    """final = alpha * option_quality + (1 - alpha) * social_score/100, sorted descending."""
+    """Score every candidate with :func:`blend`; sort descending (ties → higher open interest)."""
+    quality_scores = quality_scores or {}
     pair_by_leaps = {p.leaps.id: p for p in pmcc_pairs}
     ranked: list[RankedCandidate] = []
     for c in candidates:
         if c.strategy == "pmcc_short_call":
             continue  # attached to its LEAPS via pmcc
-        q = option_quality(c, weights, rules)
+        q = option_quality(c, option_weights, rules)
         s = float(social_scores.get(c.ticker, NEUTRAL_SOCIAL_SCORE))
-        final = alpha * q + (1.0 - alpha) * (s / 100.0)
+        sq = float(quality_scores.get(c.ticker, NEUTRAL_QUALITY_SCORE))
         ranked.append(
             RankedCandidate(
                 candidate=c,
                 option_quality=q,
                 social_score=s,
-                final_score=_clip01(final),
+                quality_score=_clip01(sq),
+                final_score=blend(q, sq, s, weights),
                 rank=1,
                 pmcc=pair_by_leaps.get(c.id),
             )

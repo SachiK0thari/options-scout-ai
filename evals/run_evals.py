@@ -1,7 +1,8 @@
 """Evaluation suite (section 11). Writes evals/reports/latest.md with honest, measured numbers.
 
 Runs offline by default. LLM-backed variants of the extraction / profile / judge evals run only
-when ANTHROPIC_API_KEY is set (OPTIONS_SCOUT_LLM_MODE=anthropic); otherwise the report says so and
+when an LLM key is set (OPENROUTER_API_KEY or ANTHROPIC_API_KEY, matching config/settings.yaml
+``llm.provider``); otherwise the report says so and
 the deterministic (rule-based) implementations are what gets measured.
 """
 
@@ -157,7 +158,7 @@ def eval_extraction(res: Results, cfg: Any, llm: LLMClient | None) -> None:
             out = llm.extract_entities([post])
             return out.results[0].entities if out.results else []
 
-        score(llm_predict, f"LLM {cfg.settings.llm.extraction_model}")
+        score(llm_predict, f"LLM {llm.models.extraction_model}")
     else:
         res.add(
             "11.2 Entity extraction",
@@ -165,7 +166,7 @@ def eval_extraction(res: Results, cfg: Any, llm: LLMClient | None) -> None:
             "—",
             "F1 ≥ 0.80",
             "NOT RUN",
-            "requires ANTHROPIC_API_KEY",
+            "requires an LLM API key (OPENROUTER_API_KEY or ANTHROPIC_API_KEY)",
         )
 
 
@@ -251,7 +252,7 @@ def eval_profile(res: Results, cfg: Any, llm: LLMClient | None) -> None:
 
     score(lambda t: rule_parse_profile(f"<request>\n{t}\n</request>"), "rule-based, no LLM")
     if llm is not None:
-        score(llm.parse_profile, f"LLM {cfg.settings.llm.extraction_model}")
+        score(llm.parse_profile, f"LLM {llm.models.extraction_model}")
     else:
         res.add(
             "11.2 Profile parsing",
@@ -259,7 +260,7 @@ def eval_profile(res: Results, cfg: Any, llm: LLMClient | None) -> None:
             "—",
             "≥ 95%",
             "NOT RUN",
-            "requires ANTHROPIC_API_KEY",
+            "requires an LLM API key (OPENROUTER_API_KEY or ANTHROPIC_API_KEY)",
         )
 
 
@@ -316,7 +317,7 @@ def eval_injection(res: Results, cfg: Any, llm: LLMClient | None) -> None:
             "—",
             "0%",
             "NOT RUN",
-            "requires ANTHROPIC_API_KEY",
+            "requires an LLM API key (OPENROUTER_API_KEY or ANTHROPIC_API_KEY)",
         )
 
 
@@ -449,14 +450,14 @@ def eval_agent(res: Results, cfg: Any, tmp: Path) -> None:
 
 
 def eval_judge(res: Results, llm: LLMClient | None) -> None:
-    if llm is None or llm.mode != "anthropic":
+    if llm is None or not llm.is_live:
         res.add(
             "11.3 Agent",
             "LLM-as-judge clarity/faithfulness (1–5)",
             "—",
             "report",
             "NOT RUN",
-            "requires ANTHROPIC_API_KEY; 20 human-rated samples not yet collected",
+            "requires an LLM API key; 20 human-rated samples not yet collected",
         )
         return
     res.add("11.3 Agent", "LLM-as-judge", "see notes", "report", "INFO", "judge prompt v1.0.0")
@@ -506,10 +507,13 @@ def main() -> int:
     res = Results()
     llm: LLMClient | None = None
     llm_label = "none (rule-based stand-ins measured)"
-    if os.environ.get("ANTHROPIC_API_KEY"):
-        llm = LLMClient.from_config(cfg, mode="anthropic")
-        if llm.mode == "anthropic":
-            llm_label = f"Anthropic ({cfg.settings.llm.extraction_model} / {cfg.settings.llm.explanation_model})"
+    if os.environ.get("OPENROUTER_API_KEY") or os.environ.get("ANTHROPIC_API_KEY"):
+        llm = LLMClient.from_config(cfg, mode="live")
+        if llm.is_live:
+            llm_label = (
+                f"{llm.provider.name} ({llm.models.extraction_model} / "
+                f"{llm.models.explanation_model})"
+            )
         else:
             llm = None
     import tempfile

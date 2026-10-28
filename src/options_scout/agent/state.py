@@ -11,6 +11,7 @@ from options_scout.core.models import (
     OptionCandidate,
     PMCCCandidate,
     ProfileParse,
+    QualityCheck,
     RankedCandidate,
     RiskReport,
     ScreeningReport,
@@ -43,7 +44,8 @@ class AgentState(TypedDict, total=False):
     trends: list[TrendSignal]
     social_scores: dict[str, float]
     universe: list[str]
-    market_data: Annotated[dict[str, TickerSnapshot], merge_dicts]
+    market_data: Annotated[dict[str, TickerSnapshot], merge_dicts]  # only tickers that passed
+    quality: Annotated[dict[str, QualityCheck], merge_dicts]  # every ticker, passed or not
     candidates: Annotated[list[OptionCandidate], operator.add]
     pmcc_pairs: Annotated[list[PMCCCandidate], operator.add]
     ranked: list[RankedCandidate]

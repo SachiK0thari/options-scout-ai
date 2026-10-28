@@ -134,6 +134,7 @@ def initial_state(request_text: str = "", profile: dict[str, Any] | None = None)
         social_scores={},
         universe=[],
         market_data={},
+        quality={},
         candidates=[],
         pmcc_pairs=[],
         ranked=[],

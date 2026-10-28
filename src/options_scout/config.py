@@ -12,11 +12,13 @@ from pathlib import Path
 from typing import Any, Literal
 
 import yaml
-from pydantic import BaseModel, ConfigDict, Field, model_validator
+from pydantic import BaseModel, ConfigDict, Field, field_validator, model_validator
 
 RiskProfileName = Literal["conservative", "balanced", "aggressive"]
 DataMode = Literal["fixture", "live"]
-LLMMode = Literal["fixture", "anthropic", "none"]
+LLMProviderName = Literal["anthropic", "openrouter"]
+# "live" uses settings.llm.provider; "anthropic" / "openrouter" force that live provider.
+LLMMode = Literal["fixture", "live", "anthropic", "openrouter", "none"]
 
 
 def repo_root() -> Path:
@@ -66,14 +68,31 @@ class ModelPrice(_Strict):
     output: float
 
 
-class LLMSettings(_Strict):
-    provider: Literal["anthropic"]
+class LLMProviderSettings(_Strict):
+    """Model names and list prices for one provider (prices only feed cost accounting)."""
+
     extraction_model: str
     explanation_model: str
     judge_model: str
+    pricing: dict[str, ModelPrice]
+    base_url: str | None = None  # OpenAI-compatible gateways (OpenRouter); unused by Anthropic
+
+
+class LLMSettings(_Strict):
+    provider: LLMProviderName  # live provider used when llm_mode is "live" (and for model labels)
     extraction_batch_size: int = Field(gt=0)
     max_output_tokens: int = Field(gt=0)
-    pricing: dict[str, ModelPrice]
+    providers: dict[LLMProviderName, LLMProviderSettings]
+
+    @model_validator(mode="after")
+    def _provider_configured(self) -> LLMSettings:
+        if self.provider not in self.providers:
+            raise ValueError(f"llm.provider={self.provider!r} has no entry under llm.providers")
+        return self
+
+    @property
+    def active(self) -> LLMProviderSettings:
+        return self.providers[self.provider]
 
 
 class OptionQualityWeights(_Strict):
@@ -90,9 +109,39 @@ class OptionQualityWeights(_Strict):
         return self
 
 
+class RankingWeights(_Strict):
+    """final = option_quality·w1 + stock_quality·w2 + social/100·w3 (weights sum to 1)."""
+
+    option_quality: float = Field(ge=0.0, le=1.0)
+    stock_quality: float = Field(ge=0.0, le=1.0)
+    social: float = Field(ge=0.0, le=1.0)
+
+    @model_validator(mode="after")
+    def _sums_to_one(self) -> RankingWeights:
+        total = self.option_quality + self.stock_quality + self.social
+        if abs(total - 1.0) > 1e-6:
+            raise ValueError(f"ranking.weights must sum to 1.0, got {total}")
+        return self
+
+
 class RankingSettings(_Strict):
-    alpha: float = Field(ge=0.0, le=1.0)
+    weights: RankingWeights
     option_quality_weights: OptionQualityWeights
+
+
+MarketProviderName = Literal["yfinance", "tradier"]
+
+
+class TradierSettings(_Strict):
+    sandbox: bool = True  # sandbox.tradier.com (free developer key, 15-min delayed) vs production
+    api_key_env: str = "TRADIER_API_KEY"
+
+
+class MarketDataSettings(_Strict):
+    """Live-mode market data provider. The UI/API may override provider + key per run."""
+
+    provider: MarketProviderName = "yfinance"
+    tradier: TradierSettings = TradierSettings()
 
 
 class TrendSettings(_Strict):
@@ -118,6 +167,7 @@ class Settings(_Strict):
     paths: Paths
     cache_ttl_seconds: CacheTTL
     llm: LLMSettings
+    market_data: MarketDataSettings = MarketDataSettings()
     ranking: RankingSettings
     trends: TrendSettings
     agent: AgentSettings
@@ -248,6 +298,74 @@ class SocialScoreConfig(_Strict):
     windows: SocialWindows
 
 
+# ------------------------------------------------------------------- quality_universe.yaml
+class UniverseLimits(_Strict):
+    max_tickers: int = Field(gt=0)
+
+
+class QualityGates(_Strict):
+    require_curated: bool
+    min_price: float = Field(gt=0)
+    min_avg_volume: float = Field(ge=0)
+    max_hv30: float = Field(gt=0)
+    max_atm_iv: float = Field(gt=0)
+    max_drawdown_90d: float = Field(gt=0, lt=1)
+    min_history_days: int = Field(gt=1)
+
+
+class QualityScoreWeights(_Strict):
+    stability: float = Field(ge=0, le=1)
+    trend: float = Field(ge=0, le=1)
+    curated: float = Field(ge=0, le=1)
+
+    @model_validator(mode="after")
+    def _sums_to_one(self) -> QualityScoreWeights:
+        total = self.stability + self.trend + self.curated
+        if abs(total - 1.0) > 1e-6:
+            raise ValueError(f"quality score weights must sum to 1.0, got {total}")
+        return self
+
+
+class QualityScore(_Strict):
+    weights: QualityScoreWeights
+
+
+class CuratedTicker(_Strict):
+    ticker: str = Field(min_length=1, max_length=10)
+    name: str
+    sector: str
+    tags: list[str] = Field(default_factory=list)
+    why: str
+
+    @field_validator("ticker", mode="before")
+    @classmethod
+    def _upper(cls, v: object) -> str:
+        return str(v).strip().upper()
+
+
+class QualityUniverse(_Strict):
+    universe: UniverseLimits
+    gates: QualityGates
+    score: QualityScore
+    tickers: list[CuratedTicker]
+
+    @model_validator(mode="after")
+    def _unique(self) -> QualityUniverse:
+        seen = [t.ticker for t in self.tickers]
+        dupes = sorted({t for t in seen if seen.count(t) > 1})
+        if dupes:
+            raise ValueError(f"duplicate curated tickers: {dupes}")
+        return self
+
+    def get(self, ticker: str) -> CuratedTicker | None:
+        t = ticker.upper()
+        return next((c for c in self.tickers if c.ticker == t), None)
+
+    @property
+    def symbols(self) -> list[str]:
+        return [t.ticker for t in self.tickers]
+
+
 # ------------------------------------------------------------------------ subreddits.yaml
 class SubredditFetch(_Strict):
     posts_per_subreddit: int
@@ -271,6 +389,7 @@ class AppConfig(_Strict):
     rules: ScreenerRules
     social: SocialScoreConfig
     subreddits: Subreddits
+    quality: QualityUniverse
 
     @property
     def paths(self) -> Paths:
@@ -308,6 +427,7 @@ def load_config(root: Path | None = None) -> AppConfig:
         rules=ScreenerRules(**_load_yaml(cfg_dir / "screener_rules.yaml")),
         social=SocialScoreConfig(**_load_yaml(cfg_dir / "social_score.yaml")),
         subreddits=Subreddits(**_load_yaml(cfg_dir / "subreddits.yaml")),
+        quality=QualityUniverse(**_load_yaml(cfg_dir / "quality_universe.yaml")),
     )
 
 

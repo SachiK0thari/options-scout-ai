@@ -7,6 +7,7 @@ exponential backoff. yfinance is an unofficial, delayed scraper; treat it accord
 from __future__ import annotations
 
 import logging
+import os
 import warnings
 from collections.abc import Sequence
 from datetime import UTC, date, datetime, timedelta
@@ -15,7 +16,7 @@ from typing import Any, Protocol
 
 from tenacity import retry, retry_if_exception_type, stop_after_attempt, wait_exponential
 
-from options_scout.config import AppConfig, DataMode
+from options_scout.config import AppConfig, DataMode, MarketProviderName
 from options_scout.core import volatility
 from options_scout.core.models import OptionChain, OptionQuote, SpotQuote, TickerSnapshot
 from options_scout.data.cache import MemoryCache, SQLiteCache
@@ -249,6 +250,217 @@ class YFinanceSource:
         return datetime.now(tz=UTC)
 
 
+class TradierSource:
+    """Keyed provider: Tradier Brokerage REST API (sandbox or production).
+
+    Tradier gives quotes, expirations, option chains with IV and daily history for one API key.
+    A free developer (sandbox) key returns 15-minute delayed data, which is all this educational
+    screener needs. Earnings dates and dividends come from Tradier's *beta* fundamentals endpoints
+    and degrade to ``None`` / ``0.0`` when unavailable; index series (^VIX, ^IRX) fall back to the
+    keyless yfinance source when Tradier cannot serve them.
+
+    The key is only ever sent as a bearer header; it is never logged, cached or echoed in errors.
+    """
+
+    name = "tradier"
+    SANDBOX_URL = "https://sandbox.tradier.com/v1"
+    PRODUCTION_URL = "https://api.tradier.com/v1"
+    _INDEX_SYMBOLS = {"^VIX": "VIX", "^SPX": "SPX"}
+
+    def __init__(
+        self,
+        api_key: str,
+        *,
+        sandbox: bool = True,
+        http_client: Any | None = None,
+        fallback: MarketSource | None = None,
+    ) -> None:
+        import httpx
+
+        key = api_key.strip()
+        if not key:
+            raise MarketDataError("Tradier API key is empty")
+        self.sandbox = sandbox
+        self.base_url = self.SANDBOX_URL if sandbox else self.PRODUCTION_URL
+        self._client = http_client or httpx.Client(
+            base_url=self.base_url,
+            headers={"Authorization": f"Bearer {key}", "Accept": "application/json"},
+            timeout=20.0,
+        )
+        self._fallback = fallback
+
+    def __repr__(self) -> str:  # never leak the key
+        return f"TradierSource(sandbox={self.sandbox})"
+
+    # -- transport ----------------------------------------------------------------------
+    @_RETRY
+    def _get(self, path: str, **params: Any) -> Any:
+        resp = self._client.get(path, params=params)
+        if resp.status_code == 401:
+            raise MarketDataError("Tradier rejected the API key (401 Unauthorized)")
+        if resp.status_code == 403:
+            raise MarketDataError("Tradier: this key is not allowed to call " + path)
+        resp.raise_for_status()
+        return resp.json()
+
+    @staticmethod
+    def _as_list(node: Any) -> list[Any]:
+        """Tradier returns a dict for one record and a list for many; normalise."""
+        if node is None or node == "null":
+            return []
+        return node if isinstance(node, list) else [node]
+
+    # -- MarketSource -------------------------------------------------------------------
+    def get_spot(self, ticker: str) -> SpotQuote:
+        data = self._get("/markets/quotes", symbols=ticker.upper(), greeks="false")
+        quotes = self._as_list((data.get("quotes") or {}).get("quote"))
+        if not quotes:
+            raise MarketDataError(f"Tradier returned no quote for {ticker}")
+        q = quotes[0]
+        price = _f(q.get("last")) or _f(q.get("close")) or _f(q.get("prevclose"))
+        if price <= 0:
+            raise MarketDataError(f"Tradier quote for {ticker} has no price")
+        return SpotQuote(
+            ticker=ticker.upper(),
+            price=price,
+            avg_volume=_f(q.get("average_volume")),
+            as_of=datetime.now(tz=UTC),
+            sector="Unknown",  # Tradier quotes carry no sector; the curated list supplies it
+        )
+
+    def list_expiries(self, ticker: str) -> list[date]:
+        data = self._get(
+            "/markets/options/expirations",
+            symbol=ticker.upper(),
+            includeAllRoots="true",
+            strikes="false",
+        )
+        dates = self._as_list((data.get("expirations") or {}).get("date"))
+        return sorted(date.fromisoformat(str(d)) for d in dates)
+
+    def get_option_chain(self, ticker: str, expiry: date) -> OptionChain:
+        data = self._get(
+            "/markets/options/chains",
+            symbol=ticker.upper(),
+            expiration=expiry.isoformat(),
+            greeks="true",
+        )
+        calls: list[OptionQuote] = []
+        puts: list[OptionQuote] = []
+        for rec in self._as_list((data.get("options") or {}).get("option")):
+            kind = str(rec.get("option_type", "")).lower()
+            if kind not in {"call", "put"}:
+                continue
+            greeks = rec.get("greeks") or {}
+            iv = _f(greeks.get("mid_iv")) or _f(greeks.get("smv_vol")) or _f(greeks.get("bid_iv"))
+            try:
+                quote = OptionQuote(
+                    contract_symbol=str(rec.get("symbol") or f"{ticker}{expiry}{kind}"),
+                    kind="call" if kind == "call" else "put",
+                    strike=float(rec["strike"]),
+                    expiry=expiry,
+                    bid=_f(rec.get("bid")),
+                    ask=_f(rec.get("ask")),
+                    last=_f(rec.get("last")),
+                    volume=_i(rec.get("volume")),
+                    open_interest=_i(rec.get("open_interest")),
+                    iv=iv,
+                )
+            except (KeyError, ValueError, TypeError) as exc:
+                log.debug("skipping bad Tradier row %s: %s", rec.get("symbol"), exc)
+                continue
+            (calls if kind == "call" else puts).append(quote)
+        return OptionChain(
+            ticker=ticker.upper(), expiry=expiry, as_of=datetime.now(tz=UTC), calls=calls, puts=puts
+        )
+
+    def get_earnings_date(self, ticker: str) -> date | None:
+        """Best effort via the beta fundamentals calendar; None when the plan lacks access."""
+        try:
+            data = self._get("/beta/markets/fundamentals/calendars", symbols=ticker.upper())
+        except Exception as exc:
+            log.info("tradier earnings unavailable for %s: %s", ticker, type(exc).__name__)
+            return None
+        today = datetime.now(tz=UTC).date()
+        upcoming: list[date] = []
+        for result in self._as_list(data):
+            tables = (result or {}).get("tables") or {}
+            for ev in self._as_list(tables.get("corporate_calendars")):
+                text = f"{ev.get('event', '')} {ev.get('event_type', '')}".lower()
+                if "earnings" not in text and "results" not in text:
+                    continue
+                raw = str(ev.get("begin_date_time") or ev.get("date") or "")[:10]
+                try:
+                    d = date.fromisoformat(raw)
+                except ValueError:
+                    continue
+                if d >= today:
+                    upcoming.append(d)
+        return min(upcoming) if upcoming else None
+
+    def get_close_history(self, ticker: str, days: int) -> list[float]:
+        end = datetime.now(tz=UTC).date()
+        start = end - timedelta(days=int(days * 1.6) + 7)  # trading days → calendar days
+        data = self._get(
+            "/markets/history",
+            symbol=ticker.upper(),
+            interval="daily",
+            start=start.isoformat(),
+            end=end.isoformat(),
+        )
+        rows = self._as_list((data.get("history") or {}).get("day"))
+        closes = [_f(r.get("close")) for r in rows if _f(r.get("close")) > 0]
+        return closes[-days:]
+
+    def get_dividend_yield(self, ticker: str) -> float:
+        """Trailing 12-month cash dividends / price via the beta fundamentals endpoint; else 0."""
+        try:
+            data = self._get("/beta/markets/fundamentals/dividends", symbols=ticker.upper())
+            price = self.get_spot(ticker).price
+        except Exception as exc:
+            log.info("tradier dividends unavailable for %s: %s", ticker, type(exc).__name__)
+            return 0.0
+        cutoff = datetime.now(tz=UTC).date() - timedelta(days=365)
+        total = 0.0
+        for result in self._as_list(data):
+            tables = (result or {}).get("tables") or {}
+            for div in self._as_list(tables.get("cash_dividends")):
+                raw = str(div.get("ex_date") or "")[:10]
+                try:
+                    if date.fromisoformat(raw) >= cutoff:
+                        total += _f(div.get("cash_amount"))
+                except ValueError:
+                    continue
+        return total / price if price > 0 else 0.0
+
+    def get_index_history(self, symbol: str, days: int) -> list[float]:
+        mapped = self._INDEX_SYMBOLS.get(symbol.upper())
+        if mapped:
+            try:
+                closes = self.get_close_history(mapped, days)
+                if len(closes) >= MIN_IV_HISTORY:
+                    return closes
+            except Exception as exc:
+                log.info("tradier index history %s failed: %s", symbol, type(exc).__name__)
+        if self._fallback is None:
+            raise MarketDataError(f"Tradier cannot serve index history for {symbol}")
+        return self._fallback.get_index_history(symbol, days)
+
+    def get_index_last(self, symbol: str) -> float:
+        mapped = self._INDEX_SYMBOLS.get(symbol.upper())
+        if mapped:
+            try:
+                return self.get_spot(mapped).price
+            except Exception as exc:
+                log.info("tradier index quote %s failed: %s", symbol, type(exc).__name__)
+        if self._fallback is None:
+            raise MarketDataError(f"Tradier cannot serve index quote for {symbol}")
+        return self._fallback.get_index_last(symbol)
+
+    def now(self) -> datetime:
+        return datetime.now(tz=UTC)
+
+
 def _f(x: Any) -> float:
     try:
         v = float(x)
@@ -286,9 +498,24 @@ class MarketData:
         self.near_dte = near_dte
         self.far_dte_min = far_dte_min
         self.status: dict[str, str] = {}
+        self._ns = source.name  # cache namespace so providers never read each other's quotes
 
     @classmethod
-    def from_config(cls, cfg: AppConfig, mode: DataMode | None = None) -> MarketData:
+    def from_config(
+        cls,
+        cfg: AppConfig,
+        mode: DataMode | None = None,
+        *,
+        provider: MarketProviderName | None = None,
+        api_key: str | None = None,
+    ) -> MarketData:
+        """Build the facade.
+
+        ``mode`` fixture → bundled JSON. Live → ``provider`` (argument, else
+        ``OPTIONS_SCOUT_MARKET_PROVIDER``, else ``settings.market_data.provider``). A keyed
+        provider takes ``api_key`` (argument wins; else the env var named in settings) and raises
+        :class:`MarketDataError` when none is available, so a missing key fails loudly up front.
+        """
         mode = mode or cfg.settings.data_mode
         ttl = cfg.settings.cache_ttl_seconds.model_dump()
         iv_store = IVSnapshotStore(cfg.paths.iv_snapshot_db)
@@ -303,8 +530,23 @@ class MarketData:
                 near_dte=near,
                 far_dte_min=far,
             )
+        md_cfg = cfg.settings.market_data
+        chosen = provider or os.environ.get("OPTIONS_SCOUT_MARKET_PROVIDER") or md_cfg.provider
+        source: MarketSource
+        if chosen == "tradier":
+            key = api_key or os.environ.get(md_cfg.tradier.api_key_env, "")
+            if not key.strip():
+                raise MarketDataError(
+                    "Tradier selected but no API key given (paste one in the UI or set "
+                    f"{md_cfg.tradier.api_key_env})"
+                )
+            source = TradierSource(key, sandbox=md_cfg.tradier.sandbox, fallback=YFinanceSource())
+        elif chosen == "yfinance":
+            source = YFinanceSource()
+        else:
+            raise MarketDataError(f"unknown market data provider {chosen!r}")
         return cls(
-            YFinanceSource(),
+            source,
             SQLiteCache(cfg.paths.cache_db),
             ttl,
             iv_store,
@@ -314,6 +556,7 @@ class MarketData:
 
     # -- cached primitives -----------------------------------------------------------
     def _cached(self, key: str, ttl_key: str, fetch: Any, parse: Any) -> Any:
+        key = f"{self._ns}:{key}"
         hit = self.cache.get(key)
         if hit is not None:
             return parse(hit)
@@ -352,13 +595,12 @@ class MarketData:
         )
 
     def get_earnings_date(self, ticker: str) -> date | None:
-        hit = self.cache.get(f"earnings:{ticker}")
+        key = f"{self._ns}:earnings:{ticker}"
+        hit = self.cache.get(key)
         if hit is not None:
             return date.fromisoformat(hit) if hit != "none" else None
         value = self.source.get_earnings_date(ticker)
-        self.cache.set(
-            f"earnings:{ticker}", value.isoformat() if value else "none", self.ttl["earnings"]
-        )
+        self.cache.set(key, value.isoformat() if value else "none", self.ttl["earnings"])
         return value
 
     def get_close_history(self, ticker: str, days: int = 90) -> list[float]:
@@ -520,6 +762,7 @@ __all__ = [
     "MarketData",
     "MarketDataError",
     "MarketSource",
+    "TradierSource",
     "YFinanceSource",
     "atm_implied_vol",
     "timedelta",

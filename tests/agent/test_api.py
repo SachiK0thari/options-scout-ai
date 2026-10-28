@@ -90,3 +90,54 @@ def test_validation_and_auth(client: TestClient, monkeypatch: pytest.MonkeyPatch
     monkeypatch.setenv("OPTIONS_SCOUT_API_KEY", "secret")
     assert client.get("/v1/trends").status_code == 401
     assert client.get("/v1/trends", headers={"X-API-Key": "secret"}).status_code == 200
+
+
+def test_recommend_front_door(client: TestClient) -> None:
+    r = client.post("/v1/recommend", json={"buying_power": 40000, "strategy": "csp"})
+    assert r.status_code == 200, r.text
+    tid = r.json()["thread_id"]
+    body = _wait(client, tid, {"completed", "failed"})
+    assert body["status"] == "completed", body["errors"]
+    rep = client.get(f"/v1/runs/{tid}/report").json()
+    assert rep["profile"] == {
+        **rep["profile"],
+        "buying_power": 40000,
+        "account_type": "cash",
+        "risk_profile": "conservative",
+        "strategies": ["csp"],
+    }
+    assert rep["quality"] and all(q["passed"] for q in rep["quality"])
+    assert rep["leaps_candidates"] == [] and rep["allocation"]["leaps_pct"] == 0.0
+    assert client.post("/v1/recommend", json={"buying_power": -5}).status_code == 422
+    assert (
+        client.post("/v1/recommend", json={"buying_power": 1000, "strategy": "yolo"}).status_code
+        == 422
+    )
+
+
+def test_quality_universe_endpoint(client: TestClient) -> None:
+    r = client.get("/v1/quality-universe")
+    assert r.status_code == 200
+    body = r.json()
+    assert body["gates"]["max_hv30"] == 0.35
+    tickers = {t["ticker"] for t in body["tickers"]}
+    assert {"AAPL", "MSFT", "COST", "SPY"} <= tickers and "TSLA" not in tickers
+
+
+def test_tradier_without_key_is_rejected_before_running(
+    client: TestClient, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    monkeypatch.delenv("TRADIER_API_KEY", raising=False)
+    r = client.post(
+        "/v1/recommend",
+        json={"buying_power": 40000, "market_data": {"provider": "tradier"}},
+    )
+    assert r.status_code == 422 and "API key" in r.json()["detail"]
+
+
+def test_api_key_is_a_secret_in_the_schema() -> None:
+    from options_scout.api.schemas import MarketDataAuth
+
+    auth = MarketDataAuth(provider="tradier", api_key="super-secret")  # type: ignore[arg-type]
+    assert "super-secret" not in repr(auth) and "super-secret" not in auth.model_dump_json()
+    assert auth.api_key is not None and auth.api_key.get_secret_value() == "super-secret"

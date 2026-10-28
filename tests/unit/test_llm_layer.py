@@ -115,7 +115,10 @@ def test_llm_client_none_mode_parses(config: AppConfig) -> None:
     assert client.usage and client.usage[0].task == "parse_profile"
 
 
-def test_llm_client_anthropic_mode_degrades_without_key(config: AppConfig) -> None:
-    client = LLMClient.from_config(config, mode="anthropic")
-    assert client.mode in {"fixture", "anthropic"}
-    assert client.provider.name in {"fixture", "anthropic"}
+@pytest.mark.parametrize("mode", ["live", "anthropic", "openrouter"])
+def test_llm_client_live_modes_degrade_without_key(config: AppConfig, mode: str) -> None:
+    client = LLMClient.from_config(config, mode=mode)  # type: ignore[arg-type]
+    assert client.mode == "fixture" and not client.is_live
+    assert client.provider.name == "fixture"
+    expected = mode if mode != "live" else config.settings.llm.provider
+    assert client.models is config.settings.llm.providers[expected]

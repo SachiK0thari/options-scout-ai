@@ -3,6 +3,9 @@
 Providers
 ---------
 * ``AnthropicProvider`` – official ``anthropic`` SDK, ``messages.parse`` with a Pydantic schema.
+* ``OpenRouterProvider`` – any OpenAI-compatible gateway (default OpenRouter, e.g. DeepSeek V4.1
+  Flash) via the ``openai`` SDK with ``response_format=json_schema``; the reply is validated with
+  the same Pydantic schema and retried once with the validation error if it does not conform.
 * ``FixtureProvider`` – replays cached responses from ``tests/fixtures/llm/<task>/<hash>.json``;
   when no cached response exists it falls back to the deterministic rule-based implementation and
   records that it did so (``cached=False``). Lets CI and the demo run with no API key.
@@ -17,13 +20,14 @@ from __future__ import annotations
 import hashlib
 import json
 import logging
+import os
 from collections.abc import Callable, Sequence
 from pathlib import Path
 from typing import Any, Protocol, TypeVar
 
 from pydantic import BaseModel
 
-from options_scout.config import AppConfig, LLMMode
+from options_scout.config import AppConfig, LLMMode, LLMProviderName, LLMProviderSettings
 from options_scout.core.models import ExtractionBatch, ProfileParse, SocialPost, TokenUsage
 from options_scout.llm.prompts import Prompt, load_prompt
 
@@ -54,11 +58,13 @@ class LLMProvider(Protocol):
 class AnthropicProvider:
     name = "anthropic"
 
-    def __init__(self, pricing: dict[str, Any]) -> None:
+    def __init__(self, settings: LLMProviderSettings) -> None:
         import anthropic  # lazy: fixture/none modes must not require credentials
 
+        if not os.environ.get("ANTHROPIC_API_KEY"):
+            raise RuntimeError("ANTHROPIC_API_KEY is not set")
         self._client = anthropic.Anthropic()
-        self._pricing = pricing
+        self._pricing = settings.pricing
 
     def complete(
         self, *, task: str, model: str, system: str, user: str, schema: type[T], max_tokens: int
@@ -78,19 +84,147 @@ class AnthropicProvider:
                 f"no parsed output for task={task} (stop_reason={response.stop_reason})"
             )
         usage = response.usage
-        price = self._pricing.get(model)
-        cost = 0.0
-        if price is not None:
-            cost = (
-                usage.input_tokens * price.input + usage.output_tokens * price.output
-            ) / 1_000_000
         return parsed, TokenUsage(
             model=model,
             task=task,
             input_tokens=usage.input_tokens,
             output_tokens=usage.output_tokens,
-            cost_usd=cost,
+            cost_usd=_list_price(self._pricing, model, usage.input_tokens, usage.output_tokens),
         )
+
+
+def _list_price(
+    pricing: dict[str, Any], model: str, input_tokens: int, output_tokens: int
+) -> float:
+    price = pricing.get(model)
+    if price is None:
+        return 0.0
+    return float(input_tokens * price.input + output_tokens * price.output) / 1_000_000
+
+
+# ------------------------------------------------------------------------------- OpenRouter
+_DEFAULT_OPENROUTER_URL = "https://openrouter.ai/api/v1"
+_DETERMINISTIC_TASKS = frozenset({"parse_profile", "extract_entities"})  # temperature 0 (spec 5.5)
+
+
+class OpenRouterProvider:
+    """OpenAI-compatible chat completions with JSON-schema structured output.
+
+    Works with OpenRouter (default) or any gateway exposing ``/chat/completions``. The schema is
+    sent as ``response_format={"type": "json_schema"}`` and ``provider.require_parameters`` asks
+    OpenRouter to route only to backends that honour it; the body is still validated locally with
+    the Pydantic schema, and one corrective retry is made if validation fails.
+    """
+
+    name = "openrouter"
+
+    def __init__(self, settings: LLMProviderSettings, *, http_client: Any | None = None) -> None:
+        import openai  # lazy: fixture/none modes must not require credentials
+
+        api_key = os.environ.get("OPENROUTER_API_KEY")
+        if not api_key:
+            raise RuntimeError("OPENROUTER_API_KEY is not set")
+        self._client = openai.OpenAI(
+            api_key=api_key,
+            base_url=settings.base_url or _DEFAULT_OPENROUTER_URL,
+            default_headers={
+                "HTTP-Referer": "https://github.com/options-scout-ai",
+                "X-Title": "OptionsScout AI (educational screener)",
+            },
+            max_retries=3,
+            http_client=http_client,  # tests inject an httpx.MockTransport client
+        )
+        self._pricing = settings.pricing
+
+    def complete(
+        self, *, task: str, model: str, system: str, user: str, schema: type[T], max_tokens: int
+    ) -> tuple[T, TokenUsage]:
+        from openai.types.chat import ChatCompletionMessageParam
+        from openai.types.shared_params import ResponseFormatJSONSchema
+
+        messages: list[ChatCompletionMessageParam] = [
+            {"role": "system", "content": system},
+            {"role": "user", "content": user},
+        ]
+        response_format: ResponseFormatJSONSchema = {
+            "type": "json_schema",
+            "json_schema": {
+                "name": schema.__name__,
+                "strict": True,
+                "schema": schema.model_json_schema(),
+            },
+        }
+        totals = TokenUsage(model=model, task=task)
+        last_error: Exception | None = None
+        for attempt in range(2):
+            kwargs: dict[str, Any] = {}
+            if task in _DETERMINISTIC_TASKS:
+                kwargs["temperature"] = 0.0
+            response = self._client.chat.completions.create(
+                model=model,
+                max_tokens=max_tokens,
+                messages=messages,
+                response_format=response_format,
+                extra_body={"provider": {"require_parameters": True}, "usage": {"include": True}},
+                **kwargs,
+            )
+            totals = _add_usage(totals, response, self._pricing)
+            if not response.choices:
+                raise RuntimeError(f"empty response for task={task}")
+            choice = response.choices[0]
+            refusal = getattr(choice.message, "refusal", None)
+            if refusal:
+                raise RuntimeError(f"model refused task={task}: {refusal}")
+            text = choice.message.content or ""
+            try:
+                return schema.model_validate_json(_strip_fences(text)), totals
+            except ValueError as exc:  # pydantic.ValidationError subclasses ValueError
+                last_error = exc
+                log.warning(
+                    "openrouter task=%s attempt=%d: output failed schema validation (%s)",
+                    task,
+                    attempt + 1,
+                    str(exc).splitlines()[0],
+                )
+                messages = [
+                    *messages,
+                    {"role": "assistant", "content": text},
+                    {
+                        "role": "user",
+                        "content": (
+                            "Your previous reply did not match the required JSON schema:\n"
+                            f"{exc}\nReply again with only a JSON object that matches the schema."
+                        ),
+                    },
+                ]
+        raise RuntimeError(f"schema validation failed for task={task}: {last_error}")
+
+
+def _strip_fences(text: str) -> str:
+    t = text.strip()
+    if t.startswith("```"):
+        t = t.split("\n", 1)[1] if "\n" in t else t[3:]
+        if t.endswith("```"):
+            t = t[:-3]
+    return t.strip()
+
+
+def _add_usage(totals: TokenUsage, response: Any, pricing: dict[str, Any]) -> TokenUsage:
+    usage = getattr(response, "usage", None)
+    if usage is None:
+        return totals
+    inp = int(getattr(usage, "prompt_tokens", 0) or 0)
+    out = int(getattr(usage, "completion_tokens", 0) or 0)
+    extra = getattr(usage, "model_extra", None) or {}
+    reported = extra.get("cost")
+    cost = float(reported) if reported is not None else _list_price(pricing, totals.model, inp, out)
+    return totals.model_copy(
+        update={
+            "input_tokens": totals.input_tokens + inp,
+            "output_tokens": totals.output_tokens + out,
+            "cost_usd": totals.cost_usd + cost,
+        }
+    )
 
 
 # ---------------------------------------------------------------------------------- fixture
@@ -172,34 +306,55 @@ class RuleBasedProvider:
         return out, TokenUsage(model="rule_based", task=task, cached=False)
 
 
+_LIVE_PROVIDERS: dict[LLMProviderName, Callable[[LLMProviderSettings], LLMProvider]] = {
+    "anthropic": AnthropicProvider,
+    "openrouter": OpenRouterProvider,
+}
+
+
 # ------------------------------------------------------------------------------------ facade
 class LLMClient:
     """One method per task. Prompts are files; schemas are Pydantic; no numbers originate here."""
 
-    def __init__(self, cfg: AppConfig, provider: LLMProvider, mode: LLMMode) -> None:
+    def __init__(
+        self, cfg: AppConfig, provider: LLMProvider, mode: LLMMode, models: LLMProviderSettings
+    ) -> None:
         self.cfg = cfg
         self.provider = provider
-        self.mode = mode
+        self.mode: LLMMode = mode
+        self.models = models  # model names used for calls and labels
         self.usage: list[TokenUsage] = []
+
+    @property
+    def is_live(self) -> bool:
+        """True when calls go to a real LLM API (as opposed to fixture replay / rules)."""
+        return self.mode == "live"
 
     @classmethod
     def from_config(cls, cfg: AppConfig, mode: LLMMode | None = None) -> LLMClient:
         from options_scout.llm import rules
 
         mode = mode or cfg.settings.llm_mode
+        llm_cfg = cfg.settings.llm
+        provider_name: LLMProviderName = llm_cfg.provider
+        if mode in ("anthropic", "openrouter"):
+            provider_name = mode
+            mode = "live"
+        models = llm_cfg.providers.get(provider_name, llm_cfg.active)
         rule_provider = RuleBasedProvider(rules.handlers(cfg))
-        if mode == "anthropic":
+        provider: LLMProvider
+        if mode == "live":
             try:
-                provider: LLMProvider = AnthropicProvider(cfg.settings.llm.pricing)
+                provider = _LIVE_PROVIDERS[provider_name](models)
             except Exception as exc:  # no credentials → degrade to fixture mode, loudly
-                log.warning("Anthropic provider unavailable (%s); using fixture mode", exc)
+                log.warning("%s provider unavailable (%s); using fixture mode", provider_name, exc)
                 mode = "fixture"
                 provider = FixtureProvider(cfg.paths.llm_cache_dir, rule_provider)
         elif mode == "fixture":
             provider = FixtureProvider(cfg.paths.llm_cache_dir, rule_provider)
         else:
             provider = rule_provider
-        return cls(cfg, provider, mode)
+        return cls(cfg, provider, mode, models)
 
     def _prompt(self, name: str) -> Prompt:
         return load_prompt(self.cfg.paths.prompts_dir, name)
@@ -222,7 +377,7 @@ class LLMClient:
     def parse_profile(self, request_text: str) -> ProfileParse:
         return self._run(
             "parse_profile",
-            self.cfg.settings.llm.extraction_model,
+            self.models.extraction_model,
             self._prompt("parse_profile"),
             ProfileParse,
             request_text=request_text,
@@ -237,7 +392,7 @@ class LLMClient:
         )
         return self._run(
             "extract_entities",
-            self.cfg.settings.llm.extraction_model,
+            self.models.extraction_model,
             self._prompt("extract_entities"),
             ExtractionBatch,
             posts=rendered,
@@ -246,7 +401,7 @@ class LLMClient:
     def explain(self, payload: dict[str, Any]) -> str:
         out = self._run(
             "explain_report",
-            self.cfg.settings.llm.explanation_model,
+            self.models.explanation_model,
             self._prompt("explain_report"),
             Narrative,
             payload=json.dumps(payload, indent=1, sort_keys=True, default=str),
@@ -256,7 +411,7 @@ class LLMClient:
     def judge(self, payload: dict[str, Any], narrative: str) -> JudgeScore:
         return self._run(
             "judge_explanation",
-            self.cfg.settings.llm.judge_model,
+            self.models.judge_model,
             self._prompt("judge_explanation"),
             JudgeScore,
             payload=json.dumps(payload, indent=1, sort_keys=True, default=str),

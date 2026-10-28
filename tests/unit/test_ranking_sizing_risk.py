@@ -56,8 +56,9 @@ def _rank(world: dict[str, object]) -> list[RankedCandidate]:
     return ranking.rank_candidates(
         world["cands"],  # type: ignore[arg-type]
         {"COST": 80.0, "NKE": 70.0},
-        alpha=cfg.settings.ranking.alpha,
-        weights=cfg.settings.ranking.option_quality_weights,
+        {"COST": 0.9, "ELF": 0.1},
+        weights=cfg.settings.ranking.weights,
+        option_weights=cfg.settings.ranking.option_quality_weights,
         rules=cfg.rules,
         pmcc_pairs=world["pairs"],  # type: ignore[arg-type]
     )
@@ -74,6 +75,37 @@ def test_ranking_orders_and_blends(world: dict[str, object]) -> None:
     other = next(r for r in ranked if r.candidate.ticker not in {"COST", "NKE"})
     assert other.social_score == ranking.NEUTRAL_SOCIAL_SCORE
     assert any(r.pmcc is not None for r in ranked if r.candidate.strategy == "leaps")
+    assert cost.quality_score == 0.9
+    assert other.quality_score == ranking.NEUTRAL_QUALITY_SCORE
+
+
+def test_blend_golden_and_quality_moves_rank(world: dict[str, object]) -> None:
+    cfg: AppConfig = world["cfg"]  # type: ignore[assignment]
+    w = cfg.settings.ranking.weights
+    # 0.5*0.8 + 0.35*0.6 + 0.15*50/100 = 0.40 + 0.21 + 0.075 = 0.685
+    assert ranking.blend(0.8, 0.6, 50.0, w) == pytest.approx(0.685)
+    assert ranking.blend(1.0, 1.0, 100.0, w) == 1.0 and ranking.blend(0.0, 0.0, 0.0, w) == 0.0
+    cands: list[OptionCandidate] = world["cands"]  # type: ignore[assignment]
+    tk = cands[0].ticker  # any ticker that actually has candidates in the fixture
+    hi = ranking.rank_candidates(
+        cands,
+        {},
+        {tk: 1.0},
+        weights=w,
+        option_weights=cfg.settings.ranking.option_quality_weights,
+        rules=cfg.rules,
+    )
+    lo = ranking.rank_candidates(
+        cands,
+        {},
+        {tk: 0.0},
+        weights=w,
+        option_weights=cfg.settings.ranking.option_quality_weights,
+        rules=cfg.rules,
+    )
+    best_hi = next(r.rank for r in hi if r.candidate.ticker == tk)
+    best_lo = next(r.rank for r in lo if r.candidate.ticker == tk)
+    assert best_hi < best_lo  # a higher stock-quality score ranks the same contracts higher
 
 
 @pytest.mark.parametrize("risk_profile", ["conservative", "balanced", "aggressive"])

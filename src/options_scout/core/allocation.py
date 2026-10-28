@@ -37,10 +37,14 @@ def allocate(profile: UserProfile, regime: MarketRegime, risk: RiskProfiles) -> 
         rationale.append("Normal-IV regime: no tilt applied.")
     rationale.append("The cash reserve is never reduced by the tilt.")
 
+    # Strategies the user did not ask for: their bucket is folded into the cash reserve (the
+    # conservative choice), so the plan only ever deploys money into what was requested.
     if "csp" not in profile.strategies:
-        rationale.append("CSP strategy disabled by user; its bucket is left unused (held as cash).")
+        cash, csp = cash + csp, 0.0
+        rationale.append("Cash-secured puts not requested; that bucket is held as cash instead.")
     if not ({"leaps", "pmcc"} & profile.strategies):
-        rationale.append("LEAPS/PMCC disabled by user; its bucket is left unused (held as cash).")
+        cash, leaps = cash + leaps, 0.0
+        rationale.append("LEAPS/PMCC not requested; that bucket is held as cash instead.")
 
     bp = profile.buying_power
     return AllocationPlan(

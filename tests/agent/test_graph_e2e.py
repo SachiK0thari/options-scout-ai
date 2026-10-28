@@ -75,6 +75,14 @@ def test_end_to_end_fixture_run(deps: Deps) -> None:
         assert node in visited, f"{node} not visited: {visited}"
     assert "human_review" not in visited
     assert visited.count("market_data_node") == len(rep.universe) >= 5
+    # good-to-own universe: only curated fixture tickers, every one quality-checked
+    assert set(rep.universe) <= set(deps.cfg.quality.symbols)
+    assert not {"CMG", "DECK", "ELF"} & set(rep.universe)
+    assert {q.ticker for q in rep.quality} == set(rep.universe)
+    assert all(q.passed and q.curated for q in rep.quality)
+    assert {c.ticker for c in rep.csp_candidates + rep.leaps_candidates} <= set(rep.universe)
+    assert all(0 <= r.quality_score <= 1 for r in rep.ranked)
+    assert "## Good-to-own quality screen" in final["report_markdown"]
     # content
     assert rep.profile.buying_power == 100_000 and rep.profile.account_type == "margin"
     assert set(rep.profile.watchlist) == {"COST", "NKE"}
@@ -135,3 +143,25 @@ def test_graceful_degradation_when_social_disabled(deps: Deps) -> None:
     assert any("social engine disabled" in e for e in rep.errors)
     assert rep.portfolio.positions and rep.verification.passed
     assert all(r.social_score == 50.0 for r in rep.ranked)  # neutral social score
+
+
+def test_user_added_risky_ticker_is_excluded_by_quality_gate(deps: Deps) -> None:
+    text = (
+        "I have $60,000 in a cash account, conservative. Cash-secured puts only please. "
+        "I like ELF and DECK and COST."
+    )
+    _visited, final = _run(deps, text, "t-quality")
+    rep = final["report"]
+    assert isinstance(rep, ScreeningReport)
+    assert rep.profile.strategies == {"csp"}
+    assert {"ELF", "DECK", "COST"} <= set(rep.universe)  # the user's tickers are considered…
+    by_ticker = {q.ticker: q for q in rep.quality}
+    assert not by_ticker["ELF"].passed and not by_ticker["DECK"].passed  # …but gated out
+    assert by_ticker["COST"].passed and by_ticker["COST"].curated
+    assert any("implied volatility" in r for r in by_ticker["ELF"].reasons)
+    assert not {"ELF", "DECK"} & {c.ticker for c in rep.csp_candidates}
+    assert rep.leaps_candidates == [] and rep.pmcc_candidates == []
+    assert rep.allocation.leaps_pct == 0.0  # unrequested bucket held as cash
+    assert any(e.startswith("quality ELF: excluded") for e in rep.errors)
+    assert rep.verification.passed and rep.risk.passed
+    assert "Quality screen" in rep.narrative

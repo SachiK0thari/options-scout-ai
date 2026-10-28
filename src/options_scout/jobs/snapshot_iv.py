@@ -11,6 +11,7 @@ from __future__ import annotations
 import argparse
 import sqlite3
 import sys
+import threading
 from datetime import date
 from pathlib import Path
 
@@ -21,31 +22,37 @@ class IVSnapshotStore:
     def __init__(self, path: Path | str) -> None:
         self.path = Path(path)
         self.path.parent.mkdir(parents=True, exist_ok=True)
+        # One connection shared by the parallel per-ticker graph branches → serialise access.
+        self._lock = threading.Lock()
         self._conn = sqlite3.connect(str(self.path), check_same_thread=False)
-        self._conn.execute(
-            "CREATE TABLE IF NOT EXISTS iv_snapshots (ticker TEXT NOT NULL, day TEXT NOT NULL, "
-            "atm_iv REAL NOT NULL, PRIMARY KEY (ticker, day))"
-        )
-        self._conn.commit()
+        with self._lock:
+            self._conn.execute(
+                "CREATE TABLE IF NOT EXISTS iv_snapshots (ticker TEXT NOT NULL, day TEXT NOT NULL, "
+                "atm_iv REAL NOT NULL, PRIMARY KEY (ticker, day))"
+            )
+            self._conn.commit()
 
     def record(self, ticker: str, day: date, atm_iv: float) -> None:
-        self._conn.execute(
-            "INSERT OR REPLACE INTO iv_snapshots (ticker, day, atm_iv) VALUES (?, ?, ?)",
-            (ticker.upper(), day.isoformat(), float(atm_iv)),
-        )
-        self._conn.commit()
+        with self._lock:
+            self._conn.execute(
+                "INSERT OR REPLACE INTO iv_snapshots (ticker, day, atm_iv) VALUES (?, ?, ?)",
+                (ticker.upper(), day.isoformat(), float(atm_iv)),
+            )
+            self._conn.commit()
 
     def history(self, ticker: str, limit: int = 252) -> list[float]:
-        rows = self._conn.execute(
-            "SELECT atm_iv FROM iv_snapshots WHERE ticker = ? ORDER BY day DESC LIMIT ?",
-            (ticker.upper(), limit),
-        ).fetchall()
+        with self._lock:
+            rows = self._conn.execute(
+                "SELECT atm_iv FROM iv_snapshots WHERE ticker = ? ORDER BY day DESC LIMIT ?",
+                (ticker.upper(), limit),
+            ).fetchall()
         return [float(r[0]) for r in reversed(rows)]
 
     def count(self, ticker: str) -> int:
-        row = self._conn.execute(
-            "SELECT COUNT(*) FROM iv_snapshots WHERE ticker = ?", (ticker.upper(),)
-        ).fetchone()
+        with self._lock:
+            row = self._conn.execute(
+                "SELECT COUNT(*) FROM iv_snapshots WHERE ticker = ?", (ticker.upper(),)
+            ).fetchone()
         return int(row[0]) if row else 0
 
     def has_enough_history(self, ticker: str) -> bool:

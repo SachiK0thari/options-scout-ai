@@ -1,6 +1,6 @@
 # Global settings. Env vars prefixed OPTIONS_SCOUT_ override top-level keys (e.g. OPTIONS_SCOUT_DATA_MODE).
 data_mode: fixture          # fixture | live
-llm_mode: fixture           # fixture | anthropic | none
+llm_mode: fixture           # fixture | live | anthropic | openrouter | none
 
 paths:
   fixtures_dir: tests/fixtures
@@ -23,20 +23,41 @@ cache_ttl_seconds:
   sec_tickers: 604800       # 7 days
 
 llm:
-  provider: anthropic
-  extraction_model: claude-haiku-5-5      # small/cheap: entity extraction, profile parsing
-  explanation_model: claude-opus-5-5      # stronger: narrative
-  judge_model: claude-sonnet-5-5          # optional LLM-as-judge
+  provider: openrouter        # live provider: anthropic | openrouter (OPTIONS_SCOUT_LLM_MODE=live)
   extraction_batch_size: 20
   max_output_tokens: 4096
-  # $ per 1M tokens, used only for cost accounting in reports
-  pricing:
-    claude-haiku-5-5: {input: 0.10, output: 0.50}
-    claude-sonnet-5-5: {input: 2.00, output: 10.00}
-    claude-opus-5-5: {input: 4.00, output: 20.00}
+  providers:
+    openrouter:
+      base_url: https://openrouter.ai/api/v1
+      # One cheap, fast model for every task; OpenAI-compatible JSON-schema structured outputs.
+      extraction_model: deepseek/deepseek-v4.1-flash
+      explanation_model: deepseek/deepseek-v4.1-flash
+      judge_model: deepseek/deepseek-v4.1-flash
+      # $ per 1M tokens, fallback for cost accounting when OpenRouter omits usage.cost (2026-10-28)
+      pricing:
+        deepseek/deepseek-v4.1-flash: {input: 0.14, output: 0.42}
+    anthropic:
+      extraction_model: claude-haiku-5-5      # small/cheap: entity extraction, profile parsing
+      explanation_model: claude-opus-5-5      # stronger: narrative
+      judge_model: claude-sonnet-5-5          # optional LLM-as-judge
+      pricing:
+        claude-haiku-5-5: {input: 0.10, output: 0.50}
+        claude-sonnet-5-5: {input: 2.00, output: 10.00}
+        claude-opus-5-5: {input: 4.00, output: 20.00}
+
+market_data:
+  provider: yfinance          # live provider: yfinance (no key) | tradier (needs an API key)
+  tradier:
+    sandbox: true             # sandbox.tradier.com: free developer token, 15-minute delayed data
+    api_key_env: TRADIER_API_KEY   # the UI/API can also pass a key per run (never persisted)
 
 ranking:
-  alpha: 0.6                # final = alpha * option_quality + (1 - alpha) * social_score
+  # final = option_quality·w1 + stock_quality·w2 + social/100·w3. "Good to own" first, then the
+  # option's own economics, then consumer-trend buzz as a tiebreaker.
+  weights:
+    option_quality: 0.50
+    stock_quality: 0.35
+    social: 0.15
   option_quality_weights:
     annualized_return: 0.35
     prob_otm: 0.30

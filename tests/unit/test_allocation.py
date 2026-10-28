@@ -68,3 +68,15 @@ def test_tilt_never_goes_negative(config: AppConfig) -> None:
     )
     plan = allocate(_profile(), _regime(90), risk)
     assert plan.leaps_pct == 0.0 and plan.csp_pct == pytest.approx(0.70)
+
+
+def test_unrequested_strategy_bucket_is_held_as_cash(config: AppConfig) -> None:
+    csp_only = _profile().model_copy(update={"strategies": {"csp"}})
+    plan = allocate(csp_only, _regime(50), config.risk)
+    assert plan.leaps_pct == 0.0 and plan.leaps_dollars == 0.0
+    assert (plan.csp_pct, plan.cash_pct) == (0.45, pytest.approx(0.55))
+    assert plan.csp_dollars + plan.cash_dollars == pytest.approx(50_000)
+    assert any("held as cash" in r for r in plan.rationale)
+    leaps_only = _profile("conservative").model_copy(update={"strategies": {"leaps"}})
+    plan = allocate(leaps_only, _regime(50), config.risk)
+    assert plan.csp_pct == 0.0 and plan.leaps_pct == 0.15 and plan.cash_pct == pytest.approx(0.85)

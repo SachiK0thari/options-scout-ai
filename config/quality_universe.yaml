@@ -1,0 +1,69 @@
+# "Good to own" universe (CLAUDE.md section 3.7).
+#
+# The screener only looks at stocks on this curated list (plus tickers the user adds), and every
+# ticker — curated or not — must also pass the deterministic numeric gates below on the day of the
+# run. Nothing here is a recommendation: the list is a *filter* that keeps volatile, speculative or
+# distressed names out of a put-selling / LEAPS screen aimed at stocks the user would be happy to
+# own if assigned.
+#
+# Order matters: when more tickers qualify than `universe.max_tickers`, the user's own tickers come
+# first, then curated names with a consumer-trend signal, then this order.
+
+universe:
+  max_tickers: 12            # live mode: cap on tickers fetched per run (watchlist always included)
+
+gates:
+  require_curated: false     # true → user-added tickers outside this list are rejected outright
+  min_price: 20.0            # dollars; avoids low-priced, easily manipulated names
+  min_avg_volume: 1000000    # shares/day
+  max_hv30: 0.35             # annualised 30-day realised volatility (0.35 = 35%)
+  max_atm_iv: 0.45           # at-the-money implied volatility on the near-term chain
+  max_drawdown_90d: 0.20     # distance below the 90-day closing high (0.20 = 20%)
+  min_history_days: 31       # closes needed to evaluate HV / drawdown; fewer → gate fails
+
+# Quality score 0–1 shown next to each stock and blended into the ranking (settings.yaml ranking.weights).
+score:
+  weights:
+    stability: 0.40          # 1 − hv30 / max_hv30 (calmer price action scores higher)
+    trend: 0.30              # 1 − drawdown_90d / max_drawdown_90d (closer to its highs scores higher)
+    curated: 0.30            # 1 if the ticker is on the curated list, else 0
+
+tickers:
+  # ---- broad-market ETFs ------------------------------------------------------------------
+  - {ticker: SPY,  name: SPDR S&P 500 ETF,           sector: ETF,                 tags: [index_etf, diversified],            why: "Owns the whole S&P 500; the most liquid option chain in the market."}
+  - {ticker: QQQ,  name: Invesco Nasdaq-100 ETF,     sector: ETF,                 tags: [index_etf, diversified],            why: "Owns the 100 largest Nasdaq companies; very liquid options."}
+  # ---- mega-cap technology ----------------------------------------------------------------
+  - {ticker: AAPL, name: Apple,                      sector: Technology,          tags: [mega_cap, dividend, buybacks],      why: "Huge installed base, large recurring services revenue, consistent buybacks and dividend."}
+  - {ticker: MSFT, name: Microsoft,                  sector: Technology,          tags: [mega_cap, dividend, wide_moat],     why: "Enterprise software and cloud with long-term contracts and 20+ years of dividend growth."}
+  - {ticker: GOOGL, name: Alphabet,                  sector: Communication Services, tags: [mega_cap, buybacks],            why: "Dominant search and advertising franchise with a large net cash position."}
+  - {ticker: AMZN, name: Amazon,                     sector: Consumer Cyclical,   tags: [mega_cap, wide_moat],               why: "Leading cloud and e-commerce platforms with strong free cash flow."}
+  - {ticker: CSCO, name: Cisco Systems,              sector: Technology,          tags: [dividend, large_cap],               why: "Networking incumbent with a long dividend record and steady cash generation."}
+  - {ticker: TXN,  name: Texas Instruments,          sector: Technology,          tags: [dividend_growth, large_cap],        why: "Analog chip leader with 20+ consecutive years of dividend increases."}
+  - {ticker: ACN,  name: Accenture,                  sector: Technology,          tags: [dividend_growth, large_cap],        why: "Global consulting franchise, asset-light, rising dividend."}
+  # ---- consumer staples and retail ------------------------------------------------------
+  - {ticker: COST, name: Costco Wholesale,           sector: Consumer Defensive,  tags: [wide_moat, dividend_growth],        why: "Membership model with very high renewal rates and decades of dividend growth."}
+  - {ticker: WMT,  name: Walmart,                    sector: Consumer Defensive,  tags: [dividend_aristocrat, defensive],    why: "Largest retailer; 50 consecutive years of dividend increases."}
+  - {ticker: PG,   name: Procter & Gamble,           sector: Consumer Defensive,  tags: [dividend_aristocrat, defensive],    why: "Household staples brands; dividends paid for over a century."}
+  - {ticker: KO,   name: Coca-Cola,                  sector: Consumer Defensive,  tags: [dividend_aristocrat, defensive],    why: "Global beverage brands; 60+ years of dividend increases."}
+  - {ticker: PEP,  name: PepsiCo,                    sector: Consumer Defensive,  tags: [dividend_aristocrat, defensive],    why: "Snacks and beverages; 50+ years of dividend increases."}
+  - {ticker: MCD,  name: McDonald's,                 sector: Consumer Cyclical,   tags: [dividend_aristocrat, wide_moat],    why: "Franchise and real-estate model; 45+ years of dividend increases."}
+  - {ticker: HD,   name: Home Depot,                 sector: Consumer Cyclical,   tags: [dividend_growth, large_cap],        why: "Largest home-improvement retailer with high returns on capital."}
+  - {ticker: LOW,  name: Lowe's,                     sector: Consumer Cyclical,   tags: [dividend_aristocrat, large_cap],    why: "Home-improvement retailer; 60+ years of dividend increases."}
+  - {ticker: TJX,  name: TJX Companies,              sector: Consumer Cyclical,   tags: [dividend_growth, large_cap],        why: "Off-price retail leader with resilient traffic across cycles."}
+  - {ticker: SBUX, name: Starbucks,                  sector: Consumer Cyclical,   tags: [dividend_growth, global_brand],     why: "Global coffee brand with a 14-year streak of dividend increases."}
+  - {ticker: NKE,  name: Nike,                       sector: Consumer Cyclical,   tags: [dividend_growth, global_brand],     why: "Leading athletic brand with 20+ years of dividend increases."}
+  # ---- healthcare -------------------------------------------------------------------------
+  - {ticker: JNJ,  name: Johnson & Johnson,          sector: Healthcare,          tags: [dividend_aristocrat, defensive, aaa_rated], why: "Diversified healthcare; one of two AAA-rated US companies, 60+ years of dividend growth."}
+  - {ticker: ABBV, name: AbbVie,                     sector: Healthcare,          tags: [dividend_growth, large_cap],        why: "Large pharma with a high-yield, growing dividend."}
+  - {ticker: MRK,  name: Merck,                      sector: Healthcare,          tags: [dividend, large_cap],               why: "Large pharma with a long dividend history."}
+  - {ticker: ABT,  name: Abbott Laboratories,        sector: Healthcare,          tags: [dividend_aristocrat, defensive],    why: "Diversified medical devices and diagnostics; 50+ years of dividend increases."}
+  # ---- financials -------------------------------------------------------------------------
+  - {ticker: JPM,  name: JPMorgan Chase,             sector: Financial Services,  tags: [dividend, large_cap],               why: "Largest US bank by assets with a fortress balance sheet."}
+  - {ticker: V,    name: Visa,                       sector: Financial Services,  tags: [wide_moat, dividend_growth],        why: "Payments network with very high margins and little credit risk."}
+  - {ticker: MA,   name: Mastercard,                 sector: Financial Services,  tags: [wide_moat, dividend_growth],        why: "Payments network with very high margins and little credit risk."}
+  # ---- industrials and energy -------------------------------------------------------------
+  - {ticker: HON,  name: Honeywell,                  sector: Industrials,         tags: [dividend_growth, large_cap],        why: "Diversified industrial with a long dividend record."}
+  - {ticker: UNP,  name: Union Pacific,              sector: Industrials,         tags: [dividend_growth, wide_moat],        why: "Railroad duopoly asset with pricing power."}
+  - {ticker: LMT,  name: Lockheed Martin,            sector: Industrials,         tags: [dividend_growth, defensive],        why: "Defense prime with a multi-year contracted backlog."}
+  - {ticker: XOM,  name: Exxon Mobil,                sector: Energy,              tags: [dividend_aristocrat, large_cap],    why: "Integrated energy major; 40+ years of dividend increases."}
+  - {ticker: CVX,  name: Chevron,                    sector: Energy,              tags: [dividend_aristocrat, large_cap],    why: "Integrated energy major; 35+ years of dividend increases."}

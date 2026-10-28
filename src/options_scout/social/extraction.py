@@ -27,7 +27,7 @@ def extract_all(
     out: dict[str, list[ExtractedEntity]] = {}
     pending: list[SocialPost] = []
     for p in posts:
-        if ground_truth is not None and llm.mode != "anthropic" and p.id in ground_truth:
+        if ground_truth is not None and not llm.is_live and p.id in ground_truth:
             out[p.id] = list(ground_truth[p.id])
         else:
             pending.append(p)

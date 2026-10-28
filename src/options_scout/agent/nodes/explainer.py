@@ -14,6 +14,34 @@ def _money(x: float | None) -> int | None:
     return None if x is None else round(x)
 
 
+def _pct(x: float | None) -> int | None:
+    return None if x is None else round(x * 100)
+
+
+def _quality_section(state: AgentState) -> dict[str, Any]:
+    checks = list((state.get("quality") or {}).values())
+    passed = sorted((q for q in checks if q.passed), key=lambda q: -q.score)
+    failed = [q for q in checks if not q.passed]
+    return {
+        "passed_count": len(passed),
+        "excluded_count": len(failed),
+        "drawdown_lookback_days": 90,
+        "passed": [
+            {
+                "ticker": q.ticker,
+                "name": q.name,
+                "quality_score": round(q.score * 100),
+                "hv30_pct": _pct(q.metrics.get("hv30")),
+                "below_90d_high_pct": _pct(q.metrics.get("drawdown_90d")),
+                "curated": q.curated,
+                "why": q.why_good_to_own,
+            }
+            for q in passed
+        ],
+        "excluded": [{"ticker": q.ticker, "reasons": q.reasons} for q in failed],
+    }
+
+
 def build_explain_payload(
     state: AgentState, disclaimer: str, *, loss_drop: float = 0.30
 ) -> dict[str, Any]:
@@ -56,6 +84,7 @@ def build_explain_payload(
             for t in state.get("trends", [])[:5]
         ],
         "universe": state.get("universe", []),
+        "quality_screen": _quality_section(state),
         "positions": [
             {
                 "candidate_id": p.candidate_id,

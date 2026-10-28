@@ -7,7 +7,7 @@
 
 ## 0. TL;DR for Claude Code
 
-- **What:** A multi-agent LangGraph application that screens **cash-secured puts (CSPs)**, **LEAPS calls**, and **poor man's covered calls (PMCCs)** for premium income, sized to the user's **buying power**, and ranks underlyings using a **social arbitrage** signal (consumer trends spotted on social platforms before Wall Street prices them in).
+- **What:** A multi-agent LangGraph application behind a **one-page web app**: the user enters **buying power**, picks **cash-secured puts (CSPs)**, **LEAPS calls** or both, optionally pastes a **market-data API key**, and gets option candidates on **good-to-own stocks only** (a curated list of large, profitable, dividend-paying companies and broad ETFs, each re-checked by a deterministic quality gate on the day of the run). Positions are sized to buying power under risk limits; a **social arbitrage** signal (consumer trends spotted on social platforms before Wall Street prices them in) only re-orders stocks that already passed the gate.
 - **Why:** A portfolio project to showcase AI Engineer skills: agent orchestration, tool use, structured outputs, RAG-free grounding, evaluation, observability, guardrails, and clean production engineering.
 - **Golden rule:** **The LLM never does math.** Every number (Greeks, margin, returns, sizing) is computed by deterministic, unit-tested Python. The LLM extracts, classifies, reasons over computed results, and explains. A verifier node rejects any narrative that contains a number not present in the computed results.
 - **Not financial advice:** This is an educational **screener**. It never places trades, never connects to a brokerage, and every output carries a disclaimer.
@@ -44,16 +44,19 @@
 ## 2. Product Overview
 
 ### 2.1 User story
-> "I have $50,000 of buying power in a margin account, balanced risk tolerance. Show me income candidates (CSPs) and a few LEAPS/PMCC ideas, favoring companies with rising consumer buzz that Wall Street hasn't caught yet, and keep me inside sensible risk limits."
+> "I have $50,000. Show me cash-secured puts (or LEAPS, or both) on stocks I'd be happy to own if assigned — nothing speculative — sized so I stay inside sensible risk limits."
+
+The web page asks for exactly three things: **buying power**, **CSP / LEAPS / both**, and (optionally) a **market-data API key**. Account type defaults to `cash`, risk profile to `conservative`; both are under "More options".
 
 ### 2.2 What the system returns
-1. **Allocation plan:** how buying power is split between cash reserve, CSP collateral and LEAPS/PMCC, and why (risk profile + volatility regime).
-2. **Trend board:** top social arbitrage candidates with the evidence (mention velocity, cross-source confirmation, coverage gap, sample posts).
-3. **CSP candidates:** ticker, strike, expiry, delta, premium, collateral, annualized return, margin requirement (if margin), probability OTM, liquidity grade, earnings flag.
-4. **LEAPS / PMCC candidates:** LEAPS strike/expiry/delta, extrinsic % per year, breakeven, plus a matched short call for the PMCC that satisfies the safety rule.
-5. **Sized portfolio:** number of contracts per candidate, fitted to all risk constraints, with totals (notional, margin usage, net delta exposure).
-6. **Risk report:** stress test (−10%, −20%, −30% market moves), constraint checks, warnings.
-7. **Plain-English explanation** grounded only in computed numbers, with a disclaimer.
+1. **Quality screen:** which good-to-own stocks were considered, their quality score, and which were excluded and why (section 3.7). Nothing that fails the gate reaches the screeners.
+2. **Allocation plan:** how buying power is split between cash reserve, CSP collateral and LEAPS/PMCC, and why (risk profile + volatility regime). Buckets for strategies the user did not ask for are held as cash.
+3. **Trend board (secondary):** social arbitrage scores with evidence (mention velocity, cross-source confirmation, coverage gap, sample posts). It re-orders qualifying stocks; it never adds one.
+4. **CSP candidates:** ticker, strike, expiry, delta, premium, collateral, annualized return, margin requirement (if margin), probability OTM, liquidity grade, earnings flag.
+5. **LEAPS / PMCC candidates:** LEAPS strike/expiry/delta, extrinsic % per year, breakeven, plus a matched short call for the PMCC that satisfies the safety rule (PMCC only when the user opts in).
+6. **Sized portfolio:** number of contracts per candidate, fitted to all risk constraints, with totals (notional, margin usage, net delta exposure).
+7. **Risk report:** stress test (−10%, −20%, −30% market moves), constraint checks, warnings.
+8. **Plain-English explanation** grounded only in computed numbers, with a disclaimer.
 
 ### 2.3 Non-goals
 - No order placement, no brokerage APIs, no real-time streaming quotes.
@@ -147,6 +150,29 @@ Golden-value tests: use at least these, verified with an independent calculator 
 - Margin example: S=100, K=90, premium=1.50 → OTM=10, max(20−10, 9)=10 → requirement = (1.50 + 10) × 100 = **$1,150**
 - CSP example: K=90, premium=1.50, DTE=40 → annualized ≈ 1.50/88.50 × 365/40 ≈ **15.47%**
 - LEAPS example: S=100, K=70, price=33 → intrinsic 30, extrinsic 3, breakeven 103
+
+### 3.7 Good-to-own universe (quality gate)
+
+The product promise is "stocks you would be happy to own if assigned", so the universe is a **filter, not a discovery engine**. Everything lives in `config/quality_universe.yaml`; the logic is in `core/quality.py` (pure, golden-tested).
+
+1. **Curated list** (~30 names, in priority order): large, profitable, durable companies with long dividend records or dominant franchises, plus SPY and QQQ. Each entry carries `name`, `sector`, `tags` and a one-line `why`. Speculative or meme names (TSLA, NVDA, GME, COIN, PLTR …) are deliberately absent. The user may add tickers; they are flagged *user-added* and must pass the same numeric gate.
+2. **Numeric gate**, evaluated per run on the live or fixture snapshot. All limits are config:
+
+| Gate | Default | Why |
+|---|---|---|
+| Price | ≥ $20 | avoid low-priced, easily manipulated names |
+| Average volume | ≥ 1M shares/day | liquidity |
+| 30-day realised volatility (HV30) | ≤ 35% | calm price action |
+| ATM implied volatility | ≤ 45% | the market is not pricing a shock |
+| Distance below the 90-day closing high | ≤ 20% | no falling knives |
+| Price history | ≥ 31 closes | enough data to judge the above |
+| `require_curated` | false | set true to reject user-added tickers outright |
+
+   A failed gate is **recorded with its reason** (`QualityCheck.reasons`) and shown in the report; the ticker never reaches the screeners. Missing data fails the gate; it does not pass it.
+3. **Quality score** (0–1) for survivors: `0.4·stability + 0.3·trend + 0.3·curated`, with `stability = 1 − HV30/max_hv30` and `trend = 1 − drawdown/max_drawdown` (both clipped). Golden value: HV30 17.5%, at the high, curated → **0.80**.
+4. **Ranking** (`settings.yaml → ranking.weights`): `final = 0.50·option_quality + 0.35·quality_score + 0.15·social/100`. The social signal is the smallest weight on purpose.
+5. **Universe order** when more names qualify than `universe.max_tickers` (12): user tickers, then curated names with a trend score (highest first), then list order. Trending tickers that are not curated are noted and skipped.
+6. **Fixture mode** keeps only curated tickers that have fixtures: AAPL, MSFT, COST, SBUX, NKE, SPY, QQQ pass; CMG, DECK, ELF fail the gate (and are only evaluated at all if the user adds them). Tests assert both lists.
 
 ---
 
@@ -266,10 +292,10 @@ flowchart TD
 | `regime_node` | No | Fetch `^VIX`, compute 1-year percentile; risk-free rate from `^IRX` (13-week T-bill). |
 | `allocator_node` | No | Apply section 3.1 rules → `AllocationPlan`. |
 | `trend_scout_node` | Yes (entity extraction) + No (signals) | Run section 4 pipeline, or load latest scored snapshot if fresh (< 24h). |
-| `universe_node` | No | Union of top-N investable trend tickers and user watchlist, minus exclusions; liquidity pre-filter. |
-| `market_data_node` | No | Per ticker (parallel via `Send`): spot, option chains for relevant expiries, earnings date, HV30, dividend yield. Cached. |
-| `screener_node` | No | Apply sections 3.3–3.5; compute Greeks with own BSM from chain IV. |
-| `ranker_node` | No | `final_score = α·option_quality + (1−α)·social_score` (α configurable, default 0.6). Option quality = normalized blend of annualized return, POP, liquidity, IV rank fit. |
+| `universe_node` | No | Curated good-to-own list ∪ user watchlist − exclusions, ordered per section 3.7 and capped at `max_tickers`. Trend tickers not on the list are noted and skipped. |
+| `market_data_node` | No | Per ticker (parallel via `Send`): spot, option chains for relevant expiries, earnings date, HV30, dividend yield, 90-day closes. Then the **quality gate** (section 3.7): a failing ticker is written to `state.quality` with reasons and *not* to `market_data`, so screeners never see it. Cached. |
+| `screener_node` | No | Apply sections 3.3–3.5 to tickers that passed the gate; compute Greeks with own BSM from chain IV. |
+| `ranker_node` | No | `final = w1·option_quality + w2·quality_score + w3·social/100` (weights in `settings.yaml`, default 0.50/0.35/0.15). Option quality = normalized blend of annualized return, POP, liquidity, IV rank fit. |
 | `sizing_node` | No | Greedy allocation over ranked candidates subject to all constraints (section 3.2); integer contracts. Optional: `scipy.optimize.milp` version as stretch goal. |
 | `risk_node` | No | Validate constraints, run stress tests (−10/−20/−30% with IV +50% shock repriced via BSM), produce warnings. |
 | `explainer_node` | Yes | Write the narrative **only from** a JSON payload of computed results. Must cite candidate IDs. |
@@ -332,6 +358,7 @@ fetch_news_mentions(query, since) -> list[NewsItem]
 resolve_entity(name) -> TickerResolution | None
 bsm_greeks(S, K, T, r, q, sigma, kind) -> Greeks
 reg_t_put_margin(S, K, premium) -> float
+check_quality(snapshot, closes, universe, curated) -> QualityCheck   # section 3.7 gate + score
 screen_csp(snapshot, rules) -> list[OptionCandidate]
 screen_leaps(snapshot, rules) -> list[OptionCandidate]
 pair_pmcc(leaps, chain, rules) -> list[PMCCCandidate]
@@ -340,6 +367,7 @@ stress_test(portfolio, shocks) -> RiskReport
 ```
 
 Data notes:
+- **Market data providers** all implement the `MarketSource` protocol in `data/market.py`: `FixtureSource` (bundled JSON), `YFinanceSource` (keyless) and `TradierSource` (**user-supplied API key**; free sandbox token = 15-min delayed quotes, expirations, chains with IV, daily history; earnings/dividends best-effort from the beta fundamentals endpoints; ^VIX/^IRX fall back to yfinance). The UI and `POST /v1/recommend` accept the provider and key **per run**; the key is a `SecretStr`, is sent only as a bearer header, and is never logged, cached, persisted or echoed in errors. The SQLite cache is namespaced by provider. Adding another keyed provider = one class + one `MarketData.from_config` branch + a mocked-transport unit test.
 - yfinance is an unofficial scraper of delayed Yahoo data. It can break or rate-limit. Wrap every call with retries + exponential backoff, cache results (SQLite, TTL 15 min for chains, 24h for earnings/dividends), and keep fixture snapshots for 10 demo tickers.
 - yfinance chains give IV but not Greeks → compute Greeks with our own BSM.
 - Label all market data in the UI as "delayed, for education only".
@@ -395,7 +423,7 @@ class TrendSignal(BaseModel):
     as_of: datetime
 ```
 
-Also define: `MarketRegime`, `AllocationPlan`, `RankedCandidate`, `SizedPosition`, `SizedPortfolio`, `RiskReport`, `VerificationResult`, `ScreeningReport`.
+Also define: `MarketRegime`, `AllocationPlan`, `QualityCheck` (ticker, curated, passed, score, components, metrics, reasons, why_good_to_own), `RankedCandidate` (incl. `quality_score`), `SizedPosition`, `SizedPortfolio`, `RiskReport`, `VerificationResult`, `ScreeningReport` (incl. `quality: list[QualityCheck]`).
 
 ---
 
@@ -415,6 +443,7 @@ options-scout-ai/
 │   ├── risk_profiles.yaml     # sections 3.1–3.2
 │   ├── screener_rules.yaml    # sections 3.3–3.5
 │   ├── social_score.yaml      # weights
+│   ├── quality_universe.yaml  # section 3.7: curated good-to-own list + numeric gates + score weights
 │   └── subreddits.yaml
 ├── data/
 │   ├── brand_map.yaml
@@ -431,6 +460,7 @@ options-scout-ai/
 │   │   ├── margin.py          # Reg T, collateral
 │   │   ├── volatility.py      # HV, IV rank, VIX percentile
 │   │   ├── screeners.py       # CSP, LEAPS, PMCC
+│   │   ├── quality.py         # good-to-own gate + score (section 3.7)
 │   │   ├── ranking.py
 │   │   ├── sizing.py
 │   │   ├── risk.py            # constraints, stress tests
@@ -485,7 +515,9 @@ options-scout-ai/
 
 | Method | Path | Purpose |
 |---|---|---|
-| POST | `/v1/screen` | Start a run from `{request_text}` or a full `UserProfile`. Returns `thread_id`. |
+| POST | `/v1/recommend` | **Simple front door:** `{buying_power, strategy: csp\|leaps\|both, account_type?, risk_profile?, watchlist?, exclude?, pmcc?, market_data?: {provider, api_key, sandbox}}`. Defaults: cash account, conservative. Returns `thread_id`. |
+| GET | `/v1/quality-universe` | The curated good-to-own list and the current gate values. |
+| POST | `/v1/screen` | Start a run from `{request_text}` or a full `UserProfile`; optional `market_data` as above. Returns `thread_id`. |
 | GET | `/v1/runs/{thread_id}` | Status, current node, partial results. |
 | GET | `/v1/runs/{thread_id}/stream` | Server-sent events of node updates. |
 | POST | `/v1/runs/{thread_id}/resume` | Resume after human review with corrected profile. |
@@ -497,18 +529,18 @@ Add simple API-key auth via header for the hosted demo, and per-IP rate limiting
 
 ---
 
-## 10. UI (Streamlit)
+## 10. UI (Streamlit) — one page
 
-Pages:
-1. **Profile:** buying power, account value, account type, risk profile, strategies, watchlist/exclusions, or a free-text box ("describe your situation"). Shows parsed profile for confirmation (human-in-the-loop).
-2. **Run:** live progress per graph node (streamed), with timings.
-3. **Trend Board:** table of entities, score, components bar chart, evidence posts with links, "investable" badge, stock-hype flag.
-4. **Candidates:** tabs for CSP / LEAPS / PMCC with sortable tables and filters; each row expandable to show the full math.
-5. **Portfolio & Risk:** allocation donut, sized positions, constraint check list (pass/fail), stress test chart, total notional/margin/delta.
-6. **Report:** narrative + download JSON/Markdown.
-7. **Under the Hood (for recruiters):** architecture diagram, trace link, token/cost per run, eval scores.
+**Form (top of page):**
+1. **Buying power ($)** — number input.
+2. **What are you looking for?** — radio: *Cash-secured puts* / *LEAPS calls* / *Both*, each with a one-line caption.
+3. **More options** (collapsed): account type (default `cash`), risk appetite (default `conservative`), max positions, "also consider these tickers", "never show these tickers", PMCC pairing checkbox (only when LEAPS is selected).
+4. **Data source** (collapsed): *Bundled sample data (offline)* / *Yahoo Finance (free, delayed, no key)* / *Tradier (paste your API key)* with a password field, a sandbox checkbox and the sentence "Your key is used for this run only. It is never written to disk, logged, cached or shown in the report." Choosing Tradier with an empty key shows an error and does not run.
+5. **Find candidates** button → streamed node progress.
 
-Always show the disclaimer banner and "delayed data" label.
+**Results (below the form, in this order):** metrics row (stocks passing the gate, CSP count, LEAPS count, positions sized, cash kept in reserve) → **1 · Stocks that passed the good-to-own screen** (ticker, name, sector, quality 0–100, 30-day vol, below 90-day high, curated/user-added, why) with an *Excluded* expander listing reasons and a caption stating the gate values → **2 · Cash-secured put candidates** and/or **LEAPS call candidates** (only the chosen ones; plain-language column names such as "Cash to secure" and "Chance it expires worthless"; "Show the full math" expander per table) → **How it fits your buying power** (allocation donut, sized positions, totals, risk-limit checks, stress-test chart, warnings) → **Plain-English summary** with verifier status and JSON/Markdown downloads → collapsed *Consumer-trend signal (secondary)* and *Under the hood* (latency per node, cost, pipeline description, notes).
+
+Always show the disclaimer banner (top and bottom) and the "delayed data" label. No sidebar, no multi-page navigation.
 
 ---
 
@@ -611,6 +643,16 @@ Does the Social Arbitrage Score have any predictive value?
 - [x] README per section 15, architecture diagram, 60–90s demo GIF/video. _(README + diagram done; GIF/video not recorded — needs a screen recording session.)_
 - **Accept:** a stranger can clone, `make install && make demo`, and see results with no API keys except optionally the LLM key (provide a `--no-llm` mode that skips extraction/explanation using cached outputs).
 
+### Phase 9 — Product restructure: one page, good-to-own only, bring-your-own data key (2026-10-28)
+- [x] `config/quality_universe.yaml` + `core/quality.py` (section 3.7): curated list, numeric gate with reasons, quality score; golden + fixture tests (`tests/unit/test_quality.py`).
+- [x] `universe_node` builds from the curated list; `market_data_node` applies the gate; `ranker_node` blends `quality_score` (`ranking.weights` replaces `alpha`); unrequested strategy buckets are held as cash.
+- [x] `QualityCheck` in state/report/Markdown/explainer payload; prompt `explain_report` 1.1.0 covers the screen.
+- [x] `TradierSource` (keyed provider) + `MarketData.from_config(provider=, api_key=)` + per-provider cache namespace; `Deps.with_market`; mocked-transport tests. IV snapshot store made thread-safe for the parallel fan-out.
+- [x] One-page Streamlit UI per section 10 with data-source/API-key controls; `POST /v1/recommend`, `GET /v1/quality-universe`, `market_data` on `/v1/screen` (key is a `SecretStr`).
+- [x] `make demo ARGS="--strategy csp|leaps|both"`.
+- **Accept:** `make test lint` green; UI tests prove CSP-only shows no LEAPS table and vice versa, risky fixture names never appear in result tables, Tradier without a key does not run; e2e test proves a user-added ELF/DECK is gated out with reasons while COST passes.
+- **Not done:** a live smoke test of `TradierSource` against a real sandbox key (no key available in the build environment); the provider is covered only by the mocked-transport tests.
+
 ### Stretch goals (pick 1–2 after Phase 8)
 - MILP sizing with `scipy.optimize.milp` and a comparison vs. greedy.
 - "Management mode": user enters existing positions, agent flags rolls (DTE < 21, 50% profit reached, LEAPS DTE < 240).
@@ -649,7 +691,8 @@ Does the Social Arbitrage Score have any predictive value?
 ---
 
 ## 16. Known Limitations (state these in the README)
-- Free market data is delayed and unofficial; Greeks are model-derived from Yahoo IV.
+- The good-to-own list is a curated judgment call, not a guarantee: a large company can still fall sharply, and the numeric gate only sees the last 90 days. "Good to own" means *less speculative*, not *safe*.
+- Free market data is delayed and unofficial; Greeks are model-derived from Yahoo (or Tradier) IV. The Tradier provider has not been exercised against a live key in this repo's test history.
 - IV rank needs accumulated history; early runs use an HV proxy.
 - Reddit is a biased, noisy sample of consumer behavior; social signals can be manipulated.
 - Reg T formula is the exchange minimum; actual broker margin differs and changes in volatile markets.

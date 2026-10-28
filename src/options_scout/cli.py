@@ -13,9 +13,11 @@ from options_scout.core.allocation import allocate
 from options_scout.core.models import (
     OptionCandidate,
     PMCCCandidate,
+    QualityCheck,
     TickerSnapshot,
     UserProfile,
 )
+from options_scout.core.quality import check_quality
 from options_scout.core.regime import make_regime
 from options_scout.data.fixtures import DEMO_TICKERS
 from options_scout.data.market import MarketData
@@ -48,13 +50,19 @@ def run_deterministic_pipeline(
     leaps: list[OptionCandidate] = []
     pairs: list[PMCCCandidate] = []
     errors: list[str] = []
+    quality: dict[str, QualityCheck] = {}
     for t in tickers:
         if t in profile.exclude:
             continue
         try:
             snap = md.build_snapshot(t)
+            closes = md.get_close_history(t, 90)
         except Exception as exc:  # degrade gracefully: skip the ticker, record why
             errors.append(f"{t}: {type(exc).__name__}: {exc}")
+            continue
+        quality[t] = check_quality(snap, closes, cfg.quality, cfg.quality.get(t))
+        if not quality[t].passed:
+            errors.append(f"{t}: excluded by quality gate — {'; '.join(quality[t].reasons)}")
             continue
         snapshots[t] = snap
         errors.extend(f"{t}: {e}" for e in snap.source_errors)
@@ -74,8 +82,9 @@ def run_deterministic_pipeline(
     ranked = ranking.rank_candidates(
         csp + leaps,
         social_scores or {},
-        alpha=cfg.settings.ranking.alpha,
-        weights=cfg.settings.ranking.option_quality_weights,
+        {t: q.score for t, q in quality.items() if q.passed},
+        weights=cfg.settings.ranking.weights,
+        option_weights=cfg.settings.ranking.option_quality_weights,
         rules=cfg.rules,
         pmcc_pairs=pairs,
     )
@@ -100,6 +109,7 @@ def run_deterministic_pipeline(
     return {
         "regime": regime,
         "allocation": allocation,
+        "quality": list(quality.values()),
         "snapshots": snapshots,
         "csp": csp,
         "leaps": leaps,
@@ -121,6 +131,9 @@ def render_demo(cfg: AppConfig, profile: UserProfile, out: dict[str, Any]) -> st
         "",
         "### Allocation",
         report.render_allocation(out["allocation"]),
+        "",
+        "### Good-to-own quality screen",
+        report.render_quality(out["quality"]),
         "",
         "### CSP candidates",
         report.render_csp(out["csp"]),
@@ -191,9 +204,14 @@ def cmd_demo(args: argparse.Namespace) -> int:
     deps = Deps.from_config(cfg)
     graph = build_graph(deps)
     thread = f"demo-{os.getpid()}"
+    wants = {
+        "csp": "Show me cash-secured puts only.",
+        "leaps": "Show me LEAPS calls only.",
+        "both": "Show me CSPs and LEAPS/PMCC ideas.",
+    }[args.strategy]
     text = args.request or (
         f"I have ${args.buying_power:,.0f} of buying power in a {args.account or 'margin'} "
-        f"account, {args.risk or 'balanced'} risk tolerance. Show me CSPs and LEAPS/PMCC ideas."
+        f"account, {args.risk or 'balanced'} risk tolerance. {wants}"
     )
     print(f"# OptionsScout AI demo — {cfg.settings.data_mode} data, LLM mode {deps.llm.mode}\n")
     print(f"> {text}\n")
@@ -223,6 +241,9 @@ def main(argv: Sequence[str] | None = None) -> int:
     demo.add_argument("--buying-power", type=float, default=100_000)
     demo.add_argument("--risk", choices=["conservative", "balanced", "aggressive"])
     demo.add_argument("--account", choices=["cash", "margin", "portfolio_margin"])
+    demo.add_argument(
+        "--strategy", choices=["csp", "leaps", "both"], default="both", help="what to screen for"
+    )
     demo.add_argument("--no-llm", action="store_true", help="skip LLM steps (rule-based stand-ins)")
     demo.set_defaults(func=cmd_demo)
 

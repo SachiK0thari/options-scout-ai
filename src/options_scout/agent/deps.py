@@ -2,7 +2,7 @@
 
 from __future__ import annotations
 
-from dataclasses import dataclass, field
+from dataclasses import dataclass, field, replace
 
 from options_scout.config import AppConfig
 from options_scout.data.market import MarketData
@@ -26,3 +26,7 @@ class Deps:
         scout = TrendScout(cfg, llm) if with_social else None
         store = TrendStore(cfg.paths.cache_db.parent / "trends.sqlite")
         return cls(cfg=cfg, md=md, llm=llm, scout=scout, trend_store=store)
+
+    def with_market(self, md: MarketData) -> Deps:
+        """Same LLM / social engine, different market-data source (per-run provider or API key)."""
+        return replace(self, md=md)

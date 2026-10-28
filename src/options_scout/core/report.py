@@ -9,6 +9,7 @@ from options_scout.core.models import (
     MarketRegime,
     OptionCandidate,
     PMCCCandidate,
+    QualityCheck,
     RankedCandidate,
     RiskReport,
     SizedPortfolio,
@@ -93,6 +94,48 @@ def render_trends(trends: Sequence[TrendSignal], limit: int = 10) -> str:
         ],
         rows,
     )
+
+
+def render_quality(checks: Sequence[QualityCheck]) -> str:
+    if not checks:
+        return "_No tickers were evaluated._"
+    kept = sorted((q for q in checks if q.passed), key=lambda q: -q.score)
+    dropped = [q for q in checks if not q.passed]
+    parts: list[str] = []
+    if kept:
+        parts.append(
+            _table(
+                [
+                    "Ticker",
+                    "Name",
+                    "Sector",
+                    "Quality",
+                    "30d vol",
+                    "Below 90d high",
+                    "Why it's on the list",
+                ],
+                [
+                    [
+                        q.ticker,
+                        q.name or "—",
+                        q.sector,
+                        f"{q.score * 100:.0f}",
+                        pct(q.metrics.get("hv30"), 0),
+                        pct(q.metrics.get("drawdown_90d"), 0),
+                        q.why_good_to_own or ("_user-added, not on the curated list_"),
+                    ]
+                    for q in kept
+                ],
+            )
+        )
+    else:
+        parts.append("_No ticker passed the quality gate._")
+    if dropped:
+        parts.append(
+            "**Excluded by the quality gate:**\n"
+            + "\n".join(f"- {q.ticker}: {'; '.join(q.reasons)}" for q in dropped)
+        )
+    return "\n\n".join(parts)
 
 
 def render_csp(cands: Sequence[OptionCandidate], limit: int = 15) -> str:

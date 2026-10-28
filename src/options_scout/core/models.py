@@ -208,10 +208,27 @@ class PMCCCandidate(Model):
     short_call_annualized_yield_on_debit: float
 
 
+class QualityCheck(Model):
+    """Deterministic 'good to own' gate for one underlying (section 3.7)."""
+
+    ticker: str
+    name: str | None = None
+    sector: str = "Unknown"
+    curated: bool
+    passed: bool
+    score: float = Field(ge=0, le=1)
+    components: dict[str, float]  # stability, trend, curated (each 0–1)
+    metrics: dict[str, float | None]  # price, avg_volume, hv30, atm_iv, drawdown_90d
+    reasons: list[str] = Field(default_factory=list)  # failed gates, plain English
+    why_good_to_own: str | None = None
+    tags: list[str] = Field(default_factory=list)
+
+
 class RankedCandidate(Model):
     candidate: OptionCandidate
     option_quality: float = Field(ge=0, le=1)
     social_score: float = Field(ge=0, le=100)
+    quality_score: float = Field(default=0.5, ge=0, le=1)
     final_score: float = Field(ge=0, le=1)
     rank: int = Field(ge=1)
     pmcc: PMCCCandidate | None = None  # populated when a LEAPS has a matched short call
@@ -407,6 +424,7 @@ class ScreeningReport(Model):
     allocation: AllocationPlan
     trends: list[TrendSignal]
     universe: list[str]
+    quality: list[QualityCheck] = Field(default_factory=list)  # passed + excluded, in run order
     csp_candidates: list[OptionCandidate]
     leaps_candidates: list[OptionCandidate]
     pmcc_candidates: list[PMCCCandidate]

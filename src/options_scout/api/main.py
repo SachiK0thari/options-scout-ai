@@ -29,13 +29,18 @@ from options_scout.agent.graph import (
 )
 from options_scout.api.schemas import (
     Health,
+    MarketDataAuth,
+    QualityUniverseEntry,
+    QualityUniverseResponse,
+    RecommendRequest,
     ResumeRequest,
     RunStatus,
     ScreenRequest,
     ScreenResponse,
 )
 from options_scout.config import get_config
-from options_scout.core.models import ScreeningReport
+from options_scout.core.models import ScreeningReport, UserProfile
+from options_scout.data.market import MarketData, MarketDataError
 from options_scout.observability import configure_logging, get_logger
 
 configure_logging()
@@ -57,7 +62,8 @@ class RunRegistry:
     def __init__(self) -> None:
         self.cfg = get_config()
         self.deps = Deps.from_config(self.cfg)
-        self.graph = build_graph(self.deps, sqlite_checkpointer(self.cfg.paths.checkpoint_db))
+        self.ckpt = sqlite_checkpointer(self.cfg.paths.checkpoint_db)
+        self.graph = build_graph(self.deps, self.ckpt)
         self.events: dict[str, list[dict[str, Any]]] = {}
         self.status: dict[str, str] = {}
         self.threads: dict[str, threading.Thread] = {}
@@ -91,18 +97,53 @@ class RunRegistry:
                 {"event": "end", "status": self.status[thread_id], "ts": time.time()}
             )
 
-    def start(self, req: ScreenRequest) -> str:
-        thread_id = req.thread_id or uuid.uuid4().hex[:16]
+    def graph_for(self, auth: MarketDataAuth | None) -> Any:
+        """The shared graph, or one bound to the caller's market-data provider / API key."""
+        if auth is None:
+            return self.graph
+        key = auth.api_key.get_secret_value() if auth.api_key else None
+        cfg = self.cfg
+        if auth.provider == "tradier":
+            md_settings = cfg.settings.market_data
+            cfg = cfg.model_copy(
+                update={
+                    "settings": cfg.settings.model_copy(
+                        update={
+                            "market_data": md_settings.model_copy(
+                                update={
+                                    "tradier": md_settings.tradier.model_copy(
+                                        update={"sandbox": auth.sandbox}
+                                    )
+                                }
+                            )
+                        }
+                    )
+                }
+            )
+        try:
+            md = MarketData.from_config(cfg, mode="live", provider=auth.provider, api_key=key)
+        except MarketDataError as exc:
+            raise HTTPException(422, str(exc)) from exc
+        return build_graph(self.deps.with_market(md), self.ckpt)
+
+    def start(
+        self,
+        *,
+        request_text: str = "",
+        profile: UserProfile | None = None,
+        thread_id: str | None = None,
+        market_data: MarketDataAuth | None = None,
+    ) -> str:
+        thread_id = thread_id or uuid.uuid4().hex[:16]
         if thread_id in self.threads and self.threads[thread_id].is_alive():
             raise HTTPException(409, "thread is already running")
-        state = initial_state(
-            req.request_text or "", req.profile.model_dump(mode="json") if req.profile else None
-        )
+        graph = self.graph_for(market_data)
+        state = initial_state(request_text, profile.model_dump(mode="json") if profile else None)
         self.events[thread_id] = []
         self.status[thread_id] = "running"
         t = threading.Thread(
             target=self._consume,
-            args=(thread_id, stream_run(self.graph, state, thread_id)),
+            args=(thread_id, stream_run(graph, state, thread_id)),
             daemon=True,
         )
         self.threads[thread_id] = t
@@ -171,8 +212,30 @@ def screen(req: ScreenRequest) -> ScreenResponse:
     if not req.request_text and req.profile is None:
         raise HTTPException(422, "provide request_text or profile")
     reg = registry()
-    thread_id = reg.start(req)
+    thread_id = reg.start(
+        request_text=req.request_text or "",
+        profile=req.profile,
+        thread_id=req.thread_id,
+        market_data=req.market_data,
+    )
     return ScreenResponse(thread_id=thread_id, status="running")
+
+
+@app.post("/v1/recommend", response_model=ScreenResponse, dependencies=[Depends(_auth)])
+def recommend(req: RecommendRequest) -> ScreenResponse:
+    """Simple front door: buying power + strategy (+ optional market-data key) → run."""
+    reg = registry()
+    thread_id = reg.start(profile=req.to_profile(), market_data=req.market_data)
+    return ScreenResponse(thread_id=thread_id, status="running")
+
+
+@app.get("/v1/quality-universe", response_model=QualityUniverseResponse)
+def quality_universe() -> QualityUniverseResponse:
+    q = registry().cfg.quality
+    return QualityUniverseResponse(
+        gates=q.gates.model_dump(),
+        tickers=[QualityUniverseEntry(**t.model_dump()) for t in q.tickers],
+    )
 
 
 @app.get("/v1/runs/{thread_id}", response_model=RunStatus, dependencies=[Depends(_auth)])

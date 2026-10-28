@@ -229,7 +229,7 @@ def _risk(low: str) -> tuple[RiskProfile | None, bool]:
 def _strategies(low: str) -> list[Strategy] | None:
     out: list[Strategy] = []
     if re.search(
-        r"\b(csp|csps|cash[- ]secured put|cash secured puts|sell(?:ing)? puts?|wheel|short puts?)\b",
+        r"\b(csp|csps|cash[- ]secured puts?|sell(?:ing)? puts?|wheel|short puts?)\b",
         low,
     ):
         out.append("csp")
@@ -447,6 +447,26 @@ def rule_explain(user_prompt: str) -> _Narrative:
         f"{regime.get('vix_percentile')} percentile of its past year, so the regime is "
         f'{str(regime.get("label", "")).replace("_", " ")} and the tilt applied was "{alloc.get("tilt")}".',
     ]
+    qs = payload.get("quality_screen", {})
+    if qs:
+        kept = qs.get("passed", [])
+        names = ", ".join(f"{q.get('ticker')} (quality {q.get('quality_score')})" for q in kept[:8])
+        dropped = qs.get("excluded", [])
+        drop_txt = (
+            " Excluded: "
+            + "; ".join(
+                f"{q.get('ticker')} ({'; '.join(q.get('reasons', [])[:2])})" for q in dropped[:5]
+            )
+            + "."
+            if dropped
+            else ""
+        )
+        parts.append(
+            f"**Quality screen.** {qs.get('passed_count')} underlying(s) passed the good-to-own gate "
+            f"(curated list plus limits on realised and implied volatility, price, liquidity and distance "
+            f"below the {qs.get('drawdown_lookback_days')}-day high): {names or 'none'}.{drop_txt} "
+            f"Only these were screened for options."
+        )
     if trends:
         tr = ", ".join(
             f"{t.get('entity')} (score {t.get('score')}{', ' + str(t.get('ticker')) if t.get('ticker') else ', not investable'})"

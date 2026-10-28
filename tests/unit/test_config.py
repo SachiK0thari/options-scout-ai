@@ -7,7 +7,9 @@ from options_scout.config import AppConfig, load_config
 
 def test_config_loads_and_is_typed(config: AppConfig) -> None:
     assert config.settings.data_mode == "fixture"
-    assert config.settings.ranking.alpha == 0.6
+    w = config.settings.ranking.weights
+    assert (w.option_quality, w.stock_quality, w.social) == (0.5, 0.35, 0.15)
+    assert config.quality.get("AAPL") is not None and config.quality.gates.max_hv30 == 0.35
     assert set(config.risk.allocation) == {"conservative", "balanced", "aggressive"}
     for split in config.risk.allocation.values():
         assert abs(split.csp + split.leaps + split.cash - 1.0) < 1e-9
@@ -19,7 +21,7 @@ def test_config_loads_and_is_typed(config: AppConfig) -> None:
 
 def test_config_is_frozen(config: AppConfig) -> None:
     with pytest.raises(Exception):  # noqa: B017 - pydantic raises ValidationError/TypeError
-        config.settings.ranking.alpha = 0.1  # type: ignore[misc]
+        config.settings.ranking.weights = None  # type: ignore[misc]
 
 
 def test_env_override_changes_mode(monkeypatch: pytest.MonkeyPatch, config: AppConfig) -> None:

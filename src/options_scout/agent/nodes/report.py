@@ -44,7 +44,10 @@ def render_markdown(rep: ScreeningReport) -> str:
         "## Trend board (social arbitrage)",
         md.render_trends(rep.trends),
         "",
-        f"Universe screened: {', '.join(rep.universe) if rep.universe else '—'}",
+        f"Universe considered: {', '.join(rep.universe) if rep.universe else '—'}",
+        "",
+        "## Good-to-own quality screen",
+        md.render_quality(rep.quality),
         "",
         "## CSP candidates",
         md.render_csp(rep.csp_candidates),
@@ -123,8 +126,8 @@ def make(deps: Deps) -> Callable[[AgentState], dict[str, Any]]:
             data_mode=deps.md.source.name,
             llm_mode=deps.llm.mode,
             models={
-                "extraction": deps.cfg.settings.llm.extraction_model,
-                "explanation": deps.cfg.settings.llm.explanation_model,
+                "extraction": deps.llm.models.extraction_model,
+                "explanation": deps.llm.models.explanation_model,
                 "provider": deps.llm.provider.name,
             },
             prompt_versions=prompt_versions(deps.cfg.paths.prompts_dir),
@@ -144,6 +147,9 @@ def make(deps: Deps) -> Callable[[AgentState], dict[str, Any]]:
             allocation=alloc,
             trends=state.get("trends", []),
             universe=state.get("universe", []),
+            quality=[
+                q for t in state.get("universe", []) if (q := state.get("quality", {}).get(t))
+            ],
             csp_candidates=[c for c in cands if c.strategy == "csp"],
             leaps_candidates=[c for c in cands if c.strategy == "leaps"],
             pmcc_candidates=state.get("pmcc_pairs", []),
