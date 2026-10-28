@@ -1,6 +1,6 @@
 """Typed settings loaded from config/*.yaml with env-var overrides.
 
-Every threshold in the system lives here (rule 7 of CLAUDE.md). Nothing numeric should be
+Every threshold in the system lives here (rule 7 of PRD.md). Nothing numeric should be
 hard-coded elsewhere.
 """
 

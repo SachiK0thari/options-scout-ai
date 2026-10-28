@@ -1,4 +1,4 @@
-# "Good to own" universe (CLAUDE.md section 3.7).
+# "Good to own" universe (PRD.md section 3.7).
 #
 # The screener only looks at stocks on this curated list (plus tickers the user adds), and every
 # ticker, curated or not, must also pass the deterministic numeric gates below on the day of the

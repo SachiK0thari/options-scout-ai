@@ -1,4 +1,4 @@
-# CLAUDE.md: OptionsScout AI
+# PRD.md: OptionsScout AI
 
 > Build spec and working agreement for Claude Code.
 > Read this whole file before writing any code. Work through the **Build Phases** (section 14) in order, and do not start a phase until the previous phase's acceptance criteria pass.
@@ -431,7 +431,7 @@ Also define: `MarketRegime`, `AllocationPlan`, `QualityCheck` (ticker, curated, 
 
 ```
 options-scout-ai/
-├── CLAUDE.md
+├── PRD.md
 ├── README.md
 ├── pyproject.toml
 ├── Makefile

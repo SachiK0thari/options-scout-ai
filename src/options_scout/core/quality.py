@@ -1,4 +1,4 @@
-"""'Good to own' quality gate and score (CLAUDE.md section 3.7).
+"""'Good to own' quality gate and score (PRD.md section 3.7).
 
 Pure functions, no I/O. The gate decides whether an underlying is calm, liquid and healthy enough
 to be screened at all; the score (0–1) ranks the survivors and feeds the final blend in

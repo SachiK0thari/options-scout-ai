@@ -107,7 +107,7 @@ Measured by `make eval` on 2026-10-27 in fixture mode with **no LLM key** (the r
 
 ## Repository layout
 
-See [`CLAUDE.md`](CLAUDE.md) section 8. Key paths: `config/*.yaml` (every threshold), `prompts/*.md` (versioned prompts), `src/options_scout/core` (math), `src/options_scout/social` (trend engine), `src/options_scout/agent` (graph), `src/options_scout/api`, `ui/streamlit_app.py`, `evals/`, `tests/fixtures/`.
+See [`PRD.md`](PRD.md) section 8. Key paths: `config/*.yaml` (every threshold), `prompts/*.md` (versioned prompts), `src/options_scout/core` (math), `src/options_scout/social` (trend engine), `src/options_scout/agent` (graph), `src/options_scout/api`, `ui/streamlit_app.py`, `evals/`, `tests/fixtures/`.
 
 ## Deploy
 
@@ -131,4 +131,4 @@ See [`CLAUDE.md`](CLAUDE.md) section 8. Key paths: `config/*.yaml` (every thresh
 
 ## Working in this repo
 
-`make help` lists commands. Rules for contributors (and for Claude Code) are in [`CLAUDE.md`](CLAUDE.md): tests first for math, `mypy --strict` on `core/`, no network in unit tests, pinned dependencies, config over constants, prompts as files, small conventional commits.
+`make help` lists commands. Rules for contributors (and for Claude Code) are in [`PRD.md`](PRD.md): tests first for math, `mypy --strict` on `core/`, no network in unit tests, pinned dependencies, config over constants, prompts as files, small conventional commits.
