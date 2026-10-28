@@ -30,9 +30,11 @@ from options_scout.agent.graph import (
     stream_run,
     thread_config,
 )
-from options_scout.config import get_config
+from options_scout.config import get_config, load_env
 from options_scout.core.models import OptionCandidate, QualityCheck, ScreeningReport
 from options_scout.data.market import FixtureSource, MarketData, MarketDataError
+
+load_env()
 
 st.set_page_config(page_title="OptionsScout", page_icon="🔭", layout="wide")
 CFG = get_config()

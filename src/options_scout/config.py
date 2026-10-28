@@ -33,6 +33,25 @@ def repo_root() -> Path:
     return Path.cwd()
 
 
+def load_env(path: Path | None = None) -> bool:
+    """Load ``<repo_root>/.env`` into ``os.environ`` without overriding existing variables.
+
+    Entry points (CLI, API, UI, evals, jobs) call this once at startup so keys written to
+    ``.env`` (LLM provider keys, ``LANGSMITH_API_KEY`` ...) reach the process. A value already
+    exported in the shell always wins. Set ``OPTIONS_SCOUT_DOTENV=0`` to skip the file entirely
+    (the test suite does this so a developer's real keys never leak into tests). Returns True
+    when a file was found and loaded.
+    """
+    from dotenv import load_dotenv
+
+    if os.environ.get("OPTIONS_SCOUT_DOTENV", "1") == "0":
+        return False
+    target = path if path is not None else repo_root() / ".env"
+    if not target.is_file():
+        return False
+    return bool(load_dotenv(target, override=False))
+
+
 class _Strict(BaseModel):
     model_config = ConfigDict(extra="forbid", frozen=True)
 
@@ -148,6 +167,7 @@ class TrendSettings(_Strict):
     snapshot_max_age_hours: int
     top_n_investable: int
     evidence_posts_per_entity: int
+    retention_hours: int
 
 
 class AgentSettings(_Strict):

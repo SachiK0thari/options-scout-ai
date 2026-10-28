@@ -27,7 +27,7 @@ sys.path.insert(0, str(ROOT / "src"))
 from options_scout.agent.deps import Deps  # noqa: E402
 from options_scout.agent.graph import build_graph, initial_state, stream_run, thread_config  # noqa: E402
 from options_scout.agent.verifier import BANNED_PHRASES  # noqa: E402
-from options_scout.config import load_config  # noqa: E402
+from options_scout.config import load_config, load_env  # noqa: E402
 from options_scout.core.models import SocialPost  # noqa: E402
 from options_scout.llm.client import LLMClient  # noqa: E402
 from options_scout.llm.rules import RuleBasedExtractor, rule_parse_profile  # noqa: E402
@@ -503,6 +503,7 @@ def write_report(res: Results, cfg: Any, llm_label: str) -> Path:
 
 
 def main() -> int:
+    load_env()
     cfg = load_config(ROOT)
     res = Results()
     llm: LLMClient | None = None

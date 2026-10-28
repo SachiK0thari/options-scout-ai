@@ -20,6 +20,7 @@ def _offline_env(monkeypatch: pytest.MonkeyPatch) -> None:
     monkeypatch.setenv("OPTIONS_SCOUT_LLM_MODE", "fixture")
     monkeypatch.setenv("OPTIONS_SCOUT_ROOT", str(REPO_ROOT))
     monkeypatch.setenv("OPTIONS_SCOUT_LOG_LEVEL", "WARNING")
+    monkeypatch.setenv("OPTIONS_SCOUT_DOTENV", "0")  # never read the developer's .env in tests
     os.environ.pop("ANTHROPIC_API_KEY", None)
     os.environ.pop("OPENROUTER_API_KEY", None)
     get_config.cache_clear()

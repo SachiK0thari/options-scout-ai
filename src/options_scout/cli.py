@@ -7,7 +7,7 @@ import sys
 from collections.abc import Sequence
 from typing import Any
 
-from options_scout.config import AppConfig, get_config
+from options_scout.config import AppConfig, get_config, load_env
 from options_scout.core import ranking, report, risk, screeners, sizing
 from options_scout.core.allocation import allocate
 from options_scout.core.models import (
@@ -229,6 +229,7 @@ def cmd_demo(args: argparse.Namespace) -> int:
 
 
 def main(argv: Sequence[str] | None = None) -> int:
+    load_env()
     parser = argparse.ArgumentParser(
         prog="options-scout", description="Educational options screener. Not investment advice."
     )

@@ -63,10 +63,11 @@ class IVSnapshotStore:
 
 
 def main(argv: list[str] | None = None) -> int:
-    from options_scout.config import get_config
+    from options_scout.config import get_config, load_env
     from options_scout.data.fixtures import DEMO_TICKERS
     from options_scout.data.market import MarketData
 
+    load_env()
     parser = argparse.ArgumentParser(description="Record today's ATM IV per ticker.")
     parser.add_argument("tickers", nargs="*", help="defaults to the demo tickers")
     args = parser.parse_args(argv)

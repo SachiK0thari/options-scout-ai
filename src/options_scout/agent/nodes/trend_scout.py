@@ -39,6 +39,9 @@ def make(deps: Deps) -> Callable[[AgentState], dict[str, Any]]:
                     run = deps.scout.run()
                     trends = run.signals
                     deps.trend_store.save(run)
+                    deps.trend_store.purge(
+                        deps.cfg.settings.trends.retention_hours, now=deps.md.now()
+                    )
                     errors.extend(run.errors)
                     status.update(
                         {k: ("ok" if v.ok else "error") for k, v in run.source_status.items()}

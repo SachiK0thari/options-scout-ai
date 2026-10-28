@@ -38,13 +38,15 @@ from options_scout.api.schemas import (
     ScreenRequest,
     ScreenResponse,
 )
-from options_scout.config import get_config
+from options_scout.config import get_config, load_env
 from options_scout.core.models import ScreeningReport, UserProfile
 from options_scout.data.market import MarketData, MarketDataError
 from options_scout.observability import configure_logging, get_logger
 
 configure_logging()
 log = get_logger(component="api")
+load_env()
+
 app = FastAPI(
     title="OptionsScout AI",
     version=__version__,

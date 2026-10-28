@@ -212,6 +212,18 @@ class TrendStore:
         )
         self._conn.commit()
 
+    def purge(self, retention_hours: int, now: datetime | None = None) -> int:
+        """Delete snapshots (and the post excerpts they carry) older than ``retention_hours``.
+
+        Called after every save so stored social data never outlives the retention window
+        promised in PRIVACY.md. Returns the number of snapshots removed.
+        """
+        now = now or datetime.now(tz=UTC)
+        cutoff = (now - timedelta(hours=retention_hours)).isoformat()
+        cur = self._conn.execute("DELETE FROM trend_snapshots WHERE as_of < ?", (cutoff,))
+        self._conn.commit()
+        return int(cur.rowcount or 0)
+
     def latest(self, max_age_hours: int, now: datetime | None = None) -> list[TrendSignal] | None:
         row = self._conn.execute(
             "SELECT as_of, payload FROM trend_snapshots ORDER BY as_of DESC LIMIT 1"

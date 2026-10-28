@@ -4,11 +4,13 @@
 
 > Educational screening tool. Not investment, tax or legal advice. Options involve significant risk, including loss exceeding the premium received on margin. Data may be delayed or inaccurate. The app never places trades and never connects to a brokerage.
 
+Data handling (market data, Reddit, keys, logs): [PRIVACY.md](PRIVACY.md). Licence: [MIT](LICENSE).
+
 _Demo GIF: not recorded yet. `make demo` prints the full report in about one second; `make ui` opens the one-page app._
 
 ## How it works in one paragraph
 
-The universe is a **curated list of ~30 good-to-own names** (large, profitable companies with long dividend records or dominant franchises, plus SPY and QQQ) in [`config/quality_universe.yaml`](config/quality_universe.yaml). On every run each ticker — including any you add — must pass a **deterministic quality gate**: price ≥ $20, average volume ≥ 1M, 30-day realised volatility ≤ 35%, implied volatility ≤ 45%, and no more than 20% below its 90-day high. Whatever fails is listed with the reason and never reaches the option screeners. Survivors get a quality score that carries 35% of the final ranking; the option's own economics carry 50% and the consumer-trend (social arbitrage) signal 15%. Buying power is split by risk profile, buckets for strategies you did not ask for are held as cash, and positions are sized greedily under six portfolio constraints with a −10/−20/−30% stress test. Prices come from bundled fixtures, Yahoo Finance (no key) or **your own Tradier API key pasted into the page** (used for that run only, never stored).
+The universe is a **curated list of ~30 good-to-own names** (large, profitable companies with long dividend records or dominant franchises, plus SPY and QQQ) in [`config/quality_universe.yaml`](config/quality_universe.yaml). On every run each ticker — including any you add — must pass a **deterministic quality gate**: price ≥ $20, average volume ≥ 1M, 30-day realised volatility ≤ 35%, implied volatility ≤ 45%, and no more than 20% below its 90-day high. Whatever fails is listed with the reason and never reaches the option screeners. Survivors get a quality score that carries 35% of the final ranking; the option's own economics carry 50% and the consumer-trend signal 15%. Buying power is split by risk profile, buckets for strategies you did not ask for are held as cash, and positions are sized greedily under six portfolio constraints with a −10/−20/−30% stress test. Prices come from bundled fixtures, Yahoo Finance (no key) or **your own Tradier API key pasted into the page** (used for that run only, never stored).
 
 ---
 
@@ -37,7 +39,7 @@ flowchart TD
     H --> A
     B -- yes --> C[regime_node<br/>VIX percentile, risk-free rate]
     C --> D[allocator_node<br/>split buying power]
-    D --> E[trend_scout_node<br/>social arbitrage scores]
+    D --> E[trend_scout_node<br/>consumer-trend scores]
     E --> F[universe_node<br/>curated good-to-own list ∪ user tickers]
     F --> G[[fan-out per ticker via Send]]
     G --> I[market_data_node<br/>chains, spot, earnings, HV<br/>+ quality gate: vol, IV, drawdown, liquidity]
@@ -85,7 +87,7 @@ Measured by `make eval` on 2026-10-27 in fixture mode with **no LLM key** (the r
 
 0. Quality screen: every stock considered, its quality score (0–100), and every exclusion with the reason ("implied volatility 68% is above the 45% limit", "26% below its 90-day high").
 1. Allocation plan (CSP collateral / LEAPS-PMCC / cash reserve, with a volatility-regime tilt and the reasons; unrequested strategies are held as cash).
-2. Trend board (secondary): entities, Social Arbitrage Score, components (velocity z, acceleration, sentiment, purchase intent, cross-source confirmation, coverage gap, novelty and stock-hype penalties), evidence posts, investable flag. It re-orders qualifying stocks and never adds one.
+2. Trend board (secondary): entities, consumer-trend score (0–100), components (velocity z, acceleration, sentiment, purchase intent, cross-source confirmation, coverage gap, novelty and stock-hype penalties), evidence posts, investable flag. It re-orders qualifying stocks and never adds one.
 3. CSP candidates with strike, expiry, delta, premium, collateral, Reg T margin, annualised return, P(OTM), liquidity, IV rank, earnings flag.
 4. LEAPS/PMCC candidates with extrinsic % per year, breakeven and a matched short call satisfying the safety rule.
 5. Sized portfolio under six risk constraints, with totals.
@@ -121,6 +123,7 @@ See [`CLAUDE.md`](CLAUDE.md) section 8. Key paths: `config/*.yaml` (every thresh
 - Free market data is delayed and unofficial; Greeks are model-derived from Yahoo (or Tradier) IV.
 - IV rank needs accumulated history; early runs use an HV proxy and say so.
 - The bundled social corpus is synthetic; Reddit is a biased, noisy sample and social signals can be manipulated.
+- Live Reddit access requires Reddit's approval under its Responsible Builder Policy; it was requested and is pending. Until granted, the Reddit adapter runs in fixture mode only. How social data is read, stored and deleted (48-hour retention) is in [PRIVACY.md](PRIVACY.md).
 - Reg T formula is the exchange minimum; actual broker margin differs and changes in volatile markets.
 - Early assignment, dividends and exit liquidity are simplified.
 - LLM-backed evals and the LLM-as-judge have not been run (no API key in the build environment).

@@ -68,6 +68,7 @@ trends:
   snapshot_max_age_hours: 24
   top_n_investable: 8
   evidence_posts_per_entity: 4
+  retention_hours: 48      # stored social snapshots (incl. post excerpts) older than this are deleted
 
 agent:
   max_sizing_retries: 3

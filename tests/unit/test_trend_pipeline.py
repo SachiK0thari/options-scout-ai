@@ -88,6 +88,23 @@ def test_trend_store_roundtrip(trend_run: TrendRun, tmp_path) -> None:  # type: 
     )
 
 
+def test_trend_store_purges_snapshots_past_retention(trend_run: TrendRun, tmp_path) -> None:  # type: ignore[no-untyped-def]
+    """Stored social data (incl. post excerpts) must not outlive the retention window (PRIVACY.md)."""
+    from datetime import timedelta
+
+    store = TrendStore(tmp_path / "t.sqlite")
+    store.save(trend_run)
+    old = TrendRun(**{**trend_run.__dict__, "as_of": trend_run.as_of - timedelta(days=3)})
+    store.save(old)
+    now = trend_run.as_of + timedelta(hours=1)
+    assert store.purge(retention_hours=48, now=now) == 1
+    assert store.purge(retention_hours=48, now=now) == 0
+    latest = store.latest(max_age_hours=10**6, now=now)
+    assert latest is not None and len(latest) == len(trend_run.signals)
+    assert store.purge(retention_hours=0, now=now + timedelta(seconds=1)) == 1
+    assert store.latest(max_age_hours=10**6, now=now) is None
+
+
 def test_resolver_rejects_hallucinated_tickers(config_module: AppConfig) -> None:
     sec = SECAdapter("fixture", config_module.paths.fixtures_dir / "sec_company_tickers.json")
     bm = BrandMap.load(config_module.paths.brand_map)

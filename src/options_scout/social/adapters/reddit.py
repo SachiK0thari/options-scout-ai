@@ -78,7 +78,7 @@ class RedditAdapter:
 
         client_id = os.environ.get("REDDIT_CLIENT_ID")
         secret = os.environ.get("REDDIT_CLIENT_SECRET")
-        agent = os.environ.get("REDDIT_USER_AGENT", "options-scout-ai/0.1 (educational screener)")
+        agent = os.environ.get("REDDIT_USER_AGENT", "python:ai.optionsscout:0.1.0 (by /u/unknown)")
         if not client_id or not secret:
             raise RuntimeError("REDDIT_CLIENT_ID / REDDIT_CLIENT_SECRET not set")
         reddit = praw.Reddit(client_id=client_id, client_secret=secret, user_agent=agent)
