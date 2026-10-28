@@ -7,7 +7,7 @@
 
 ## 0. TL;DR for Claude Code
 
-- **What:** A multi-agent LangGraph application behind a **one-page web app**: the user enters **buying power**, picks **cash-secured puts (CSPs)**, **LEAPS calls** or both, optionally pastes a **market-data API key**, and gets option candidates on **good-to-own stocks only** (a curated list of large, profitable, dividend-paying companies and broad ETFs, each re-checked by a deterministic quality gate on the day of the run). Positions are sized to buying power under risk limits; a **social arbitrage** signal (consumer trends spotted on social platforms before Wall Street prices them in) only re-orders stocks that already passed the gate.
+- **What:** A multi-agent LangGraph application behind a **one-page web app**: the user enters **buying power**, picks **cash-secured puts (CSPs)**, **LEAPS calls** or both, optionally pastes a **market-data API key**, and gets option candidates on **good-to-own stocks only** (a curated list of large, profitable, dividend-paying companies and broad ETFs, each re-checked by a deterministic quality gate on the day of the run). Positions are sized to buying power under risk limits; a **consumer-trend** signal (rising product and brand discussion on public platforms) only re-orders stocks that already passed the gate.
 - **Why:** A portfolio project to showcase AI Engineer skills: agent orchestration, tool use, structured outputs, RAG-free grounding, evaluation, observability, guardrails, and clean production engineering.
 - **Golden rule:** **The LLM never does math.** Every number (Greeks, margin, returns, sizing) is computed by deterministic, unit-tested Python. The LLM extracts, classifies, reasons over computed results, and explains. A verifier node rejects any narrative that contains a number not present in the computed results.
 - **Not financial advice:** This is an educational **screener**. It never places trades, never connects to a brokerage, and every output carries a disclaimer.
@@ -51,7 +51,7 @@ The web page asks for exactly three things: **buying power**, **CSP / LEAPS / bo
 ### 2.2 What the system returns
 1. **Quality screen:** which good-to-own stocks were considered, their quality score, and which were excluded and why (section 3.7). Nothing that fails the gate reaches the screeners.
 2. **Allocation plan:** how buying power is split between cash reserve, CSP collateral and LEAPS/PMCC, and why (risk profile + volatility regime). Buckets for strategies the user did not ask for are held as cash.
-3. **Trend board (secondary):** social arbitrage scores with evidence (mention velocity, cross-source confirmation, coverage gap, sample posts). It re-orders qualifying stocks; it never adds one.
+3. **Trend board (secondary):** consumer-trend scores with evidence (mention velocity, cross-source confirmation, coverage gap, sample posts). It re-orders qualifying stocks; it never adds one.
 4. **CSP candidates:** ticker, strike, expiry, delta, premium, collateral, annualized return, margin requirement (if margin), probability OTM, liquidity grade, earnings flag.
 5. **LEAPS / PMCC candidates:** LEAPS strike/expiry/delta, extrinsic % per year, breakeven, plus a matched short call for the PMCC that satisfies the safety rule (PMCC only when the user opts in).
 6. **Sized portfolio:** number of contracts per candidate, fitted to all risk constraints, with totals (notional, margin usage, net delta exposure).
@@ -176,10 +176,10 @@ The product promise is "stocks you would be happy to own if assigned", so the un
 
 ---
 
-## 4. Social Arbitrage Engine
+## 4. Consumer-Trend Engine
 
 ### 4.1 Concept
-Social arbitrage (popularized by trader Chris Camillo) means spotting **consumer and cultural trends** (a product going viral, a restaurant chain packed, a brand trending with teens) **before** they show up in earnings and analyst coverage, then mapping the trend to a public company.
+The consumer-trend signal means noticing **consumer and cultural trends** (a product going viral, a restaurant chain packed, a brand suddenly everywhere) early, then mapping the trend to a public company that is already on the good-to-own list.
 
 **Key design distinction:** the signal comes from **consumer chatter about products and brands**, not stock-tip chatter. Ticker hype on r/wallstreetbets is treated as a *risk/manipulation flag*, not a buy signal.
 
@@ -199,7 +199,7 @@ Spam/bot filter                                    Validate ticker vs SEC compan
                    coverage gap, novelty, stock-hype penalty
                                                                     │
                                                                     ▼
-                         Social Arbitrage Score (0–100) + evidence pack
+                         Consumer-Trend Score (0–100) + evidence pack
 ```
 
 ### 4.3 Data sources (free)
@@ -267,7 +267,7 @@ flowchart TD
     H --> A
     B -- yes --> C[regime_node<br/>VIX percentile, risk-free rate]
     C --> D[allocator_node<br/>split buying power]
-    D --> E[trend_scout_node<br/>social arbitrage scores]
+    D --> E[trend_scout_node<br/>consumer-trend scores]
     E --> F[universe_node<br/>merge trends + user watchlist, filter investable]
     F --> G[[fan-out per ticker via Send]]
     G --> I[market_data_node<br/>chains, spot, earnings, HV]
@@ -569,7 +569,7 @@ Always show the disclaimer banner (top and bottom) and the "delayed data" label.
 - **LLM-as-judge (optional):** clarity and faithfulness of explanations on a 1–5 rubric, with judge prompt versioned; report agreement with 20 human-rated samples.
 
 ### 11.4 Honest signal study (notebook)
-Does the Social Arbitrage Score have any predictive value?
+Does the Consumer-Trend Score have any predictive value?
 - Build historical scores from stored data only (strict point-in-time: no lookahead, use data available at each date).
 - Compare forward 30/60/90-day returns (and earnings surprises if available) of top-decile vs. bottom-decile vs. SPY.
 - Report sample size, confidence intervals, and caveats (survivorship bias, small sample, multiple testing).
@@ -618,7 +618,7 @@ Does the Social Arbitrage Score have any predictive value?
 - [x] Allocation with regime tilt; sizing with all constraints; stress tests.
 - **Accept:** `make demo` (no LLM yet) prints a sized, constraint-passing portfolio for each risk profile and account type from fixtures.
 
-### Phase 4 — Social arbitrage engine
+### Phase 4 — Consumer-trend engine
 - [x] Adapters: Reddit (PRAW), Wikipedia pageviews, news RSS; fixture mode for all.
 - [x] Filters, LLM entity extraction (structured), resolution with SEC validation, signals, score.
 - [x] Label 150 posts for the extraction eval.
@@ -676,7 +676,7 @@ Does the Social Arbitrage Score have any predictive value?
 
 ### 15.2 Resume bullet templates (fill with real numbers from your evals)
 - Built a multi-agent **LangGraph** system (11 nodes, parallel map-reduce, human-in-the-loop, checkpointed resumable runs) that screens options income strategies sized to user buying power under 6 portfolio risk constraints.
-- Designed a **social arbitrage** pipeline over Reddit, Wikipedia pageviews and news RSS with LLM entity extraction (**F1 = X.XX** on 150 labeled posts) and SEC-validated ticker resolution (**0 hallucinated tickers**).
+- Designed a **consumer-trend** pipeline over Reddit, Wikipedia pageviews and news RSS with LLM entity extraction (**F1 = X.XX** on 150 labeled posts) and SEC-validated ticker resolution (**0 hallucinated tickers**).
 - Enforced **100% numeric grounding** with a deterministic verifier node that rejects LLM narratives containing numbers absent from computed results; prompt-injection eval: **0/30** successful attacks.
 - Shipped FastAPI + Streamlit app with SSE streaming, LangSmith/OpenTelemetry tracing and per-run cost tracking (**$X.XX / run, p95 Ys**), deployed via Docker with offline fixture mode and CI.
 
@@ -710,5 +710,5 @@ Does the Social Arbitrage Score have any predictive value?
 - **Delta:** option price sensitivity to the underlying; also a rough probability proxy.
 - **Extrinsic value:** option price minus intrinsic value (the "time + volatility" part).
 - **IV rank / percentile:** where current implied volatility sits versus its past year.
-- **Social arbitrage:** profiting from consumer trends visible on social platforms before markets price them.
+- **Consumer-trend signal:** rising product or brand discussion on public platforms, used here only to re-order stocks that already passed the quality gate.
 - **Coverage gap:** social attention rising faster than financial-news attention.

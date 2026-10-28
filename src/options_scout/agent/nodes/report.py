@@ -41,7 +41,7 @@ def render_markdown(rep: ScreeningReport) -> str:
         "",
         md.render_allocation(rep.allocation),
         "",
-        "## Trend board (social arbitrage)",
+        "## Trend board (consumer trends)",
         md.render_trends(rep.trends),
         "",
         f"Universe considered: {', '.join(rep.universe) if rep.universe else '—'}",

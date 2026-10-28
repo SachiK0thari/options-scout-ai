@@ -1,4 +1,4 @@
-"""Social Arbitrage Score (0–100) from computed components and configured weights."""
+"""Consumer-Trend Score (0–100) from computed components and configured weights."""
 
 from __future__ import annotations
 

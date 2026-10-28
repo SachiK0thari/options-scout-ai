@@ -21,3 +21,6 @@ data/iv_snapshots.sqlite
 !.env.example
 .idea/
 .vscode/
+
+# superseded local copy of the build spec (kept private)
+stock-recommendation.md

@@ -1,4 +1,4 @@
-# Consumer subs feed the social arbitrage signal; stock subs only feed the hype penalty.
+# Consumer subs feed the consumer-trend signal; stock subs only feed the hype penalty.
 consumer:
   - BuyItForLife
   - sneakers

@@ -473,7 +473,7 @@ def rule_explain(user_prompt: str) -> _Narrative:
             for t in trends[:5]
         )
         parts.append(
-            f"**Trend board.** The social arbitrage scan surfaced {tr}. Scores combine mention velocity, "
+            f"**Trend board.** The consumer-trend scan surfaced {tr}. Scores combine mention velocity, "
             f"purchase intent, cross-source confirmation and the gap between social and news attention; "
             f"stock-forum hype is penalised rather than rewarded."
         )

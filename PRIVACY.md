@@ -66,4 +66,4 @@ contain API keys, Reddit usernames, or full post text.
 The hosted demo runs in offline fixture mode with synthetic data and does not contact Reddit.
 
 ## 7. Contact
-Questions or removal requests: YOUR_EMAIL (also listed in the repository README).
+Questions or removal requests: dnesmozgawa767@gmail.com.

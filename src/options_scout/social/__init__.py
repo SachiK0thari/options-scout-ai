@@ -1,1 +1,1 @@
-"""Social arbitrage engine: adapters → filters → extraction → resolution → signals → score."""
+"""Consumer-trend engine: adapters → filters → extraction → resolution → signals → score."""

@@ -1,4 +1,4 @@
-"""Run the social arbitrage pipeline and persist a scored snapshot.
+"""Run the consumer-trend pipeline and persist a scored snapshot.
 
 Run: ``python -m options_scout.jobs.refresh_trends [--mode live|fixture]``
 """

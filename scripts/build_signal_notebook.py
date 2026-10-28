@@ -39,7 +39,7 @@ def main() -> int:
         "cells": [
             cell(
                 "markdown",
-                "# Signal study — does the Social Arbitrage Score predict anything?\n\n"
+                "# Signal study — does the Consumer-Trend Score predict anything?\n\n"
                 "Section 11.4 of the build spec. **Point-in-time discipline:** each score uses only data dated on or "
                 "before the score date; forward returns use closes strictly after it. Whatever the result, it is "
                 "reported honestly — a null or insufficient-data result is the expected outcome on a synthetic corpus.\n\n"

@@ -1,7 +1,7 @@
 [project]
 name = "options-scout-ai"
 version = "0.1.0"
-description = "Multi-agent LangGraph screener for cash-secured puts, LEAPS and PMCCs with a social arbitrage signal. Educational tool, not investment advice."
+description = "Multi-agent LangGraph screener for cash-secured puts, LEAPS and PMCCs with a consumer-trend signal. Educational tool, not investment advice."
 readme = "README.md"
 requires-python = ">=3.11"
 license = { text = "MIT" }

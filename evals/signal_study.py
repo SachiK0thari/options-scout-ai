@@ -1,4 +1,4 @@
-"""Honest signal study (section 11.4): does the Social Arbitrage Score predict forward returns?
+"""Honest signal study (section 11.4): does the Consumer-Trend Score predict forward returns?
 
 Point-in-time discipline: the score for date D is computed only from posts/news/pageviews dated
 <= D (the pipeline's window logic already enforces this through ``end=``). Forward returns use
@@ -93,7 +93,7 @@ def run_study() -> str:
         spy_r = {h: forward_return(spy, t0, td) for h, td in horizons.items()}
         obs.append(Observation(d, entity, ticker, score, fwd, spy_r))
     lines = [
-        "## Signal study — point-in-time Social Arbitrage Score vs forward returns",
+        "## Signal study — point-in-time Consumer-Trend Score vs forward returns",
         "",
         f"_Run {datetime.now(tz=UTC):%Y-%m-%d} on the fixture corpus (synthetic social data, real closes "
         f"for {len(closes)} tickers recorded {record_date:%Y-%m-%d})._",
