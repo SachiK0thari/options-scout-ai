@@ -1,0 +1,52 @@
+# Compliance agent (PRD.md section 13.1). Everything this app produces is education and a screen,
+# never advice; these are the deterministic rules the agent applies to every LLM-written text.
+
+max_age_days: 400            # a cited rule/filing older than this gets a "(source may be out of date)" warning
+reminder: "Education, not advice."   # one-line closer required on chat replies that name a specific option
+require_delayed_data_statement: true # report narratives must say the data is delayed
+
+# Regexes (case-insensitive) that block a paragraph in any mode. `label` groups them for the audit log.
+banned_patterns:
+  # certainty
+  - {label: certainty, pattern: "\\bguarantee[ds]?\\b"}
+  - {label: certainty, pattern: "\\brisk[- ]?free\\b"}
+  - {label: certainty, pattern: "\\bcan(?:'|no)?t lose\\b"}
+  - {label: certainty, pattern: "\\bsure thing\\b"}
+  - {label: certainty, pattern: "\\bwill (?:profit|make money|pay off|go up|rise|rally|recover)\\b"}
+  - {label: certainty, pattern: "\\bfree money\\b"}
+  - {label: certainty, pattern: "\\bsafe (?:trade|bet|income|play|way to)\\b"}
+  # directives addressed to the reader
+  - {label: directive, pattern: "\\byou should\\b"}
+  - {label: directive, pattern: "\\byou need to\\b"}
+  - {label: directive, pattern: "\\byou(?:'d| would) (?:want|do well|be wise) to\\b"}
+  - {label: directive, pattern: "\\b(?:i|we)(?:'d| would)? recommend\\b"}
+  - {label: directive, pattern: "\\bi'?d go with\\b"}
+  # imperative with an object; "to roll the short call" (infinitive, descriptive) is exempt
+  - {label: directive, pattern: "(?<!to )\\b(?:buy|sell|open|enter|roll|take|grab|load up on|pick up) (?:the|this|that|these|those|a|an|some|your) (?:[^\\s.;:!?*]+ ){0,3}?(?:puts?|calls?|positions?|trades?|spreads?|contracts?|leaps|pmcc)\\b"}
+  - {label: directive, pattern: "\\bstrong buy\\b"}
+  - {label: directive, pattern: "\\bmust buy\\b"}
+  - {label: directive, pattern: "\\b(?:buy|get in|act) now\\b"}
+  # superlatives of quality
+  - {label: superlative, pattern: "\\bbest (?:trade|setup|play|bet|opportunity|pick)\\b"}
+  - {label: superlative, pattern: "\\bgreat (?:trade|setup|play|opportunity|pick|entry)\\b"}
+  - {label: superlative, pattern: "\\bno[- ]brainer\\b"}
+  - {label: superlative, pattern: "\\bslam dunk\\b"}
+  - {label: superlative, pattern: "\\beasy money\\b"}
+  # urgency
+  - {label: urgency, pattern: "\\bdon'?t miss\\b"}
+  - {label: urgency, pattern: "\\bbefore it'?s too late\\b"}
+  - {label: urgency, pattern: "\\bhurry\\b"}
+  - {label: urgency, pattern: "\\bget in before\\b"}
+
+# Inside an `education` paragraph that carries a citation, these spans are removed before the
+# banned patterns are applied: quoted terminology and "X is the term for…" definitions.
+allow_list:
+  - "[\"“][^\"”]{1,80}[\"”]"
+  - "\\b\\S+(?:[- ]\\S+){0,3} is the (?:term|name|phrase|order type|order) (?:for|used|brokers use)\\b[^.]*"
+  - "\\brisk[- ]free rate\\b"
+
+# Conservative defaults (13.1) applied with the Risk agent's suitability facts.
+suitability:
+  min_buying_power: {csp: 2500, leaps: 1000, pmcc: 2500}   # dollars needed before a strategy is described
+  reject_naked_language_on_cash: true
+  reject_leverage_opportunity_when_conservative: true

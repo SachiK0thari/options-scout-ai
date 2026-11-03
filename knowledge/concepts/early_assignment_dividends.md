@@ -15,7 +15,7 @@ Listed equity and ETF options in the United States are **American style**: the h
 
 A shareholder on the record date receives the dividend; a call holder does not. The **ex-dividend date** is the first day the stock trades without the right to the upcoming dividend, so anyone who wants the dividend must own the shares by the close of the previous trading day. A call holder whose option is in the money can exercise the day before the ex-date, become a shareholder, and collect the dividend. Doing so is worthwhile when the dividend is larger than the extrinsic value they would be giving up. Deep in-the-money calls with little time value on high-dividend stocks are the classic case.
 
-For a **PMCC** writer this means the short call is at risk of assignment the evening before every ex-dividend date on which it is in the money, which would leave the account short 100 shares and liable for the dividend. The usual responses are to close or roll the short call before the ex-date, or to let it be assigned and exercise the LEAPS to deliver the shares. Neither is automatic; the writer has to watch the calendar.
+For a **PMCC** writer this means the short call is at risk of assignment the evening before every ex-dividend date on which it is in the money, which would leave the account short 100 shares and liable for the dividend. The usual responses are closing the short call before the ex-date, rolling it to a later expiry, or to let it be assigned and exercise the LEAPS to deliver the shares. Neither is automatic; the writer has to watch the calendar.
 
 ## Puts when interest and depth make waiting pointless
 

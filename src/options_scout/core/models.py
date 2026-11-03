@@ -405,6 +405,7 @@ class Citation(Model):
     quote: str
     kind: str = "concepts"  # concepts | rules | filings | evidence
     tag: str = ""  # "S1"… once numbered for a narrative
+    as_of: date | None = None  # the source document's date (freshness check)
 
 
 class Paragraph(Model):
@@ -472,6 +473,60 @@ class VerificationResult(Model):
     unknown_citations: list[str] = Field(default_factory=list)
 
 
+# -------------------------------------------------------------------- compliance (13.1)
+Severity = Literal["block", "warn"]
+TextKind = Literal["report", "answer"]
+
+
+class SuitabilityFacts(Model):
+    """Deterministic facts the Risk agent computes so Compliance never recomputes anything."""
+
+    account_type: AccountType
+    risk_profile: RiskProfile
+    buying_power: float
+    account_value: float
+    strategies_requested: list[str]
+    strategies_present: list[str]  # from the sized positions: csp / leaps / pmcc
+    margin_used: float
+    realistic_loss_pct: float  # portfolio realistic loss / account value
+    max_position_loss_pct: float  # worst single position realistic loss / account value
+    loss_limit_pct: float  # profile limit per position (section 3.2)
+    position_count: int
+    max_positions: int
+    earnings_flagged: list[str] = Field(default_factory=list)  # candidate ids
+    hv_proxy_ids: list[str] = Field(default_factory=list)
+    pmcc_present: bool = False
+    leaps_requested: bool = False
+
+
+class ComplianceCheck(Model):
+    name: str
+    passed: bool
+    severity: Severity = "block"
+    detail: str = ""
+    locations: list[str] = Field(default_factory=list)  # paragraph indexes / tags / ids
+
+
+class ComplianceReport(Model):
+    """Outcome of the Compliance agent for one text (13.1); appended to the run's audit log."""
+
+    passed: bool
+    checks: list[ComplianceCheck]
+    retry_feedback: str = ""
+    audit_id: str
+    text_kind: TextKind = "report"
+    attempts: int = 1
+    verification: VerificationResult
+
+    @property
+    def failed_checks(self) -> list[ComplianceCheck]:
+        return [c for c in self.checks if not c.passed and c.severity == "block"]
+
+    @property
+    def warnings(self) -> list[ComplianceCheck]:
+        return [c for c in self.checks if not c.passed and c.severity == "warn"]
+
+
 class TokenUsage(Model):
     model: str
     task: str
@@ -519,6 +574,8 @@ class ScreeningReport(Model):
     narrative_markdown: str  # the same text joined, for the API/UI and the Markdown report
     citations: list[Citation] = Field(default_factory=list)  # numbered sources the text cites
     verification: VerificationResult
+    compliance: ComplianceReport | None = None  # Phase 10 step 10.4: the eight checks + audit id
+    audit_log: list[ComplianceReport] = Field(default_factory=list)  # every evaluation this run
     errors: list[str]
     metadata: RunMetadata
     disclaimer: str

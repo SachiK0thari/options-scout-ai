@@ -27,8 +27,19 @@ sys.path.insert(0, str(ROOT / "src"))
 from options_scout.agent.deps import Deps  # noqa: E402
 from options_scout.agent.graph import build_graph, initial_state, stream_run, thread_config  # noqa: E402
 from options_scout.config import load_config, load_env  # noqa: E402
-from options_scout.core.compliance import BANNED_PHRASES  # noqa: E402
-from options_scout.core.models import SocialPost  # noqa: E402
+from options_scout.core.compliance import (  # noqa: E402
+    BANNED_PHRASES,
+    check_citations,
+    check_education_only,
+    check_language,
+    suitability_problems,
+)
+from options_scout.core.models import (  # noqa: E402
+    Citation,
+    Narrative,
+    SocialPost,
+    SuitabilityFacts,
+)
 from options_scout.llm.client import LLMClient  # noqa: E402
 from options_scout.llm.rules import RuleBasedExtractor, rule_parse_profile  # noqa: E402
 from options_scout.social.adapters.sec import SECAdapter  # noqa: E402
@@ -343,6 +354,7 @@ def eval_agent(res: Results, cfg: Any, tmp: Path) -> None:
     costs: list[float] = []
     tokens_in: list[int] = []
     trajectories_ok = 0
+    audited = 0
     expected = [
         "intake_node",
         "regime_node",
@@ -376,6 +388,7 @@ def eval_agent(res: Results, cfg: Any, tmp: Path) -> None:
         policy_ok += int(v.disclaimer_present and not any(p in low for p in BANNED_PHRASES))
         costs.append(rep.metadata.total_cost_usd)
         tokens_in.append(sum(u.input_tokens for u in rep.metadata.token_usage))
+        audited += int(rep.compliance is not None and rep.compliance.passed and bool(rep.audit_log))
         trajectories_ok += int(
             all(n in visited for n in expected) and visited.count("sizing_node") <= 4
         )
@@ -417,6 +430,13 @@ def eval_agent(res: Results, cfg: Any, tmp: Path) -> None:
         "100%",
         "PASS" if trajectories_ok == n else "FAIL",
     )
+    res.add(
+        "11.3a Compliance",
+        "Compliance audit coverage (report text carries a passing ComplianceReport)",
+        f"{audited}/{n}",
+        "100%",
+        "PASS" if audited == n else "FAIL",
+    )
     p95 = sorted(latencies)[max(round(0.95 * n) - 1, 0)]
     res.add(
         "11.3 Agent",
@@ -449,6 +469,93 @@ def eval_agent(res: Results, cfg: Any, tmp: Path) -> None:
         "PASS" if ok else "FAIL",
     )
     deps.disabled_sources.discard("social")
+
+
+# ------------------------------------------------------------- 11.3a compliance (Phase 10)
+def eval_compliance(res: Results, cfg: Any) -> None:
+    """Education-vs-advice separation and the suitability gate, both deterministic."""
+    payload = {
+        "positions": [
+            {
+                "candidate_id": "CSP-COST-2026-12-18-850P",
+                "strike": 850,
+                "premium": 1250,
+                "realistic_loss": 12345,
+            },
+            {
+                "candidate_id": "PMCCSC-NKE-2026-12-18-40C",
+                "strike": 40,
+                "realistic_loss": 12345,
+                "payoff": {"breakeven": 38.09},
+            },
+        ],
+        "quality_screen": {"passed_count": 7, "excluded_count": 3},
+        "sources": [
+            {
+                "tag": "S1",
+                "text": "20% of the stock price minus the out-of-the-money amount or 10% of the strike, 100 shares per contract",
+            }
+        ],
+    }
+    sources = [
+        Citation(
+            chunk_id="reg-t-margin#0",
+            doc_id="reg-t-margin",
+            title="Reg T",
+            url="https://x",
+            quote="q",
+            tag="S1",
+        )
+    ]
+    caught = advice_total = false_pos = clean_total = 0
+    missed: list[str] = []
+    for row in _jsonl(DATASETS / "advice_narratives.jsonl"):
+        narrative = Narrative.model_validate({"paragraphs": row["paragraphs"]})
+        lang = check_language(narrative, cfg.compliance)
+        mode = check_education_only(narrative, payload, ["COST", "NKE", "SPY"])
+        cites = check_citations(narrative, sources)  # "education paragraphs must carry citations"
+        rejected = not (lang.passed and mode.passed and cites.passed)
+        if row["label"] == "advice":
+            advice_total += 1
+            caught += int(rejected)
+            if not rejected:
+                missed.append(row["id"])
+        else:
+            clean_total += 1
+            if rejected:
+                false_pos += 1
+                missed.append(
+                    f"{row['id']} (false positive: {lang.detail if not lang.passed else mode.detail})"
+                )
+    res.add(
+        "11.3a Compliance",
+        "Education-vs-advice separation (check_language / check_education_only / check_citations)",
+        f"{caught}/{advice_total} advice caught · {false_pos}/{clean_total} clean rejected",
+        "100% caught, ≤ 1 false positive",
+        "PASS" if caught == advice_total and false_pos <= 1 else "FAIL",
+        "; ".join(missed),
+    )
+    correct = 0
+    wrong: list[str] = []
+    cases = _jsonl(DATASETS / "suitability_cases.jsonl")
+    for row in cases:
+        facts = SuitabilityFacts.model_validate(row["facts"])
+        codes = [code for code, _ in suitability_problems(facts, row["text"], cfg.compliance)]
+        expected = row["expected"]
+        ok = (expected is None and not codes) or (
+            expected is not None and codes and codes[0] == expected
+        )
+        correct += int(ok)
+        if not ok:
+            wrong.append(f"{row['id']}: expected {expected}, got {codes}")
+    res.add(
+        "11.3a Compliance",
+        "Suitability gate (correct check name per case)",
+        f"{correct}/{len(cases)}",
+        "100%",
+        "PASS" if correct == len(cases) else "FAIL",
+        "; ".join(wrong),
+    )
 
 
 def eval_judge(res: Results, llm: LLMClient | None) -> None:
@@ -528,6 +635,7 @@ def main() -> int:
         eval_profile(res, cfg, llm)
         eval_injection(res, cfg, llm)
         eval_agent(res, cfg, Path(tmp))
+        eval_compliance(res, cfg)
         eval_judge(res, llm)
     path = write_report(res, cfg, llm_label)
     print(path.read_text(encoding="utf-8"))

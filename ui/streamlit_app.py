@@ -513,6 +513,13 @@ else:
         f"Verifier: {'PASS' if v.passed else 'FAIL'} · {v.numbers_checked} numbers checked, "
         f"{len(v.ungrounded_numbers)} ungrounded · every number above was computed, not written by the model."
     )
+    if report.compliance is not None:
+        comp = report.compliance
+        badge = "✓" if comp.passed else "✗"
+        with st.expander(f"Compliance {badge} · {len(comp.checks)} checks · audit {comp.audit_id}"):
+            for c in comp.checks:
+                mark = "✓" if c.passed else ("⚠" if c.severity == "warn" else "✗")
+                st.markdown(f"{mark} `{c.name}`: {c.detail}")
     st.markdown(report.narrative_markdown)
     if report.citations:
         with st.expander(f"Sources ({len(report.citations)})"):

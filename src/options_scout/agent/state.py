@@ -20,6 +20,7 @@ from pydantic import BaseModel, Field
 from options_scout.core.models import (
     AllocationPlan,
     Citation,
+    ComplianceReport,
     MarketRegime,
     Narrative,
     OptionCandidate,
@@ -30,6 +31,7 @@ from options_scout.core.models import (
     RiskReport,
     ScreeningReport,
     SizedPortfolio,
+    SuitabilityFacts,
     TickerSnapshot,
     TokenUsage,
     TrendSignal,
@@ -68,6 +70,7 @@ class AgentState(TypedDict, total=False):
     ranked: list[RankedCandidate]
     portfolio: SizedPortfolio | None
     risk: RiskReport | None
+    suitability_facts: SuitabilityFacts | None  # Phase 10: computed by Risk for Compliance
     # Education (Phase 10: retrieval + tagged narrative + concept answers)
     explain_payload: dict[str, Any] | None
     sources: list[Chunk]  # the [S1]…[Sn] chunks the narrative/answer may cite
@@ -75,9 +78,11 @@ class AgentState(TypedDict, total=False):
     narrative: Narrative | None
     citations: list[Citation]  # sources the final text actually cites, numbered
     answer: Narrative | None  # concept Q&A reply (question runs)
-    # verification
+    # verification (Phase 10 step 10.4: the full ComplianceReport plus the run's audit log)
     verification: VerificationResult | None
     verifier_feedback: str | None
+    compliance: ComplianceReport | None
+    audit_log: Annotated[list[ComplianceReport], operator.add]
     # bookkeeping
     retries: Annotated[dict[str, int], merge_dicts]
     errors: Annotated[list[str], operator.add]
@@ -142,9 +147,10 @@ class PortfolioSlice(BaseModel):
 
 
 class RiskSlice(BaseModel):
-    """Owned by Risk (#5): constraint checks and stress tests."""
+    """Owned by Risk (#5): constraint checks, stress tests and the suitability facts."""
 
     risk: RiskReport | None = None
+    suitability_facts: SuitabilityFacts | None = None
 
 
 class EducationSlice(BaseModel):
@@ -159,10 +165,12 @@ class EducationSlice(BaseModel):
 
 
 class ComplianceSlice(BaseModel):
-    """Owned by Compliance: the verification result and the feedback for a retry."""
+    """Owned by Compliance: the eight checks' report, the retry feedback and the audit log."""
 
     verification: VerificationResult | None = None
     verifier_feedback: str | None = None
+    compliance: ComplianceReport | None = None
+    audit_log: list[ComplianceReport] = Field(default_factory=list)
 
 
 class RunSlice(BaseModel):

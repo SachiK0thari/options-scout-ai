@@ -7,6 +7,7 @@ from collections.abc import Iterable, Sequence
 from options_scout.core.models import (
     AllocationPlan,
     Citation,
+    ComplianceReport,
     MarketRegime,
     OptionCandidate,
     PMCCCandidate,
@@ -332,4 +333,24 @@ def render_sources(citations: Sequence[Citation]) -> str:
     for c in citations:
         where = f" ({c.url})" if c.url else ""
         lines.append(f"- **[{c.tag}]** {c.title} — {c.kind}{where}  \n  “{c.quote}”")
+    return "\n".join(lines)
+
+
+def render_compliance(
+    report: ComplianceReport | None, audit_log: Sequence[ComplianceReport]
+) -> str:
+    """The eight checks (13.1) with their outcome, and the run's audit trail."""
+    if report is None:
+        return "_No compliance report._"
+    lines = [
+        f"{'PASS' if report.passed else 'FAIL'} · audit `{report.audit_id}` · "
+        f"{report.text_kind} · attempt {report.attempts}",
+        "",
+    ]
+    for c in report.checks:
+        mark = "✓" if c.passed else ("⚠" if c.severity == "warn" else "✗")
+        lines.append(f"- {mark} `{c.name}`: {c.detail}")
+    if len(audit_log) > 1:
+        trail = " → ".join(f"{e.audit_id} ({'pass' if e.passed else 'fail'})" for e in audit_log)
+        lines += ["", f"Audit trail: {trail}"]
     return "\n".join(lines)

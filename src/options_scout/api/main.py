@@ -307,6 +307,8 @@ def report(thread_id: str, format: str = "json") -> Any:
     rep = values.get("report")
     if not isinstance(rep, ScreeningReport):
         raise HTTPException(404, "report not available")
+    if rep.compliance is None or not rep.audit_log:  # 13.1: no text leaves without an audit entry
+        raise HTTPException(500, "report has no compliance audit entry")
     if format == "md":
         return PlainTextResponse(values.get("report_markdown") or "", media_type="text/markdown")
     return rep.model_dump(mode="json")

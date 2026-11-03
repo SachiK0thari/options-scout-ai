@@ -164,6 +164,7 @@ def test_question_gets_a_cited_answer_through_compliance(deps: Deps) -> None:
         "knowledge_retrieval_node",
         "concept_answer_node",
         "compliance_node",
+        "audit_node",
     ]
 
 
@@ -196,10 +197,16 @@ def test_qa_graph_retries_then_falls_back_when_the_answer_fails_compliance(
         pass
     final = graph.get_state(thread_config("t-qa-bad")).values
     assert calls["n"] == deps.cfg.settings.agent.max_explainer_retries + 1
-    assert not final["verification"].passed
-    assert "S9" in final["verification"].unknown_citations
-    assert "risk-free" in final["verification"].banned_phrases_found
-    assert final["agents_visited"].count("compliance_agent") == calls["n"]
+    # every attempt failed and is on the audit log; the audit node then swapped in the fixed
+    # fallback sentence (step 10.4), which passes
+    failed = final["audit_log"][: calls["n"]]
+    assert all(not e.passed for e in failed) and len(final["audit_log"]) == calls["n"] + 1
+    assert "S9" in failed[0].verification.unknown_citations
+    assert "risk-free" in failed[0].verification.banned_phrases_found
+    assert (
+        final["verification"].passed
+        and final["agents_visited"].count("compliance_agent") == calls["n"]
+    )
 
 
 # ------------------------------------------------------------------ rule-based stand-ins

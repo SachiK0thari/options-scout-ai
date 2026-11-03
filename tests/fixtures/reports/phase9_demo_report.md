@@ -170,6 +170,18 @@ Educational screening tool. Not investment, tax or legal advice. Options involve
 - **[S3]** Poor man's covered call (PMCC): a short near-term call written against a LEAPS call — concepts (https://www.cboe.com/education/)  
   “A **poor man's covered call** is a two-leg position: a long, deep in-the-money LEAPS call (expiring a year or more out) and a short, near-term, out-of-the-money call on the same stock.”
 
+## Compliance
+PASS · audit `<audit_id>` · report · attempt 1
+
+- ✓ `check_numbers`: 50 numbers checked, all grounded
+- ✓ `check_citations`: 3 tag(s) resolve to retrieved sources
+- ✓ `check_education_only`: education paragraphs carry no run data; short options show their loss
+- ✓ `check_suitability`: suits the profile
+- ✓ `check_language`: no directive, certainty, superlative or urgency language
+- ✓ `check_disclaimer`: disclaimer present once
+- ✓ `check_sources_fresh`: cited rules and filings are current
+- ✓ `check_no_pii`: no handles or emails
+
 ## Verification
 PASS: 50 numbers checked, 0 ungrounded, banned phrases: none, disclaimer present, citations 3 checked / 0 unknown, attempts 1.
 

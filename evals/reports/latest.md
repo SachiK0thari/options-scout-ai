@@ -1,12 +1,12 @@
 # OptionsScout AI: evaluation report
 
-_Generated 2026-11-03 20:02 UTC · data mode `fixture` · LLM: none (rule-based stand-ins measured)_
+_Generated 2026-11-03 21:19 UTC · data mode `fixture` · LLM: none (rule-based stand-ins measured)_
 
 Numbers below were measured by `make eval` on this machine. Rows marked **NOT RUN** need a live LLM key and are reported as such rather than estimated.
 
 | Section | Metric | Result | Target | Status | Detail |
 |---|---|---|---|---|---|
-| 11.1 Deterministic | Golden-value + property tests (tests/unit) | 206 passed in 14.96s | all pass | **PASS** | 16.0s |
+| 11.1 Deterministic | Golden-value + property tests (tests/unit) | 230 passed in 15.64s | all pass | **PASS** | 16.6s |
 | 11.2 Entity extraction | F1 on 150 labeled posts (rule-based, no LLM) | P 0.90 / R 0.89 / F1 0.90 | F1 ≥ 0.80 | **PASS** | tp=159 fp=17 fn=20 |
 | 11.2 Entity extraction | is_stock_talk accuracy (rule-based, no LLM) | 0.96 | report | **INFO** | n=159 |
 | 11.2 Entity extraction | F1 (LLM extraction) | n/a | F1 ≥ 0.80 | **NOT RUN** | requires an LLM API key (OPENROUTER_API_KEY or ANTHROPIC_API_KEY) |
@@ -22,9 +22,12 @@ Numbers below were measured by `make eval` on this machine. Rows marked **NOT RU
 | 11.3 Agent | Constraint compliance | 6/6 | 100% | **PASS** |  |
 | 11.3 Agent | Policy compliance (banned phrases absent, disclaimer present) | 6/6 | 100% | **PASS** |  |
 | 11.3 Agent | Trajectory checks (expected nodes visited, retries bounded) | 6/6 | 100% | **PASS** |  |
-| 11.3 Agent | Latency per run (fixture mode) | mean 1.10s · p95 3.02s | report | **INFO** |  |
+| 11.3a Compliance | Compliance audit coverage (report text carries a passing ComplianceReport) | 6/6 | 100% | **PASS** |  |
+| 11.3 Agent | Latency per run (fixture mode) | mean 1.02s · p95 2.83s | report | **INFO** |  |
 | 11.3 Agent | Cost per run | mean $0.0000 · input tokens mean 0 | report | **INFO** | llm_mode=fixture |
 | 11.3 Agent | Graceful degradation with social source disabled | ok | report | **PASS** |  |
+| 11.3a Compliance | Education-vs-advice separation (check_language / check_education_only / check_citations) | 34/34 advice caught · 0/10 clean rejected | 100% caught, ≤ 1 false positive | **PASS** |  |
+| 11.3a Compliance | Suitability gate (correct check name per case) | 20/20 | 100% | **PASS** |  |
 | 11.3 Agent | LLM-as-judge clarity/faithfulness (1–5) | n/a | report | **NOT RUN** | requires an LLM API key; 20 human-rated samples not yet collected |
 
 ## Signal study

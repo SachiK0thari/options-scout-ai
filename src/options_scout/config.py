@@ -620,6 +620,39 @@ def _apply_rag_overrides(raw: dict[str, Any]) -> dict[str, Any]:
     return {**raw, "embedder": env_val} if env_val else raw
 
 
+# ---------------------------------------------------------------------- compliance.yaml
+class BannedPattern(_Strict):
+    label: str
+    pattern: str
+
+
+class SuitabilityConfig(_Strict):
+    min_buying_power: dict[Literal["csp", "leaps", "pmcc"], float]
+    reject_naked_language_on_cash: bool = True
+    reject_leverage_opportunity_when_conservative: bool = True
+
+
+class ComplianceConfig(_Strict):
+    """Section 13.1 rules: banned patterns with an allow-list, suitability limits, freshness."""
+
+    max_age_days: int = Field(default=400, ge=1)
+    reminder: str = "Education, not advice."
+    require_delayed_data_statement: bool = True
+    banned_patterns: list[BannedPattern]
+    allow_list: list[str] = Field(default_factory=list)
+    suitability: SuitabilityConfig
+
+    @model_validator(mode="after")
+    def _patterns_compile(self) -> ComplianceConfig:
+        import re
+
+        for bp in self.banned_patterns:
+            re.compile(bp.pattern, re.IGNORECASE)
+        for a in self.allow_list:
+            re.compile(a, re.IGNORECASE)
+        return self
+
+
 # ------------------------------------------------------------------------------- loading
 class AppConfig(_Strict):
     """Everything from config/ in one typed, frozen object."""
@@ -633,6 +666,7 @@ class AppConfig(_Strict):
     sources: SocialSources
     quality: QualityUniverse
     rag: RagConfig
+    compliance: ComplianceConfig
 
     @property
     def paths(self) -> Paths:
@@ -675,6 +709,7 @@ def load_config(root: Path | None = None) -> AppConfig:
         ),
         quality=QualityUniverse(**_load_yaml(cfg_dir / "quality_universe.yaml")),
         rag=RagConfig(**_apply_rag_overrides(_load_yaml(cfg_dir / "rag.yaml"))).resolved(root),
+        compliance=ComplianceConfig(**_load_yaml(cfg_dir / "compliance.yaml")),
     )
 
 

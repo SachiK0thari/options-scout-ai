@@ -13,6 +13,7 @@ from options_scout.core.models import (
     RiskReport,
     SizedPortfolio,
     StressResult,
+    SuitabilityFacts,
     TickerSnapshot,
     UserProfile,
 )
@@ -156,4 +157,51 @@ def build_risk_report(
         passed=passed,
         worst_case_loss=worst,
         max_loss_at_minus_30=portfolio.totals.realistic_loss,
+    )
+
+
+def suitability_facts(
+    portfolio: SizedPortfolio,
+    profile: UserProfile,
+    limits: Constraints,
+    candidates: Mapping[str, OptionCandidate],
+) -> SuitabilityFacts:
+    """The facts Compliance needs (13.1), computed once here so it never recomputes anything."""
+    av = profile.account_value
+    present: list[str] = []
+    for p in portfolio.positions:
+        if p.strategy == "csp":
+            present.append("csp")
+        elif p.pmcc_short_call_id:
+            present.append("pmcc")
+        else:
+            present.append("leaps")
+    worst = max((p.realistic_loss for p in portfolio.positions), default=0.0)
+    flagged = sorted(
+        p.candidate_id
+        for p in portfolio.positions
+        if (c := candidates.get(p.candidate_id)) is not None and "earnings_before_expiry" in c.flags
+    )
+    hv_proxy = sorted(
+        p.candidate_id
+        for p in portfolio.positions
+        if (c := candidates.get(p.candidate_id)) is not None and c.iv_rank_source == "hv_proxy"
+    )
+    return SuitabilityFacts(
+        account_type=profile.account_type,
+        risk_profile=profile.risk_profile,
+        buying_power=profile.buying_power,
+        account_value=av,
+        strategies_requested=sorted(profile.strategies),
+        strategies_present=sorted(set(present)),
+        margin_used=portfolio.totals.margin_used,
+        realistic_loss_pct=portfolio.totals.realistic_loss / av if av else 0.0,
+        max_position_loss_pct=worst / av if av else 0.0,
+        loss_limit_pct=limits.max_loss_per_position,
+        position_count=len(portfolio.positions),
+        max_positions=profile.max_positions,
+        earnings_flagged=flagged,
+        hv_proxy_ids=hv_proxy,
+        pmcc_present="pmcc" in present,
+        leaps_requested="leaps" in profile.strategies or "pmcc" in profile.strategies,
     )

@@ -612,7 +612,7 @@ def rule_answer_concept(user_prompt: str) -> Narrative:
     disclaimer = m.group(1).strip() if m else ""
     paras = education_paragraphs(sources, limit=2)
     if not paras:
-        paras = [Paragraph(mode="education", text=NO_SOURCE_SENTENCE)]
+        paras = [Paragraph(mode="notice", text=NO_SOURCE_SENTENCE)]
     paras.append(Paragraph(mode="notice", text=disclaimer or "Education, not advice."))
     return Narrative(paragraphs=paras)
 

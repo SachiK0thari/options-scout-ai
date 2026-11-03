@@ -2,10 +2,10 @@
  {
   "section": "11.1 Deterministic",
   "name": "Golden-value + property tests (tests/unit)",
-  "value": "206 passed in 14.96s",
+  "value": "230 passed in 15.64s",
   "target": "all pass",
   "status": "PASS",
-  "detail": "16.0s"
+  "detail": "16.6s"
  },
  {
   "section": "11.2 Entity extraction",
@@ -128,9 +128,17 @@
   "detail": ""
  },
  {
+  "section": "11.3a Compliance",
+  "name": "Compliance audit coverage (report text carries a passing ComplianceReport)",
+  "value": "6/6",
+  "target": "100%",
+  "status": "PASS",
+  "detail": ""
+ },
+ {
   "section": "11.3 Agent",
   "name": "Latency per run (fixture mode)",
-  "value": "mean 1.10s \u00b7 p95 3.02s",
+  "value": "mean 1.02s \u00b7 p95 2.83s",
   "target": "report",
   "status": "INFO",
   "detail": ""
@@ -148,6 +156,22 @@
   "name": "Graceful degradation with social source disabled",
   "value": "ok",
   "target": "report",
+  "status": "PASS",
+  "detail": ""
+ },
+ {
+  "section": "11.3a Compliance",
+  "name": "Education-vs-advice separation (check_language / check_education_only / check_citations)",
+  "value": "34/34 advice caught \u00b7 0/10 clean rejected",
+  "target": "100% caught, \u2264 1 false positive",
+  "status": "PASS",
+  "detail": ""
+ },
+ {
+  "section": "11.3a Compliance",
+  "name": "Suitability gate (correct check name per case)",
+  "value": "20/20",
+  "target": "100%",
   "status": "PASS",
   "detail": ""
  },

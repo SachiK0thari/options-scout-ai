@@ -35,7 +35,10 @@ def make(deps: Deps) -> Callable[[AgentState], dict[str, Any]]:
             account_value=profile.account_value,
         )
         report = risk_core.build_risk_report(portfolio, profile, limits, stress, cands)
-        out: dict[str, Any] = {"risk": report}
+        out: dict[str, Any] = {
+            "risk": report,
+            "suitability_facts": risk_core.suitability_facts(portfolio, profile, limits, cands),
+        }
         if not report.passed:
             n = int((state.get("retries") or {}).get("sizing", 0)) + 1
             out["retries"] = {"sizing": n}

@@ -21,8 +21,8 @@ These rules are widely taught and are the ones this app's report will flag in it
 
 - **Take profit at 50%.** When a short put can be bought back for half the premium received, most of the expected gain has been earned while a large share of the gamma risk remains; many writers close and redeploy rather than wait for the last cents.
 - **Close or roll at 21 days to expiration.** The last three weeks hold the fastest time decay but also the highest gamma; a put that is still comfortably out of the money at 21 days has little left to give relative to what a sudden move could take.
-- **Roll a LEAPS below 240 days.** This app flags "roll or close" when a held LEAPS falls below 240 days to expiration. At that point the option is leaving the flat part of the time-decay curve, its extrinsic value starts to erode faster, and it stops behaving like a stock substitute. The LEAPS screener prefers series with 540 or more days for the same reason.
-- **Roll the PMCC short call before an ex-dividend date** when it is in the money and its extrinsic value is below the dividend, to avoid early assignment.
+- **Rolling a LEAPS below 240 days.** This app flags "roll or close" when a held LEAPS falls below 240 days to expiration. At that point the option is leaving the flat part of the time-decay curve, its extrinsic value starts to erode faster, and it stops behaving like a stock substitute. The LEAPS screener prefers series with 540 or more days for the same reason.
+- **Rolling the PMCC short call before an ex-dividend date** when it is in the money and its extrinsic value is below the dividend, to avoid early assignment.
 
 ## Costs and limits of rolling
 

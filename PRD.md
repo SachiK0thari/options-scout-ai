@@ -2,7 +2,7 @@
 
 > Build spec and working agreement for Claude Code.
 > Read this whole file before writing any code. Work through the **Build Phases** (section 14) in order, and do not start a phase until the previous phase's acceptance criteria pass.
-> **Current phase: 10, step 10.4** (section 14, "Rubric alignment"; steps 10.1–10.3 done 2026-11-03). Phases 0–9 are complete and must not regress. Section 18 maps every rubric line to the feature and test that earns it.
+> **Current phase: 10, step 10.5** (section 14, "Rubric alignment"; steps 10.1–10.4 done 2026-11-03). Phases 0–9 are complete and must not regress. Section 18 maps every rubric line to the feature and test that earns it.
 
 ---
 
@@ -855,14 +855,14 @@ Work the steps **in order**; each step is one PR-sized unit with its own tests a
 - [x] Tests: `tests/agent/test_education.py` — every education paragraph has ≥ 1 citation in fixture runs; no-source question returns the fixed sentence; payoff goldens. _(Plus: Q&A retry-then-fail path, evidence collection, rule-based stand-ins grounded, citation helpers; authored concept docs are asserted free of banned phrases so a quoted source never trips the language check before the 10.4 allow-list exists.)_
 - **Accept:** `make demo` report ends with a Sources section; `make demo ARGS="--ask 'what is a cash-secured put'"` prints a cited answer. _(Met.)_
 
-**Step 10.4 — Compliance agent (section 13.1)**
-- [ ] `core/compliance.py`: `ComplianceCheck`, `ComplianceReport`, the eight checks, `config/compliance.yaml` (banned patterns + allow-list, suitability limits, `max_age_days`).
-- [ ] Risk agent adds `suitability_facts` (account type, strategies present, realistic-loss %, earnings flags, position count, buying-power minimums) to its slice so Compliance never recomputes.
-- [ ] `compliance_node` runs all checks, builds `retry_feedback`, writes `compliance.check` audit events; `audit_node` persists `ComplianceReport` on the report and on each chat reply. Fallback narrative per 13.1.
-- [ ] Wire **every** LLM output through it: report narrative, chat replies, concept answers, MCP `explain_term` (10.7).
-- [ ] Datasets: `evals/datasets/advice_narratives.jsonl` (30 advice + 10 clean), `evals/datasets/suitability_cases.jsonl` (20). Eval runner entries per 11.3a.
-- [ ] Tests: `tests/unit/test_compliance.py` — one test per check incl. allow-list ("sell-to-open is the term…" passes in an education paragraph with a tag, fails without), mode-tag violations, suitability matrix; `tests/agent/test_compliance_agent.py` — retry then fallback path; chat reply without audit entry is impossible (assert in the UI/API layer).
-- **Accept:** education-vs-advice eval 100% caught / ≤ 1 false positive; suitability eval 100%; numeric grounding still 100%; README "Why the LLM never does math" gains a "…and never gives advice" paragraph.
+**Step 10.4 — Compliance agent (section 13.1)** — done 2026-11-03
+- [x] `core/compliance.py`: `ComplianceCheck`, `ComplianceReport`, the eight checks, `config/compliance.yaml` (banned patterns + allow-list, suitability limits, `max_age_days`). _(`run_compliance` returns the report and keeps the Phase 5 `VerificationResult` consistent with it; the allow-list applies only inside cited `education` paragraphs and covers quoted terminology, "X is the term for…" and "risk-free rate".)_
+- [x] Risk agent adds `suitability_facts` (account type, strategies present, realistic-loss %, earnings flags, position count, buying-power minimums) to its slice so Compliance never recomputes. _(`core/risk.py::suitability_facts`; the minimums live in `compliance.yaml → suitability.min_buying_power`.)_
+- [x] `compliance_node` runs all checks, builds `retry_feedback`, writes `compliance.check` audit events; `audit_node` persists `ComplianceReport` on the report and on each chat reply. Fallback narrative per 13.1. _(Reports fall back in `report_node` to the deterministic narrative, re-checked; question runs fall back in `audit_node` to the fixed sentence. The report Markdown gains a "Compliance" section with the eight outcomes and the audit trail.)_
+- [x] Wire **every** LLM output through it: report narrative, chat replies, concept answers, MCP `explain_term` (10.7). _(Report and concept answers today; `answer_question` and `GET /v1/runs/{id}/report` refuse to return text without a compliance audit entry. Chat (10.5) and MCP (10.7) attach to the same two nodes.)_
+- [x] Datasets: `evals/datasets/advice_narratives.jsonl` (30 advice + 10 clean), `evals/datasets/suitability_cases.jsonl` (20). Eval runner entries per 11.3a. _(34 advice rows: 30 language violations plus 4 mode-rule violations; the eval also reports compliance audit coverage over the agent runs.)_
+- [x] Tests: `tests/unit/test_compliance.py` — one test per check incl. allow-list ("sell-to-open is the term…" passes in an education paragraph with a tag, fails without), mode-tag violations, suitability matrix; `tests/agent/test_compliance_agent.py` — retry then fallback path; chat reply without audit entry is impossible (assert in the UI/API layer).
+- **Accept:** education-vs-advice eval 100% caught / ≤ 1 false positive; suitability eval 100%; numeric grounding still 100%; README "Why the LLM never does math" gains a "…and never gives advice" paragraph. _(Met: 34/34 caught, 0/10 clean rejected; 20/20; grounding 100%.)_
 
 **Step 10.5 — Orchestrator routing and conversational flow**
 - [ ] `route_node` with `prompts/route_message.md` → `Intent` enum (`new_screen`, `refine_profile`, `concept`, `why`, `what_if`, `off_topic`) + rule-based fallback (`llm/rules.py`); `off_topic` returns a fixed polite redirect (still through Compliance).

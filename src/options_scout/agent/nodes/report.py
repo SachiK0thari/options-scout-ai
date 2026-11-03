@@ -9,10 +9,11 @@ from datetime import datetime
 from typing import Any
 
 from options_scout.agent.deps import Deps
+from options_scout.agent.nodes.compliance import evaluate
 from options_scout.agent.nodes.explainer import render_sources_block, rule_prompt
 from options_scout.agent.state import AgentState
 from options_scout.core import report as md
-from options_scout.core.compliance import resolve_citations, verify_narrative
+from options_scout.core.compliance import resolve_citations
 from options_scout.core.models import Citation, Narrative, RunMetadata, ScreeningReport, utcnow
 from options_scout.llm.prompts import prompt_versions
 from options_scout.llm.rules import rule_explain
@@ -69,6 +70,9 @@ def render_markdown(rep: ScreeningReport) -> str:
         "## Sources",
         md.render_sources(rep.citations),
         "",
+        "## Compliance",
+        md.render_compliance(rep.compliance, rep.audit_log),
+        "",
         "## Verification",
         (
             f"{'PASS' if rep.verification.passed else 'FAIL'}: "
@@ -109,22 +113,23 @@ def make(deps: Deps) -> Callable[[AgentState], dict[str, Any]]:
         payload.pop("previous_attempt_problems", None)
         sources = list(state.get("sources") or [])
         source_cites: list[Citation] = [citation_of(c) for c in sources]
+        compliance = state.get("compliance")
+        audit_log = list(state.get("audit_log") or [])
         if not verification.passed:
-            # Final fallback: deterministic narrative that only echoes payload numbers and quotes
-            # the retrieved sources verbatim.
+            # Final fallback (13.1): deterministic narrative that only echoes payload numbers and
+            # quotes the retrieved sources verbatim, checked again so the audit log stays honest.
             narrative = rule_explain(rule_prompt(payload, render_sources_block(sources)))
-            fallback = verify_narrative(
-                narrative.markdown,
-                payload,
-                disclaimer=deps.cfg.settings.disclaimer,
-                attempts=verification.attempts,
-                source_count=len(sources),
-            )
+            fallback_state: dict[str, Any] = {**state, "narrative": narrative}
+            recheck = evaluate(deps, fallback_state, attempts=verification.attempts)  # type: ignore[arg-type]
             errors.append(
-                f"report: LLM narrative failed verification after {verification.attempts} "
-                f"attempt(s); deterministic narrative used (grounded={fallback.passed})"
+                f"report: LLM narrative failed compliance after {verification.attempts} "
+                f"attempt(s); deterministic narrative used (passed={recheck.passed})"
             )
-            verification = fallback
+            compliance = recheck
+            verification = recheck.verification
+            audit_log.append(recheck)
+        if compliance is None or not audit_log:
+            raise RuntimeError("report assembled without a ComplianceReport")  # 13.1 invariant
         started = (
             datetime.fromisoformat(state["started_at"]) if state.get("started_at") else utcnow()
         )
@@ -172,6 +177,8 @@ def make(deps: Deps) -> Callable[[AgentState], dict[str, Any]]:
             narrative_markdown=narrative.markdown,
             citations=resolve_citations(narrative, source_cites),
             verification=verification,
+            compliance=compliance,
+            audit_log=audit_log,
             errors=sorted(set(errors)),
             metadata=meta,
             disclaimer=deps.cfg.settings.disclaimer,
@@ -182,6 +189,8 @@ def make(deps: Deps) -> Callable[[AgentState], dict[str, Any]]:
             "narrative": narrative,
             "citations": rep.citations,
             "verification": verification,
+            "compliance": compliance,
+            "audit_log": audit_log[len(state.get("audit_log") or []) :],
         }
 
     return report_node

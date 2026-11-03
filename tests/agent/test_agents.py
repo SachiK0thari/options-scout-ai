@@ -18,6 +18,7 @@ from __future__ import annotations
 
 import json
 import os
+import re
 from collections import Counter
 from pathlib import Path
 from typing import Any
@@ -230,6 +231,8 @@ def normalize_report_markdown(text: str) -> str:
             continue
         elif line.startswith("- Config hash: "):
             line = "- Config hash: `<config_hash>`"
+        elif "· audit `" in line:  # compliance audit ids are per evaluation
+            line = re.sub(r"audit `[0-9a-f]+`", "audit `<audit_id>`", line)
         elif line.startswith("- Data sources: "):
             line = "- Data sources: " + json.dumps(
                 json.loads(line[len("- Data sources: ") :]), sort_keys=True
@@ -249,7 +252,7 @@ def test_report_markdown_identical_to_golden(demo_run: Any) -> None:
     # two Phase 10 retrieval nodes added
     visited = final["report"].metadata.nodes_visited
     renamed = ["compliance_node" if n == "verifier_node" else n for n in PHASE9_NODE_SEQUENCE]
-    added = ["evidence_retrieval_node", "knowledge_retrieval_node"]
+    added = ["evidence_retrieval_node", "knowledge_retrieval_node", "audit_node"]
     assert Counter(visited) == Counter(renamed + added)
     assert visited == [
         "intake_node",
@@ -266,6 +269,7 @@ def test_report_markdown_identical_to_golden(demo_run: Any) -> None:
         "knowledge_retrieval_node",  # step 10.3
         "explainer_node",
         "compliance_node",
+        "audit_node",  # step 10.4
         "report_node",
     ]
 

@@ -65,6 +65,7 @@ NODE_ORDER = [
     "knowledge_retrieval_node",
     "explainer_node",
     "compliance_node",
+    "audit_node",
     "report_node",
 ]
 
@@ -85,6 +86,7 @@ AGENT_OF_NODE = {
     "explainer_node": education.NAME,
     "concept_answer_node": education.NAME,
     "compliance_node": compliance.NAME,
+    "audit_node": compliance.NAME,
 }
 
 
@@ -179,6 +181,9 @@ def answer_question(deps: Deps, question: str, thread_id: str | None = None) -> 
     for _ in stream_run(graph, question_state(question), thread):
         pass
     values: dict[str, Any] = dict(graph.get_state(thread_config(thread)).values)
+    if values.get("compliance") is None or not values.get("audit_log"):
+        # 13.1: a reply without a compliance audit entry must be impossible
+        raise RuntimeError("answer produced without a ComplianceReport; refusing to return it")
     return values
 
 
@@ -206,6 +211,7 @@ def initial_state(request_text: str = "", profile: dict[str, Any] | None = None)
         sources=[],
         retrievals=[],
         citations=[],
+        audit_log=[],
         universe=[],
         market_data={},
         quality={},

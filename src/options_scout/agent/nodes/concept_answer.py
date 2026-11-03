@@ -21,9 +21,10 @@ from options_scout.rag.models import citation_of
 
 
 def no_source_answer(disclaimer: str) -> Narrative:
+    """The fixed reply of PRD 5.6; a ``notice`` because it makes no claim that needs a source."""
     return Narrative(
         paragraphs=[
-            Paragraph(mode="education", text=NO_SOURCE_SENTENCE),
+            Paragraph(mode="notice", text=NO_SOURCE_SENTENCE),
             Paragraph(mode="notice", text=disclaimer),
         ]
     )

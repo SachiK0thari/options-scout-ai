@@ -113,6 +113,7 @@ def citation_of(chunk: Chunk, tag: str = "") -> Citation:
         quote=chunk.quote,
         kind=chunk.kind,
         tag=tag,
+        as_of=chunk.as_of,
     )
 
 
