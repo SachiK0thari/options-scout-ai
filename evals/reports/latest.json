@@ -2,10 +2,10 @@
  {
   "section": "11.1 Deterministic",
   "name": "Golden-value + property tests (tests/unit)",
-  "value": "230 passed in 15.64s",
+  "value": "230 passed in 14.84s",
   "target": "all pass",
   "status": "PASS",
-  "detail": "16.6s"
+  "detail": "15.8s"
  },
  {
   "section": "11.2 Entity extraction",
@@ -138,7 +138,7 @@
  {
   "section": "11.3 Agent",
   "name": "Latency per run (fixture mode)",
-  "value": "mean 1.02s \u00b7 p95 2.83s",
+  "value": "mean 1.02s \u00b7 p95 2.75s",
   "target": "report",
   "status": "INFO",
   "detail": ""
@@ -174,6 +174,22 @@
   "target": "100%",
   "status": "PASS",
   "detail": ""
+ },
+ {
+  "section": "11.3a Conversation",
+  "name": "Intent routing accuracy (rule-based router)",
+  "value": "60/60 = 100%",
+  "target": "\u2265 90%",
+  "status": "PASS",
+  "detail": ""
+ },
+ {
+  "section": "11.3a Conversation",
+  "name": "Intent routing accuracy (LLM router)",
+  "value": "n/a",
+  "target": "\u2265 90%",
+  "status": "NOT RUN",
+  "detail": "requires an LLM API key"
  },
  {
   "section": "11.3 Agent",

@@ -15,8 +15,11 @@ from typing import Any
 
 from options_scout.agent.deps import Deps
 from options_scout.agent.state import AgentState
+from options_scout.core.models import ScreeningReport
 from options_scout.rag.models import Chunk, Kind, RetrievalResult
 from options_scout.rag.retriever import KnowledgeRetriever
+
+RUN_FACTS_TITLE = "This run's screen"
 
 _STRATEGY_QUERIES: dict[str, list[str]] = {
     "csp": ["what is a cash-secured put", "what is assignment"],
@@ -112,6 +115,68 @@ def select_sources(
     return chosen[:limit], log
 
 
+def run_facts_chunk(rep: ScreeningReport) -> Chunk:
+    """The current report's computed facts as one ``evidence`` chunk a ``why`` answer can cite:
+    quality-gate outcomes with reasons, the ranking, skipped candidates and sized positions."""
+    lines = [
+        f"Run {rep.run_id}: screen for a {rep.profile.account_type} account, "
+        f"{rep.profile.risk_profile} profile."
+    ]
+    for q in rep.quality:
+        if q.passed:
+            lines.append(
+                f"{q.ticker} passed the quality gate with quality score {round(q.score * 100)}."
+            )
+        else:
+            lines.append(f"{q.ticker} was excluded by the quality gate: {'; '.join(q.reasons)}.")
+    for r in rep.ranked[:10]:
+        c = r.candidate
+        lines.append(
+            f"Rank {r.rank}: {c.id} ({c.ticker}) final score {r.final_score:.2f}, option quality "
+            f"{r.option_quality:.2f}, stock quality {r.quality_score:.2f}, consumer-trend score "
+            f"{r.social_score:.0f}."
+        )
+    for skipped in rep.portfolio.skipped:
+        lines.append(f"Skipped in sizing: {skipped}.")
+    for p in rep.portfolio.positions:
+        lines.append(
+            f"Position {p.candidate_id}: {p.contracts} contract(s), capital used "
+            f"{p.capital_used:,.0f}, realistic loss {p.realistic_loss:,.0f}."
+        )
+    if not rep.portfolio.positions:
+        lines.append("No position fit inside the risk constraints.")
+    return Chunk(
+        id="run-report#0",
+        doc_id="run-report",
+        n=0,
+        kind="evidence",
+        title=RUN_FACTS_TITLE,
+        url="",
+        source=f"computed results of run {rep.run_id}",
+        as_of=rep.as_of.date(),
+        heading="",
+        text="\n".join(lines),
+    )
+
+
+def why_rule_queries(question: str, rep: ScreeningReport) -> list[str]:
+    """The rule a ``why`` question is really about: the gate for exclusions, the ranking for
+    order, the sizing constraints for skipped or missing positions."""
+    low = question.lower()
+    tickers = set(re.findall(r"\b[A-Z]{2,5}\b", question))
+    excluded = {q.ticker for q in rep.quality if not q.passed}
+    queries: list[str] = []
+    if tickers & excluded or any(w in low for w in ("exclud", "gate", "screened out", "not in")):
+        queries.append("how this app's quality gate works")
+    if any(w in low for w in ("rank", "above", "below", "first", "last", "order", "score")):
+        queries.append("ranking weights option quality stock quality consumer trend")
+    if any(w in low for w in ("position", "skip", "only", "reserve", "cash", "size", "fit")):
+        queries.append("portfolio risk constraints and sizing")
+    if not queries:
+        queries.append("how this app's quality gate works")
+    return queries
+
+
 def make(deps: Deps) -> Callable[[AgentState], dict[str, Any]]:
     def knowledge_retrieval_node(state: AgentState) -> dict[str, Any]:
         retriever = deps.knowledge()
@@ -121,6 +186,14 @@ def make(deps: Deps) -> Callable[[AgentState], dict[str, Any]]:
             result = retriever.retrieve(question)
             log = [result]
             chunks = [h.chunk for h in result.hits]
+            rep = state.get("report")
+            if state.get("intent") == "why" and rep is not None:
+                chunks.insert(0, run_facts_chunk(rep))  # S1: the facts the question is about
+                rules, rule_log = select_sources(
+                    retriever, why_rule_queries(question, rep), limit=2
+                )
+                log.extend(rule_log)
+                chunks.extend(c for c in rules if c.doc_id not in {x.doc_id for x in chunks})
             evidence = state.get("evidence") or []
             if evidence:
                 ev = KnowledgeRetriever.in_memory(evidence, retriever.embedder, deps.cfg.rag)

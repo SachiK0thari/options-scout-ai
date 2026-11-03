@@ -129,7 +129,7 @@ def test_answer_fallback_sentence_after_exhausted_retries(
     monkeypatch.setattr(
         deps.llm,
         "answer_concept",
-        lambda q, s, d: Narrative(
+        lambda q, s, d, **kw: Narrative(
             paragraphs=[Paragraph(mode="education", text="Buy the call now, guaranteed [S1].")]
         ),
     )

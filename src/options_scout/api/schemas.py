@@ -4,7 +4,7 @@ from typing import Any, Literal
 
 from pydantic import BaseModel, Field, PositiveFloat, SecretStr
 
-from options_scout.core.models import AccountType, RiskProfile, UserProfile
+from options_scout.core.models import AccountType, ChatTurn, RiskProfile, UserProfile
 
 
 class MarketDataAuth(BaseModel):
@@ -89,3 +89,19 @@ class Health(BaseModel):
     llm_mode: str
     sources: dict[str, str]
     version: str
+
+
+class ChatRequest(BaseModel):
+    """One conversation turn (step 10.5). Omit ``thread_id`` to start a new conversation."""
+
+    message: str = Field(min_length=1, max_length=4000)
+    thread_id: str | None = Field(default=None, max_length=64, pattern=r"^[A-Za-z0-9_\-]*$")
+
+
+class ThreadStatus(BaseModel):
+    thread_id: str
+    status: Literal["idle", "running", "interrupted", "completed", "failed", "unknown"]
+    turns: list[ChatTurn]
+    has_report: bool
+    interrupt: dict[str, Any] | None
+    related_threads: list[str]

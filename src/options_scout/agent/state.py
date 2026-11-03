@@ -19,8 +19,10 @@ from pydantic import BaseModel, Field
 
 from options_scout.core.models import (
     AllocationPlan,
+    ChatTurn,
     Citation,
     ComplianceReport,
+    Intent,
     MarketRegime,
     Narrative,
     OptionCandidate,
@@ -52,6 +54,12 @@ class AgentState(TypedDict, total=False):
     request_text: str
     profile_override: dict[str, Any] | None  # full/partial profile supplied by the UI/API
     question: str | None  # Phase 10: an education question (concept Q&A) instead of a screen
+    message: str | None  # Phase 10 (10.5): the latest chat turn, classified by route_node
+    intent: Intent | None
+    review_requested: bool  # refine_profile: show human_review once even if complete
+    handoff: dict[str, Any] | None  # a new/refined screen to start on a fresh thread
+    what_if_profile: dict[str, Any] | None
+    what_if_diff: list[str]
     # intake
     parsed: ProfileParse | None
     profile: UserProfile | None
@@ -96,6 +104,7 @@ class AgentState(TypedDict, total=False):
     started_at: str
     report: ScreeningReport | None
     report_markdown: str | None
+    chat_history: Annotated[list[ChatTurn], operator.add]  # written by the chat session
     # fan-out payload (only present inside a Send branch)
     ticker: str
 
@@ -109,6 +118,12 @@ class OrchestratorSlice(BaseModel):
     request_text: str = ""
     profile_override: dict[str, Any] | None = None
     question: str | None = None
+    message: str | None = None
+    intent: Intent | None = None
+    review_requested: bool = False
+    handoff: dict[str, Any] | None = None
+    what_if_profile: dict[str, Any] | None = None
+    what_if_diff: list[str] = Field(default_factory=list)
     parsed: ProfileParse | None = None
     profile: UserProfile | None = None
     profile_complete: bool = False
@@ -188,6 +203,7 @@ class RunSlice(BaseModel):
     data_source_status: dict[str, str] = Field(default_factory=dict)
     report: ScreeningReport | None = None
     report_markdown: str | None = None
+    chat_history: list[ChatTurn] = Field(default_factory=list)
     ticker: str | None = None
 
 

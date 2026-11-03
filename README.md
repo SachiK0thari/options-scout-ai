@@ -26,7 +26,7 @@ make demo ARGS="--ask 'what is a cash-secured put'"   # cited answer from the kn
 make demo-core        # screeners + sizing + risk for every risk profile × account type
 make index            # build the cited knowledge base (data/knowledge.sqlite) offline, < 1 s
 make ui               # one-page Streamlit app on :8501 (buying power → strategy → optional data key)
-make api              # FastAPI on :8000  (POST /v1/recommend → GET /v1/runs/{id}/stream → /report)
+make api              # FastAPI on :8000  (POST /v1/recommend → GET /v1/runs/{id}/stream → /report; POST /v1/chat)
 make test lint eval   # offline tests, ruff + mypy --strict, evaluation suite → evals/reports/latest.md
 ```
 
@@ -90,6 +90,21 @@ OPTIONS_SCOUT_RAG_EMBEDDER=fastembed make index              # semantic embeddin
 A query with nothing above the similarity floor returns an empty result, and the Education agent then answers with the fixed sentence *"I don't have a source for that in my knowledge base."* instead of guessing.
 
 **How the Education agent uses it (step 10.3).** `knowledge_retrieval_node` turns a report into concept queries (the strategies screened, the account type, the quality-gate exclusion reasons, the flags present) and attaches one source document per concept as `[S1]…[Sn]`; for a question the query is the question itself plus the run's evidence posts. The explainer then writes a `Narrative` of tagged paragraphs: `education` paragraphs explain a concept and must cite a source tag, `screen_result` paragraphs report only computed numbers (candidate ids, realistic loss, payoff breakeven and maximum loss from `core/payoff.py`), and a `notice` paragraph carries the disclaimer. Compliance checks every `[Sn]` tag against the retrieved set in addition to the numeric grounding, and the report ends with a **Sources** footnote list. `make demo ARGS="--ask '…'"` runs the same Education → Compliance path on a question.
+
+### Conversation and intent routing (step 10.5)
+
+Every turn enters through the Orchestrator's `route_node`, which classifies it with the `route_message` prompt (or the regex router in `llm/rules.py` when no LLM is available) into one of six intents, and the parent graph routes on that intent:
+
+| Intent | What happens | Where the reply comes from |
+|---|---|---|
+| `new_screen` | the full pipeline; on a thread that already holds a report the screen runs on a **new thread** so LangGraph's list reducers never append one run onto another | the report's compliance-checked summary |
+| `refine_profile` | the changed fields are merged into the profile and the new thread **pauses at `human_review`** for confirmation | review prompt, then the summary |
+| `concept` | Education retrieves knowledge-base sources and answers with `[Sn]` citations | the cited answer |
+| `why` | Education also receives this run's computed facts (gate reasons, ranking, skipped candidates) and evidence posts as sources; run data is reported in `screen_result` paragraphs, the rule in a cited `education` paragraph | the cited answer |
+| `what_if` | the Orchestrator writes the profile diff; a full run with the hypothetical profile starts on a new thread | diff + the new screen's summary |
+| `off_topic` | a fixed polite redirect | the redirect |
+
+All six paths end in the Compliance agent, so every assistant turn carries a `ComplianceReport`; the review prompt and the deterministic summaries are checked too. `agent/chat.py` drives a conversation (`ChatSession.send` / `resume`, turns stored on the thread as `chat_history`), the API exposes it as `POST /v1/chat` (server-sent events ending in a `turn`) and `GET /v1/threads/{id}`, and `tests/agent/test_chat.py` runs the scripted six-turn conversation (describe → confirm → why excluded → what is assignment → what if 30k → off-topic) in CI. `make eval` scores the router on the 60-message `evals/datasets/chat_routing.jsonl`.
 
 ## Why the LLM never does math
 

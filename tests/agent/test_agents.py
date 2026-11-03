@@ -207,7 +207,7 @@ def test_parent_graph_visits_agents_in_order_and_records_a_per_agent_trace(demo_
     agent_updates = [k for u in updates for k in u if k in AGENT_ORDER]
     assert agent_updates == AGENT_ORDER  # no retries on the demo request
     node_updates = [k for u in updates for k in u if k not in AGENT_ORDER]
-    assert node_updates[0] == "intake_node" and node_updates[-1] == "report_node"
+    assert node_updates[0] == "route_node" and node_updates[-1] == "report_node"
     assert set(node_updates) <= set(NODE_ORDER)
     rep: ScreeningReport = final["report"]
     assert rep.metadata.agents_visited == AGENT_ORDER
@@ -252,9 +252,10 @@ def test_report_markdown_identical_to_golden(demo_run: Any) -> None:
     # two Phase 10 retrieval nodes added
     visited = final["report"].metadata.nodes_visited
     renamed = ["compliance_node" if n == "verifier_node" else n for n in PHASE9_NODE_SEQUENCE]
-    added = ["evidence_retrieval_node", "knowledge_retrieval_node", "audit_node"]
+    added = ["route_node", "evidence_retrieval_node", "knowledge_retrieval_node", "audit_node"]
     assert Counter(visited) == Counter(renamed + added)
     assert visited == [
+        "route_node",  # step 10.5
         "intake_node",
         "trend_scout_node",
         "evidence_retrieval_node",  # step 10.3

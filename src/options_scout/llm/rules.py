@@ -22,11 +22,13 @@ from options_scout.core.models import (
     EntityType,
     ExtractedEntity,
     ExtractionBatch,
+    Intent,
     Narrative,
     Paragraph,
     PostExtraction,
     ProfileParse,
     RiskProfile,
+    RouteDecision,
     Strategy,
 )
 from options_scout.social.resolution import BrandMap
@@ -605,16 +607,185 @@ def rule_explain(user_prompt: str) -> Narrative:
     return Narrative(paragraphs=paras)
 
 
+def _tag(user_prompt: str, tag: str) -> str:
+    m = re.search(rf"<{tag}>\n?(.*?)\n?</{tag}>", user_prompt, re.DOTALL)
+    return m.group(1).strip() if m else ""
+
+
+def _question_terms(question: str) -> list[str]:
+    return [t for t in re.findall(r"[A-Za-z][A-Za-z.\-]+", question) if len(t) > 2]
+
+
+def is_run_data(source: dict[str, str]) -> bool:
+    """Run facts and the run's evidence posts are data about *this* screen, never education."""
+    return source.get("kind") == "evidence" or source["title"].startswith("This run's screen")
+
+
+def why_paragraphs(sources: list[dict[str, str]], question: str) -> list[Paragraph]:
+    """``why`` answers: the run-facts source lines that mention a term of the question, reported
+    as ``screen_result`` (run data may not appear in an education paragraph), then any evidence
+    posts behind the trend signal."""
+    facts = [s for s in sources if s["title"].startswith("This run's screen")]
+    posts = [s for s in sources if s.get("kind") == "evidence" and s not in facts]
+    if not facts and not posts:
+        return []
+    terms = {t.lower() for t in _question_terms(question)}
+    tickers = {t for t in re.findall(r"\b[A-Z]{2,5}\b", question)}
+    out: list[Paragraph] = []
+    for src in facts:
+        lines = [ln.strip() for ln in src["text"].splitlines() if ln.strip()]
+        hits = [
+            ln
+            for ln in lines
+            if any(tk in ln for tk in tickers) or any(t in ln.lower() for t in terms if len(t) > 4)
+        ]
+        picked = hits[:4] or lines[1:4]
+        out.append(
+            Paragraph(
+                mode="screen_result",
+                text=f"**What the screen recorded.** {' '.join(picked)} [{src['tag']}]",
+                citations=[src["tag"]],
+            )
+        )
+    if posts:
+        quoted = " ".join(f"“{_first_sentences(p['text'], 200)}” [{p['tag']}]" for p in posts[:2])
+        out.append(
+            Paragraph(
+                mode="screen_result",
+                text=f"**Evidence behind the trend signal.** {quoted}",
+                citations=[p["tag"] for p in posts[:2]],
+            )
+        )
+    return out
+
+
 def rule_answer_concept(user_prompt: str) -> Narrative:
-    """``--no-llm`` concept answer: the top sources' opening sentences, each with its citation."""
+    """``--no-llm`` answer: for ``why`` the run facts as screen_result, then the top knowledge
+    sources' opening sentences as cited education paragraphs."""
     sources = parse_sources_block(user_prompt)
     m = re.search(r"copied exactly: (.*?)\n", user_prompt, re.DOTALL)
     disclaimer = m.group(1).strip() if m else ""
-    paras = education_paragraphs(sources, limit=2)
+    intent = re.search(r"Intent of this question: (\w+)", user_prompt)
+    question = _tag(user_prompt, "question")
+    paras: list[Paragraph] = []
+    if intent and intent.group(1) == "why":
+        paras.extend(why_paragraphs(sources, question))
+    knowledge = [s for s in sources if not is_run_data(s)]
+    paras.extend(education_paragraphs(knowledge, limit=2 if not paras else 1))
     if not paras:
         paras = [Paragraph(mode="notice", text=NO_SOURCE_SENTENCE)]
     paras.append(Paragraph(mode="notice", text=disclaimer or "Education, not advice."))
     return Narrative(paragraphs=paras)
+
+
+# ------------------------------------------------------------------------ intent routing
+_OFF_TOPIC = re.compile(
+    r"\b(weather|joke|poem|recipe|movie|song|football|soccer|basketball|election|president|"
+    r"bitcoin|crypto|ethereum|forex|real estate|mortgage|lottery|horoscope|translate|capital of|"
+    r"who (won|is|was)|how old|birthday|hello|hi there|good morning|thanks?|thank you|"
+    r"ignore (all )?(previous|prior|your) instructions|place (the|a|an|this) (trade|order)|"
+    r"should i (buy|sell)|tell me what to (buy|sell|do)|what (stock )?should i buy|"
+    r"which (one|stock|put|call) (should|would you)|do you recommend|your (favorite|favourite)|"
+    r"price target|will (the market|it|[A-Z]{2,5}) (go|crash|rally|rise|fall|hit)|next week|tomorrow)\b",
+    re.IGNORECASE,
+)
+_WHAT_IF = re.compile(
+    r"\b(what if|suppose|supposing|hypothetically|instead of|if (i|it|my account) (had|were|was|only)|"
+    r"and (with|if) (an? )?(aggressive|conservative|balanced|cash|margin)|how would (it|this|that) change)\b",
+    re.IGNORECASE,
+)
+_WHY = re.compile(
+    r"^\s*why\b|\bwhy (was|is|are|were|did|does|do|only|not|isn't|wasn't|didn't)\b|"
+    r"\b(explain|justify) (the|this|that) (ranking|exclusion|order|choice|screen result)\b|"
+    r"\bhow come\b",
+    re.IGNORECASE,
+)
+_CONCEPT = re.compile(
+    r"\b(what (is|are|does|do) (an? |the )?|define|definition of|meaning of|explain (what|how)|"
+    r"how (does|do|is|are) .* (work|computed|calculated|defined|measured)|"
+    r"difference between|tell me about|teach me|walk me through|what happens (when|at|if))\b",
+    re.IGNORECASE,
+)
+_PROFILE_WORDS = re.compile(
+    r"\b(buying power|account|margin|cash|conservative|balanced|aggressive|csp|cash[- ]secured|"
+    r"puts?|leaps|pmcc|covered call|wheel|watchlist|exclud\w*|positions?|\$\s?\d|\d+\s?k\b|"
+    r"thousand|million|risk (tolerance|appetite|profile)|ira|roth|401k)\b",
+    re.IGNORECASE,
+)
+_SCREEN_VERBS = re.compile(
+    r"\b(show me|find( me)?|screen|scan|look for|run (a|the|another|it)|rerun|re-run|start over|"
+    r"new screen|from scratch|i have|i've got|i got|my (account|buying power) is|ideas?|candidates?)\b",
+    re.IGNORECASE,
+)
+_STRONG_NEW_SCREEN = re.compile(  # phrasing that asks for a screen from scratch, even mid-thread
+    r"\b(start over|from scratch|new screen|rerun|re-run|run (a|another) (new |fresh )?screen|"
+    r"i have|i've got|i got|show me|find me|looking for|screen for|my (account|buying power) is)\b",
+    re.IGNORECASE,
+)
+_REFINE = re.compile(
+    r"\b(switch|change|make (it|that|me|my)|set (my|the|it)|use (a|an|my)|actually|instead,?\b|"
+    r"rather|update|add|remove|drop|exclude|include|also (consider|include)|only|just|limit|cap|max(imum)?|"
+    r"i'?m (actually |really )?(more )?(conservative|balanced|aggressive)|it'?s (a )?(cash|margin))\b",
+    re.IGNORECASE,
+)
+_WHY_RUN_WORDS = re.compile(
+    r"\b(excluded?|exclusion|ranked?|ranking|skipped|chosen|picked|selected|screened (in|out)|"
+    r"gate|quality|position|candidate|above|below|first|last|missing|not (shown|listed|included|in))\b",
+    re.IGNORECASE,
+)
+
+
+def rule_route(user_prompt: str) -> RouteDecision:
+    """Regex router: the ``--no-llm`` stand-in for ``route_message`` and the fallback the
+    Orchestrator uses when the LLM router is unavailable."""
+    message = _tag(user_prompt, "message") or user_prompt
+    has_report = "report exists" in user_prompt or "a report exists" in user_prompt
+    low = message.lower()
+    parsed = rule_parse_profile(message)
+    changes: dict[str, Any] = {}
+    if parsed.buying_power is not None:
+        changes["buying_power"] = parsed.buying_power
+        changes["account_value"] = parsed.account_value or parsed.buying_power
+    if parsed.account_type:
+        changes["account_type"] = parsed.account_type
+    if parsed.risk_profile:
+        changes["risk_profile"] = parsed.risk_profile
+    if parsed.strategies:
+        changes["strategies"] = parsed.strategies
+    if parsed.watchlist:
+        changes["watchlist"] = parsed.watchlist
+    if parsed.exclude:
+        changes["exclude"] = parsed.exclude
+    if parsed.max_positions:
+        changes["max_positions"] = parsed.max_positions
+
+    def decide(intent: Intent, reason: str) -> RouteDecision:
+        q = message.strip() if intent in ("concept", "why") else None
+        return RouteDecision(
+            intent=intent,
+            question=q,
+            profile_changes=changes if intent in ("refine_profile", "what_if") else {},
+            reason=reason,
+        )
+
+    if _OFF_TOPIC.search(low) and not (_CONCEPT.search(low) and _PROFILE_WORDS.search(low)):
+        return decide("off_topic", "off-topic keyword or advice request")
+    if _WHAT_IF.search(low) and (changes or _PROFILE_WORDS.search(low)):
+        return decide("what_if" if has_report else "new_screen", "hypothetical profile change")
+    if _WHY.search(low) and (has_report or _WHY_RUN_WORDS.search(low)):
+        return decide("why", "question about this run's results")
+    if _CONCEPT.search(low) or (low.rstrip().endswith("?") and not changes):
+        return decide("concept", "education question")
+    if (
+        has_report
+        and _REFINE.search(low)
+        and not _STRONG_NEW_SCREEN.search(low)
+        and (changes or _PROFILE_WORDS.search(low))
+    ):
+        return decide("refine_profile", "profile field changed on an existing thread")
+    if changes or _SCREEN_VERBS.search(low) or _PROFILE_WORDS.search(low):
+        return decide("new_screen", "profile description or screen request")
+    return decide("off_topic", "no options-screening content recognised")
 
 
 class _Judge(BaseModel):
@@ -642,5 +813,6 @@ def handlers(cfg: AppConfig) -> dict[str, Callable[[str], BaseModel]]:
         "extract_entities": extract,
         "explain_report": rule_explain,
         "answer_concept": rule_answer_concept,
+        "route_message": rule_route,
         "judge_explanation": rule_judge,
     }

@@ -59,6 +59,7 @@ _YEAR = re.compile(r"\b(19|20)\d{2}\b")
 _NUMBER = re.compile(r"(?<![\w.])[-+−]?\$?\s?(?:\d{1,3}(?:,\d{3})+|\d+)(?:\.\d+)?%?")
 _ORDINAL = re.compile(r"\b\d+(st|nd|rd|th)\b")
 _SOURCE_TAG = re.compile(SOURCE_TAG)
+_CODE_SPAN = re.compile(r"`[^`\n]*`")  # run ids, thread ids, config keys: identifiers, not claims
 
 
 def _to_float(token: str) -> tuple[float, bool] | None:
@@ -104,7 +105,8 @@ def collect_payload_numbers(payload: Any, out: set[float] | None = None) -> set[
 
 def extract_narrative_numbers(text: str) -> list[tuple[str, float, bool]]:
     """Numbers in the narrative, excluding candidate ids, dates and ordinals."""
-    scrubbed = _PMCC_ID.sub(" ", text)
+    scrubbed = _CODE_SPAN.sub(" ", text)
+    scrubbed = _PMCC_ID.sub(" ", scrubbed)
     scrubbed = _SOURCE_TAG.sub(" ", scrubbed)  # [S3] is a citation, not a claim
     scrubbed = CANDIDATE_ID.sub(" ", scrubbed)
     scrubbed = _DATE.sub(" ", scrubbed)

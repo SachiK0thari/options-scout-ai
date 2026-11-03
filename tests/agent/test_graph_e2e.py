@@ -103,7 +103,7 @@ def test_end_to_end_fixture_run(deps: Deps) -> None:
     assert all(p.citations for p in rep.narrative.paragraphs if p.mode == "education")
     # metadata
     assert (
-        rep.metadata.nodes_visited[0] == "intake_node"
+        rep.metadata.nodes_visited[0] == "route_node"
         and rep.metadata.nodes_visited[-1] == "report_node"
     )
     assert rep.metadata.node_latency_ms["report_node"] >= 0

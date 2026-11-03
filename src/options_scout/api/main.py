@@ -17,6 +17,7 @@ from fastapi.responses import PlainTextResponse
 from sse_starlette.sse import EventSourceResponse
 
 from options_scout import __version__
+from options_scout.agent.chat import ChatSession
 from options_scout.agent.deps import Deps
 from options_scout.agent.graph import (
     build_graph,
@@ -28,6 +29,7 @@ from options_scout.agent.graph import (
     thread_config,
 )
 from options_scout.api.schemas import (
+    ChatRequest,
     Health,
     MarketDataAuth,
     QualityUniverseEntry,
@@ -37,6 +39,7 @@ from options_scout.api.schemas import (
     RunStatus,
     ScreenRequest,
     ScreenResponse,
+    ThreadStatus,
 )
 from options_scout.config import get_config, load_env
 from options_scout.core.models import ScreeningReport, UserProfile
@@ -66,6 +69,7 @@ class RunRegistry:
         self.deps = Deps.from_config(self.cfg)
         self.ckpt = sqlite_checkpointer(self.cfg.paths.checkpoint_db)
         self.graph = build_graph(self.deps, self.ckpt)
+        self.session = ChatSession(self.deps, self.ckpt, graph=self.graph)
         self.events: dict[str, list[dict[str, Any]]] = {}
         self.status: dict[str, str] = {}
         self.threads: dict[str, threading.Thread] = {}
@@ -161,6 +165,68 @@ class RunRegistry:
             args=(thread_id, stream_resume(self.graph, thread_id, answer)),
             daemon=True,
         )
+        self.threads[thread_id] = t
+        t.start()
+
+    def chat(self, thread_id: str, message: str) -> None:
+        """Run one conversation turn in the background; events land on ``thread_id``'s list."""
+        if thread_id in self.threads and self.threads[thread_id].is_alive():
+            raise HTTPException(409, "thread is already running")
+        self.events.setdefault(thread_id, [])
+        self.status[thread_id] = "running"
+
+        def on_update(node: str, payload: dict[str, Any]) -> None:
+            if node == "__interrupt__":
+                self.events[thread_id].append(
+                    {"event": "interrupt", "node": node, "ts": time.time()}
+                )
+                return
+            self.events[thread_id].append(
+                {"event": "node", "node": node, "ts": time.time(), "keys": sorted(payload.keys())}
+            )
+
+        def work() -> None:
+            try:
+                result = self.session.send(thread_id, message, on_update=on_update)
+                if result.new_thread_id:
+                    self.status[result.new_thread_id] = result.status
+                    self.events.setdefault(result.new_thread_id, []).append(
+                        {"event": "end", "status": result.status, "ts": time.time()}
+                    )
+                    self.events[thread_id].append(
+                        {
+                            "event": "handoff",
+                            "new_thread_id": result.new_thread_id,
+                            "ts": time.time(),
+                        }
+                    )
+                self.status[thread_id] = (
+                    "interrupted"
+                    if result.status == "interrupted" and not result.new_thread_id
+                    else "completed"
+                )
+                self.events[thread_id].append(
+                    {
+                        "event": "turn",
+                        "ts": time.time(),
+                        "turn": result.turn.model_dump(mode="json"),
+                        "thread_id": result.thread_id,
+                        "status": result.status,
+                        "interrupt": result.interrupt,
+                    }
+                )
+            except Exception as exc:
+                log.error("chat_failed", thread_id=thread_id, error=str(exc))
+                self.status[thread_id] = "failed"
+                self.events[thread_id].append(
+                    {"event": "error", "detail": str(exc), "ts": time.time()}
+                )
+            finally:
+                self.events[thread_id].append(
+                    {"event": "end", "status": self.status[thread_id], "ts": time.time()}
+                )
+
+        t = threading.Thread(target=work, daemon=True)
         self.threads[thread_id] = t
         t.start()
 
@@ -312,6 +378,49 @@ def report(thread_id: str, format: str = "json") -> Any:
     if format == "md":
         return PlainTextResponse(values.get("report_markdown") or "", media_type="text/markdown")
     return rep.model_dump(mode="json")
+
+
+@app.post("/v1/chat", dependencies=[Depends(_auth)])
+async def chat(req: ChatRequest) -> EventSourceResponse:
+    """One conversation turn as server-sent events: ``node`` updates, an optional ``handoff``
+    (a new screen started on another thread), the assistant ``turn`` (with its ComplianceReport),
+    then ``end``."""
+    reg = registry()
+    thread_id = req.thread_id or uuid.uuid4().hex[:16]
+    start = len(reg.events.get(thread_id, []))
+    reg.chat(thread_id, req.message)
+
+    async def gen() -> AsyncIterator[dict[str, str]]:
+        i = start
+        while True:
+            events = reg.events.get(thread_id, [])
+            while i < len(events):
+                ev = events[i]
+                i += 1
+                yield {"event": ev["event"], "data": json.dumps({**ev, "thread_id": thread_id})}
+                if ev["event"] == "end":
+                    return
+            await asyncio.sleep(0.2)
+
+    return EventSourceResponse(gen())
+
+
+@app.get("/v1/threads/{thread_id}", response_model=ThreadStatus, dependencies=[Depends(_auth)])
+def thread_status(thread_id: str) -> ThreadStatus:
+    reg = registry()
+    values = reg.state(thread_id)
+    turns = reg.session.history(thread_id)
+    if not values and not turns and thread_id not in reg.status:
+        raise HTTPException(404, "unknown thread")
+    status = reg.status.get(thread_id, "idle")
+    return ThreadStatus(
+        thread_id=thread_id,
+        status=status,
+        turns=turns,
+        has_report=values.get("report") is not None,
+        interrupt=pending_interrupt(reg.graph, thread_id) if status == "interrupted" else None,
+        related_threads=reg.session.related_threads(thread_id),
+    )
 
 
 @app.get("/v1/trends", dependencies=[Depends(_auth)])

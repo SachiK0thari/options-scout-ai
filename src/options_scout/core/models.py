@@ -3,7 +3,7 @@
 from __future__ import annotations
 
 from datetime import UTC, date, datetime
-from typing import Literal
+from typing import Any, Literal
 
 from pydantic import BaseModel, ConfigDict, Field, PositiveFloat, field_validator
 
@@ -525,6 +525,46 @@ class ComplianceReport(Model):
     @property
     def warnings(self) -> list[ComplianceCheck]:
         return [c for c in self.checks if not c.passed and c.severity == "warn"]
+
+
+# -------------------------------------------------------------- conversation (Phase 10, 10.5)
+Intent = Literal["new_screen", "refine_profile", "concept", "why", "what_if", "off_topic"]
+INTENTS: tuple[str, ...] = (
+    "new_screen",
+    "refine_profile",
+    "concept",
+    "why",
+    "what_if",
+    "off_topic",
+)
+OFF_TOPIC_REPLY = (
+    "I can help with options education and with screening cash-secured puts, LEAPS and PMCCs on "
+    "good-to-own stocks. Ask about a concept, about why a stock or candidate was treated the way "
+    "it was, or describe your buying power and account to run a screen."
+)
+
+
+class RouteDecision(Model):
+    """Structured output of the Orchestrator's router (prompt ``route_message``)."""
+
+    intent: Intent
+    question: str | None = None  # the question to answer for concept / why
+    profile_changes: dict[str, Any] = Field(default_factory=dict)  # for refine_profile / what_if
+    reason: str = ""
+
+
+class ChatTurn(Model):
+    """One message of a conversation, stored on the thread (13.1: every assistant turn carries
+    the ComplianceReport its text passed)."""
+
+    role: Literal["user", "assistant"]
+    text: str
+    intent: Intent | None = None
+    compliance: ComplianceReport | None = None
+    citations: list[Citation] = Field(default_factory=list)
+    thread_id: str
+    new_thread_id: str | None = None  # a what-if / new screen started on another thread
+    ts: datetime = Field(default_factory=utcnow)
 
 
 class TokenUsage(Model):

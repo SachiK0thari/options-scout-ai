@@ -41,7 +41,7 @@ from options_scout.core.models import (  # noqa: E402
     SuitabilityFacts,
 )
 from options_scout.llm.client import LLMClient  # noqa: E402
-from options_scout.llm.rules import RuleBasedExtractor, rule_parse_profile  # noqa: E402
+from options_scout.llm.rules import RuleBasedExtractor, rule_parse_profile, rule_route  # noqa: E402
 from options_scout.social.adapters.sec import SECAdapter  # noqa: E402
 from options_scout.social.pipeline import TrendStore  # noqa: E402
 from options_scout.social.resolution import BrandMap, Resolver  # noqa: E402
@@ -558,6 +558,49 @@ def eval_compliance(res: Results, cfg: Any) -> None:
     )
 
 
+# ------------------------------------------------------------ 11.3a intent routing (10.5)
+def eval_routing(res: Results, llm: LLMClient | None) -> None:
+    rows = _jsonl(DATASETS / "chat_routing.jsonl")
+    ok = 0
+    misses: list[str] = []
+    for row in rows:
+        ctx = "exists" if row["has_report"] else "does not exist yet"
+        d = rule_route(f"<message>\n{row['message']}\n</message>\nContext: a report {ctx}")
+        if d.intent == row["expected"]:
+            ok += 1
+        else:
+            misses.append(f"{row['id']}→{d.intent}")
+    res.add(
+        "11.3a Conversation",
+        "Intent routing accuracy (rule-based router)",
+        f"{ok}/{len(rows)} = {ok / len(rows):.0%}",
+        "≥ 90%",
+        "PASS" if ok / len(rows) >= 0.9 else "FAIL",
+        "; ".join(misses),
+    )
+    if llm is None or not llm.is_live:
+        res.add(
+            "11.3a Conversation",
+            "Intent routing accuracy (LLM router)",
+            "n/a",
+            "≥ 90%",
+            "NOT RUN",
+            "requires an LLM API key",
+        )
+        return
+    ok = 0
+    for row in rows:
+        d = llm.route_message(row["message"], has_report=row["has_report"])
+        ok += int(d.intent == row["expected"])
+    res.add(
+        "11.3a Conversation",
+        "Intent routing accuracy (LLM router)",
+        f"{ok}/{len(rows)} = {ok / len(rows):.0%}",
+        "≥ 90%",
+        "PASS" if ok / len(rows) >= 0.9 else "FAIL",
+    )
+
+
 def eval_judge(res: Results, llm: LLMClient | None) -> None:
     if llm is None or not llm.is_live:
         res.add(
@@ -636,6 +679,7 @@ def main() -> int:
         eval_injection(res, cfg, llm)
         eval_agent(res, cfg, Path(tmp))
         eval_compliance(res, cfg)
+        eval_routing(res, llm)
         eval_judge(res, llm)
     path = write_report(res, cfg, llm_label)
     print(path.read_text(encoding="utf-8"))

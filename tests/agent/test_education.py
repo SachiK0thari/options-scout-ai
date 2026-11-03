@@ -159,8 +159,9 @@ def test_question_gets_a_cited_answer_through_compliance(deps: Deps) -> None:
     assert final["verification"].passed and final["verification"].citations_checked >= 1
     assert answer.paragraphs[-1].mode == "notice"
     assert answer.paragraphs[-1].text == deps.cfg.settings.disclaimer
-    assert final["agents_visited"] == ["education_agent", "compliance_agent"]
+    assert final["agents_visited"] == ["orchestrator_agent", "education_agent", "compliance_agent"]
     assert final["nodes_visited"] == [
+        "route_node",  # step 10.5: every turn is routed first
         "knowledge_retrieval_node",
         "concept_answer_node",
         "compliance_node",
@@ -183,7 +184,9 @@ def test_qa_graph_retries_then_falls_back_when_the_answer_fails_compliance(
 ) -> None:
     calls = {"n": 0}
 
-    def bad_answer(question: str, sources: str, disclaimer: str) -> Narrative:
+    def bad_answer(
+        question: str, sources: str, disclaimer: str, intent: str = "concept"
+    ) -> Narrative:
         calls["n"] += 1
         return Narrative(
             paragraphs=[

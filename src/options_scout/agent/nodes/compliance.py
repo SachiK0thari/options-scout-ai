@@ -20,9 +20,13 @@ from options_scout.core.models import ComplianceReport, Narrative, TextKind
 from options_scout.observability import get_logger
 from options_scout.rag.models import citation_of
 
+ANSWER_INTENTS = ("concept", "why", "what_if", "off_topic")
+
 
 def text_kind(state: AgentState) -> TextKind:
-    return "answer" if (state.get("question") or "").strip() else "report"
+    if (state.get("question") or "").strip() or state.get("intent") in ANSWER_INTENTS:
+        return "answer"
+    return "report"
 
 
 def narrative_under_review(state: AgentState) -> Narrative:

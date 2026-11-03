@@ -32,6 +32,7 @@ from options_scout.core.models import (
     ExtractionBatch,
     Narrative,
     ProfileParse,
+    RouteDecision,
     SocialPost,
     TokenUsage,
 )
@@ -106,7 +107,9 @@ def _list_price(
 
 # ------------------------------------------------------------------------------- OpenRouter
 _DEFAULT_OPENROUTER_URL = "https://openrouter.ai/api/v1"
-_DETERMINISTIC_TASKS = frozenset({"parse_profile", "extract_entities"})  # temperature 0 (spec 5.5)
+_DETERMINISTIC_TASKS = frozenset(
+    {"parse_profile", "extract_entities", "route_message"}
+)  # temperature 0
 
 
 class OpenRouterProvider:
@@ -411,8 +414,10 @@ class LLMClient:
             sources=sources or "(no sources retrieved)",
         )
 
-    def answer_concept(self, question: str, sources: str, disclaimer: str) -> Narrative:
-        """Cited answer to an education question from the retrieved sources only."""
+    def answer_concept(
+        self, question: str, sources: str, disclaimer: str, intent: str = "concept"
+    ) -> Narrative:
+        """Cited answer to an education (``concept``) or run (``why``) question from sources."""
         return self._run(
             "answer_concept",
             self.models.explanation_model,
@@ -421,6 +426,21 @@ class LLMClient:
             question=question,
             sources=sources or "(no sources retrieved)",
             disclaimer=disclaimer,
+            intent=intent,
+        )
+
+    def route_message(
+        self, message: str, *, has_report: bool, profile: str = "none"
+    ) -> RouteDecision:
+        """Orchestrator intent routing (step 10.5); the rule-based fallback has the same schema."""
+        return self._run(
+            "route_message",
+            self.models.extraction_model,
+            self._prompt("route_message"),
+            RouteDecision,
+            message=message,
+            has_report="exists" if has_report else "does not exist yet",
+            profile=profile,
         )
 
     def judge(self, payload: dict[str, Any], narrative: str) -> JudgeScore:

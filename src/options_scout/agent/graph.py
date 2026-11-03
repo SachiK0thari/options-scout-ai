@@ -1,9 +1,16 @@
 """Parent graph (sections 5.0/5.1): specialist subgraphs + report, SQLite checkpointer, streaming.
 
 Phase 9 wired the fourteen nodes directly; Phase 10 groups them into eight specialist subgraphs
-(``agent/agents/``) and composes those here. Node bodies are unchanged, so the report content is
-identical; only the agent order (Market Intelligence before Market Data, because the universe is
-ordered by trend score) and the ``verifier_node`` → ``compliance_node`` rename show in the trace.
+(``agent/agents/``) and composes those here. Step 10.5 added intent routing after the Orchestrator:
+
+* ``new_screen`` / ``refine_profile`` → Market Intelligence → … → Compliance → report_node
+  (or END with a ``handoff`` when the thread already holds a report: the session starts the new
+  screen on a fresh thread so list reducers never append one run onto another);
+* ``concept`` / ``why`` → Education → Compliance → END (``answer`` + ``citations``);
+* ``what_if`` / ``off_topic`` → the Orchestrator's own reply → Compliance → END.
+
+Compliance retries Education (bounded) and otherwise releases a report to ``report_node`` or an
+answer to END. ``agent/chat.py`` drives multi-turn conversations over this graph.
 """
 
 from __future__ import annotations
@@ -50,6 +57,7 @@ AGENT_ORDER = [
 
 # Node-level order of a run (used by the UI progress bar); human_review only on interrupt.
 NODE_ORDER = [
+    "route_node",
     "intake_node",
     "human_review",
     "trend_scout_node",
@@ -68,10 +76,15 @@ NODE_ORDER = [
     "audit_node",
     "report_node",
 ]
+# chat-only nodes (not part of a screen's progress bar)
+CHAT_NODES = ["what_if_node", "redirect_node", "concept_answer_node"]
 
 AGENT_OF_NODE = {
+    "route_node": orchestrator.NAME,
     "intake_node": orchestrator.NAME,
     "human_review": orchestrator.NAME,
+    "what_if_node": orchestrator.NAME,
+    "redirect_node": orchestrator.NAME,
     "trend_scout_node": market_intelligence.NAME,
     "evidence_retrieval_node": market_intelligence.NAME,
     "regime_node": market_data.NAME,
@@ -125,6 +138,18 @@ def build_agents(deps: Deps) -> dict[str, Any]:
     }
 
 
+def route_after_orchestrator(state: AgentState) -> str:
+    """Parent-graph edge after the Orchestrator (step 10.5), keyed on the routed ``intent``."""
+    intent = state.get("intent") or "new_screen"
+    if intent in ("concept", "why"):
+        return education.NAME
+    if intent in ("what_if", "off_topic"):
+        return compliance.NAME
+    if state.get("handoff"):
+        return END  # the session starts the new screen on a fresh thread
+    return market_intelligence.NAME
+
+
 def build_graph(deps: Deps, checkpointer: BaseCheckpointSaver[Any] | None = None) -> Any:
     agents = build_agents(deps)
     g: StateGraph[AgentState] = StateGraph(AgentState)
@@ -133,7 +158,11 @@ def build_graph(deps: Deps, checkpointer: BaseCheckpointSaver[Any] | None = None
     g.add_node("report_node", timed_node("report_node", report.make(deps)))
 
     g.add_edge(START, orchestrator.NAME)
-    g.add_edge(orchestrator.NAME, market_intelligence.NAME)
+    g.add_conditional_edges(
+        orchestrator.NAME,
+        route_after_orchestrator,
+        [market_intelligence.NAME, education.NAME, compliance.NAME, END],
+    )
     g.add_edge(market_intelligence.NAME, market_data.NAME)
     g.add_edge(market_data.NAME, strategy.NAME)
     g.add_edge(strategy.NAME, portfolio.NAME)
@@ -141,31 +170,15 @@ def build_graph(deps: Deps, checkpointer: BaseCheckpointSaver[Any] | None = None
     g.add_conditional_edges(risk.NAME, risk.make_router(deps), [portfolio.NAME, education.NAME])
     g.add_edge(education.NAME, compliance.NAME)
     g.add_conditional_edges(
-        compliance.NAME, compliance.make_router(deps), [education.NAME, "report_node"]
+        compliance.NAME, compliance.make_router(deps), [education.NAME, "report_node", END]
     )
     g.add_edge("report_node", END)
     return g.compile(checkpointer=checkpointer or InMemorySaver(serde=serializer()))
 
 
 def build_qa_graph(deps: Deps, checkpointer: BaseCheckpointSaver[Any] | None = None) -> Any:
-    """Education → Compliance (→ Education on failure) for a concept question (step 10.3).
-
-    The Orchestrator's intent routing arrives in step 10.5; until then the CLI, UI Learn tab and
-    tests ask questions through this two-specialist graph. Nothing bypasses Compliance.
-    """
-    agents = build_agents(deps)
-    g: StateGraph[AgentState] = StateGraph(AgentState)
-    g.add_node(education.NAME, compose(education.NAME, agents[education.NAME]))
-    g.add_node(compliance.NAME, compose(compliance.NAME, agents[compliance.NAME]))
-    g.add_edge(START, education.NAME)
-    g.add_edge(education.NAME, compliance.NAME)
-    router = compliance.make_router(deps)
-    g.add_conditional_edges(
-        compliance.NAME,
-        lambda state: education.NAME if router(state) == education.NAME else END,
-        [education.NAME, END],
-    )
-    return g.compile(checkpointer=checkpointer or InMemorySaver(serde=serializer()))
+    """Kept from step 10.3: questions now run through the one routed graph (``build_graph``)."""
+    return build_graph(deps, checkpointer)
 
 
 def question_state(question: str) -> AgentState:
@@ -212,6 +225,8 @@ def initial_state(request_text: str = "", profile: dict[str, Any] | None = None)
         retrievals=[],
         citations=[],
         audit_log=[],
+        chat_history=[],
+        what_if_diff=[],
         universe=[],
         market_data={},
         quality={},

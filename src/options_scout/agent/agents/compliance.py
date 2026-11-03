@@ -39,6 +39,9 @@ def make_router(deps: Deps) -> Callable[[AgentState], str]:
     node_router = compliance.make_router(deps)
 
     def route_after_compliance_agent(state: AgentState) -> str:
-        return _NEXT[node_router(state)]
+        nxt = _NEXT[node_router(state)]
+        if nxt == "report_node" and compliance.text_kind(state) == "answer":
+            return END  # chat replies and concept answers have no report to assemble
+        return nxt
 
     return route_after_compliance_agent

@@ -12,6 +12,19 @@ from options_scout.agent.nodes.intake import REQUIRED
 from options_scout.agent.state import AgentState
 
 MAX_REVIEW_ROUNDS = 3
+PROFILE_FIELDS = frozenset(
+    {
+        "buying_power",
+        "account_value",
+        "account_type",
+        "risk_profile",
+        "strategies",
+        "watchlist",
+        "exclude",
+        "max_positions",
+        "options_level",
+    }
+)
 
 
 def make(deps: Deps) -> Callable[[AgentState], dict[str, Any]]:
@@ -33,8 +46,10 @@ def make(deps: Deps) -> Callable[[AgentState], dict[str, Any]]:
         }
         answer = interrupt(payload)  # execution pauses here until Command(resume=...)
         override = dict(state.get("profile_override") or {})
-        if isinstance(answer, dict):
-            override.update({k: v for k, v in answer.items() if v is not None})
+        if isinstance(answer, dict):  # only profile fields; a bare confirmation changes nothing
+            override.update(
+                {k: v for k, v in answer.items() if v is not None and k in PROFILE_FIELDS}
+            )
         return {"profile_override": override, "retries": {"human_review": rounds + 1}}
 
     return human_review

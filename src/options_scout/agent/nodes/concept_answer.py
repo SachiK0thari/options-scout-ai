@@ -41,13 +41,14 @@ def make(deps: Deps) -> Callable[[AgentState], dict[str, Any]]:
             answer = no_source_answer(disclaimer)
         else:
             block = render_sources_block(sources)
+            intent = "why" if state.get("intent") == "why" else "concept"
             try:
-                answer = deps.llm.answer_concept(question, block, disclaimer)
+                answer = deps.llm.answer_concept(question, block, disclaimer, intent=intent)
             except Exception as exc:
                 errors.append(f"concept_answer: LLM failed ({exc}); using source excerpts")
                 answer = rule_answer_concept(
-                    f"copied exactly: {disclaimer}\n<question>\n{question}\n</question>\n"
-                    f"<sources>\n{block}\n</sources>"
+                    f"Intent of this question: {intent}\ncopied exactly: {disclaimer}\n"
+                    f"<question>\n{question}\n</question>\n<sources>\n{block}\n</sources>"
                 )
         citations = resolve_citations(answer, [citation_of(c) for c in sources])
         return {

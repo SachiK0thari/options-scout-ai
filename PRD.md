@@ -2,7 +2,7 @@
 
 > Build spec and working agreement for Claude Code.
 > Read this whole file before writing any code. Work through the **Build Phases** (section 14) in order, and do not start a phase until the previous phase's acceptance criteria pass.
-> **Current phase: 10, step 10.5** (section 14, "Rubric alignment"; steps 10.1–10.4 done 2026-11-03). Phases 0–9 are complete and must not regress. Section 18 maps every rubric line to the feature and test that earns it.
+> **Current phase: 10, step 10.6** (section 14, "Rubric alignment"; steps 10.1–10.5 done 2026-11-03). Phases 0–9 are complete and must not regress. Section 18 maps every rubric line to the feature and test that earns it.
 
 ---
 
@@ -864,13 +864,13 @@ Work the steps **in order**; each step is one PR-sized unit with its own tests a
 - [x] Tests: `tests/unit/test_compliance.py` — one test per check incl. allow-list ("sell-to-open is the term…" passes in an education paragraph with a tag, fails without), mode-tag violations, suitability matrix; `tests/agent/test_compliance_agent.py` — retry then fallback path; chat reply without audit entry is impossible (assert in the UI/API layer).
 - **Accept:** education-vs-advice eval 100% caught / ≤ 1 false positive; suitability eval 100%; numeric grounding still 100%; README "Why the LLM never does math" gains a "…and never gives advice" paragraph. _(Met: 34/34 caught, 0/10 clean rejected; 20/20; grounding 100%.)_
 
-**Step 10.5 — Orchestrator routing and conversational flow**
-- [ ] `route_node` with `prompts/route_message.md` → `Intent` enum (`new_screen`, `refine_profile`, `concept`, `why`, `what_if`, `off_topic`) + rule-based fallback (`llm/rules.py`); `off_topic` returns a fixed polite redirect (still through Compliance).
-- [ ] Conditional edges: `concept` → Education → Compliance; `why` → Market Intelligence evidence retrieval + Education → Compliance (answers reference the current report's `quality`, `ranked`, `portfolio.skipped`); `what_if` → profile diff + full run on a new thread; `refine_profile` → re-enter `human_review`.
-- [ ] `ChatTurn` model (role, text, intent, compliance, citations, thread_id) stored in the checkpointer's thread; API: `POST /v1/chat` (SSE) and `GET /v1/threads/{id}`.
-- [ ] Dataset `evals/datasets/chat_routing.jsonl` (60) and eval entry.
-- [ ] Tests: `tests/agent/test_chat.py` — each intent path end-to-end in fixture mode with `--no-llm`; what-if produces a diff and a new thread; every reply has a `ComplianceReport`.
-- **Accept:** routing eval ≥ 90%; a scripted 6-turn conversation (describe → confirm → why excluded → what is assignment → what if 30k → off-topic) passes in CI.
+**Step 10.5 — Orchestrator routing and conversational flow** — done 2026-11-03
+- [x] `route_node` with `prompts/route_message.md` → `Intent` enum (`new_screen`, `refine_profile`, `concept`, `why`, `what_if`, `off_topic`) + rule-based fallback (`llm/rules.py`); `off_topic` returns a fixed polite redirect (still through Compliance). _(`RouteDecision(intent, question, profile_changes)`; the regex router scores 60/60 on the dataset; `why`/`refine_profile`/`what_if` without a report degrade to `concept`/`new_screen`.)_
+- [x] Conditional edges: `concept` → Education → Compliance; `why` → Market Intelligence evidence retrieval + Education → Compliance (answers reference the current report's `quality`, `ranked`, `portfolio.skipped`); `what_if` → profile diff + full run on a new thread; `refine_profile` → re-enter `human_review`. _(The parent graph routes on `intent` after the Orchestrator; `why` answers get a "This run's screen" facts chunk plus the evidence posts as `screen_result` sources and the governing rule as a cited `education` source. New and refined screens on a thread that already holds a report are a `handoff`: `agent/chat.py` runs them on `<thread>-2`, `-3`… because the list reducers would otherwise append one run onto another; refinements set `review_requested` so `human_review` shows once.)_
+- [x] `ChatTurn` model (role, text, intent, compliance, citations, thread_id) stored in the checkpointer's thread; API: `POST /v1/chat` (SSE) and `GET /v1/threads/{id}`. _(`chat_history` list reducer on the state; the assistant turn is written with the next turn's input so a paused interrupt is never disturbed.)_
+- [x] Dataset `evals/datasets/chat_routing.jsonl` (60) and eval entry. _(Rule router 60/60; the LLM router row is NOT RUN without a key.)_
+- [x] Tests: `tests/agent/test_chat.py` — each intent path end-to-end in fixture mode with `--no-llm`; what-if produces a diff and a new thread; every reply has a `ComplianceReport`.
+- **Accept:** routing eval ≥ 90%; a scripted 6-turn conversation (describe → confirm → why excluded → what is assignment → what if 30k → off-topic) passes in CI. _(Met.)_
 
 **Step 10.6 — Multi-tab Streamlit UI and visualisation**
 - [ ] `ui/session.py`, `ui/theme.py`, `ui/tabs/{scout,setup,quality,candidates,portfolio,learn,trends,under_the_hood}.py`; `streamlit_app.py` becomes the shell with `st.tabs`. Keep the Setup form behaviour and its existing tests.

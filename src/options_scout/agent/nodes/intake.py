@@ -72,4 +72,9 @@ def make(deps: Deps) -> Callable[[AgentState], dict[str, Any]]:
 
 
 def route_after_intake(state: AgentState) -> str:
+    """Complete profile → the pipeline; incomplete, or a refinement the user should confirm
+    (``review_requested``, step 10.5) → the human_review interrupt, once."""
+    reviewed = int((state.get("retries") or {}).get("human_review", 0)) > 0
+    if state.get("review_requested") and not reviewed:
+        return "human_review"
     return "regime_node" if state.get("profile_complete") else "human_review"
