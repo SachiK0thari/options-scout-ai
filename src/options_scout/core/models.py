@@ -423,6 +423,9 @@ class RunMetadata(Model):
     total_cost_usd: float = 0.0
     node_latency_ms: dict[str, float] = Field(default_factory=dict)
     nodes_visited: list[str] = Field(default_factory=list)
+    # Phase 10: per-specialist trace (agent_latency_ms sums an agent's retries)
+    agent_latency_ms: dict[str, float] = Field(default_factory=dict)
+    agents_visited: list[str] = Field(default_factory=list)
 
 
 class ScreeningReport(Model):

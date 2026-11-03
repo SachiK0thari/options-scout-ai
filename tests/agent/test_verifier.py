@@ -1,6 +1,6 @@
 from __future__ import annotations
 
-from options_scout.agent.verifier import (
+from options_scout.core.compliance import (
     collect_payload_numbers,
     extract_narrative_numbers,
     verify_narrative,

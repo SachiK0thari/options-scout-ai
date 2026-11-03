@@ -1,4 +1,10 @@
-"""Graph wiring (section 5.1): StateGraph + Send fan-out + interrupt + SQLite checkpointer."""
+"""Parent graph (sections 5.0/5.1): specialist subgraphs + report, SQLite checkpointer, streaming.
+
+Phase 9 wired the fourteen nodes directly; Phase 10 groups them into eight specialist subgraphs
+(``agent/agents/``) and composes those here. Node bodies are unchanged, so the report content is
+identical; only the agent order (Market Intelligence before Market Data, because the universe is
+ordered by trend score) and the ``verifier_node`` → ``compliance_node`` rename show in the trace.
+"""
 
 from __future__ import annotations
 
@@ -13,43 +19,68 @@ from langgraph.checkpoint.serde.jsonplus import JsonPlusSerializer
 from langgraph.graph import END, START, StateGraph
 from langgraph.types import Command
 
-from options_scout.agent.deps import Deps
-from options_scout.agent.nodes import (
-    allocator,
-    explainer,
-    human_review,
-    intake,
+from options_scout.agent.agents import (
+    compliance,
+    education,
     market_data,
-    ranker,
-    regime,
-    report,
+    market_intelligence,
+    orchestrator,
+    portfolio,
     risk,
-    screener,
-    sizing,
-    trend_scout,
-    universe,
+    strategy,
 )
-from options_scout.agent.nodes import verifier as verifier_node
+from options_scout.agent.agents.base import compose
+from options_scout.agent.deps import Deps
+from options_scout.agent.nodes import report
 from options_scout.agent.state import AgentState
 from options_scout.core.models import utcnow
 from options_scout.observability import timed_node
 
+# Specialists in execution order (parent-graph node names).
+AGENT_ORDER = [
+    orchestrator.NAME,
+    market_intelligence.NAME,
+    market_data.NAME,
+    strategy.NAME,
+    portfolio.NAME,
+    risk.NAME,
+    education.NAME,
+    compliance.NAME,
+]
+
+# Node-level order of a run (used by the UI progress bar); human_review only on interrupt.
 NODE_ORDER = [
     "intake_node",
     "human_review",
-    "regime_node",
-    "allocator_node",
     "trend_scout_node",
+    "regime_node",
     "universe_node",
     "market_data_node",
     "screener_node",
     "ranker_node",
+    "allocator_node",
     "sizing_node",
     "risk_node",
     "explainer_node",
-    "verifier_node",
+    "compliance_node",
     "report_node",
 ]
+
+AGENT_OF_NODE = {
+    "intake_node": orchestrator.NAME,
+    "human_review": orchestrator.NAME,
+    "trend_scout_node": market_intelligence.NAME,
+    "regime_node": market_data.NAME,
+    "universe_node": market_data.NAME,
+    "market_data_node": market_data.NAME,
+    "screener_node": strategy.NAME,
+    "ranker_node": strategy.NAME,
+    "allocator_node": portfolio.NAME,
+    "sizing_node": portfolio.NAME,
+    "risk_node": risk.NAME,
+    "explainer_node": education.NAME,
+    "compliance_node": compliance.NAME,
+}
 
 
 def _model_types() -> list[type]:
@@ -71,42 +102,37 @@ def serializer() -> JsonPlusSerializer:
     return JsonPlusSerializer(allowed_msgpack_modules=_model_types())
 
 
+def build_agents(deps: Deps) -> dict[str, Any]:
+    """Every specialist as a standalone compiled subgraph, keyed by parent-graph node name."""
+    return {
+        orchestrator.NAME: orchestrator.build_orchestrator_agent(deps),
+        market_intelligence.NAME: market_intelligence.build_market_intelligence_agent(deps),
+        market_data.NAME: market_data.build_market_data_agent(deps),
+        strategy.NAME: strategy.build_strategy_agent(deps),
+        portfolio.NAME: portfolio.build_portfolio_agent(deps),
+        risk.NAME: risk.build_risk_agent(deps),
+        education.NAME: education.build_education_agent(deps),
+        compliance.NAME: compliance.build_compliance_agent(deps),
+    }
+
+
 def build_graph(deps: Deps, checkpointer: BaseCheckpointSaver[Any] | None = None) -> Any:
+    agents = build_agents(deps)
     g: StateGraph[AgentState] = StateGraph(AgentState)
-    g.add_node("intake_node", timed_node("intake_node", intake.make(deps)))
-    g.add_node("human_review", timed_node("human_review", human_review.make(deps)))
-    g.add_node("regime_node", timed_node("regime_node", regime.make(deps)))
-    g.add_node("allocator_node", timed_node("allocator_node", allocator.make(deps)))
-    g.add_node("trend_scout_node", timed_node("trend_scout_node", trend_scout.make(deps)))
-    g.add_node("universe_node", timed_node("universe_node", universe.make(deps)))
-    g.add_node("market_data_node", timed_node("market_data_node", market_data.make(deps)))
-    g.add_node("screener_node", timed_node("screener_node", screener.make(deps)))
-    g.add_node("ranker_node", timed_node("ranker_node", ranker.make(deps)))
-    g.add_node("sizing_node", timed_node("sizing_node", sizing.make(deps)))
-    g.add_node("risk_node", timed_node("risk_node", risk.make(deps)))
-    g.add_node("explainer_node", timed_node("explainer_node", explainer.make(deps)))
-    g.add_node("verifier_node", timed_node("verifier_node", verifier_node.make(deps)))
+    for name, compiled in agents.items():
+        g.add_node(name, compose(name, compiled))
     g.add_node("report_node", timed_node("report_node", report.make(deps)))
 
-    g.add_edge(START, "intake_node")
+    g.add_edge(START, orchestrator.NAME)
+    g.add_edge(orchestrator.NAME, market_intelligence.NAME)
+    g.add_edge(market_intelligence.NAME, market_data.NAME)
+    g.add_edge(market_data.NAME, strategy.NAME)
+    g.add_edge(strategy.NAME, portfolio.NAME)
+    g.add_edge(portfolio.NAME, risk.NAME)
+    g.add_conditional_edges(risk.NAME, risk.make_router(deps), [portfolio.NAME, education.NAME])
+    g.add_edge(education.NAME, compliance.NAME)
     g.add_conditional_edges(
-        "intake_node", intake.route_after_intake, ["human_review", "regime_node"]
-    )
-    g.add_edge("human_review", "intake_node")
-    g.add_edge("regime_node", "allocator_node")
-    g.add_edge("allocator_node", "trend_scout_node")
-    g.add_edge("trend_scout_node", "universe_node")
-    g.add_conditional_edges(
-        "universe_node", universe.fan_out, ["market_data_node", "screener_node"]
-    )
-    g.add_edge("market_data_node", "screener_node")
-    g.add_edge("screener_node", "ranker_node")
-    g.add_edge("ranker_node", "sizing_node")
-    g.add_edge("sizing_node", "risk_node")
-    g.add_conditional_edges("risk_node", risk.make_router(deps), ["sizing_node", "explainer_node"])
-    g.add_edge("explainer_node", "verifier_node")
-    g.add_conditional_edges(
-        "verifier_node", verifier_node.make_router(deps), ["explainer_node", "report_node"]
+        compliance.NAME, compliance.make_router(deps), [education.NAME, "report_node"]
     )
     g.add_edge("report_node", END)
     return g.compile(checkpointer=checkpointer or InMemorySaver(serde=serializer()))
@@ -142,6 +168,8 @@ def initial_state(request_text: str = "", profile: dict[str, Any] | None = None)
         errors=[],
         nodes_visited=[],
         node_latency_ms={},
+        agents_visited=[],
+        agent_latency_ms={},
         token_usage=[],
         data_source_status={},
     )
@@ -151,13 +179,37 @@ def thread_config(thread_id: str) -> dict[str, Any]:
     return {"configurable": {"thread_id": thread_id}}
 
 
+def _flatten(stream: Iterator[tuple[tuple[str, ...], dict[str, Any]]]) -> Iterator[dict[str, Any]]:
+    """Node-level updates from inside the specialists, then the specialist's own update.
+
+    Consumers see ``{node_name: partial_state}`` exactly as in Phase 9, plus one
+    ``{agent_name: delta}`` when a specialist finishes. An interrupt is reported once, at the root.
+    """
+    for namespace, update in stream:
+        if namespace:
+            inner = {k: v for k, v in update.items() if k != "__interrupt__"}
+            if inner:
+                yield inner
+        else:
+            yield update
+
+
 def stream_run(graph: Any, state: AgentState, thread_id: str) -> Iterator[dict[str, Any]]:
     """Yield node updates ``{node_name: partial_state}`` until the graph ends or interrupts."""
-    yield from graph.stream(state, thread_config(thread_id), stream_mode="updates")
+    yield from _flatten(
+        graph.stream(state, thread_config(thread_id), stream_mode="updates", subgraphs=True)
+    )
 
 
 def stream_resume(graph: Any, thread_id: str, answer: dict[str, Any]) -> Iterator[dict[str, Any]]:
-    yield from graph.stream(Command(resume=answer), thread_config(thread_id), stream_mode="updates")
+    yield from _flatten(
+        graph.stream(
+            Command(resume=answer),
+            thread_config(thread_id),
+            stream_mode="updates",
+            subgraphs=True,
+        )
+    )
 
 
 def pending_interrupt(graph: Any, thread_id: str) -> dict[str, Any] | None:

@@ -2,7 +2,7 @@
 
 > Build spec and working agreement for Claude Code.
 > Read this whole file before writing any code. Work through the **Build Phases** (section 14) in order, and do not start a phase until the previous phase's acceptance criteria pass.
-> **Current phase: 10** (section 14, "Rubric alignment", 2026-10-29). Phases 0–9 are complete and must not regress. Section 18 maps every rubric line to the feature and test that earns it.
+> **Current phase: 10, step 10.2** (section 14, "Rubric alignment"; step 10.1 done 2026-11-03). Phases 0–9 are complete and must not regress. Section 18 maps every rubric line to the feature and test that earns it.
 
 ---
 
@@ -270,9 +270,9 @@ The brief grades a **six-specialist + compliance** structure. The nodes in 5.1/5
 ```mermaid
 flowchart TD
     U[User · chat or form] --> O[Orchestrator<br/>intake · route · human_review]
-    O -->|new screen / what-if| MD[1 · Market Data Agent<br/>regime · universe · market_data + quality gate]
-    MD --> MI[2 · Market Intelligence Agent<br/>trend_scout · evidence retrieval]
-    MI --> ST[3 · Strategy Agent<br/>screener · ranker]
+    O -->|new screen / what-if| MI[2 · Market Intelligence Agent<br/>trend_scout · evidence retrieval]
+    MI --> MD[1 · Market Data Agent<br/>regime · universe · market_data + quality gate]
+    MD --> ST[3 · Strategy Agent<br/>screener · ranker]
     ST --> PF[4 · Portfolio Agent<br/>allocator · sizing]
     PF --> RK[5 · Risk Agent<br/>constraints · stress · suitability facts]
     RK -->|retries ≤ 3| PF
@@ -282,6 +282,8 @@ flowchart TD
     CP -->|fail, retries ≤ 2| ED
     CP -->|pass| R[Report / chat reply]
 ```
+
+*Execution order (decided in step 10.1):* Market Intelligence runs **before** Market Data because `universe_node` orders the curated list by trend score and caps it, so the trend board is an input to the universe. The numbering (1 Market Data, 2 Market Intelligence) is the rubric's mapping, not the run order. On a sizing retry only `sizing_node` re-runs inside Portfolio (the allocation is a pure function of profile and regime).
 
 | # | Agent | Subgraph nodes (existing) | Tools (deterministic) | LLM use | State slice |
 |---|---|---|---|---|---|
@@ -827,13 +829,13 @@ Options are higher-risk than equities, so the Compliance agent is the **most imp
 
 Work the steps **in order**; each step is one PR-sized unit with its own tests and must leave `make test lint eval` green. Do not start a step until the previous step's *Accept* passes. Phases 0–9 behaviour (fixture demo, numeric grounding, quality gate, API) must not regress; `tests/agent/test_graph_e2e.py` is the regression guard and runs after every step. Dates are the order of work, not deadlines.
 
-**Step 10.1 — Specialist subgraph refactor (no behaviour change)**
-- [ ] Create `agent/agents/` with `orchestrator.py`, `market_data.py`, `market_intelligence.py`, `strategy.py`, `portfolio.py`, `risk.py`, `education.py`, `compliance.py`. Each exposes `build_<name>_agent(deps) -> CompiledGraph` and a Pydantic `<Name>Slice` model in `agent/state.py`; `AgentState` composes the slices (keep the existing flat keys as properties for one release so the UI/API keep working).
-- [ ] Move the existing node functions under their agent without editing their bodies; `agent/graph.py` builds the parent graph from subgraphs. Keep `Send` fan-out inside the Market Data agent, the sizing↔risk loop between Portfolio and Risk, the explainer↔verifier loop between Education and Compliance, `interrupt()` in the Orchestrator, SQLite checkpointing on the parent.
-- [ ] Rename `verifier_node` → `compliance_node`; `agent/verifier.py` → `core/compliance.py` (re-export the old names with a deprecation comment).
-- [ ] Per-agent timing and status in `observability.py` (`agent.start` / `agent.end` events with agent name) so the UI can show a per-specialist trace.
-- [ ] Tests: `tests/agent/test_agents.py` — each specialist runs standalone on a fixture state and fills only its slice; parent graph visits agents in the documented order; existing e2e tests unchanged.
-- **Accept:** `make demo` output is byte-identical to Phase 9 (compare the Markdown report in a test); README architecture diagram replaced by the 5.0 diagram.
+**Step 10.1 — Specialist subgraph refactor (no behaviour change)** — done 2026-11-03
+- [x] Create `agent/agents/` with `orchestrator.py`, `market_data.py`, `market_intelligence.py`, `strategy.py`, `portfolio.py`, `risk.py`, `education.py`, `compliance.py`. Each exposes `build_<name>_agent(deps) -> CompiledGraph` and a Pydantic `<Name>Slice` model in `agent/state.py`; `AgentState` composes the slices (keep the existing flat keys as properties for one release so the UI/API keep working). _(`AgentState` stays the flat TypedDict LangGraph needs as its channel schema; the slices are Pydantic views over it and a test asserts they partition it exactly once.)_
+- [x] Move the existing node functions under their agent without editing their bodies; `agent/graph.py` builds the parent graph from subgraphs. Keep `Send` fan-out inside the Market Data agent, the sizing↔risk loop between Portfolio and Risk, the explainer↔verifier loop between Education and Compliance, `interrupt()` in the Orchestrator, SQLite checkpointing on the parent. _(Each specialist is invoked from a parent node that writes back only the state delta, `agent/agents/base.py`: a compiled subgraph added directly re-emits the lists it inherited and the parent's reducers double them, verified on LangGraph 1.2.18.)_
+- [x] Rename `verifier_node` → `compliance_node`; `agent/verifier.py` → `core/compliance.py` (re-export the old names with a deprecation comment).
+- [x] Per-agent timing and status in `observability.py` (`agent.start` / `agent.end` events with agent name) so the UI can show a per-specialist trace. _(`RunMetadata.agents_visited` / `agent_latency_ms`; `stream_run` yields node-level updates plus one update per finished specialist.)_
+- [x] Tests: `tests/agent/test_agents.py` — each specialist runs standalone on a fixture state and fills only its slice; parent graph visits agents in the documented order; existing e2e tests unchanged.
+- **Accept:** `make demo` output is byte-identical to Phase 9 (compare the Markdown report in a test); README architecture diagram replaced by the 5.0 diagram. _(Met: `tests/fixtures/reports/phase9_demo_report.md` was recorded from the Phase 9 graph and the test compares the whole report after normalising the three run-specific lines, run id, per-node latency and node order, which the agent regrouping and the compliance rename necessarily change; the node multiset is asserted equal.)_
 
 **Step 10.2 — Knowledge base and RAG layer**
 - [ ] Write `knowledge/concepts/*.md` (≈ 20 docs, front-matter per 5.6, each with ≥ 1 primary-source URL; include "how this app's quality gate works" and "why hype is a risk for short puts").

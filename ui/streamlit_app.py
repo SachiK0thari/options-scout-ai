@@ -108,7 +108,9 @@ def run_graph(graph: Any, stream: Any, thread_id: str) -> None:
                 st.session_state["interrupted"] = True
                 continue
             timings[node] = round((time.perf_counter() - t0) * 1000)
-            idx = NODE_ORDER.index(node) + 1 if node in NODE_ORDER else len(NODE_ORDER)
+            if node not in NODE_ORDER:
+                continue  # a specialist finished (Phase 10); the node-level progress is enough
+            idx = NODE_ORDER.index(node) + 1
             progress.progress(min(idx / len(NODE_ORDER), 1.0), text=f"{node} ✓")
     progress.progress(1.0, text="done")
     st.session_state["thread_id"] = thread_id

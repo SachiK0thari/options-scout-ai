@@ -45,30 +45,26 @@ Live credentials: none for Reddit's default provider (Arctic Shift, `reddit.prov
 
 ## Architecture
 
+Six specialist agents plus a Compliance agent, each a compiled LangGraph subgraph with its own state slice, composed by a parent graph ([`src/options_scout/agent/agents/`](src/options_scout/agent/agents/), PRD section 5.0). Every LLM-written string reaches the user only through Compliance.
+
 ```mermaid
 flowchart TD
-    A[intake_node<br/>parse user request → UserProfile] --> B{profile complete?}
-    B -- no --> H[human_review<br/>interrupt: confirm/fix profile]
-    H --> A
-    B -- yes --> C[regime_node<br/>VIX percentile, risk-free rate]
-    C --> D[allocator_node<br/>split buying power]
-    D --> E[trend_scout_node<br/>consumer-trend scores]
-    E --> F[universe_node<br/>curated good-to-own list ∪ user tickers]
-    F --> G[[fan-out per ticker via Send]]
-    G --> I[market_data_node<br/>chains, spot, earnings, HV<br/>+ quality gate: vol, IV, drawdown, liquidity]
-    I --> J[screener_node<br/>CSP / LEAPS / PMCC candidates]
-    J --> K[ranker_node<br/>option quality + stock quality + social score]
-    K --> L[sizing_node<br/>constrained position sizing]
-    L --> M[risk_node<br/>constraints + stress tests]
-    M --> N{constraints pass?}
-    N -- no, retries < 3 --> L
-    N -- yes --> O[explainer_node<br/>LLM narrative from computed data]
-    O --> P[verifier_node<br/>numeric grounding + policy checks]
-    P -- fail, retries < 2 --> O
-    P -- pass --> Q[report_node<br/>final JSON + Markdown]
+    U[User · form or chat] --> O[Orchestrator<br/>intake · human_review interrupt]
+    O --> MI[2 · Market Intelligence<br/>trend_scout: consumer-trend scores]
+    MI --> MD[1 · Market Data<br/>regime · universe · market_data per ticker via Send<br/>+ good-to-own quality gate]
+    MD --> ST[3 · Strategy<br/>screener: CSP / LEAPS / PMCC · ranker]
+    ST --> PF[4 · Portfolio<br/>allocator · sizing]
+    PF --> RK[5 · Risk<br/>constraints · stress tests]
+    RK -->|fail, retries ≤ 3| PF
+    RK --> ED[6 · Education<br/>explainer: narrative from computed data only]
+    ED --> CP[Compliance<br/>numeric grounding · banned language · disclaimer]
+    CP -->|fail, retries ≤ 2| ED
+    CP -->|pass| R[report_node<br/>final JSON + Markdown]
 ```
 
-LangGraph features used: typed `StateGraph` with reducers, `Send` map-reduce over tickers, `interrupt()` + `Command(resume=…)` for human-in-the-loop profile confirmation, SQLite checkpointing (resumable threads), bounded retry loops (sizing ↔ risk, explainer ↔ verifier), streamed node updates to the UI/API, and graceful degradation when a source fails.
+Market Intelligence runs before Market Data because the universe node orders the curated list by trend score. Inside the specialists the Phase 9 nodes are unchanged: `intake_node → trend_scout_node → regime_node → universe_node → market_data_node×N → screener_node → ranker_node → allocator_node → sizing_node → risk_node → explainer_node → compliance_node → report_node`.
+
+LangGraph features used: typed `StateGraph` with reducers, **subgraphs** (one compiled graph per specialist, each testable standalone), `Send` map-reduce over tickers inside the Market Data agent, `interrupt()` + `Command(resume=…)` for human-in-the-loop profile confirmation inside the Orchestrator, SQLite checkpointing on the parent (resumable threads), bounded retry loops between agents (Portfolio ↔ Risk, Education ↔ Compliance), node- and agent-level streamed updates to the UI/API, per-agent timing in every report, and graceful degradation when a source fails.
 
 ## Why the LLM never does math
 

@@ -17,6 +17,7 @@ from contextlib import contextmanager
 from typing import Any
 
 import structlog
+from langchain_core.runnables import RunnableConfig
 from langgraph.errors import GraphInterrupt
 
 _configured = False
@@ -117,6 +118,38 @@ def timed_node(name: str, fn: Callable[..., dict[str, Any]]) -> Callable[..., di
         )
         out["node_latency_ms"] = {**out.get("node_latency_ms", {}), name: round(prev + ms, 1)}
         out["nodes_visited"] = [*out.get("nodes_visited", []), name]
+        return out
+
+    wrapper.__name__ = name
+    return wrapper
+
+
+AgentFn = Callable[..., dict[str, Any]]  # (state, config) -> partial state
+
+
+def timed_agent(name: str, fn: AgentFn) -> AgentFn:
+    """Wrap a specialist's parent-graph node (Phase 10): ``agent.start`` / ``agent.end`` events,
+    a trace span, per-agent latency (summed over retries) and the order specialists ran in."""
+
+    def wrapper(state: dict[str, Any], config: RunnableConfig) -> dict[str, Any]:
+        log = get_logger(agent=name, run_id=state.get("run_id"))
+        log.info("agent.start")
+        t0 = time.perf_counter()
+        with TRACER.span(f"agent:{name}", run_id=state.get("run_id", "")):
+            try:
+                out = fn(state, config)
+            except GraphInterrupt:
+                log.info("agent.end", status="interrupted")
+                raise  # human-in-the-loop pause, not a failure
+            except Exception as exc:
+                log.error("agent.end", status="failed", error=str(exc))
+                raise
+        ms = (time.perf_counter() - t0) * 1000.0
+        log.info("agent.end", status="ok", latency_ms=round(ms, 1))
+        out = dict(out or {})
+        prev = float((state.get("agent_latency_ms") or {}).get(name, 0.0))
+        out["agent_latency_ms"] = {**out.get("agent_latency_ms", {}), name: round(prev + ms, 1)}
+        out["agents_visited"] = [*out.get("agents_visited", []), name]
         return out
 
     wrapper.__name__ = name

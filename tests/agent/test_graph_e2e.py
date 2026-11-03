@@ -69,7 +69,7 @@ def test_end_to_end_fixture_run(deps: Deps) -> None:
         "sizing_node",
         "risk_node",
         "explainer_node",
-        "verifier_node",
+        "compliance_node",
         "report_node",
     ]:
         assert node in visited, f"{node} not visited: {visited}"

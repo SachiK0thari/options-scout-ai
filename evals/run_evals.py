@@ -26,8 +26,8 @@ sys.path.insert(0, str(ROOT / "src"))
 
 from options_scout.agent.deps import Deps  # noqa: E402
 from options_scout.agent.graph import build_graph, initial_state, stream_run, thread_config  # noqa: E402
-from options_scout.agent.verifier import BANNED_PHRASES  # noqa: E402
 from options_scout.config import load_config, load_env  # noqa: E402
+from options_scout.core.compliance import BANNED_PHRASES  # noqa: E402
 from options_scout.core.models import SocialPost  # noqa: E402
 from options_scout.llm.client import LLMClient  # noqa: E402
 from options_scout.llm.rules import RuleBasedExtractor, rule_parse_profile  # noqa: E402
@@ -355,7 +355,7 @@ def eval_agent(res: Results, cfg: Any, tmp: Path) -> None:
         "sizing_node",
         "risk_node",
         "explainer_node",
-        "verifier_node",
+        "compliance_node",
         "report_node",
     ]
     for i, text in enumerate(REQUESTS):

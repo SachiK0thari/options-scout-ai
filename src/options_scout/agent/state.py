@@ -1,9 +1,21 @@
-"""Typed LangGraph state with reducers for the per-ticker fan-out (section 5.3)."""
+"""Typed LangGraph state (section 5.3) composed of per-specialist slices (section 5.0).
+
+``AgentState`` is the flat ``TypedDict`` LangGraph uses as its channel schema: the reducers for
+the per-ticker fan-out live on the flat keys, and every specialist subgraph shares the schema so
+specialists exchange data only through typed state. The ``*Slice`` Pydantic models partition
+those keys by owner: a specialist may write only the keys of its slice plus the shared ``RunSlice``
+bookkeeping, and ``tests/agent/test_agents.py`` enforces both the partition (the slices cover the
+state exactly once) and the ownership (each agent fills only its slice). The flat keys are the
+Phase 9 keys, unchanged, so the UI, API and evals keep working for one release.
+"""
 
 from __future__ import annotations
 
 import operator
-from typing import Annotated, Any, TypedDict
+from collections.abc import Mapping
+from typing import Annotated, Any, Literal, TypedDict, TypeVar, get_args, get_origin, get_type_hints
+
+from pydantic import BaseModel, Field
 
 from options_scout.core.models import (
     AllocationPlan,
@@ -61,6 +73,8 @@ class AgentState(TypedDict, total=False):
     errors: Annotated[list[str], operator.add]
     nodes_visited: Annotated[list[str], operator.add]
     node_latency_ms: Annotated[dict[str, float], merge_dicts]
+    agents_visited: Annotated[list[str], operator.add]  # Phase 10: one entry per specialist run
+    agent_latency_ms: Annotated[dict[str, float], merge_dicts]  # Phase 10: summed over retries
     token_usage: Annotated[list[TokenUsage], operator.add]
     data_source_status: Annotated[dict[str, str], merge_dicts]
     run_id: str
@@ -69,3 +83,150 @@ class AgentState(TypedDict, total=False):
     report_markdown: str | None
     # fan-out payload (only present inside a Send branch)
     ticker: str
+
+
+# ----------------------------------------------------------------------------- slices (5.0)
+
+
+class OrchestratorSlice(BaseModel):
+    """Owned by the Orchestrator: the request and the confirmed profile."""
+
+    request_text: str = ""
+    profile_override: dict[str, Any] | None = None
+    parsed: ProfileParse | None = None
+    profile: UserProfile | None = None
+    profile_complete: bool = False
+
+
+class MarketDataSlice(BaseModel):
+    """Owned by Market Data (#1): regime, universe, snapshots and the quality gate."""
+
+    regime: MarketRegime | None = None
+    universe: list[str] = Field(default_factory=list)
+    market_data: dict[str, TickerSnapshot] = Field(default_factory=dict)
+    quality: dict[str, QualityCheck] = Field(default_factory=dict)
+
+
+class MarketIntelligenceSlice(BaseModel):
+    """Owned by Market Intelligence (#2): the consumer-trend board."""
+
+    trends: list[TrendSignal] = Field(default_factory=list)
+    social_scores: dict[str, float] = Field(default_factory=dict)
+
+
+class StrategySlice(BaseModel):
+    """Owned by Strategy (#3): screened and ranked candidates."""
+
+    candidates: list[OptionCandidate] = Field(default_factory=list)
+    pmcc_pairs: list[PMCCCandidate] = Field(default_factory=list)
+    ranked: list[RankedCandidate] = Field(default_factory=list)
+
+
+class PortfolioSlice(BaseModel):
+    """Owned by Portfolio (#4): allocation and the sized portfolio."""
+
+    allocation: AllocationPlan | None = None
+    portfolio: SizedPortfolio | None = None
+
+
+class RiskSlice(BaseModel):
+    """Owned by Risk (#5): constraint checks and stress tests."""
+
+    risk: RiskReport | None = None
+
+
+class EducationSlice(BaseModel):
+    """Owned by Education (#6): the narrative and the payload it was written from."""
+
+    explain_payload: dict[str, Any] | None = None
+    narrative: str | None = None
+
+
+class ComplianceSlice(BaseModel):
+    """Owned by Compliance: the verification result and the feedback for a retry."""
+
+    verification: VerificationResult | None = None
+    verifier_feedback: str | None = None
+
+
+class RunSlice(BaseModel):
+    """Shared bookkeeping every agent may append to, plus the parent-level report keys."""
+
+    run_id: str = ""
+    started_at: str = ""
+    retries: dict[str, int] = Field(default_factory=dict)
+    errors: list[str] = Field(default_factory=list)
+    nodes_visited: list[str] = Field(default_factory=list)
+    node_latency_ms: dict[str, float] = Field(default_factory=dict)
+    agents_visited: list[str] = Field(default_factory=list)
+    agent_latency_ms: dict[str, float] = Field(default_factory=dict)
+    token_usage: list[TokenUsage] = Field(default_factory=list)
+    data_source_status: dict[str, str] = Field(default_factory=dict)
+    report: ScreeningReport | None = None
+    report_markdown: str | None = None
+    ticker: str | None = None
+
+
+SLICES: dict[str, type[BaseModel]] = {
+    "orchestrator_agent": OrchestratorSlice,
+    "market_intelligence_agent": MarketIntelligenceSlice,
+    "market_data_agent": MarketDataSlice,
+    "strategy_agent": StrategySlice,
+    "portfolio_agent": PortfolioSlice,
+    "risk_agent": RiskSlice,
+    "education_agent": EducationSlice,
+    "compliance_agent": ComplianceSlice,
+}
+
+SliceT = TypeVar("SliceT", bound=BaseModel)
+
+
+def slice_keys(model: type[BaseModel]) -> frozenset[str]:
+    return frozenset(model.model_fields)
+
+
+RUN_KEYS: frozenset[str] = slice_keys(RunSlice)
+
+
+def slice_of(state: Mapping[str, Any], model: type[SliceT]) -> SliceT:
+    """View the flat state through one slice (missing keys take the slice defaults)."""
+    return model.model_validate({k: state[k] for k in model.model_fields if k in state})
+
+
+ReducerKind = Literal["add", "merge", "last"]
+
+
+def reducer_kinds() -> dict[str, ReducerKind]:
+    """How each ``AgentState`` key is combined: list append, dict merge, or last value wins."""
+    kinds: dict[str, ReducerKind] = {}
+    for key, hint in get_type_hints(AgentState, include_extras=True).items():
+        kind: ReducerKind = "last"
+        if get_origin(hint) is Annotated:
+            reducer = get_args(hint)[1]
+            kind = "add" if reducer is operator.add else "merge"
+        kinds[key] = kind
+    return kinds
+
+
+def state_delta(before: Mapping[str, Any], after: Mapping[str, Any]) -> dict[str, Any]:
+    """The update a subgraph produced, given the state it started from and the state it ended in.
+
+    Appended lists contribute only their new tail, merged dicts are re-sent whole (idempotent),
+    and last-value keys are sent only when they changed. Returning this from the parent-graph
+    node, instead of the subgraph's whole final state, applies every reducer exactly once.
+    """
+    kinds = reducer_kinds()
+    out: dict[str, Any] = {}
+    for key, value in after.items():
+        kind = kinds.get(key, "last")
+        if kind == "add":
+            had = len(before.get(key) or ())
+            tail = list(value)[had:]
+            if tail:
+                out[key] = tail
+        elif kind == "merge":
+            if value != before.get(key):
+                out[key] = value
+        elif key not in before or value != before[key]:
+            out[key] = value
+    return out

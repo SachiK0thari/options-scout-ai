@@ -10,8 +10,8 @@ from typing import Any
 
 from options_scout.agent.deps import Deps
 from options_scout.agent.state import AgentState
-from options_scout.agent.verifier import verify_narrative
 from options_scout.core import report as md
+from options_scout.core.compliance import verify_narrative
 from options_scout.core.models import RunMetadata, ScreeningReport, utcnow
 from options_scout.llm.prompts import prompt_versions
 from options_scout.llm.rules import rule_explain
@@ -137,6 +137,8 @@ def make(deps: Deps) -> Callable[[AgentState], dict[str, Any]]:
             total_cost_usd=round(sum(u.cost_usd for u in usage), 6),
             node_latency_ms={**state.get("node_latency_ms", {}), "report_node": 0.0},
             nodes_visited=[*state.get("nodes_visited", []), "report_node"],
+            agent_latency_ms=dict(state.get("agent_latency_ms", {})),
+            agents_visited=list(state.get("agents_visited", [])),
         )
         cands = state.get("candidates", [])
         rep = ScreeningReport(
