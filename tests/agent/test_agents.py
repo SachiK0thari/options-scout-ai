@@ -3,13 +3,15 @@
 * the slices partition ``AgentState`` exactly once;
 * each specialist runs standalone on a fixture state and writes only its slice (+ bookkeeping);
 * the parent graph visits the specialists in the documented order and records a per-agent trace;
-* the Markdown report of the ``make demo`` request is byte-identical to the Phase 9 golden after
+* the Markdown report of the ``make demo`` request is byte-identical to the committed golden after
   normalising the run-specific lines (run id, per-node latency, node visit order) and the config
   hash (which changes whenever a config file is added, e.g. ``config/rag.yaml`` in step 10.2),
-  and the node visit order itself is the Phase 9 sequence regrouped by agent.
+  and the node visit order is the Phase 9 sequence regrouped by agent plus the Phase 10 nodes.
 
-Re-record the golden (only when the report *content* is meant to change) with
-``OPTIONS_SCOUT_RECORD_GOLDEN=1 pytest tests/agent/test_agents.py -k phase9``.
+The golden was recorded from the Phase 9 graph for step 10.1 (no behaviour change) and
+re-recorded in step 10.3, which deliberately changed the Explanation (cited education paragraphs,
+payoff summaries, a Sources section). Re-record only when the report *content* is meant to change:
+``OPTIONS_SCOUT_RECORD_GOLDEN=1 pytest tests/agent/test_agents.py -k golden``.
 """
 
 from __future__ import annotations
@@ -236,20 +238,23 @@ def normalize_report_markdown(text: str) -> str:
     return "\n".join(out) + "\n"
 
 
-def test_report_markdown_identical_to_phase9_golden(demo_run: Any) -> None:
+def test_report_markdown_identical_to_golden(demo_run: Any) -> None:
     _updates, final = demo_run
     rendered = normalize_report_markdown(final["report_markdown"])
     if os.environ.get("OPTIONS_SCOUT_RECORD_GOLDEN") == "1":
         GOLDEN.write_text(rendered)
     assert GOLDEN.exists(), "golden missing: record it from the Phase 9 graph first"
     assert rendered == GOLDEN.read_text()
-    # the trace is the Phase 9 sequence regrouped by agent, with the verifier renamed
+    # the trace is the Phase 9 sequence regrouped by agent, with the verifier renamed and the
+    # two Phase 10 retrieval nodes added
     visited = final["report"].metadata.nodes_visited
     renamed = ["compliance_node" if n == "verifier_node" else n for n in PHASE9_NODE_SEQUENCE]
-    assert Counter(visited) == Counter(renamed)
+    added = ["evidence_retrieval_node", "knowledge_retrieval_node"]
+    assert Counter(visited) == Counter(renamed + added)
     assert visited == [
         "intake_node",
         "trend_scout_node",
+        "evidence_retrieval_node",  # step 10.3
         "regime_node",
         "universe_node",
         *["market_data_node"] * 7,
@@ -258,6 +263,7 @@ def test_report_markdown_identical_to_phase9_golden(demo_run: Any) -> None:
         "allocator_node",
         "sizing_node",
         "risk_node",
+        "knowledge_retrieval_node",  # step 10.3
         "explainer_node",
         "compliance_node",
         "report_node",

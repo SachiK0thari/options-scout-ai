@@ -1,4 +1,6 @@
-"""Typed objects that cross the retrieval boundary: documents, chunks, scored hits, citations."""
+"""Typed objects that cross the retrieval boundary: documents, chunks, scored hits.
+
+``Citation`` itself lives in ``core/models.py`` because it travels on the report."""
 
 from __future__ import annotations
 
@@ -6,6 +8,8 @@ from datetime import date
 from typing import Literal
 
 from pydantic import BaseModel, ConfigDict, Field
+
+from options_scout.core.models import Citation
 
 Kind = Literal["concepts", "rules", "filings", "evidence"]
 QUOTE_CHARS = 240  # a citation quote is the first sentence(s) of the chunk, up to this many chars
@@ -71,30 +75,6 @@ class ScoredChunk(BaseModel):
     rank: int = Field(ge=1)  # 1-based position in the final result, i.e. the ``[Sn]`` number
 
 
-class Citation(BaseModel):
-    """What the LLM and the report see: enough to render ``[Sn] title (url)`` and a quote."""
-
-    model_config = ConfigDict(extra="forbid", frozen=True)
-
-    chunk_id: str
-    doc_id: str
-    title: str
-    url: str
-    quote: str
-    kind: Kind = "concepts"
-
-    @classmethod
-    def from_chunk(cls, chunk: Chunk) -> Citation:
-        return cls(
-            chunk_id=chunk.id,
-            doc_id=chunk.doc_id,
-            title=chunk.title,
-            url=chunk.url,
-            quote=chunk.quote,
-            kind=chunk.kind,
-        )
-
-
 class RetrievalResult(BaseModel):
     model_config = ConfigDict(extra="forbid", frozen=True)
 
@@ -113,7 +93,7 @@ class RetrievalResult(BaseModel):
         return [h.chunk for h in self.hits]
 
     def citations(self) -> list[Citation]:
-        return [Citation.from_chunk(h.chunk) for h in self.hits]
+        return [citation_of(h.chunk, f"S{h.rank}") for h in self.hits]
 
     def sources_block(self) -> str:
         """Numbered ``[S1]…[Sn]`` block handed to the Education prompt (step 10.3)."""
@@ -122,6 +102,18 @@ class RetrievalResult(BaseModel):
             c = h.chunk
             lines.append(f"[S{h.rank}] {c.title} — {c.source} ({c.url})\n{c.text.strip()}")
         return "\n\n".join(lines)
+
+
+def citation_of(chunk: Chunk, tag: str = "") -> Citation:
+    return Citation(
+        chunk_id=chunk.id,
+        doc_id=chunk.doc_id,
+        title=chunk.title,
+        url=chunk.url,
+        quote=chunk.quote,
+        kind=chunk.kind,
+        tag=tag,
+    )
 
 
 def quote_of(text: str, limit: int = QUOTE_CHARS) -> str:

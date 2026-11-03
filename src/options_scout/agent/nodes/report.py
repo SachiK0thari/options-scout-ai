@@ -9,12 +9,14 @@ from datetime import datetime
 from typing import Any
 
 from options_scout.agent.deps import Deps
+from options_scout.agent.nodes.explainer import render_sources_block, rule_prompt
 from options_scout.agent.state import AgentState
 from options_scout.core import report as md
-from options_scout.core.compliance import verify_narrative
-from options_scout.core.models import RunMetadata, ScreeningReport, utcnow
+from options_scout.core.compliance import resolve_citations, verify_narrative
+from options_scout.core.models import Citation, Narrative, RunMetadata, ScreeningReport, utcnow
 from options_scout.llm.prompts import prompt_versions
 from options_scout.llm.rules import rule_explain
+from options_scout.rag.models import citation_of
 
 
 def config_hash(deps: Deps) -> str:
@@ -62,7 +64,10 @@ def render_markdown(rep: ScreeningReport) -> str:
         md.render_risk(rep.risk),
         "",
         "## Explanation",
-        rep.narrative,
+        rep.narrative_markdown,
+        "",
+        "## Sources",
+        md.render_sources(rep.citations),
         "",
         "## Verification",
         (
@@ -71,6 +76,8 @@ def render_markdown(rep: ScreeningReport) -> str:
             f"{len(rep.verification.ungrounded_numbers)} ungrounded, banned phrases: "
             f"{', '.join(rep.verification.banned_phrases_found) or 'none'}, disclaimer "
             f"{'present' if rep.verification.disclaimer_present else 'MISSING'}, "
+            f"citations {rep.verification.citations_checked} checked / "
+            f"{len(rep.verification.unknown_citations)} unknown, "
             f"attempts {rep.verification.attempts}."
         ),
         "",
@@ -97,18 +104,21 @@ def make(deps: Deps) -> Callable[[AgentState], dict[str, Any]]:
         portfolio, risk, verification = state["portfolio"], state["risk"], state["verification"]
         assert profile and regime and alloc and portfolio and risk and verification
         errors = list(state.get("errors", []))
-        narrative = state.get("narrative") or ""
-        payload = state.get("explain_payload") or {}
+        narrative: Narrative = state.get("narrative") or Narrative()
+        payload = dict(state.get("explain_payload") or {})
+        payload.pop("previous_attempt_problems", None)
+        sources = list(state.get("sources") or [])
+        source_cites: list[Citation] = [citation_of(c) for c in sources]
         if not verification.passed:
-            # Final fallback: deterministic narrative that only echoes payload numbers.
-            narrative = rule_explain(
-                f"<payload>\n{json.dumps(payload, default=str)}\n</payload>"
-            ).text
+            # Final fallback: deterministic narrative that only echoes payload numbers and quotes
+            # the retrieved sources verbatim.
+            narrative = rule_explain(rule_prompt(payload, render_sources_block(sources)))
             fallback = verify_narrative(
-                narrative,
+                narrative.markdown,
                 payload,
                 disclaimer=deps.cfg.settings.disclaimer,
                 attempts=verification.attempts,
+                source_count=len(sources),
             )
             errors.append(
                 f"report: LLM narrative failed verification after {verification.attempts} "
@@ -159,6 +169,8 @@ def make(deps: Deps) -> Callable[[AgentState], dict[str, Any]]:
             portfolio=portfolio,
             risk=risk,
             narrative=narrative,
+            narrative_markdown=narrative.markdown,
+            citations=resolve_citations(narrative, source_cites),
             verification=verification,
             errors=sorted(set(errors)),
             metadata=meta,
@@ -168,6 +180,7 @@ def make(deps: Deps) -> Callable[[AgentState], dict[str, Any]]:
             "report": rep,
             "report_markdown": render_markdown(rep),
             "narrative": narrative,
+            "citations": rep.citations,
             "verification": verification,
         }
 

@@ -19,7 +19,9 @@ from pydantic import BaseModel, Field
 
 from options_scout.core.models import (
     AllocationPlan,
+    Citation,
     MarketRegime,
+    Narrative,
     OptionCandidate,
     PMCCCandidate,
     ProfileParse,
@@ -34,6 +36,7 @@ from options_scout.core.models import (
     UserProfile,
     VerificationResult,
 )
+from options_scout.rag.models import Chunk, RetrievalResult
 
 
 def merge_dicts(a: dict[str, Any] | None, b: dict[str, Any] | None) -> dict[str, Any]:
@@ -46,6 +49,7 @@ class AgentState(TypedDict, total=False):
     # input
     request_text: str
     profile_override: dict[str, Any] | None  # full/partial profile supplied by the UI/API
+    question: str | None  # Phase 10: an education question (concept Q&A) instead of a screen
     # intake
     parsed: ProfileParse | None
     profile: UserProfile | None
@@ -55,6 +59,7 @@ class AgentState(TypedDict, total=False):
     allocation: AllocationPlan | None
     trends: list[TrendSignal]
     social_scores: dict[str, float]
+    evidence: list[Chunk]  # Phase 10: the run's evidence posts as a retrievable collection
     universe: list[str]
     market_data: Annotated[dict[str, TickerSnapshot], merge_dicts]  # only tickers that passed
     quality: Annotated[dict[str, QualityCheck], merge_dicts]  # every ticker, passed or not
@@ -63,9 +68,14 @@ class AgentState(TypedDict, total=False):
     ranked: list[RankedCandidate]
     portfolio: SizedPortfolio | None
     risk: RiskReport | None
-    # LLM + verification
+    # Education (Phase 10: retrieval + tagged narrative + concept answers)
     explain_payload: dict[str, Any] | None
-    narrative: str | None
+    sources: list[Chunk]  # the [S1]…[Sn] chunks the narrative/answer may cite
+    retrievals: list[RetrievalResult]  # retrieval log for the Under-the-hood tab
+    narrative: Narrative | None
+    citations: list[Citation]  # sources the final text actually cites, numbered
+    answer: Narrative | None  # concept Q&A reply (question runs)
+    # verification
     verification: VerificationResult | None
     verifier_feedback: str | None
     # bookkeeping
@@ -93,6 +103,7 @@ class OrchestratorSlice(BaseModel):
 
     request_text: str = ""
     profile_override: dict[str, Any] | None = None
+    question: str | None = None
     parsed: ProfileParse | None = None
     profile: UserProfile | None = None
     profile_complete: bool = False
@@ -112,6 +123,7 @@ class MarketIntelligenceSlice(BaseModel):
 
     trends: list[TrendSignal] = Field(default_factory=list)
     social_scores: dict[str, float] = Field(default_factory=dict)
+    evidence: list[Chunk] = Field(default_factory=list)
 
 
 class StrategySlice(BaseModel):
@@ -136,10 +148,14 @@ class RiskSlice(BaseModel):
 
 
 class EducationSlice(BaseModel):
-    """Owned by Education (#6): the narrative and the payload it was written from."""
+    """Owned by Education (#6): retrieved sources, the tagged narrative or answer, citations."""
 
     explain_payload: dict[str, Any] | None = None
-    narrative: str | None = None
+    sources: list[Chunk] = Field(default_factory=list)
+    retrievals: list[RetrievalResult] = Field(default_factory=list)
+    narrative: Narrative | None = None
+    citations: list[Citation] = Field(default_factory=list)
+    answer: Narrative | None = None
 
 
 class ComplianceSlice(BaseModel):

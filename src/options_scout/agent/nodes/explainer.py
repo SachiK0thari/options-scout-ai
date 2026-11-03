@@ -1,13 +1,24 @@
-"""explainer_node: narrative written ONLY from a compact payload of computed numbers."""
+"""explainer_node: narrative written ONLY from a compact payload of computed numbers.
+
+Phase 10 step 10.3: the narrative is a ``Narrative`` of tagged paragraphs; the retrieved
+``sources`` are rendered as an ``[S1]…[Sn]`` block the LLM must cite, and they are also copied
+into the payload so a number quoted from a source counts as grounded. Each sized position gets
+a payoff summary (breakeven, maximum loss) from ``core/payoff.py``.
+"""
 
 from __future__ import annotations
 
-from collections.abc import Callable
+import json
+from collections.abc import Callable, Sequence
 from typing import Any
 
 from options_scout.agent.deps import Deps
 from options_scout.agent.state import AgentState
+from options_scout.core import payoff
+from options_scout.core.compliance import resolve_citations
+from options_scout.core.models import Narrative, OptionCandidate, PMCCCandidate, SizedPosition
 from options_scout.llm.rules import rule_explain
+from options_scout.rag.models import Chunk, citation_of
 
 
 def _money(x: float | None) -> int | None:
@@ -42,12 +53,71 @@ def _quality_section(state: AgentState) -> dict[str, Any]:
     }
 
 
+def position_payoff(
+    pos: SizedPosition,
+    candidates: dict[str, OptionCandidate],
+    pairs_by_short_call: dict[str, PMCCCandidate],
+) -> dict[str, Any]:
+    """Breakeven / max loss / max gain at expiry for one sized position (``core/payoff.py``)."""
+    cand = candidates.get(pos.candidate_id)
+    spot = cand.spot if cand else None
+    basis = "at expiry"
+    if pos.strategy == "csp":
+        legs = payoff.csp_legs(pos.strike, pos.mid, pos.contracts)
+    elif pos.pmcc_short_call_id and pos.pmcc_short_call_id in pairs_by_short_call:
+        pair = pairs_by_short_call[pos.pmcc_short_call_id]
+        legs = payoff.pmcc_legs(
+            pos.strike, pos.mid, pair.short_call.strike, pair.short_call.mid, pos.contracts
+        )
+        basis = "at the short call's expiry, LEAPS valued at intrinsic"
+    else:
+        legs = payoff.long_call_legs(pos.strike, pos.mid, pos.contracts)
+    summary = payoff.summarize_strategy(legs, spot)
+    return {
+        "breakeven": round(summary.breakevens[0], 2) if summary.breakevens else None,
+        "max_loss": _money(summary.max_loss),
+        "max_gain": _money(summary.max_gain) if summary.max_gain is not None else None,
+        "basis": basis,
+    }
+
+
+def sources_payload(sources: Sequence[Chunk]) -> list[dict[str, str]]:
+    return [
+        {"tag": f"S{i}", "title": c.title, "url": c.url, "kind": c.kind, "text": c.text}
+        for i, c in enumerate(sources, start=1)
+    ]
+
+
+def render_sources_block(sources: Sequence[Chunk]) -> str:
+    """The numbered ``<source id="Sn" …>`` block handed to the prompts (and parsed by the
+    rule-based stand-ins). Titles and urls are attribute-quoted; text is data."""
+    parts = []
+    for i, c in enumerate(sources, start=1):
+        title = c.title.replace('"', "'")
+        url = c.url.replace('"', "%22")
+        parts.append(
+            f'<source id="S{i}" title="{title}" url="{url}" kind="{c.kind}">\n{c.text}\n</source>'
+        )
+    return "\n".join(parts)
+
+
+def rule_prompt(payload: dict[str, Any], sources_block: str) -> str:
+    """What the rule-based explainer parses: the same blocks the LLM prompt carries."""
+    return f"<sources>\n{sources_block}\n</sources>\n\n<payload>\n{_json(payload)}\n</payload>"
+
+
 def build_explain_payload(
-    state: AgentState, disclaimer: str, *, loss_drop: float = 0.30
+    state: AgentState,
+    disclaimer: str,
+    *,
+    loss_drop: float = 0.30,
+    sources: Sequence[Chunk] | None = None,
 ) -> dict[str, Any]:
     profile, regime, alloc = state["profile"], state["regime"], state["allocation"]
     portfolio, risk = state["portfolio"], state["risk"]
     assert profile and regime and alloc and portfolio and risk
+    candidates = {c.id: c for c in state.get("candidates", [])}
+    pairs = {p.short_call.id: p for p in state.get("pmcc_pairs", [])}
     payload: dict[str, Any] = {
         "profile": {
             "buying_power": _money(profile.buying_power),
@@ -100,6 +170,7 @@ def build_explain_payload(
                 "dollar_delta": _money(p.dollar_delta),
                 "premium": _money(p.premium),
                 "pmcc_short_call_id": p.pmcc_short_call_id,
+                "payoff": position_payoff(p, candidates, pairs),
             }
             for p in portfolio.positions
         ],
@@ -135,26 +206,35 @@ def build_explain_payload(
         "errors": state.get("errors", [])[:8],
         "disclaimer": disclaimer,
     }
+    if sources is not None:
+        payload["sources"] = sources_payload(sources)
     return payload
 
 
 def make(deps: Deps) -> Callable[[AgentState], dict[str, Any]]:
     def explainer_node(state: AgentState) -> dict[str, Any]:
+        sources = list(state.get("sources") or [])
         payload = build_explain_payload(
-            state, deps.cfg.settings.disclaimer, loss_drop=deps.cfg.risk.realistic_loss_drop
+            state,
+            deps.cfg.settings.disclaimer,
+            loss_drop=deps.cfg.risk.realistic_loss_drop,
+            sources=sources,
         )
         feedback = state.get("verifier_feedback")
         if feedback:
             payload["previous_attempt_problems"] = feedback
+        block = render_sources_block(sources)
         usage_before = len(deps.llm.usage)
         errors: list[str] = []
         try:
-            narrative = deps.llm.explain(payload)
+            narrative: Narrative = deps.llm.explain(payload, block)
         except Exception as exc:
             errors.append(f"explainer: LLM failed ({exc}); using deterministic narrative")
-            narrative = rule_explain(f"<payload>\n{_json(payload)}\n</payload>").text
+            narrative = rule_explain(rule_prompt(payload, block))
+        citations = resolve_citations(narrative, [citation_of(c) for c in sources])
         return {
             "narrative": narrative,
+            "citations": citations,
             "explain_payload": payload,
             "token_usage": deps.llm.usage[usage_before:],
             "errors": errors,
@@ -164,6 +244,4 @@ def make(deps: Deps) -> Callable[[AgentState], dict[str, Any]]:
 
 
 def _json(payload: dict[str, Any]) -> str:
-    import json
-
     return json.dumps(payload, indent=1, sort_keys=True, default=str)

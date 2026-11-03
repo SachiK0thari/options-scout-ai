@@ -17,7 +17,7 @@ A short put that has moved against the writer can be rolled out and down for a n
 
 ## Common management rules
 
-These rules are widely taught and are the ones this app's report will flag in its "management mode" stretch goal. They are heuristics, not guarantees.
+These rules are widely taught and are the ones this app's report will flag in its "management mode" stretch goal. They are heuristics, not promises.
 
 - **Take profit at 50%.** When a short put can be bought back for half the premium received, most of the expected gain has been earned while a large share of the gamma risk remains; many writers close and redeploy rather than wait for the last cents.
 - **Close or roll at 21 days to expiration.** The last three weeks hold the fastest time decay but also the highest gamma; a put that is still comfortably out of the money at 21 days has little left to give relative to what a sudden move could take.

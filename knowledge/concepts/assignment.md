@@ -9,7 +9,7 @@ as_of: 2026-11-03
 
 # Assignment
 
-**Assignment** is the process by which an option writer is selected to fulfil the obligation of a contract that a holder has exercised. When a put holder exercises, some put writer must buy the shares at the strike; when a call holder exercises, some call writer must deliver them. The Options Clearing Corporation (OCC) receives exercise notices from clearing members, assigns them at random to clearing members with short positions in the same series, and each clearing member then assigns its own customers by a method approved by the exchanges, usually random selection or first-in first-out.
+**Assignment** is the process by which an option writer is selected to fulfil the obligation of a contract that a holder has exercised. When a put holder exercises, some put writer is obliged to take the shares at the strike; when a call holder exercises, some call writer must deliver them. The Options Clearing Corporation (OCC) receives exercise notices from clearing members, assigns them at random to clearing members with short positions in the same series, and each clearing member then assigns its own customers by a method approved by the exchanges, usually random selection or first-in first-out.
 
 ## What the writer experiences
 

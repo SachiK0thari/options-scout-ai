@@ -28,7 +28,13 @@ from typing import Any, Protocol, TypeVar
 from pydantic import BaseModel
 
 from options_scout.config import AppConfig, LLMMode, LLMProviderName, LLMProviderSettings
-from options_scout.core.models import ExtractionBatch, ProfileParse, SocialPost, TokenUsage
+from options_scout.core.models import (
+    ExtractionBatch,
+    Narrative,
+    ProfileParse,
+    SocialPost,
+    TokenUsage,
+)
 from options_scout.llm.prompts import Prompt, load_prompt
 
 log = logging.getLogger(__name__)
@@ -40,10 +46,6 @@ class JudgeScore(BaseModel):
     clarity: int
     policy: int
     notes: str = ""
-
-
-class Narrative(BaseModel):
-    text: str
 
 
 class LLMProvider(Protocol):
@@ -398,15 +400,28 @@ class LLMClient:
             posts=rendered,
         )
 
-    def explain(self, payload: dict[str, Any]) -> str:
-        out = self._run(
+    def explain(self, payload: dict[str, Any], sources: str = "") -> Narrative:
+        """Tagged paragraphs explaining a report; ``sources`` is the rendered ``[Sn]`` block."""
+        return self._run(
             "explain_report",
             self.models.explanation_model,
             self._prompt("explain_report"),
             Narrative,
             payload=json.dumps(payload, indent=1, sort_keys=True, default=str),
+            sources=sources or "(no sources retrieved)",
         )
-        return out.text
+
+    def answer_concept(self, question: str, sources: str, disclaimer: str) -> Narrative:
+        """Cited answer to an education question from the retrieved sources only."""
+        return self._run(
+            "answer_concept",
+            self.models.explanation_model,
+            self._prompt("answer_concept"),
+            Narrative,
+            question=question,
+            sources=sources or "(no sources retrieved)",
+            disclaimer=disclaimer,
+        )
 
     def judge(self, payload: dict[str, Any], narrative: str) -> JudgeScore:
         return self._run(

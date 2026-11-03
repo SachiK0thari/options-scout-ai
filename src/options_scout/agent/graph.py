@@ -53,6 +53,7 @@ NODE_ORDER = [
     "intake_node",
     "human_review",
     "trend_scout_node",
+    "evidence_retrieval_node",
     "regime_node",
     "universe_node",
     "market_data_node",
@@ -61,6 +62,7 @@ NODE_ORDER = [
     "allocator_node",
     "sizing_node",
     "risk_node",
+    "knowledge_retrieval_node",
     "explainer_node",
     "compliance_node",
     "report_node",
@@ -70,6 +72,7 @@ AGENT_OF_NODE = {
     "intake_node": orchestrator.NAME,
     "human_review": orchestrator.NAME,
     "trend_scout_node": market_intelligence.NAME,
+    "evidence_retrieval_node": market_intelligence.NAME,
     "regime_node": market_data.NAME,
     "universe_node": market_data.NAME,
     "market_data_node": market_data.NAME,
@@ -78,7 +81,9 @@ AGENT_OF_NODE = {
     "allocator_node": portfolio.NAME,
     "sizing_node": portfolio.NAME,
     "risk_node": risk.NAME,
+    "knowledge_retrieval_node": education.NAME,
     "explainer_node": education.NAME,
+    "concept_answer_node": education.NAME,
     "compliance_node": compliance.NAME,
 }
 
@@ -89,11 +94,13 @@ def _model_types() -> list[type]:
     from pydantic import BaseModel
 
     from options_scout.core import models
+    from options_scout.rag import models as rag_models
 
     return [
         obj
-        for _, obj in inspect.getmembers(models, inspect.isclass)
-        if issubclass(obj, BaseModel) and obj.__module__ == models.__name__
+        for mod in (models, rag_models)
+        for _, obj in inspect.getmembers(mod, inspect.isclass)
+        if issubclass(obj, BaseModel) and obj.__module__ == mod.__name__
     ]
 
 
@@ -138,6 +145,43 @@ def build_graph(deps: Deps, checkpointer: BaseCheckpointSaver[Any] | None = None
     return g.compile(checkpointer=checkpointer or InMemorySaver(serde=serializer()))
 
 
+def build_qa_graph(deps: Deps, checkpointer: BaseCheckpointSaver[Any] | None = None) -> Any:
+    """Education → Compliance (→ Education on failure) for a concept question (step 10.3).
+
+    The Orchestrator's intent routing arrives in step 10.5; until then the CLI, UI Learn tab and
+    tests ask questions through this two-specialist graph. Nothing bypasses Compliance.
+    """
+    agents = build_agents(deps)
+    g: StateGraph[AgentState] = StateGraph(AgentState)
+    g.add_node(education.NAME, compose(education.NAME, agents[education.NAME]))
+    g.add_node(compliance.NAME, compose(compliance.NAME, agents[compliance.NAME]))
+    g.add_edge(START, education.NAME)
+    g.add_edge(education.NAME, compliance.NAME)
+    router = compliance.make_router(deps)
+    g.add_conditional_edges(
+        compliance.NAME,
+        lambda state: education.NAME if router(state) == education.NAME else END,
+        [education.NAME, END],
+    )
+    return g.compile(checkpointer=checkpointer or InMemorySaver(serde=serializer()))
+
+
+def question_state(question: str) -> AgentState:
+    state = initial_state()
+    state["question"] = question
+    return state
+
+
+def answer_question(deps: Deps, question: str, thread_id: str | None = None) -> dict[str, Any]:
+    """Run the Q&A graph; the final state holds ``answer``, ``citations`` and ``verification``."""
+    graph = build_qa_graph(deps)
+    thread = thread_id or f"qa-{uuid.uuid4().hex[:8]}"
+    for _ in stream_run(graph, question_state(question), thread):
+        pass
+    values: dict[str, Any] = dict(graph.get_state(thread_config(thread)).values)
+    return values
+
+
 def sqlite_checkpointer(path: Path) -> BaseCheckpointSaver[Any]:
     import sqlite3
 
@@ -158,6 +202,10 @@ def initial_state(request_text: str = "", profile: dict[str, Any] | None = None)
         started_at=utcnow().isoformat(),
         trends=[],
         social_scores={},
+        evidence=[],
+        sources=[],
+        retrievals=[],
+        citations=[],
         universe=[],
         market_data={},
         quality={},

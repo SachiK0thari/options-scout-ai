@@ -348,12 +348,14 @@ def eval_agent(res: Results, cfg: Any, tmp: Path) -> None:
         "regime_node",
         "allocator_node",
         "trend_scout_node",
+        "evidence_retrieval_node",
         "universe_node",
         "market_data_node",
         "screener_node",
         "ranker_node",
         "sizing_node",
         "risk_node",
+        "knowledge_retrieval_node",
         "explainer_node",
         "compliance_node",
         "report_node",
@@ -370,7 +372,7 @@ def eval_agent(res: Results, cfg: Any, tmp: Path) -> None:
         grounded += v.numbers_checked - len(v.ungrounded_numbers)
         first_pass += int(v.attempts == 1 and v.passed)
         constraint_ok += int(rep.risk.passed and all(c.passed for c in rep.risk.checks))
-        low = rep.narrative.lower()
+        low = rep.narrative_markdown.lower()
         policy_ok += int(v.disclaimer_present and not any(p in low for p in BANNED_PHRASES))
         costs.append(rep.metadata.total_cost_usd)
         tokens_in.append(sum(u.input_tokens for u in rep.metadata.token_usage))

@@ -7,6 +7,7 @@ from dataclasses import dataclass, field, replace
 from options_scout.config import AppConfig
 from options_scout.data.market import MarketData
 from options_scout.llm.client import LLMClient
+from options_scout.rag.retriever import KnowledgeRetriever
 from options_scout.social.pipeline import TrendScout, TrendStore
 
 
@@ -18,6 +19,13 @@ class Deps:
     scout: TrendScout | None
     trend_store: TrendStore
     disabled_sources: set[str] = field(default_factory=set)  # for degradation tests
+    retriever: KnowledgeRetriever | None = None  # built on first use (index is rebuilt if stale)
+
+    def knowledge(self) -> KnowledgeRetriever:
+        """The knowledge-base retriever (PRD 5.6); opens ``rag.index_db`` and reindexes if stale."""
+        if self.retriever is None:
+            self.retriever = KnowledgeRetriever.from_config(self.cfg)
+        return self.retriever
 
     @classmethod
     def from_config(cls, cfg: AppConfig, *, with_social: bool = True) -> Deps:

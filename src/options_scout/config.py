@@ -582,6 +582,7 @@ class RagConfig(_Strict):
     fastembed_model: str = "BAAI/bge-small-en-v1.5"
     hash_dimensions: int = Field(default=2048, ge=64)
     top_k: int = Field(default=6, ge=1)
+    report_sources: int = Field(default=6, ge=1)
     similarity_floor: dict[EmbedderName, float]
     rrf_k: int = Field(default=60, ge=1)
     chunk_tokens: int = Field(default=400, ge=50)

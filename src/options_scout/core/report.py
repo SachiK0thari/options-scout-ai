@@ -6,6 +6,7 @@ from collections.abc import Iterable, Sequence
 
 from options_scout.core.models import (
     AllocationPlan,
+    Citation,
     MarketRegime,
     OptionCandidate,
     PMCCCandidate,
@@ -321,3 +322,14 @@ def render_risk(r: RiskReport) -> str:
     status = "**All constraints pass.**" if r.passed else "**Constraint failures present.**"
     stress_title = "**Stress test (instant move, repriced with BSM):**"
     return f"{status}\n\n{checks}\n\n{stress_title}\n\n{stress}\n\n{warn}"
+
+
+def render_sources(citations: Sequence[Citation]) -> str:
+    """Footnote list of the knowledge-base sources the explanation cites (``[Sn]`` tags)."""
+    if not citations:
+        return "_No knowledge-base sources were cited in this explanation._"
+    lines = []
+    for c in citations:
+        where = f" ({c.url})" if c.url else ""
+        lines.append(f"- **[{c.tag}]** {c.title} — {c.kind}{where}  \n  “{c.quote}”")
+    return "\n".join(lines)

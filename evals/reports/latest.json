@@ -2,10 +2,10 @@
  {
   "section": "11.1 Deterministic",
   "name": "Golden-value + property tests (tests/unit)",
-  "value": "206 passed in 14.10s",
+  "value": "206 passed in 14.96s",
   "target": "all pass",
   "status": "PASS",
-  "detail": "15.0s"
+  "detail": "16.0s"
  },
  {
   "section": "11.2 Entity extraction",
@@ -93,7 +93,7 @@
   "value": "100.0%",
   "target": "100%",
   "status": "PASS",
-  "detail": "262/262 numbers over 6 runs"
+  "detail": "292/292 numbers over 6 runs"
  },
  {
   "section": "11.3 Agent",
@@ -130,7 +130,7 @@
  {
   "section": "11.3 Agent",
   "name": "Latency per run (fixture mode)",
-  "value": "mean 1.02s \u00b7 p95 2.71s",
+  "value": "mean 1.10s \u00b7 p95 3.02s",
   "target": "report",
   "status": "INFO",
   "detail": ""

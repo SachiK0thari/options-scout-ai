@@ -22,6 +22,7 @@ make install          # uv venv + pinned deps (Python 3.11+)
 make demo             # full agent run on bundled market + social fixtures, prints a Markdown report
 make demo ARGS="--strategy csp --account cash --risk conservative --buying-power 50000"
 make demo ARGS="--no-llm"   # same, with the LLM steps replaced by deterministic stand-ins
+make demo ARGS="--ask 'what is a cash-secured put'"   # cited answer from the knowledge base, via Compliance
 make demo-core        # screeners + sizing + risk for every risk profile × account type
 make index            # build the cited knowledge base (data/knowledge.sqlite) offline, < 1 s
 make ui               # one-page Streamlit app on :8501 (buying power → strategy → optional data key)
@@ -86,13 +87,15 @@ python -m options_scout.rag.retriever --kind rules "why was NKE excluded"
 OPTIONS_SCOUT_RAG_EMBEDDER=fastembed make index              # semantic embeddings (optional extra)
 ```
 
-A query with nothing above the similarity floor returns an empty result, which the Education agent will turn into the fixed sentence *"I don't have a source for that in my knowledge base."* instead of an unsupported answer.
+A query with nothing above the similarity floor returns an empty result, and the Education agent then answers with the fixed sentence *"I don't have a source for that in my knowledge base."* instead of guessing.
+
+**How the Education agent uses it (step 10.3).** `knowledge_retrieval_node` turns a report into concept queries (the strategies screened, the account type, the quality-gate exclusion reasons, the flags present) and attaches one source document per concept as `[S1]…[Sn]`; for a question the query is the question itself plus the run's evidence posts. The explainer then writes a `Narrative` of tagged paragraphs: `education` paragraphs explain a concept and must cite a source tag, `screen_result` paragraphs report only computed numbers (candidate ids, realistic loss, payoff breakeven and maximum loss from `core/payoff.py`), and a `notice` paragraph carries the disclaimer. Compliance checks every `[Sn]` tag against the retrieved set in addition to the numeric grounding, and the report ends with a **Sources** footnote list. `make demo ARGS="--ask '…'"` runs the same Education → Compliance path on a question.
 
 ## Why the LLM never does math
 
 Every number in a report (Greeks, Reg T margin, collateral, annualised return, position sizes, stress P&L, social scores) is computed by deterministic, unit-tested Python in `src/options_scout/core/` and `src/options_scout/social/`. The LLM has exactly four jobs, each with a versioned prompt file and a Pydantic structured-output schema: parse the free-text profile, extract consumer entities from posts, write the narrative from a JSON payload of computed results, and (optionally) judge narrative quality.
 
-The **verifier node** then extracts every number from the narrative with a regex and checks that it exists in the computed payload (with rounding tolerance), that no banned phrase appears ("guaranteed", "you should buy", "risk-free", …) and that the disclaimer is present. A failed narrative is retried with the specific problems fed back; after the retry budget the report falls back to a template narrative that only echoes payload numbers. Social posts are data: they are wrapped in delimiters, the prompts instruct the model to ignore instructions inside them, and every ticker an LLM proposes must exist in the SEC company list or it is discarded.
+The **compliance node** then extracts every number from the narrative with a regex and checks that it exists in the computed payload or in a quoted source (with rounding tolerance), that every `[Sn]` citation tag points at a retrieved source, that no banned phrase appears ("guaranteed", "you should buy", "risk-free", …) and that the disclaimer is present. A failed narrative is retried with the specific problems fed back; after the retry budget the report falls back to a template narrative that only echoes payload numbers. Social posts are data: they are wrapped in delimiters, the prompts instruct the model to ignore instructions inside them, and every ticker an LLM proposes must exist in the SEC company list or it is discarded.
 
 ## Evaluation results
 

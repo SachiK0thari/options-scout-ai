@@ -62,12 +62,14 @@ def test_end_to_end_fixture_run(deps: Deps) -> None:
         "regime_node",
         "allocator_node",
         "trend_scout_node",
+        "evidence_retrieval_node",
         "universe_node",
         "market_data_node",
         "screener_node",
         "ranker_node",
         "sizing_node",
         "risk_node",
+        "knowledge_retrieval_node",
         "explainer_node",
         "compliance_node",
         "report_node",
@@ -92,8 +94,13 @@ def test_end_to_end_fixture_run(deps: Deps) -> None:
     assert rep.verification.passed and rep.verification.ungrounded_numbers == []
     assert rep.verification.disclaimer_present and not rep.verification.banned_phrases_found
     assert rep.verification.cited_candidate_ids
-    assert rep.disclaimer in rep.narrative
+    assert rep.disclaimer in rep.narrative_markdown
+    assert rep.narrative.markdown == rep.narrative_markdown
     assert "report_markdown" in final and "## Explanation" in final["report_markdown"]
+    # step 10.3: cited education paragraphs and a Sources section
+    assert rep.citations and rep.verification.unknown_citations == []
+    assert "## Sources" in final["report_markdown"]
+    assert all(p.citations for p in rep.narrative.paragraphs if p.mode == "education")
     # metadata
     assert (
         rep.metadata.nodes_visited[0] == "intake_node"
@@ -164,4 +171,4 @@ def test_user_added_risky_ticker_is_excluded_by_quality_gate(deps: Deps) -> None
     assert rep.allocation.leaps_pct == 0.0  # unrequested bucket held as cash
     assert any(e.startswith("quality ELF: excluded") for e in rep.errors)
     assert rep.verification.passed and rep.risk.passed
-    assert "Quality screen" in rep.narrative
+    assert "Quality screen" in rep.narrative_markdown

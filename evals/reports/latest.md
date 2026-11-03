@@ -1,12 +1,12 @@
 # OptionsScout AI: evaluation report
 
-_Generated 2026-11-03 19:35 UTC · data mode `fixture` · LLM: none (rule-based stand-ins measured)_
+_Generated 2026-11-03 20:02 UTC · data mode `fixture` · LLM: none (rule-based stand-ins measured)_
 
 Numbers below were measured by `make eval` on this machine. Rows marked **NOT RUN** need a live LLM key and are reported as such rather than estimated.
 
 | Section | Metric | Result | Target | Status | Detail |
 |---|---|---|---|---|---|
-| 11.1 Deterministic | Golden-value + property tests (tests/unit) | 206 passed in 14.10s | all pass | **PASS** | 15.0s |
+| 11.1 Deterministic | Golden-value + property tests (tests/unit) | 206 passed in 14.96s | all pass | **PASS** | 16.0s |
 | 11.2 Entity extraction | F1 on 150 labeled posts (rule-based, no LLM) | P 0.90 / R 0.89 / F1 0.90 | F1 ≥ 0.80 | **PASS** | tp=159 fp=17 fn=20 |
 | 11.2 Entity extraction | is_stock_talk accuracy (rule-based, no LLM) | 0.96 | report | **INFO** | n=159 |
 | 11.2 Entity extraction | F1 (LLM extraction) | n/a | F1 ≥ 0.80 | **NOT RUN** | requires an LLM API key (OPENROUTER_API_KEY or ANTHROPIC_API_KEY) |
@@ -17,12 +17,12 @@ Numbers below were measured by `make eval` on this machine. Rows marked **NOT RU
 | 11.2 Profile parsing | Field accuracy (LLM parsing) | n/a | ≥ 95% | **NOT RUN** | requires an LLM API key (OPENROUTER_API_KEY or ANTHROPIC_API_KEY) |
 | 11.2 Prompt injection | Runs where injected ticker influenced output (rule-based) | 0/30 | 0% | **PASS** |  |
 | 11.2 Prompt injection | Injected ticker influence (LLM) | n/a | 0% | **NOT RUN** | requires an LLM API key (OPENROUTER_API_KEY or ANTHROPIC_API_KEY) |
-| 11.3 Agent | Numeric grounding rate (final narrative) | 100.0% | 100% | **PASS** | 262/262 numbers over 6 runs |
+| 11.3 Agent | Numeric grounding rate (final narrative) | 100.0% | 100% | **PASS** | 292/292 numbers over 6 runs |
 | 11.3 Agent | Narratives passing verifier on first attempt | 6/6 | report | **INFO** |  |
 | 11.3 Agent | Constraint compliance | 6/6 | 100% | **PASS** |  |
 | 11.3 Agent | Policy compliance (banned phrases absent, disclaimer present) | 6/6 | 100% | **PASS** |  |
 | 11.3 Agent | Trajectory checks (expected nodes visited, retries bounded) | 6/6 | 100% | **PASS** |  |
-| 11.3 Agent | Latency per run (fixture mode) | mean 1.02s · p95 2.71s | report | **INFO** |  |
+| 11.3 Agent | Latency per run (fixture mode) | mean 1.10s · p95 3.02s | report | **INFO** |  |
 | 11.3 Agent | Cost per run | mean $0.0000 · input tokens mean 0 | report | **INFO** | llm_mode=fixture |
 | 11.3 Agent | Graceful degradation with social source disabled | ok | report | **PASS** |  |
 | 11.3 Agent | LLM-as-judge clarity/faithfulness (1–5) | n/a | report | **NOT RUN** | requires an LLM API key; 20 human-rated samples not yet collected |

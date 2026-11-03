@@ -13,7 +13,7 @@ Next to every short put this app shows a **probability OTM**: the model's estima
 
 ## Where the number comes from
 
-In the Black-Scholes-Merton framework, the risk-neutral probability that a put expires out of the money is N(d2), where d2 = d1 − σ√T and N() is the standard normal cumulative distribution. For a call it is N(−d2). The inputs are the stock price, the strike, the implied volatility, the risk-free rate, the dividend yield and the time to expiration. This repository implements the formula in `core/pricing.py` and checks it against golden values; the explanation text may quote the result but never recomputes it.
+In the Black-Scholes-Merton framework, the risk-neutral probability that a put expires out of the money is N(d2), where d2 = d1 − σ√T and N() is the standard normal cumulative distribution. For a call it is N(−d2). The inputs are the stock price, the strike, the implied volatility, the short-term Treasury rate, the dividend yield and the time to expiration. This repository implements the formula in `core/pricing.py` and checks it against golden values; the explanation text may quote the result but never recomputes it.
 
 ## Why it is not the same as delta
 
@@ -21,7 +21,7 @@ Traders often use the absolute value of delta as a shorthand for the probability
 
 ## What "risk-neutral" means for a reader
 
-The probability is computed under the assumption that the stock drifts at the risk-free rate minus the dividend yield, not at whatever return an investor expects. It is the probability embedded in option prices, which is what makes it consistent with the premium being quoted, but it is not a forecast of the stock. If the market's implied volatility is wrong, the probability is wrong in the same direction. Implied volatility also assumes returns are approximately normally distributed, while real stock returns have fatter tails: large drops happen more often than the model says. A 75% probability OTM should be read as "roughly three times out of four under the market's own assumptions", not as a measured frequency.
+The probability is computed under the assumption that the stock drifts at the short-term Treasury rate minus the dividend yield, not at whatever return an investor expects. It is the probability embedded in option prices, which is what makes it consistent with the premium being quoted, but it is not a forecast of the stock. If the market's implied volatility is wrong, the probability is wrong in the same direction. Implied volatility also assumes returns are approximately normally distributed, while real stock returns have fatter tails: large drops happen more often than the model says. A 75% probability OTM should be read as "roughly three times out of four under the market's own assumptions", not as a measured frequency.
 
 ## Probability of touching versus probability at expiration
 

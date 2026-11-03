@@ -389,6 +389,75 @@ class TrendSignal(Model):
     flags: list[str] = Field(default_factory=list)
 
 
+# -------------------------------------------------------------------- narrative (Phase 10)
+ParagraphMode = Literal["education", "screen_result", "notice"]
+NO_SOURCE_SENTENCE = "I don't have a source for that in my knowledge base."
+SOURCE_TAG = r"\[S(\d+)\]"  # the [Sn] citation tag the Education agent writes
+
+
+class Citation(Model):
+    """A retrieved knowledge-base chunk the narrative relies on (PRD 5.6); ``tag`` is its [Sn]."""
+
+    chunk_id: str
+    doc_id: str
+    title: str
+    url: str
+    quote: str
+    kind: str = "concepts"  # concepts | rules | filings | evidence
+    tag: str = ""  # "S1"… once numbered for a narrative
+
+
+class Paragraph(Model):
+    """One narrative paragraph tagged by the LLM (section 13.1).
+
+    ``education`` explains a concept and must carry ≥ 1 citation tag; ``screen_result`` reports
+    computed numbers only; ``notice`` holds the disclaimer and data caveats (neither a definitional
+    claim nor run data).
+    """
+
+    mode: ParagraphMode
+    text: str
+    citations: list[str] = Field(default_factory=list)  # tags such as "S1"
+
+    @field_validator("citations", mode="before")
+    @classmethod
+    def _normalise_tags(cls, v: object) -> list[str]:
+        out: list[str] = []
+        for tag in v if isinstance(v, list | tuple | set) else []:
+            t = str(tag).strip().strip("[]").upper()
+            if t.startswith("S") and t[1:].isdigit() and t not in out:
+                out.append(t)
+        return out
+
+
+class Narrative(Model):
+    """Structured output of the explainer and the concept answerer."""
+
+    paragraphs: list[Paragraph] = Field(default_factory=list)
+
+    @property
+    def markdown(self) -> str:
+        return "\n\n".join(p.text.strip() for p in self.paragraphs if p.text.strip())
+
+    @property
+    def tags(self) -> list[str]:
+        """Every citation tag used, in first-use order (declared or inline ``[Sn]``)."""
+        import re
+
+        seen: list[str] = []
+        for p in self.paragraphs:
+            for t in [*p.citations, *(f"S{n}" for n in re.findall(SOURCE_TAG, p.text))]:
+                if t not in seen:
+                    seen.append(t)
+        return seen
+
+    @classmethod
+    def plain(cls, text: str, mode: ParagraphMode = "screen_result") -> Narrative:
+        return cls(
+            paragraphs=[Paragraph(mode=mode, text=t) for t in text.split("\n\n") if t.strip()]
+        )
+
+
 # ------------------------------------------------------------------------------ report
 class VerificationResult(Model):
     passed: bool
@@ -398,6 +467,9 @@ class VerificationResult(Model):
     disclaimer_present: bool
     cited_candidate_ids: list[str]
     attempts: int
+    # Phase 10 step 10.3: [Sn] tags must point at retrieved sources
+    citations_checked: int = 0
+    unknown_citations: list[str] = Field(default_factory=list)
 
 
 class TokenUsage(Model):
@@ -443,7 +515,9 @@ class ScreeningReport(Model):
     ranked: list[RankedCandidate]
     portfolio: SizedPortfolio
     risk: RiskReport
-    narrative: str
+    narrative: Narrative  # Phase 10: tagged paragraphs with [Sn] citations
+    narrative_markdown: str  # the same text joined, for the API/UI and the Markdown report
+    citations: list[Citation] = Field(default_factory=list)  # numbered sources the text cites
     verification: VerificationResult
     errors: list[str]
     metadata: RunMetadata

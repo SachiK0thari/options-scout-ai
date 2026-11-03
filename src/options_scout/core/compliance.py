@@ -12,7 +12,7 @@ import re
 from collections.abc import Iterable
 from typing import Any
 
-from options_scout.core.models import VerificationResult
+from options_scout.core.models import SOURCE_TAG, Citation, Narrative, VerificationResult
 
 BANNED_PHRASES: tuple[str, ...] = (
     "guaranteed",
@@ -39,6 +39,7 @@ _DATE = re.compile(r"\b\d{4}-\d{2}-\d{2}\b")
 _YEAR = re.compile(r"\b(19|20)\d{2}\b")
 _NUMBER = re.compile(r"(?<![\w.])[-+−]?\$?\s?(?:\d{1,3}(?:,\d{3})+|\d+)(?:\.\d+)?%?")
 _ORDINAL = re.compile(r"\b\d+(st|nd|rd|th)\b")
+_SOURCE_TAG = re.compile(SOURCE_TAG)
 
 
 def _to_float(token: str) -> tuple[float, bool] | None:
@@ -85,6 +86,7 @@ def collect_payload_numbers(payload: Any, out: set[float] | None = None) -> set[
 def extract_narrative_numbers(text: str) -> list[tuple[str, float, bool]]:
     """Numbers in the narrative, excluding candidate ids, dates and ordinals."""
     scrubbed = _PMCC_ID.sub(" ", text)
+    scrubbed = _SOURCE_TAG.sub(" ", scrubbed)  # [S3] is a citation, not a claim
     scrubbed = CANDIDATE_ID.sub(" ", scrubbed)
     scrubbed = _DATE.sub(" ", scrubbed)
     scrubbed = _ORDINAL.sub(" ", scrubbed)
@@ -111,6 +113,23 @@ def _matches(value: float, allowed: Iterable[float], rel_tol: float) -> bool:
     return False
 
 
+def unknown_source_tags(text: str, source_count: int) -> list[str]:
+    """``[Sn]`` tags in ``text`` that do not point at one of the ``source_count`` sources."""
+    seen: list[str] = []
+    for n in _SOURCE_TAG.findall(text):
+        tag = f"S{n}"
+        if not 1 <= int(n) <= source_count and tag not in seen:
+            seen.append(tag)
+    return seen
+
+
+def resolve_citations(narrative: Narrative, sources: list[Citation]) -> list[Citation]:
+    """The sources a narrative actually cites, numbered ``S1…`` in source order (10.3)."""
+    by_tag = {f"S{i}": c for i, c in enumerate(sources, start=1)}
+    used = narrative.tags
+    return [by_tag[tag].model_copy(update={"tag": tag}) for tag in by_tag if tag in used]
+
+
 def verify_narrative(
     narrative: str,
     payload: dict[str, Any],
@@ -118,9 +137,18 @@ def verify_narrative(
     disclaimer: str,
     rel_tol: float = 0.01,
     attempts: int = 1,
+    source_count: int | None = None,
 ) -> VerificationResult:
+    """Deterministic checks on one narrative text.
+
+    ``source_count`` is the number of ``[Sn]`` sources the text was allowed to cite (defaults to
+    ``len(payload["sources"])``); a tag outside that range fails the check.
+    """
     allowed = collect_payload_numbers(payload)
     found = extract_narrative_numbers(narrative)
+    if source_count is None:
+        source_count = len(payload.get("sources") or [])
+    unknown = unknown_source_tags(narrative, source_count)
     ungrounded: list[str] = []
     for tok, val, pct in found:
         candidates = [val, -val]
@@ -132,7 +160,7 @@ def verify_narrative(
     banned = sorted({p for p in BANNED_PHRASES if p in low})
     disclaimer_present = _normalise(disclaimer)[:60] in _normalise(narrative)
     cited = sorted(set(CANDIDATE_ID.findall(narrative)) | set(_PMCC_ID.findall(narrative)))
-    passed = not ungrounded and not banned and disclaimer_present
+    passed = not ungrounded and not banned and disclaimer_present and not unknown
     return VerificationResult(
         passed=passed,
         numbers_checked=len(found),
@@ -141,6 +169,8 @@ def verify_narrative(
         disclaimer_present=disclaimer_present,
         cited_candidate_ids=cited,
         attempts=attempts,
+        citations_checked=len(_SOURCE_TAG.findall(narrative)),
+        unknown_citations=unknown,
     )
 
 

@@ -146,7 +146,13 @@ Universe considered: NKE, COST, AAPL, MSFT, SBUX, SPY, QQQ
 
 **Trend board.** The consumer-trend scan surfaced CAVA (score 90, CAVA), On Cloud (score 89, ONON), HOKA (score 89, DECK), e.l.f. (score 86, ELF), Crocs (score 86, CROX). Scores combine mention velocity, purchase intent, cross-source confirmation and the gap between social and news attention; stock-forum hype is penalised rather than rewarded.
 
-**Sized positions.** CSP-NKE-2026-11-20-35P: 3 contract(s) of the csp with strike 35.0 expiring 2026-11-20, using 1655 of capital with a modelled loss of 2443 if the underlying falls 30%. LEAPS-NKE-2028-12-15-20C: 1 contract(s) of the leaps with strike 20.0 expiring 2028-12-15, using 1808 of capital with a modelled loss of 1808 if the underlying falls 30%. It is paired with short call PMCCSC-NKE-2026-11-20-40C.
+**Cash-secured put (CSP): selling a put while holding the cash to buy the shares.** A **cash-secured put** is a short put position in which the writer sets aside enough cash to buy the shares at the strike price if the put is assigned. The writer sells the put, collects the premium up front, and accepts the obligation to buy 100 shares per contract at the strike any time before expiration. [S1]
+
+**Assignment: what happens when a short option is exercised against you.** **Assignment** is the process by which an option writer is selected to fulfil the obligation of a contract that a holder has exercised. When a put holder exercises, some put writer is obliged to take the shares at the strike; when a call holder exercises, some call writer must deliver them. [S2]
+
+**Poor man's covered call (PMCC): a short near-term call written against a LEAPS call.** A **poor man's covered call** is a two-leg position: a long, deep in-the-money LEAPS call (expiring a year or more out) and a short, near-term, out-of-the-money call on the same stock. Formally it is a **long call diagonal spread**: different strikes and different expirations. [S3]
+
+**Sized positions.** CSP-NKE-2026-11-20-35P: 3 contract(s) of the csp with strike 35.0 expiring 2026-11-20, using 1655 of capital with a realistic loss of 2443 if the underlying falls 30%. Breakeven at expiry 34.44, maximum loss 10330. LEAPS-NKE-2028-12-15-20C: 1 contract(s) of the leaps with strike 20.0 expiring 2028-12-15, using 1808 of capital with a realistic loss of 1808 if the underlying falls 30%. Breakeven at expiry 38.09, maximum loss 1808. It is paired with short call PMCCSC-NKE-2026-11-20-40C.
 
 **Risk.** 6 of 6 constraint checks pass. Stress test with an instant move and an IV shock: a -10% move gives -840; a -20% move gives -1865; a -30% move gives -3140. The combined loss at a 30% drop across all positions is 4251.
 
@@ -156,12 +162,20 @@ Market data is delayed and Greeks are model-derived; these are screened candidat
 
 Educational screening tool. Not investment, tax or legal advice. Options involve significant risk, including loss exceeding the premium received on margin. Data may be delayed or inaccurate.
 
+## Sources
+- **[S1]** Cash-secured put (CSP): selling a put while holding the cash to buy the shares — concepts (https://www.theocc.com/company-information/documents-and-archives/options-disclosure-document)  
+  “A **cash-secured put** is a short put position in which the writer sets aside enough cash to buy the shares at the strike price if the put is assigned.”
+- **[S2]** Assignment: what happens when a short option is exercised against you — concepts (https://www.theocc.com/company-information/documents-and-archives/options-disclosure-document)  
+  “**Assignment** is the process by which an option writer is selected to fulfil the obligation of a contract that a holder has exercised.”
+- **[S3]** Poor man's covered call (PMCC): a short near-term call written against a LEAPS call — concepts (https://www.cboe.com/education/)  
+  “A **poor man's covered call** is a two-leg position: a long, deep in-the-money LEAPS call (expiring a year or more out) and a short, near-term, out-of-the-money call on the same stock.”
+
 ## Verification
-PASS: 45 numbers checked, 0 ungrounded, banned phrases: none, disclaimer present, attempts 1.
+PASS: 50 numbers checked, 0 ungrounded, banned phrases: none, disclaimer present, citations 3 checked / 0 unknown, attempts 1.
 
 ## Run metadata
 - Models: {"extraction": "deepseek/deepseek-v4.1-flash", "explanation": "deepseek/deepseek-v4.1-flash", "provider": "fixture"}
-- Prompt versions: {"explain_report": "1.1.0", "extract_entities": "1.0.0", "judge_explanation": "1.0.0", "parse_profile": "1.0.0"}
+- Prompt versions: {"answer_concept": "1.0.0", "explain_report": "2.0.0", "extract_entities": "1.0.0", "judge_explanation": "1.0.0", "parse_profile": "1.0.0"}
 - Config hash: `<config_hash>`
 - Data sources: {"AAPL": "ok", "COST": "ok", "MSFT": "ok", "NKE": "ok", "QQQ": "ok", "SBUX": "ok", "SPY": "ok", "google_trends": "ok", "market_data": "fixture", "news": "ok", "reddit": "ok", "sec": "ok", "social": "ran (7095 posts, 28 entities)", "wikipedia": "ok", "x": "ok"}
 - Tokens: 0 in / 0 out · cost $0.0000

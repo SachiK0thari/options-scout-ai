@@ -10,16 +10,20 @@ import json
 import re
 from collections.abc import Callable
 from functools import lru_cache
+from typing import Any
 
 from pydantic import BaseModel
 from vaderSentiment.vaderSentiment import SentimentIntensityAnalyzer
 
 from options_scout.config import AppConfig
 from options_scout.core.models import (
+    NO_SOURCE_SENTENCE,
     AccountType,
     EntityType,
     ExtractedEntity,
     ExtractionBatch,
+    Narrative,
+    Paragraph,
     PostExtraction,
     ProfileParse,
     RiskProfile,
@@ -425,28 +429,93 @@ class RuleBasedExtractor:
 
 
 # ----------------------------------------------------------------------------- explainer
-class _Narrative(BaseModel):
-    text: str
-
-
-def rule_explain(user_prompt: str) -> _Narrative:
-    """Template narrative that only echoes payload numbers verbatim (so the verifier passes)."""
+def _payload_from(user_prompt: str) -> dict[str, Any]:
     m = re.search(r"<payload>\n?(.*?)\n?</payload>", user_prompt, re.DOTALL)
-    payload = json.loads(m.group(1)) if m else {}
+    try:
+        data = json.loads(m.group(1)) if m else {}
+    except json.JSONDecodeError:
+        data = {}
+    return data if isinstance(data, dict) else {}
+
+
+_SOURCE_BLOCK = re.compile(
+    r'<source id="(S\d+)" title="([^"]*)" url="([^"]*)" kind="([^"]*)">\n?(.*?)\n?</source>',
+    re.DOTALL,
+)
+
+
+def parse_sources_block(text: str) -> list[dict[str, str]]:
+    """Sources as rendered by ``render_sources_block``: ``[{"tag", "title", "url", "kind", "text"}]``."""
+    return [
+        {"tag": tag, "title": title, "url": url, "kind": kind, "text": body.strip()}
+        for tag, title, url, kind, body in _SOURCE_BLOCK.findall(text)
+    ]
+
+
+def _first_sentences(text: str, limit: int = 420) -> str:
+    """Opening sentence(s) of a chunk, whole sentences only, up to ``limit`` characters."""
+    flat = " ".join(text.split())
+    if len(flat) <= limit:
+        return flat
+    cut = flat[:limit]
+    idx = max(cut.rfind(". "), cut.rfind("? "), cut.rfind("! "))
+    return cut[: idx + 1] if idx > limit // 3 else cut.rsplit(" ", 1)[0] + "."
+
+
+def education_paragraphs(sources: list[dict[str, str]], limit: int = 3) -> list[Paragraph]:
+    """One cited education paragraph per source (verbatim excerpt, so every number is grounded).
+
+    An excerpt that happens to contain a banned phrase (a 10-K saying "we cannot guarantee…") is
+    skipped so the deterministic stand-in always passes the language check; the allow-list for
+    quoted sources arrives with the Compliance agent in step 10.4.
+    """
+    from options_scout.core.compliance import BANNED_PHRASES
+
+    out: list[Paragraph] = []
+    seen_titles: set[str] = set()
+    for src in sources:
+        if src["title"] in seen_titles:
+            continue
+        excerpt = _first_sentences(src["text"])
+        if any(b in excerpt.lower() for b in BANNED_PHRASES):
+            continue
+        seen_titles.add(src["title"])
+        out.append(
+            Paragraph(
+                mode="education",
+                text=f"**{src['title']}.** {excerpt} [{src['tag']}]",
+                citations=[src["tag"]],
+            )
+        )
+        if len(out) >= limit:
+            break
+    return out
+
+
+def rule_explain(user_prompt: str) -> Narrative:
+    """Template narrative that only echoes payload numbers verbatim (so the verifier passes),
+    with education paragraphs assembled from the retrieved sources, each carrying its tag."""
+    payload = _payload_from(user_prompt)
+    sources = parse_sources_block(user_prompt)
     prof = payload.get("profile", {})
     alloc = payload.get("allocation", {})
     regime = payload.get("regime", {})
     positions = payload.get("positions", [])
     risk = payload.get("risk", {})
     trends = payload.get("trends", [])
-    parts = [
+    paras: list[Paragraph] = []
+
+    def result(text: str) -> None:
+        paras.append(Paragraph(mode="screen_result", text=text))
+
+    result(
         f"**Allocation.** With {prof.get('buying_power')} of buying power in a {prof.get('account_type')} "
         f"account and a {prof.get('risk_profile')} profile, the plan sets aside {alloc.get('csp_dollars')} "
         f"for cash-secured put collateral, {alloc.get('leaps_dollars')} for LEAPS/PMCC and keeps "
         f"{alloc.get('cash_dollars')} in reserve. The VIX reading of {regime.get('vix')} sits at the "
         f"{regime.get('vix_percentile')} percentile of its past year, so the regime is "
-        f'{str(regime.get("label", "")).replace("_", " ")} and the tilt applied was "{alloc.get("tilt")}".',
-    ]
+        f'{str(regime.get("label", "")).replace("_", " ")} and the tilt applied was "{alloc.get("tilt")}".'
+    )
     qs = payload.get("quality_screen", {})
     if qs:
         kept = qs.get("passed", [])
@@ -461,7 +530,7 @@ def rule_explain(user_prompt: str) -> _Narrative:
             if dropped
             else ""
         )
-        parts.append(
+        result(
             f"**Quality screen.** {qs.get('passed_count')} underlying(s) passed the good-to-own gate "
             f"(curated list plus limits on realised and implied volatility, price, liquidity and distance "
             f"below the {qs.get('drawdown_lookback_days')}-day high): {names or 'none'}.{drop_txt} "
@@ -472,49 +541,80 @@ def rule_explain(user_prompt: str) -> _Narrative:
             f"{t.get('entity')} (score {t.get('score')}{', ' + str(t.get('ticker')) if t.get('ticker') else ', not investable'})"
             for t in trends[:5]
         )
-        parts.append(
+        result(
             f"**Trend board.** The consumer-trend scan surfaced {tr}. Scores combine mention velocity, "
             f"purchase intent, cross-source confirmation and the gap between social and news attention; "
             f"stock-forum hype is penalised rather than rewarded."
         )
     else:
-        parts.append("**Trend board.** No social trend signals were available for this run.")
+        result("**Trend board.** No social trend signals were available for this run.")
+    # education paragraphs sit between the screen and the positions they explain
+    paras.extend(education_paragraphs(sources))
     if positions:
         lines = []
         for p in positions:
+            payoff = p.get("payoff") or {}
+            extra = ""
+            if payoff.get("breakeven") is not None:
+                extra = f" Breakeven at expiry {payoff.get('breakeven')}"
+                if payoff.get("max_loss") is not None:
+                    extra += f", maximum loss {payoff.get('max_loss')}"
+                extra += "."
             lines.append(
                 f"{p.get('candidate_id')}: {p.get('contracts')} contract(s) of the {p.get('strategy')} with strike "
                 f"{p.get('strike')} expiring {p.get('expiry')}, using {p.get('capital_used')} of capital with a "
-                f"modelled loss of {p.get('realistic_loss')} if the underlying falls 30%."
+                f"realistic loss of {p.get('realistic_loss')} if the underlying falls 30%.{extra}"
                 + (
                     f" It is paired with short call {p.get('pmcc_short_call_id')}."
                     if p.get("pmcc_short_call_id")
                     else ""
                 )
             )
-        parts.append("**Sized positions.** " + " ".join(lines))
+        result("**Sized positions.** " + " ".join(lines))
     else:
-        parts.append(
+        result(
             "**Sized positions.** No candidate fit inside the risk constraints for this profile."
         )
     checks = risk.get("checks", [])
     passed = sum(1 for c in checks if c.get("passed"))
     stress = risk.get("stress", [])
     stress_txt = "; ".join(f"a {s.get('shock')} move gives {s.get('pnl')}" for s in stress)
-    parts.append(
+    result(
         f"**Risk.** {passed} of {len(checks)} constraint checks pass. Stress test with an instant move and "
         f"an IV shock: {stress_txt}. The combined loss at a 30% drop across all positions is "
         f"{payload.get('portfolio', {}).get('realistic_loss')}."
     )
     warnings = risk.get("warnings", [])
     if warnings:
-        parts.append("**Warnings and limitations.** " + " ".join(str(w) for w in warnings[:6]))
-    parts.append(
-        "Market data is delayed and Greeks are model-derived; these are screened candidates that meet the "
-        "configured criteria, not recommendations."
+        paras.append(
+            Paragraph(
+                mode="notice",
+                text="**Warnings and limitations.** " + " ".join(str(w) for w in warnings[:6]),
+            )
+        )
+    paras.append(
+        Paragraph(
+            mode="notice",
+            text=(
+                "Market data is delayed and Greeks are model-derived; these are screened candidates that "
+                "meet the configured criteria, not recommendations."
+            ),
+        )
     )
-    parts.append(str(payload.get("disclaimer", "")))
-    return _Narrative(text="\n\n".join(parts))
+    paras.append(Paragraph(mode="notice", text=str(payload.get("disclaimer", ""))))
+    return Narrative(paragraphs=paras)
+
+
+def rule_answer_concept(user_prompt: str) -> Narrative:
+    """``--no-llm`` concept answer: the top sources' opening sentences, each with its citation."""
+    sources = parse_sources_block(user_prompt)
+    m = re.search(r"copied exactly: (.*?)\n", user_prompt, re.DOTALL)
+    disclaimer = m.group(1).strip() if m else ""
+    paras = education_paragraphs(sources, limit=2)
+    if not paras:
+        paras = [Paragraph(mode="education", text=NO_SOURCE_SENTENCE)]
+    paras.append(Paragraph(mode="notice", text=disclaimer or "Education, not advice."))
+    return Narrative(paragraphs=paras)
 
 
 class _Judge(BaseModel):
@@ -541,5 +641,6 @@ def handlers(cfg: AppConfig) -> dict[str, Callable[[str], BaseModel]]:
         "parse_profile": rule_parse_profile,
         "extract_entities": extract,
         "explain_report": rule_explain,
+        "answer_concept": rule_answer_concept,
         "judge_explanation": rule_judge,
     }

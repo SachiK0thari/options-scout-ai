@@ -8,7 +8,8 @@ embedder: hash
 fastembed_model: BAAI/bge-small-en-v1.5
 hash_dimensions: 2048
 
-top_k: 6
+top_k: 6                  # chunks returned per query (concept answers, chat)
+report_sources: 6         # distinct documents attached to a screening report's explanation
 # A chunk is eligible only if its dense cosine similarity to the query reaches the floor for the
 # embedder in use; an empty result makes the Education agent answer with the fixed
 # "I don't have a source for that in my knowledge base." sentence instead of guessing.

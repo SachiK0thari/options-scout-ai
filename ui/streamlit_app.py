@@ -513,7 +513,11 @@ else:
         f"Verifier: {'PASS' if v.passed else 'FAIL'} · {v.numbers_checked} numbers checked, "
         f"{len(v.ungrounded_numbers)} ungrounded · every number above was computed, not written by the model."
     )
-    st.markdown(report.narrative)
+    st.markdown(report.narrative_markdown)
+    if report.citations:
+        with st.expander(f"Sources ({len(report.citations)})"):
+            for c in report.citations:
+                st.markdown(f"**[{c.tag}]** [{c.title}]({c.url}) — {c.kind}  \n> {c.quote}")
     d1, d2 = st.columns(2)
     d1.download_button(
         "Download JSON",

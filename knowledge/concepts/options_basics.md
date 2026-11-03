@@ -13,7 +13,7 @@ An **option** is a contract between two parties about a future transaction in an
 
 ## The two contract types
 
-A **call** gives its holder the right, but not the obligation, to **buy** the underlying at a fixed price. A **put** gives its holder the right to **sell** the underlying at a fixed price. The person on the other side, the **writer** or seller of the option, takes on the matching obligation: a call writer must deliver shares if the holder exercises, a put writer must buy shares if the holder exercises. The holder pays the writer a **premium** for taking on that obligation, and that premium is the writer's to keep whatever happens next.
+A **call** gives its holder the right, but not the obligation, to **buy** the underlying at a fixed price. A **put** gives its holder the right to **sell** the underlying at a fixed price. The person on the other side, the **writer** or seller of the option, takes on the matching obligation: a call writer must deliver shares if the holder exercises, a put writer is obliged to take the shares if the holder exercises. The holder pays the writer a **premium** for taking on that obligation, and that premium is the writer's to keep whatever happens next.
 
 ## The terms every contract carries
 

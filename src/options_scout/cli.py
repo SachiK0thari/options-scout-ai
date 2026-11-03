@@ -202,6 +202,8 @@ def cmd_demo(args: argparse.Namespace) -> int:
     )
 
     deps = Deps.from_config(cfg)
+    if args.ask:
+        return cmd_ask(deps, args.ask)
     graph = build_graph(deps)
     thread = f"demo-{os.getpid()}"
     wants = {
@@ -228,6 +230,26 @@ def cmd_demo(args: argparse.Namespace) -> int:
     return 0 if rep is not None and rep.verification.passed and rep.risk.passed else 1
 
 
+def cmd_ask(deps: Any, question: str) -> int:
+    """Education → Compliance on a concept question; prints the cited answer (step 10.3)."""
+    from options_scout.agent.graph import answer_question
+    from options_scout.core.report import render_sources
+
+    final = answer_question(deps, question)
+    answer = final.get("answer")
+    verification = final.get("verification")
+    print(f"# OptionsScout AI: {question}\n")
+    print(answer.markdown if answer is not None else "(no answer)")
+    print("\n## Sources\n" + render_sources(final.get("citations") or []))
+    if verification is not None:
+        print(
+            f"\n_Compliance: {'PASS' if verification.passed else 'FAIL'} · "
+            f"{verification.citations_checked} citation tag(s) checked, "
+            f"{verification.numbers_checked} numbers checked, attempts {verification.attempts}._"
+        )
+    return 0 if verification is not None and verification.passed else 1
+
+
 def main(argv: Sequence[str] | None = None) -> int:
     load_env()
     parser = argparse.ArgumentParser(
@@ -246,6 +268,9 @@ def main(argv: Sequence[str] | None = None) -> int:
         "--strategy", choices=["csp", "leaps", "both"], default="both", help="what to screen for"
     )
     demo.add_argument("--no-llm", action="store_true", help="skip LLM steps (rule-based stand-ins)")
+    demo.add_argument(
+        "--ask", default=None, help="answer an options-education question from the knowledge base"
+    )
     demo.set_defaults(func=cmd_demo)
 
     core = sub.add_parser(
