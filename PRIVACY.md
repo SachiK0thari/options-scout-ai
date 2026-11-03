@@ -24,14 +24,20 @@ cached locally (SQLite) for at most 15 minutes for option chains and 24 hours fo
 dividend data. Market data contains no personal information.
 
 ## 4. Public social and news data
-The "consumer-trend" tiebreaker reads three public sources: Wikipedia article pageviews, financial-news
-RSS headlines, and public Reddit submissions. The published repository ships with a synthetic offline
-corpus; live sources are enabled only by an operator who supplies their own credentials and has the
-relevant provider's permission.
+The "consumer-trend" tiebreaker reads up to five public sources: public Reddit submissions, public X
+posts, Wikipedia article pageviews, Google Trends search-interest indices and financial-news RSS
+headlines. Each is switched on or off in `config/social_sources.yaml`. The published repository ships
+with a synthetic offline corpus; live sources are enabled only by an operator who supplies their own
+credentials and has the relevant provider's permission.
 
 ### 4.1 Reddit
-- **Access:** OAuth2 through the official Reddit Data API (PRAW) with an identifying user agent.
-  No scraping, no write actions, no comments, votes, private messages or user-profile browsing.
+- **Access:** public submissions are read either from the Arctic Shift archive
+  (https://arctic-shift.photon-reddit.com, a third-party public mirror of Reddit with its own removal
+  process) or through OAuth2 on the official Reddit Data API (PRAW) with an identifying user agent;
+  `reddit.providers` in `config/social_sources.yaml` sets the order. Both are read-only API calls with
+  an identifying user agent: no scraping of reddit.com pages, no write actions, no comments, votes,
+  private messages or user-profile browsing. The archive exposes no author karma or account age, so
+  those fields are empty for its posts.
 - **Scope:** public submissions from the fixed list of subreddits in `config/subreddits.yaml`.
 - **Fields read:** submission id, subreddit, timestamp, score, title (≤300 characters), body truncated
   to 400 characters, permalink. An opaque author id, karma and account age are read only to filter
@@ -54,16 +60,32 @@ relevant provider's permission.
 - **Termination:** if Reddit access is revoked or the project stops, all cached and stored Reddit data
   is deleted immediately.
 
-### 4.2 Wikipedia pageviews and news RSS
-Only aggregate daily view counts and public headline metadata (title, source, date, link) are stored.
-No personal data is involved.
+### 4.2 X
+- **Access:** the official X API v2 search endpoints with an app bearer token supplied by the operator,
+  under the X developer agreement. No scraping, no write actions, no direct messages, no follower
+  graphs or profile browsing.
+- **Scope:** public posts matching the fixed consumer and stock queries in `config/social_sources.yaml`,
+  excluding reposts.
+- **Fields read:** post id, timestamp, text truncated to 400 characters, like and repost counts,
+  cashtags, and a permalink. An opaque author id, follower count and account age are read only to
+  filter spam and brand-new accounts and to cap any single author's weight; handles and display names
+  are never requested, stored, displayed or exported.
+- **AI use, retention, sharing, removal, termination:** identical to section 4.1. X content is held in
+  memory during a run, aggregated into dated snapshots with at most five ≤200-character evidence
+  excerpts per entity, deleted after 48 hours, never used for training, and removed within 48 hours
+  on request (send the post link to the contact below).
+
+### 4.3 Wikipedia pageviews, Google Trends and news RSS
+Only aggregate daily view counts, aggregate 0–100 search-interest indices and public headline metadata
+(title, source, date, link) are stored. No personal data is involved. Google Trends is read through an
+unofficial client that the operator installs separately; no Google account is used.
 
 ## 5. Logs and observability
 Structured logs and traces record run ids, node timings, token counts and error messages. They never
-contain API keys, Reddit usernames, or full post text.
+contain API keys, Reddit usernames, X handles, or full post text.
 
 ## 6. Hosted demo
-The hosted demo runs in offline fixture mode with synthetic data and does not contact Reddit.
+The hosted demo runs in offline fixture mode with synthetic data and does not contact Reddit, X or Google.
 
 ## 7. Contact
 Questions or removal requests: dnesmozgawa767@gmail.com.

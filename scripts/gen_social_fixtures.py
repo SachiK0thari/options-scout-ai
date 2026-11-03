@@ -4,12 +4,15 @@ Usage: .venv/bin/python scripts/gen_social_fixtures.py [--scale 1.0]
 
 Writes under tests/fixtures/social/:
   reddit_posts.jsonl   synthetic Reddit posts with ground-truth entity extraction
+  x_posts.jsonl        synthetic X posts (same schema; empty title, text in body, cashtags)
   pageviews.json       daily Wikipedia pageviews per article, 63 days
+  google_trends.json   daily Google Trends interest index (0-100) per canonical entity
   news_items.jsonl     financial-news headlines per canonical entity
   README.md            the designed trend shapes and expected scoring outcomes
 
-Everything is driven by one seeded ``random.Random`` (seed 20261027) so the output is
-byte-identical across runs. Stdlib only.
+The Reddit/Wikipedia/news files are driven by one seeded ``random.Random`` (seed 20261027); the
+X and Google Trends files by a second generator (seed + 1) so adding them left the original
+three byte-identical. Stdlib only.
 
 ``--scale`` multiplies every entity's daily Reddit rate. The default 0.6 keeps the corpus
 under 3 MB (~4,700 posts) while preserving every trend SHAPE (ratios, sentiment drift,
@@ -67,6 +70,34 @@ EMPTY_ENTITY_FRACTION = 0.12
 CO_MENTION_P = 0.08
 SPAM_CAMPAIGN_POSTS = 40
 PROLIFIC_OWALA_POSTS = 25
+
+# X corpus: same designed shapes at lower volume, short texts, cashtags for stock talk.
+X_SEED = SEED + 1
+X_RATE_FACTOR = 0.5  # X mentions/day = Reddit rate * this
+X_N_AUTHORS = 400
+X_N_BOT_AUTHORS = 16
+X_BOT_POST_FRACTION = 0.04
+X_EMPTY_ENTITY_FRACTION = 0.10
+X_COUPON_BURST_POSTS = 30  # near-duplicate Poppi coupon posts from 4 fresh accounts
+X_MAX_CHARS = 280
+X_CASHTAG_BY_ENTITY = {  # stock-talk posts on X carry a cashtag (public parents only)
+    "GameStop": "GME",
+    "Tesla": "TSLA",
+    "Celsius": "CELH",
+    "e.l.f.": "ELF",
+    "HOKA": "DECK",
+    "Crocs": "CROX",
+    "Nike": "NKE",
+    "Starbucks": "SBUX",
+    "Chipotle": "CMG",
+    "CAVA": "CAVA",
+    "Lululemon": "LULU",
+    "Costco": "COST",
+    "Dutch Bros": "BROS",
+    "Abercrombie": "ANF",
+    "Sweetgreen": "SG",
+    "Birkenstock": "BIRK",
+}
 
 # UTC hour weights: US daytime/evening (13:00-04:00 UTC) dominates.
 HOUR_WEIGHTS = [4, 3, 3, 2, 1, 1, 1, 1, 2, 2, 3, 4, 6, 8, 9, 10, 10, 10, 10, 9, 8, 7, 6, 5]
@@ -2311,6 +2342,257 @@ def generate_news(rng) -> list[dict[str, Any]]:
 
 
 # --------------------------------------------------------------------------------------
+# X posts (second generator; never touches the Reddit/pageviews/news stream)
+# --------------------------------------------------------------------------------------
+X_HASHTAGS = {
+    "bottles": ("#hydration", "#waterbottle", "#emotionalsupportwaterbottle"),
+    "shoes": ("#running", "#sneakers", "#shoesoftheday"),
+    "beauty": ("#skincare", "#makeup", "#grwm"),
+    "drinks": ("#energydrink", "#soda", "#fyp"),
+    "retail": ("#costco", "#haul", "#groceryrun"),
+    "food": ("#lunch", "#foodie", "#fastfood"),
+    "gadgets": ("#tech", "#gadgets", "#apple"),
+    "fashion": ("#ootd", "#fit", "#fashion"),
+    "gaming": ("#gaming", "#gamepass", "#xbox"),
+    "ev": ("#ev", "#tesla", "#roadtrip"),
+}
+X_STOCK_TAGS = ("#stocks", "#options", "#wallstreetbets", "#earnings", "#investing")
+X_LEADS = ("", "", "", "ok ", "update: ", "psa: ", "hot take: ", "day {n}: ")
+
+
+def x_hashtags(rng, cluster: str, k: int) -> str:
+    pool = X_HASHTAGS.get(cluster, ("#fyp", "#review"))
+    return " ".join(rng.sample(pool, min(k, len(pool))))
+
+
+def truncate_x(text: str) -> str:
+    if len(text) <= X_MAX_CHARS:
+        return text
+    cut = text[: X_MAX_CHARS - 1]
+    return cut[: cut.rfind(" ")].rstrip(",.;:") + "…"
+
+
+def compose_x_text(
+    rng, spec: EntitySpec, sentiment: float, stock: bool, fills: dict[str, Any]
+) -> str:
+    """One to three short sentences + hashtags (and a cashtag for stock talk), <= 280 chars."""
+    if stock:
+        alias = rng.choice(spec.stock_aliases) if spec.stock_aliases else spec.name
+        fills["e"] = alias
+        lead = rng.choice(STOCK_SLOTS.title_pos).format_map(fills)
+        exp = rng.choice(STOCK_SLOTS.exp_pos).format_map(fills)
+        tags = " ".join(rng.sample(X_STOCK_TAGS, rng.randint(1, 2)))
+        cashtag = X_CASHTAG_BY_ENTITY.get(spec.name)
+        text = f"{lead}. {exp}"
+        if cashtag:
+            text = f"${cashtag} {text}" if rng.random() < 0.5 else f"{text} ${cashtag}"
+        return truncate_x(f"{text} {tags}")
+    alias = rng.choice(spec.aliases)
+    fills["e"] = alias
+    slots = CLUSTER_SLOTS[spec.cluster]
+    positive = sentiment >= 0.15 or (abs(sentiment) < 0.15 and rng.random() < 0.5)
+    lead = rng.choice(X_LEADS).format_map(fills)
+    title = rng.choice(slots.title_pos if positive else slots.title_neg).format_map(fills)
+    exp = rng.choice(slots.exp_pos if positive else slots.exp_neg).format_map(fills)
+    parts = [f"{lead}{title}", exp + rng.choice((".", "!", "", "..."))]
+    if rng.random() < 0.4:
+        parts.append(rng.choice(slots.detail).format_map(fills))
+    text = " ".join(parts)
+    if rng.random() < 0.6:
+        text += " " + x_hashtags(rng, spec.cluster, rng.randint(1, 2))
+    if rng.random() < 0.15:
+        text += " " + rng.choice(EMOJIS)
+    return truncate_x(sprinkle(rng, text, alias))
+
+
+def make_x_authors(rng) -> tuple[list[Author], list[Author], list[Author]]:
+    """Returns (normal, bots, coupon_burst) pools. karma = follower count on X."""
+    normal = []
+    for i in range(1, X_N_AUTHORS + 1):
+        followers = int(min(200_000, max(60, rng.lognormvariate(math.log(400), 1.6))))
+        age = int(60 + 5000 * rng.betavariate(1.2, 1.0))
+        normal.append(Author(f"x_{i:04d}", followers, age, False))
+    bots = [
+        Author(f"x_{X_N_AUTHORS + i:04d}", rng.randint(0, 49), rng.randint(1, 29), True)
+        for i in range(1, X_N_BOT_AUTHORS + 1)
+    ]
+    burst = [
+        Author(
+            f"x_{X_N_AUTHORS + X_N_BOT_AUTHORS + i:04d}",
+            rng.randint(0, 15),
+            rng.randint(1, 10),
+            True,
+        )
+        for i in range(1, 5)
+    ]
+    return normal, bots, burst
+
+
+def x_score(rng, bot: bool) -> int:
+    """likes + reposts; heavier tail than Reddit scores."""
+    if bot:
+        return max(0, int(rng.lognormvariate(0.3, 0.8)))
+    if rng.random() < 0.02:
+        return min(50_000, int(rng.lognormvariate(math.log(3000), 1.2)))
+    return int(rng.lognormvariate(math.log(6), 1.4))
+
+
+def finish_x_post(
+    rng,
+    author: Author,
+    d: date,
+    body: str,
+    entities: list[dict[str, Any]],
+    stock: bool,
+    bot: bool,
+    score: int | None = None,
+) -> dict[str, Any]:
+    return {
+        "id": "",
+        "source": "x",
+        "subreddit": None,
+        "author_id": author.author_id,
+        "author_karma": author.karma,
+        "author_age_days": author.age_days,
+        "created_at": iso_at(rng, d),
+        "score": x_score(rng, bot) if score is None else score,
+        "title": "",
+        "body": body,
+        "url": "",
+        "is_stock_sub": stock,
+        "entities": entities,
+    }
+
+
+X_GENERIC = (
+    "anyone else's {store} completely out of everything on a sunday {emoji}",
+    "day {n} of trying to drink more water. going ok",
+    "the line at the airport {store} was unreal this morning",
+    "new running playlist is doing all the work on these {n} mile days #running",
+    "what's a good gift under ${price} for someone who has everything",
+    "{city} traffic has me reconsidering every life choice",
+    "finally cleaned out my closet, {n} bags to donate #decluttering",
+    "coffee shop wifi test: {n} tabs open and surviving",
+)
+X_COUPON_BODY = "Just tried Poppi and OMG the {flavor} one is unreal 😍 use code POP20 for 20% off at poppi dot com, you need this #poppi #guthealth"
+X_COUPON_FLAVORS = ("cherry limeade", "doc pop", "strawberry lemon", "root beer", "orange")
+
+
+def generate_x_posts(rng, scale: float) -> tuple[list[dict[str, Any]], dict[str, int]]:
+    normal, bots, burst_authors = make_x_authors(rng)
+    weights = [1.0 / (i + 1) ** 0.6 for i in range(len(normal))]
+    posts: list[dict[str, Any]] = []
+
+    def pick(rng) -> Author:
+        if rng.random() < X_BOT_POST_FRACTION:
+            return rng.choice(bots)
+        return rng.choices(normal, weights=weights)[0]
+
+    for spec in ENTITIES:
+        f = X_RATE_FACTOR * scale
+        counts = [noisy_count(rng, daily_rate(spec, d, f)) for d in range(BASELINE_DAYS)]
+        recent_days = list(range(BASELINE_DAYS, N_DAYS))
+        ramp = [daily_rate(spec, d, f) for d in recent_days]
+        counts += [0] * RECENT_DAYS
+        for d in rng.choices(
+            recent_days, weights=ramp, k=round(spec.recent_rate * RECENT_DAYS * f)
+        ):
+            counts[d] += 1
+        for day_index, n_posts in enumerate(counts):
+            for _ in range(n_posts):
+                author = pick(rng)
+                stock = rng.random() < spec.stock_frac
+                sentiment = sentiment_at(rng, spec, day_index, stock)
+                fills = make_fills(rng)
+                body = compose_x_text(rng, spec, sentiment, stock, fills)
+                purchase = (not stock) and sentiment >= 0.15 and rng.random() < spec.purchase_p
+                entities = [entity_record(spec.name, sentiment, purchase, stock)]
+                if not stock and rng.random() < CO_MENTION_P and spec.name in CO_MENTIONS:
+                    other = ENTITY_BY_NAME[rng.choice(CO_MENTIONS[spec.name])]
+                    other_sent = sentiment_at(rng, other, day_index, False)
+                    tmpl = CO_MENTION_POS if other_sent >= 0 else CO_MENTION_NEG
+                    body = truncate_x(body + rng.choice(tmpl).format(e2=rng.choice(other.aliases)))
+                    entities.append(entity_record(other.name, other_sent, False, False))
+                posts.append(
+                    finish_x_post(
+                        rng, author, day_at(day_index), body, entities, stock, author.is_bot
+                    )
+                )
+
+    n_generic = round(len(posts) * X_EMPTY_ENTITY_FRACTION / (1 - X_EMPTY_ENTITY_FRACTION))
+    for _ in range(n_generic):
+        author = pick(rng)
+        fills = make_fills(rng)
+        fills["emoji"] = rng.choice(EMOJIS)
+        body = truncate_x(sprinkle(rng, rng.choice(X_GENERIC).format_map(fills), ""))
+        posts.append(
+            finish_x_post(
+                rng, author, day_at(rng.randrange(N_DAYS)), body, [], False, author.is_bot
+            )
+        )
+
+    burst = []
+    for _ in range(X_COUPON_BURST_POSTS):
+        body = X_COUPON_BODY.format(flavor=rng.choice(X_COUPON_FLAVORS))
+        day_index = BASELINE_DAYS + rng.randrange(RECENT_DAYS)
+        burst.append(
+            finish_x_post(
+                rng,
+                rng.choice(burst_authors),
+                day_at(day_index),
+                body,
+                [entity_record("Poppi", 0.9, True, False)],
+                False,
+                True,
+                score=rng.randint(0, 3),
+            )
+        )
+    posts.extend(burst)
+
+    posts.sort(key=lambda p: (p["created_at"], p["author_id"], p["body"]))
+    base_id = 1_980_000_000_000_000_000  # X ids are 19-digit snowflakes
+    for n, post in enumerate(posts, start=1):
+        post["id"] = f"xf-{n:06d}"
+        post["url"] = f"https://x.com/i/web/status/{base_id + n}"
+
+    stats = {
+        "x_posts": len(posts),
+        "x_bot_posts": sum(
+            1 for p in posts if p["author_age_days"] < 30 and p["author_karma"] < 50
+        ),
+        "x_coupon_burst_posts": len(burst),
+        "x_cashtag_posts": sum(1 for p in posts if "$" in p["body"] and p["is_stock_sub"]),
+        "x_generic_posts": n_generic,
+        "x_authors": len({p["author_id"] for p in posts}),
+    }
+    return posts, stats
+
+
+# --------------------------------------------------------------------------------------
+# Google Trends (0-100 interest index per canonical entity name)
+# --------------------------------------------------------------------------------------
+def generate_google_trends(rng) -> dict[str, list[dict[str, Any]]]:
+    out: dict[str, list[dict[str, Any]]] = {}
+    for spec in ENTITIES:
+        level = rng.uniform(25, 55)
+        raw = []
+        for i in range(N_DAYS):
+            d = day_at(i)
+            weekend = 1.08 if d.weekday() >= 5 else 1.0  # consumer searches tick up at weekends
+            if i < BASELINE_DAYS:
+                trend = 1.0
+            else:
+                trend = 1.0 + (spec.pv_mult - 1.0) * 0.8 * (i - BASELINE_DAYS + 1) / RECENT_DAYS
+            raw.append(level * weekend * trend * rng.gauss(1.0, 0.10))
+        peak = max(raw) or 1.0
+        out[spec.name] = [
+            {"day": day_at(i).isoformat(), "count": max(0, min(100, round(100 * v / peak)))}
+            for i, v in enumerate(raw)
+        ]
+    return out
+
+
+# --------------------------------------------------------------------------------------
 # README + stats
 # --------------------------------------------------------------------------------------
 TOKEN_RE = re.compile(r"[a-z0-9$']+")
@@ -2376,8 +2658,10 @@ def write_readme(
     news: list[dict[str, Any]],
     stats: dict[str, int],
     scale: float,
+    x_posts: list[dict[str, Any]] | None = None,
 ) -> None:
     table = mention_table(posts)
+    x_table = mention_table(x_posts or [])
     news_counts = Counter(n["query"] for n in news)
     lines = [
         "# Consumer-trend fixture corpus",
@@ -2393,7 +2677,13 @@ def write_readme(
         "- `reddit_posts.jsonl` - one post per line. `entities` is the GROUND-TRUTH extraction the offline",
         "  fixture LLM replays (type in product|brand|company|store, sentiment in [-1, 1], one decimal).",
         f"  {len(posts)} posts, {stats['authors']} authors, ~{EMPTY_ENTITY_FRACTION:.0%} with empty `entities`.",
+        f"- `x_posts.jsonl` - {stats.get('x_posts', 0)} X posts in the same schema (`source: x`, empty `title`, text in `body`,",
+        f"  `subreddit: null`, `author_karma` = followers, `score` = likes + reposts). {stats.get('x_authors', 0)} authors,",
+        f"  ~{X_EMPTY_ENTITY_FRACTION:.0%} with empty `entities`. Designed rates are {X_RATE_FACTOR:g}x the Reddit rates so every",
+        "  trend shape shows up on both post sources (cross-source confirmation).",
         "- `pageviews.json` - Wikipedia article title -> 63 daily `{day, count}` entries.",
+        "- `google_trends.json` - canonical entity name -> 63 daily `{day, count}` entries of a 0-100 interest index",
+        "  (same attention shape as pageviews, damped to 80% of the pageview multiplier).",
         f"- `news_items.jsonl` - {len(news)} financial headlines; `query` is the canonical entity name.",
         "",
         "## Adversarial cases the filters must handle",
@@ -2413,18 +2703,29 @@ def write_readme(
         "- **Aliases/misspellings**: hokas, elf, lulu, sbux, birks, TJ's, gamepass, etc. The ground truth",
         "  always uses the canonical name.",
         "",
+        "### X-specific cases (`x_posts.jsonl`)",
+        "",
+        f"- **Fresh/low-follower accounts**: {stats.get('x_bot_posts', 0)} posts come from accounts with `author_age_days < 30` and",
+        "  `author_karma` (followers) `< 50`. The same spam filter thresholds apply to both sources.",
+        f'- **Poppi coupon burst**: {stats.get("x_coupon_burst_posts", 0)} near-duplicate posts ("Just tried Poppi and OMG... code POP20")',
+        "  from 4 fresh accounts in the last 7 days. Dedupe/account-age filters must remove them.",
+        f"- **Cashtags**: {stats.get('x_cashtag_posts', 0)} posts carry a `$TICKER` cashtag and `is_stock_sub: true`; they are stock talk,",
+        "  not consumer demand, and feed only the hype penalty (GameStop is 100% cashtag posts, Tesla ~70%).",
+        '- **No titles**: X posts have `title: ""`; excerpt/evidence code must cope with body-only posts.',
+        "",
         "## Designed trend shapes",
         "",
         "Realised mentions/day count every entity mention (primary + co-mentions), so numbers sit a little",
         "above the design rate. Sentiment is the per-post mean at window start -> end.",
         "",
-        "| Entity | Type | Design (base -> recent /day) | Realised base | Realised recent | Sentiment | News items | Pageviews x | Designed outcome |",
-        "|---|---|---|---|---|---|---|---|---|",
+        "| Entity | Type | Design (base -> recent /day) | Reddit base | Reddit recent | X base | X recent | Sentiment | News items | Pageviews x | Designed outcome |",
+        "|---|---|---|---|---|---|---|---|---|---|---|",
     ]
     for e in ENTITIES:
         b, r = table[e.name]
+        xb, xr = x_table.get(e.name, (0.0, 0.0))
         lines.append(
-            f"| {e.name} | {e.etype} | {e.base_rate:g} -> {e.recent_rate:g} | {b:.1f} | {r:.1f} | "
+            f"| {e.name} | {e.etype} | {e.base_rate:g} -> {e.recent_rate:g} | {b:.1f} | {r:.1f} | {xb:.1f} | {xr:.1f} | "
             f"{e.sent_start:+.1f} -> {e.sent_end:+.1f} | {news_counts[e.name]} | {e.pv_mult:g} | {e.outcome} |"
         )
     lines += [
@@ -2437,6 +2738,9 @@ def write_readme(
         "- **Should score low**: Celsius (hot all window, saturated news -> no novelty), Stanley Quencher (fading, sarcastic),",
         "  Starbucks (declining, negative), Nike/Chipotle (flat, negative), Lululemon/Sweetgreen (flat, neutral).",
         "- **Must be penalised as hype**: GameStop (100% stock talk), Tesla (70% stock talk, saturated coverage).",
+        "- **Cross-source**: with Reddit + X + Wikipedia + Google Trends + news enabled, the breakouts (Owala, CAVA, HOKA)",
+        "  are confirmed by several sources; flat names by none. Disable sources in `config/social_sources.yaml`",
+        "  (or `OPTIONS_SCOUT_SOCIAL_SOURCES=reddit`) to see the single-source behaviour.",
         "",
     ]
     path.write_text("\n".join(lines), encoding="utf-8")
@@ -2492,13 +2796,32 @@ def main() -> int:
     news = generate_news(rng)
     stats["near_dupes"], stats["dedupe_considered"] = near_duplicate_rate(posts)
 
+    # Second generator so the three original files stay byte-identical to the pre-X corpus.
+    x_rng = random.Random(X_SEED)
+    x_posts, x_stats = generate_x_posts(x_rng, args.scale)
+    trends = generate_google_trends(x_rng)
+    stats.update(x_stats)
+
     write_jsonl(args.out / "reddit_posts.jsonl", posts)
+    write_jsonl(args.out / "x_posts.jsonl", x_posts)
     (args.out / "pageviews.json").write_text(json.dumps(pageviews, indent=1), encoding="utf-8")
+    (args.out / "google_trends.json").write_text(json.dumps(trends, indent=1), encoding="utf-8")
     write_jsonl(args.out / "news_items.jsonl", news)
-    write_readme(args.out / "README.md", posts, news, stats, args.scale)
+    write_readme(args.out / "README.md", posts, news, stats, args.scale, x_posts)
 
     print_stats(posts, news, stats)
-    for name in ("reddit_posts.jsonl", "pageviews.json", "news_items.jsonl", "README.md"):
+    print(
+        f"x_posts={x_stats['x_posts']} x_authors={x_stats['x_authors']} x_bot_posts={x_stats['x_bot_posts']} "
+        f"x_coupon_burst={x_stats['x_coupon_burst_posts']} x_cashtag_posts={x_stats['x_cashtag_posts']}"
+    )
+    for name in (
+        "reddit_posts.jsonl",
+        "x_posts.jsonl",
+        "pageviews.json",
+        "google_trends.json",
+        "news_items.jsonl",
+        "README.md",
+    ):
         print(f"{name}: {(args.out / name).stat().st_size:,} bytes")
     return 0
 

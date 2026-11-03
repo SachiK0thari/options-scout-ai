@@ -1,0 +1,79 @@
+# Consumer-trend data sources (PRD section 4.3). Every adapter below is fully implemented with a
+# `live` and a `fixture` mode; flip `enabled` to switch sources or run them all together. The
+# pipeline merges every enabled post source into one mention stream, computes a velocity z-score per
+# source, and counts cross-source confirmation over whatever is enabled.
+#
+# Quick override without editing this file (comma-separated, any of reddit|x|wikipedia|google_trends|news):
+#   OPTIONS_SCOUT_SOCIAL_SOURCES=reddit,x,wikipedia,news
+#
+# Fixture mode (the default) needs no credentials for any source.
+
+post_sources:                 # posts -> spam filters -> LLM entity extraction -> mention series
+  reddit:
+    enabled: true
+    weight: 1.0               # multiplier on each mention when blending sources
+    fixture_file: reddit_posts.jsonl
+    # Live providers, tried in order; the first that returns posts wins. Subs: config/subreddits.yaml.
+    #   arctic_shift = Arctic Shift archive API (no credentials; date-range search fills the whole
+    #                  baseline; scores settle ~36h after posting; no author karma/age)
+    #   praw         = official Reddit Data API via PRAW (needs REDDIT_CLIENT_ID / REDDIT_CLIENT_SECRET /
+    #                  REDDIT_USER_AGENT and an approved app; `new` listing, no date filter)
+    # Put praw first once Reddit approves the app; Arctic Shift then only covers outages.
+    providers: [arctic_shift, praw]
+    arctic_shift:
+      base_url: https://arctic-shift.photon-reddit.com
+      page_size: 100                    # API max
+      max_pages_per_subreddit: 30       # 3000 posts per sub per run
+      min_request_interval_seconds: 0.25
+      max_rate_limit_wait_seconds: 60   # honour X-RateLimit-Reset up to this; then fall through
+      timeout_seconds: 30
+  x:
+    enabled: true
+    weight: 1.0
+    fixture_file: x_posts.jsonl
+    bearer_token_env: X_BEARER_TOKEN
+    search:
+      # recent = GET /2/tweets/search/recent (last 7 days; Basic tier). all = full-archive search
+      # (Pro tier) which can fill the whole baseline window. With `recent`, X contributes to the
+      # recent week and to cross-source confirmation; its own baseline is thin until the daily
+      # refresh job has run for a few weeks.
+      endpoint: recent
+      lang: en
+      exclude_retweets: true
+      exclude_replies: false
+      max_results_per_query: 300     # 100 per page; pagination stops here
+      min_author_followers: 0        # 0 = leave filtering to social_score.yaml filters
+      # Consumer queries (X search syntax, <= 512 chars each on Basic). Posts matching these feed
+      # the consumer signal. Cashtags inside a post mark it as stock talk automatically.
+      consumer_queries:
+        - '("water bottle" OR tumbler) (owala OR stanley OR "hydro flask" OR yeti)'
+        - '(hoka OR hokas OR "on cloud" OR "on running" OR brooks OR asics) (shoes OR running OR miles)'
+        - '(crocs OR birkenstock OR birkenstocks OR uggs OR "ugg tasman")'
+        - '("e.l.f." OR elf cosmetics OR "rare beauty" OR cerave OR "the ordinary") (skin OR makeup OR routine)'
+        - '(celsius OR "liquid death" OR olipop OR poppi OR "alani nu") (drink OR can OR tried)'
+        - '(costco OR kirkland OR "trader joe''s" OR "trader joes") (haul OR finds OR bought)'
+        - '(chipotle OR cava OR sweetgreen OR "dutch bros" OR starbucks OR "chick-fil-a") (order OR line OR lunch)'
+        - '(airpods OR "oura ring" OR "apple watch" OR "meta ray-ban") (got OR bought OR wearing)'
+        - '(lululemon OR "alo yoga" OR vuori OR abercrombie OR uniqlo OR "american eagle") (fit OR outfit OR haul)'
+        - '("game pass" OR "nintendo switch" OR playstation OR "steam deck") (playing OR bought OR worth)'
+        - '(tesla OR "model y" OR "model 3" OR rivian) (drive OR charging OR test drive) -$TSLA'
+      # Stock-talk queries only feed the hype penalty (never the consumer signal).
+      stock_queries:
+        - '($GME OR $TSLA OR $CELH OR $ELF OR $DECK OR $CMG OR $CAVA OR $NKE OR $SBUX OR $LULU) (calls OR puts OR squeeze OR yolo)'
+
+attention_sources:            # daily attention series -> cross-source confirmation
+  wikipedia:
+    enabled: true
+    fixture_file: pageviews.json
+    # Live: free, no key; keyword = `wikipedia` field in data/brand_map.yaml.
+  google_trends:
+    enabled: true
+    fixture_file: google_trends.json
+    provider: pytrends        # unofficial client, optional dependency: pip install -e ".[trends]"
+    geo: US
+    min_request_interval_seconds: 2.0   # pytrends is rate-limited (HTTP 429); pace requests
+    # keyword = `google_trends` field in data/brand_map.yaml, else the canonical entity name
+
+news:                         # "Wall Street awareness" baseline for the coverage gap
+  enabled: true
+  fixture_file: news_items.jsonl

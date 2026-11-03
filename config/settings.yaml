@@ -46,7 +46,10 @@ llm:
         claude-opus-5-5: {input: 4.00, output: 20.00}
 
 market_data:
-  provider: yfinance          # live provider: yfinance (no key) | tradier (needs an API key)
+  provider: marketdata        # live provider: marketdata (MarketData.app token) | tradier (API key)
+  marketdata:
+    api_key_env: MARKETDATA_TOKEN  # the UI/API can also pass a token per run (never persisted)
+    strike_limit: 60          # a chain costs 1 credit per contract: keep the 60 strikes nearest the money (0 = all)
   tradier:
     sandbox: true             # sandbox.tradier.com: free developer token, 15-minute delayed data
     api_key_env: TRADIER_API_KEY   # the UI/API can also pass a key per run (never persisted)

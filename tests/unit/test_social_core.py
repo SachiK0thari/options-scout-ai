@@ -134,7 +134,8 @@ def test_signals_detect_breakout_vs_flat(config: AppConfig) -> None:
         end=END,
         windows=cfg.windows,
         norm=cfg.normalization,
-        wiki=None,
+        attention=None,
+        sources_available=3,
         news={},
         materiality_weight=0.0,
     )
@@ -143,7 +144,8 @@ def test_signals_detect_breakout_vs_flat(config: AppConfig) -> None:
         end=END,
         windows=cfg.windows,
         norm=cfg.normalization,
-        wiki=None,
+        attention=None,
+        sources_available=3,
         news={},
         materiality_weight=1.0,
     )

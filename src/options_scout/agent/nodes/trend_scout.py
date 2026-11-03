@@ -43,9 +43,7 @@ def make(deps: Deps) -> Callable[[AgentState], dict[str, Any]]:
                         deps.cfg.settings.trends.retention_hours, now=deps.md.now()
                     )
                     errors.extend(run.errors)
-                    status.update(
-                        {k: ("ok" if v.ok else "error") for k, v in run.source_status.items()}
-                    )
+                    status.update({k: v.state for k, v in run.source_status.items()})
                     status["social"] = f"ran ({run.posts_in} posts, {len(trends)} entities)"
                 except Exception as exc:
                     errors.append(

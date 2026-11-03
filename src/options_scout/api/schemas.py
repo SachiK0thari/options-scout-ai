@@ -10,7 +10,7 @@ from options_scout.core.models import AccountType, RiskProfile, UserProfile
 class MarketDataAuth(BaseModel):
     """Per-request market data provider. The key is a SecretStr: never logged or echoed."""
 
-    provider: Literal["yfinance", "tradier"] = "yfinance"
+    provider: Literal["marketdata", "tradier"] = "marketdata"
     api_key: SecretStr | None = None
     sandbox: bool = True
 

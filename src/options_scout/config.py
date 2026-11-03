@@ -148,7 +148,13 @@ class RankingSettings(_Strict):
     option_quality_weights: OptionQualityWeights
 
 
-MarketProviderName = Literal["yfinance", "tradier"]
+MarketProviderName = Literal["marketdata", "tradier"]
+
+
+class MarketDataAppSettings(_Strict):
+    api_key_env: str = "MARKETDATA_TOKEN"  # same variable the official SDKs read
+    # A chain costs one credit per contract; keep the N strikes nearest the money (0 = all).
+    strike_limit: int = Field(default=60, ge=0)
 
 
 class TradierSettings(_Strict):
@@ -159,7 +165,8 @@ class TradierSettings(_Strict):
 class MarketDataSettings(_Strict):
     """Live-mode market data provider. The UI/API may override provider + key per run."""
 
-    provider: MarketProviderName = "yfinance"
+    provider: MarketProviderName = "marketdata"
+    marketdata: MarketDataAppSettings = MarketDataAppSettings()
     tradier: TradierSettings = TradierSettings()
 
 
@@ -290,8 +297,7 @@ class ScoreWeights(_Strict):
 class ScoreNormalization(_Strict):
     velocity_z_clip: float
     acceleration_clip: float
-    cross_source_max: int
-    cross_source_z_threshold: float
+    cross_source_z_threshold: float  # cross_source_norm divides by the number of enabled sources
     novelty_hot_weeks: int
     novelty_hot_z: float
 
@@ -399,6 +405,165 @@ class Subreddits(_Strict):
     fetch: SubredditFetch
 
 
+# -------------------------------------------------------------------- social_sources.yaml
+PostSourceName = Literal["reddit", "x"]
+AttentionSourceName = Literal["wikipedia", "google_trends"]
+SOCIAL_SOURCE_NAMES: tuple[str, ...] = ("reddit", "x", "wikipedia", "google_trends", "news")
+
+
+RedditProvider = Literal["arctic_shift", "praw"]
+
+
+class ArcticShiftConfig(_Strict):
+    """Arctic Shift (https://arctic-shift.photon-reddit.com): free Reddit archive with a public
+    search API. No credentials; posts are available within minutes but scores settle after ~36h."""
+
+    base_url: str = "https://arctic-shift.photon-reddit.com"
+    page_size: int = Field(default=100, ge=1, le=100)
+    max_pages_per_subreddit: int = Field(default=30, ge=1)
+    min_request_interval_seconds: float = Field(default=0.25, ge=0.0)
+    max_rate_limit_wait_seconds: float = Field(default=60.0, ge=0.0)
+    timeout_seconds: float = Field(default=30.0, gt=0.0)
+
+
+class RedditSourceConfig(_Strict):
+    enabled: bool = True
+    weight: float = Field(default=1.0, ge=0.0)
+    fixture_file: str = "reddit_posts.jsonl"
+    # Live providers, tried in order; the first one that returns posts wins. Default: the Arctic
+    # Shift archive first (no credentials), the official Data API via PRAW as the backup.
+    providers: list[RedditProvider] = Field(default=["arctic_shift", "praw"], min_length=1)
+    arctic_shift: ArcticShiftConfig = Field(default_factory=ArcticShiftConfig)
+
+    @field_validator("providers")
+    @classmethod
+    def _unique_providers(cls, v: list[RedditProvider]) -> list[RedditProvider]:
+        if len(set(v)) != len(v):
+            raise ValueError("social_sources: reddit.providers must not repeat a provider")
+        return v
+
+
+class XSearchConfig(_Strict):
+    endpoint: Literal["recent", "all"] = "recent"
+    lang: str = "en"
+    exclude_retweets: bool = True
+    exclude_replies: bool = False
+    max_results_per_query: int = Field(default=300, ge=10)
+    min_author_followers: int = Field(default=0, ge=0)
+    consumer_queries: list[str]
+    stock_queries: list[str] = Field(default_factory=list)
+
+
+class XSourceConfig(_Strict):
+    enabled: bool = True
+    weight: float = Field(default=1.0, ge=0.0)
+    fixture_file: str = "x_posts.jsonl"
+    bearer_token_env: str = "X_BEARER_TOKEN"
+    search: XSearchConfig
+
+
+class WikipediaSourceConfig(_Strict):
+    enabled: bool = True
+    fixture_file: str = "pageviews.json"
+
+
+class GoogleTrendsSourceConfig(_Strict):
+    enabled: bool = True
+    fixture_file: str = "google_trends.json"
+    provider: Literal["pytrends"] = "pytrends"
+    geo: str = "US"
+    min_request_interval_seconds: float = Field(default=2.0, ge=0.0)
+
+
+class NewsSourceConfig(_Strict):
+    enabled: bool = True
+    fixture_file: str = "news_items.jsonl"
+
+
+class PostSources(_Strict):
+    reddit: RedditSourceConfig
+    x: XSourceConfig
+
+
+class AttentionSources(_Strict):
+    wikipedia: WikipediaSourceConfig
+    google_trends: GoogleTrendsSourceConfig
+
+
+class SocialSources(_Strict):
+    """Which consumer-trend sources run. Every adapter exists; this only switches them on/off."""
+
+    post_sources: PostSources
+    attention_sources: AttentionSources
+    news: NewsSourceConfig
+
+    @property
+    def enabled_post_sources(self) -> list[PostSourceName]:
+        out: list[PostSourceName] = []
+        if self.post_sources.reddit.enabled:
+            out.append("reddit")
+        if self.post_sources.x.enabled:
+            out.append("x")
+        return out
+
+    @property
+    def enabled_attention_sources(self) -> list[AttentionSourceName]:
+        out: list[AttentionSourceName] = []
+        if self.attention_sources.wikipedia.enabled:
+            out.append("wikipedia")
+        if self.attention_sources.google_trends.enabled:
+            out.append("google_trends")
+        return out
+
+    @property
+    def enabled(self) -> list[str]:
+        names: list[str] = [*self.enabled_post_sources, *self.enabled_attention_sources]
+        if self.news.enabled:
+            names.append("news")
+        return names
+
+    @property
+    def source_count(self) -> int:
+        """Sources that can confirm a trend: denominator of ``cross_source_norm``."""
+        return len(self.enabled)
+
+    def post_weight(self, source: str) -> float:
+        if source == "reddit":
+            return self.post_sources.reddit.weight
+        if source == "x":
+            return self.post_sources.x.weight
+        return 1.0
+
+    @model_validator(mode="after")
+    def _at_least_one_post_source(self) -> SocialSources:
+        if not self.enabled_post_sources:
+            raise ValueError(
+                "social_sources: enable at least one post source (reddit or x); attention and "
+                "news sources only confirm trends found in posts"
+            )
+        return self
+
+
+def _apply_source_overrides(raw: dict[str, Any]) -> dict[str, Any]:
+    """``OPTIONS_SCOUT_SOCIAL_SOURCES=reddit,x`` enables exactly the listed sources."""
+    env_val = os.environ.get("OPTIONS_SCOUT_SOCIAL_SOURCES")
+    if not env_val:
+        return raw
+    wanted = {s.strip().lower() for s in env_val.split(",") if s.strip()}
+    unknown = wanted - set(SOCIAL_SOURCE_NAMES)
+    if unknown:
+        raise ValueError(
+            f"OPTIONS_SCOUT_SOCIAL_SOURCES: unknown source(s) {sorted(unknown)}; "
+            f"choose from {list(SOCIAL_SOURCE_NAMES)}"
+        )
+    out = {k: (dict(v) if isinstance(v, dict) else v) for k, v in raw.items()}
+    for group in ("post_sources", "attention_sources"):
+        for name, sub in out.get(group, {}).items():
+            out[group][name] = {**sub, "enabled": name in wanted}
+    out["news"] = {**out.get("news", {}), "enabled": "news" in wanted}
+    return out
+
+
 # ------------------------------------------------------------------------------- loading
 class AppConfig(_Strict):
     """Everything from config/ in one typed, frozen object."""
@@ -409,6 +574,7 @@ class AppConfig(_Strict):
     rules: ScreenerRules
     social: SocialScoreConfig
     subreddits: Subreddits
+    sources: SocialSources
     quality: QualityUniverse
 
     @property
@@ -447,6 +613,9 @@ def load_config(root: Path | None = None) -> AppConfig:
         rules=ScreenerRules(**_load_yaml(cfg_dir / "screener_rules.yaml")),
         social=SocialScoreConfig(**_load_yaml(cfg_dir / "social_score.yaml")),
         subreddits=Subreddits(**_load_yaml(cfg_dir / "subreddits.yaml")),
+        sources=SocialSources(
+            **_apply_source_overrides(_load_yaml(cfg_dir / "social_sources.yaml"))
+        ),
         quality=QualityUniverse(**_load_yaml(cfg_dir / "quality_universe.yaml")),
     )
 

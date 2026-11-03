@@ -34,3 +34,25 @@ def test_social_weights_present(config: AppConfig) -> None:
     w = config.social.weights
     assert w.stock_hype_penalty > w.velocity_z  # hype is penalised harder than it is rewarded
     assert config.social.materiality["high"] == 1.0
+
+
+def test_social_sources_default_all_enabled(config: AppConfig) -> None:
+    src = config.sources
+    assert src.enabled_post_sources == ["reddit", "x"]
+    assert src.enabled_attention_sources == ["wikipedia", "google_trends"]
+    assert src.news.enabled and src.source_count == 5
+    assert src.post_weight("reddit") == 1.0 and src.post_weight("x") == 1.0
+    assert src.post_sources.x.search.consumer_queries  # non-empty query list
+
+
+def test_social_sources_env_override(monkeypatch: pytest.MonkeyPatch, config: AppConfig) -> None:
+    monkeypatch.setenv("OPTIONS_SCOUT_SOCIAL_SOURCES", "x,news")
+    cfg = load_config(config.root)
+    assert cfg.sources.enabled == ["x", "news"]
+    assert cfg.sources.source_count == 2
+    monkeypatch.setenv("OPTIONS_SCOUT_SOCIAL_SOURCES", "wikipedia")  # no post source
+    with pytest.raises(ValueError, match="at least one post source"):
+        load_config(config.root)
+    monkeypatch.setenv("OPTIONS_SCOUT_SOCIAL_SOURCES", "reddit,tiktok")
+    with pytest.raises(ValueError, match="unknown source"):
+        load_config(config.root)

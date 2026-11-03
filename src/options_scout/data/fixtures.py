@@ -32,7 +32,7 @@ DEMO_TICKERS: tuple[str, ...] = (
 class TickerFixture(BaseModel):
     snapshot: TickerSnapshot
     close_history: list[float] = Field(min_length=31)
-    recorded_with: str = "synthetic"  # "yfinance" when recorded live, "synthetic" otherwise
+    recorded_with: str = "synthetic"  # provider name when recorded live, "synthetic" otherwise
 
 
 class IndexFixture(BaseModel):

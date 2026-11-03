@@ -46,7 +46,7 @@ STRATEGY_CHOICES = {
     "Both": {"csp", "leaps"},
 }
 SOURCE_SAMPLE = "Bundled sample data (offline)"
-SOURCE_YAHOO = "Yahoo Finance (free, delayed, no key)"
+SOURCE_MARKETDATA = "MarketData.app (paste your API token)"
 SOURCE_TRADIER = "Tradier (paste your API key)"
 
 
@@ -74,8 +74,11 @@ def _market_for(choice: str, api_key: str, sandbox: bool) -> MarketData:
         if isinstance(DEPS.md.source, FixtureSource):
             return DEPS.md
         return MarketData.from_config(CFG, mode="fixture")
-    if choice == SOURCE_YAHOO:
-        return MarketData.from_config(CFG, mode="live", provider="yfinance")
+    if choice == SOURCE_MARKETDATA:
+        # an empty field falls back to MARKETDATA_TOKEN in the environment; neither -> clear error
+        return MarketData.from_config(
+            CFG, mode="live", provider="marketdata", api_key=api_key.strip() or None
+        )
     cfg = CFG.model_copy(
         update={
             "settings": CFG.settings.model_copy(
@@ -177,11 +180,11 @@ with st.container(border=True):
             isinstance(DEPS.md.source, FixtureSource)
             or (CFG.paths.fixtures_dir / "market").exists()
         )
-        sources = ([SOURCE_SAMPLE] if has_fixtures else []) + [SOURCE_YAHOO, SOURCE_TRADIER]
+        sources = ([SOURCE_SAMPLE] if has_fixtures else []) + [SOURCE_MARKETDATA, SOURCE_TRADIER]
         default_idx = (
             0
             if (has_fixtures and CFG.settings.data_mode == "fixture")
-            else (sources.index(SOURCE_YAHOO))
+            else (sources.index(SOURCE_MARKETDATA))
         )
         source_choice = st.radio("Where should prices come from?", sources, index=default_idx)
         api_key = ""
@@ -197,11 +200,20 @@ with st.container(border=True):
                 "Your key is used for this run only. It is never written to disk, logged, cached "
                 "or shown in the report."
             )
-        elif source_choice == SOURCE_YAHOO:
-            st.caption("Unofficial delayed Yahoo data via yfinance. Slow for 10+ tickers.")
+        elif source_choice == SOURCE_MARKETDATA:
+            api_key = st.text_input(
+                "MarketData.app API token",
+                type="password",
+                help="Free plan: delayed data, ~100 credits a day. Leave empty to use MARKETDATA_TOKEN from .env.",
+            )
+            st.caption(
+                "Your token is used for this run only. It is never written to disk, logged, cached "
+                "or shown in the report. A chain costs one credit per contract, so each run keeps "
+                f"the {CFG.settings.market_data.marketdata.strike_limit or '(all)'} strikes nearest the money."
+            )
         else:
             st.caption(
-                f"Snapshots recorded from Yahoo on {DEPS.md.now():%Y-%m-%d} for ten tickers. "
+                f"Snapshots recorded on {DEPS.md.now():%Y-%m-%d} for ten tickers. "
                 "Nothing leaves this machine."
             )
 
@@ -517,7 +529,8 @@ else:
     # ---- secondary detail
     with st.expander("Consumer-trend signal (secondary ranking input)"):
         st.write(
-            "Mentions of brands and products on consumer subreddits, Wikipedia page views and news, "
+            "Mentions of brands and products on consumer subreddits and X, confirmed by Wikipedia "
+            "page views, Google Trends and news (sources are switched in config/social_sources.yaml), "
             "scored 0–100. It only re-orders stocks that already passed the quality gate; it never "
             "adds a stock."
         )

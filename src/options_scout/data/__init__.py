@@ -1,1 +1,1 @@
-"""Market data access: cached yfinance wrapper with an offline fixture mode."""
+"""Market data access: cached MarketData.app / Tradier wrappers with an offline fixture mode."""

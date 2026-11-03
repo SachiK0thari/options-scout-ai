@@ -14,26 +14,41 @@ from options_scout.core.models import DailyCount, ExtractedEntity, NewsItem, Soc
 
 @dataclass
 class EntityMentions:
-    """All weighted mentions of one entity across posts, with the post metadata we need."""
+    """All weighted mentions of one entity across posts, with the post metadata we need.
+
+    ``daily`` is the blended series (every post source, multiplied by its configured weight);
+    ``daily_by_source`` keeps the unweighted series per post source so each source can be
+    z-scored on its own for cross-source confirmation.
+    """
 
     entity: str
     entity_type: str
     daily: dict[date, float] = field(default_factory=lambda: defaultdict(float))
+    daily_by_source: dict[str, dict[date, float]] = field(
+        default_factory=lambda: defaultdict(lambda: defaultdict(float))
+    )
     sentiments: list[tuple[float, float]] = field(default_factory=list)  # (sentiment, weight)
     purchase_intent: float = 0.0
     stock_talk: float = 0.0
     total: float = 0.0
+    total_by_source: dict[str, float] = field(default_factory=lambda: defaultdict(float))
     post_ids: list[str] = field(default_factory=list)
 
-    def add(self, post: SocialPost, ent: ExtractedEntity, weight: float) -> None:
-        self.daily[post.created_at.date()] += weight
-        w = weight * math.log1p(max(post.score, 0) + 1)
+    def add(
+        self, post: SocialPost, ent: ExtractedEntity, weight: float, source_weight: float = 1.0
+    ) -> None:
+        day = post.created_at.date()
+        blended = weight * source_weight
+        self.daily[day] += blended
+        self.daily_by_source[post.source][day] += weight
+        self.total_by_source[post.source] += weight
+        w = blended * math.log1p(max(post.score, 0) + 1)
         self.sentiments.append((ent.sentiment, w))
-        self.total += weight
+        self.total += blended
         if ent.is_purchase_intent:
-            self.purchase_intent += weight
+            self.purchase_intent += blended
         if ent.is_stock_talk or post.is_stock_sub:
-            self.stock_talk += weight
+            self.stock_talk += blended
         self.post_ids.append(post.id)
 
 
@@ -43,13 +58,16 @@ def aggregate_mentions(
     *,
     max_author_share: float = 1.0,
     capped: dict[str, dict[str, int]] | None = None,
+    source_weights: Mapping[str, float] | None = None,
 ) -> dict[str, EntityMentions]:
     """Group mentions per entity. No single author may exceed ``max_author_share`` of an
-    entity's mentions: their posts are down-weighted to exactly that share (section 4.6)."""
+    entity's mentions: their posts are down-weighted to exactly that share (section 4.6).
+    ``source_weights`` (post source name -> multiplier) blends sources; missing names weigh 1."""
     grouped: dict[str, list[tuple[SocialPost, ExtractedEntity]]] = defaultdict(list)
     for p in posts:
         for ent in extractions.get(p.id, ()):
             grouped[ent.name].append((p, ent))
+    sw = source_weights or {}
     out: dict[str, EntityMentions] = {}
     for name, items in grouped.items():
         by_author: dict[str, int] = defaultdict(int)
@@ -65,7 +83,7 @@ def aggregate_mentions(
                 w = max_author_share * n_total / n
                 if capped is not None:
                     capped.setdefault(name, {})[author] = n
-            em.add(p, ent, w)
+            em.add(p, ent, w, sw.get(p.source, 1.0))
         out[name] = em
     return out
 
@@ -148,16 +166,32 @@ def novelty_penalty(prior_weeks: Sequence[float], norm: ScoreNormalization) -> f
     return 0.0
 
 
+def series_z(
+    series: Mapping[date, float], end: date, windows: SocialWindows, norm: ScoreNormalization
+) -> float:
+    recent, prior = weekly_buckets(series, end, windows.baseline_weeks, windows.recent_days)
+    return z_score(recent, prior, norm.velocity_z_clip)
+
+
 def compute_components(
     em: EntityMentions,
     *,
     end: date,
     windows: SocialWindows,
     norm: ScoreNormalization,
-    wiki: Mapping[date, float] | None,
+    attention: Mapping[str, Mapping[date, float]] | None,
     news: Mapping[date, float] | None,
     materiality_weight: float,
+    sources_available: int,
 ) -> dict[str, float]:
+    """Section 4.5 signals for one entity.
+
+    ``attention`` maps an attention-source name (wikipedia, google_trends) to its daily series;
+    ``sources_available`` is the number of enabled sources (post + attention + news) and is the
+    denominator of ``cross_source_norm``. A source confirms when its own velocity z exceeds
+    ``cross_source_z_threshold``; post sources are each z-scored on their own series, so Reddit
+    and X can confirm each other. Per-source z-scores are returned as ``<source>_z``.
+    """
     recent, prior = weekly_buckets(em.daily, end, windows.baseline_weeks, windows.recent_days)
     vz = z_score(recent, prior, norm.velocity_z_clip)
     acc = acceleration(em.daily, end, windows.recent_days, norm.acceleration_clip)
@@ -165,18 +199,30 @@ def compute_components(
     intent_rate = em.purchase_intent / em.total if em.total else 0.0
     hype = em.stock_talk / em.total if em.total else 0.0
 
-    confirmations = 1 if vz > norm.cross_source_z_threshold else 0
-    wiki_z = 0.0
-    if wiki:
-        w_recent, w_prior = weekly_buckets(wiki, end, windows.baseline_weeks, windows.recent_days)
-        wiki_z = z_score(w_recent, w_prior, norm.velocity_z_clip)
-        confirmations += 1 if wiki_z > norm.cross_source_z_threshold else 0
+    per_source: dict[str, float] = {}
+    confirmations = 0
+    if len(em.daily_by_source) <= 1:
+        # one post source: its series is the blended series
+        confirmations += 1 if vz > norm.cross_source_z_threshold else 0
+        for name in em.daily_by_source:
+            per_source[f"{name}_z"] = vz
+    else:
+        for name, series in em.daily_by_source.items():
+            sz = series_z(series, end, windows, norm)
+            per_source[f"{name}_z"] = sz
+            confirmations += 1 if sz > norm.cross_source_z_threshold else 0
+    for name, att_series in (attention or {}).items():
+        if not att_series:
+            per_source[f"{name}_z"] = 0.0
+            continue
+        az = series_z(att_series, end, windows, norm)
+        per_source[f"{name}_z"] = az
+        confirmations += 1 if az > norm.cross_source_z_threshold else 0
     news_z = 0.0
     if news is not None:
-        n_recent, n_prior = weekly_buckets(news, end, windows.baseline_weeks, windows.recent_days)
-        news_z = z_score(n_recent, n_prior, norm.velocity_z_clip)
+        news_z = series_z(news, end, windows, norm)
         confirmations += 1 if news_z > norm.cross_source_z_threshold else 0
-    cross_norm = confirmations / max(norm.cross_source_max, 1)
+    cross_norm = confirmations / max(sources_available, 1)
     coverage_gap = max(-norm.velocity_z_clip, min(norm.velocity_z_clip, vz - news_z))
     return {
         "mentions_recent": recent,
@@ -187,7 +233,7 @@ def compute_components(
         "purchase_intent_rate": intent_rate,
         "cross_source": float(confirmations),
         "cross_source_norm": cross_norm,
-        "wiki_z": wiki_z,
+        **per_source,
         "news_z": news_z,
         "coverage_gap": coverage_gap,
         "novelty_penalty": novelty_penalty(prior, norm),

@@ -14,8 +14,8 @@ bias: -1.5                   # centres a "nothing special" entity near score 18
 normalization:
   velocity_z_clip: 4.0       # z-scores clipped to [-clip, clip]
   acceleration_clip: 3.0     # 7d/prev-7d ratio - 1, clipped
-  cross_source_max: 3        # sources available
-  cross_source_z_threshold: 1.5
+  cross_source_z_threshold: 1.5  # a source "confirms" when its own velocity z exceeds this;
+                             # cross_source_norm divides by the number of enabled sources
   novelty_hot_weeks: 8       # hot for > 8 weeks -> penalty
   novelty_hot_z: 1.0
 

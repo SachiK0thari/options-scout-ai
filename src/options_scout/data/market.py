@@ -1,19 +1,19 @@
-"""Market data layer: typed tool functions over yfinance (live) or JSON fixtures (offline).
+"""Market data layer: typed tool functions over MarketData.app / Tradier (live) or JSON fixtures.
 
-Everything is cached (SQLite, TTLs from config) and every live call is retried with
-exponential backoff. yfinance is an unofficial, delayed scraper; treat it accordingly.
+Everything is cached (SQLite, TTLs from config) and every live HTTP call is retried with
+exponential backoff. Live providers need a user-supplied API token; fixture mode needs nothing.
 """
 
 from __future__ import annotations
 
 import logging
 import os
-import warnings
 from collections.abc import Sequence
 from datetime import UTC, date, datetime, timedelta
 from pathlib import Path
 from typing import Any, Protocol
 
+import httpx
 from tenacity import retry, retry_if_exception_type, stop_after_attempt, wait_exponential
 
 from options_scout.config import AppConfig, DataMode, MarketProviderName
@@ -35,7 +35,7 @@ class Cache(Protocol):
 
 
 class MarketSource(Protocol):
-    """Raw source. Live = yfinance, fixture = JSON. Returns plain models, no caching."""
+    """Raw source. Live = MarketData.app / Tradier, fixture = JSON. Plain models, no caching."""
 
     name: str
 
@@ -131,120 +131,264 @@ _RETRY = retry(
     wait=wait_exponential(multiplier=1, min=1, max=20),
     retry=retry_if_exception_type(Exception),
 )
+# Transport errors and 5xx only: a 401/402/429 will not fix itself, so it is raised at once.
+_RETRY_HTTP = retry(
+    reraise=True,
+    stop=stop_after_attempt(4),
+    wait=wait_exponential(multiplier=1, min=1, max=20),
+    retry=retry_if_exception_type(httpx.HTTPError),
+)
 
 
-class YFinanceSource:
-    name = "yfinance"
+class MarketDataAppSource:
+    """Keyed provider: MarketData.app REST API v1 (https://api.marketdata.app/v1/).
 
-    def __init__(self) -> None:
-        import yfinance as yf  # imported lazily so fixture mode never needs it at import time
+    One token gives quotes, daily candles, option expirations, option chains with IV and
+    Greeks, upcoming earnings dates and index series (VIX etc.). The free plan is delayed and
+    allows ~100 credits a day; **an option chain costs one credit per contract returned**, so
+    ``strike_limit`` trims each chain to the N strikes closest to the money (0 = full chain).
 
-        self._yf = yf
-        warnings.filterwarnings("ignore", module="yfinance")
+    What MarketData.app does not have:
 
-    def _ticker(self, ticker: str) -> Any:
-        return self._yf.Ticker(ticker)
+    * dividends: the yield is derived from the gap between the dividend-adjusted and the
+      split-only daily candle series over the last year (``0.0`` when that fails);
+    * ^IRX (13-week T-bill): :meth:`get_index_last` raises, and the facade falls back to
+      :data:`RISK_FREE_FALLBACK`;
+    * sector: quotes carry none; the curated universe supplies it.
 
-    @_RETRY
-    def get_spot(self, ticker: str) -> SpotQuote:
-        t = self._ticker(ticker)
-        fi = t.fast_info
-        price = float(fi["lastPrice"])
-        avg_vol = float(fi.get("threeMonthAverageVolume") or fi.get("tenDayAverageVolume") or 0)
-        sector = "Unknown"
+    Responses are columnar (every field is a parallel list); ``s`` is ``ok``, ``no_data`` or
+    ``error``. HTTP 203 is a cache hit and means success; 204/404 mean no data. 4xx errors are
+    not retried (a bad token or an exhausted plan will not fix itself); transport errors and 5xx
+    are. The token is only ever sent as a bearer header; it is never logged, cached or echoed.
+    """
+
+    name = "marketdata"
+    BASE_URL = "https://api.marketdata.app/v1"
+    _INDEX_SYMBOLS = {"^VIX": "VIX", "^SPX": "SPX", "^NDX": "NDX", "^RUT": "RUT", "^DJI": "DJI"}
+    AVG_VOLUME_DAYS = 63  # ~3 months of sessions, like Yahoo's threeMonthAverageVolume
+    DIVIDEND_LOOKBACK_DAYS = 252
+    EARNINGS_HORIZON_DAYS = 180
+
+    def __init__(
+        self,
+        api_key: str,
+        *,
+        strike_limit: int = 0,
+        http_client: httpx.Client | None = None,
+    ) -> None:
+        key = api_key.strip()
+        if not key:
+            raise MarketDataError("MarketData.app API token is empty")
+        self.strike_limit = max(0, int(strike_limit))
+        self._client = http_client or httpx.Client(
+            base_url=self.BASE_URL,
+            headers={"Authorization": f"Bearer {key}", "Accept": "application/json"},
+            timeout=20.0,
+        )
+
+    def __repr__(self) -> str:  # never leak the token
+        return f"MarketDataAppSource(strike_limit={self.strike_limit})"
+
+    # -- transport ----------------------------------------------------------------------
+    @_RETRY_HTTP
+    def _fetch(self, path: str, params: dict[str, Any]) -> httpx.Response:
+        resp = self._client.get(path, params=params)
+        if resp.status_code >= 500:
+            resp.raise_for_status()  # retried by the decorator
+        return resp
+
+    def _get(self, path: str, **params: Any) -> dict[str, Any]:
+        """GET and normalise: returns the JSON body, ``{"s": "no_data"}`` when there is none."""
+        clean = {k: v for k, v in params.items() if v is not None}
+        resp = self._fetch(path, clean)
+        code = resp.status_code
+        if code in (204, 404):
+            return {"s": "no_data"}
+        if code == 401:
+            raise MarketDataError("MarketData.app rejected the API token (401 Unauthorized)")
+        if code == 402:
+            raise MarketDataError(f"MarketData.app: your plan does not allow {path} (402)")
+        if code == 429:
+            raise MarketDataError("MarketData.app: credit or rate limit reached (429)")
         try:
-            info = t.info or {}
-            sector = str(
-                info.get("sector") or ("ETF" if info.get("quoteType") == "ETF" else "Unknown")
+            body = resp.json()
+        except ValueError as exc:
+            raise MarketDataError(f"MarketData.app returned non-JSON for {path}") from exc
+        if not isinstance(body, dict):
+            raise MarketDataError(f"MarketData.app returned an unexpected body for {path}")
+        if code >= 400 or body.get("s") == "error":
+            raise MarketDataError(
+                f"MarketData.app error on {path}: {body.get('errmsg') or f'HTTP {code}'}"
             )
-        except Exception:  # yfinance .info is flaky; sector is cosmetic
-            pass
+        return body
+
+    @staticmethod
+    def _col(body: dict[str, Any], key: str) -> list[Any]:
+        value = body.get(key)
+        return list(value) if isinstance(value, list) else []
+
+    def _candles(self, kind: str, symbol: str, days: int, **extra: Any) -> dict[str, Any]:
+        """Daily candles for a stock (``kind="stocks"``) or index (``kind="indices"``)."""
+        return self._get(
+            f"/{kind}/candles/D/{symbol}/",
+            countback=int(days),
+            to=datetime.now(tz=UTC).date().isoformat(),
+            **extra,
+        )
+
+    def _closes(self, kind: str, symbol: str, days: int, **extra: Any) -> list[float]:
+        body = self._candles(kind, symbol, days, **extra)
+        return [_f(c) for c in self._col(body, "c") if _f(c) > 0][-days:]
+
+    # -- MarketSource -------------------------------------------------------------------
+    def get_spot(self, ticker: str) -> SpotQuote:
+        sym = ticker.upper()
+        body = self._get(f"/stocks/quotes/{sym}/")
+        last = self._col(body, "last")
+        mid = self._col(body, "mid")
+        if body.get("s") != "ok" or not (last or mid):
+            raise MarketDataError(f"MarketData.app returned no quote for {sym}")
+        price = _f(last[0] if last else None) or _f(mid[0] if mid else None)
+        if price <= 0:
+            raise MarketDataError(f"MarketData.app quote for {sym} has no price")
+        avg_volume = 0.0
+        try:  # quotes only carry the session volume; average the last ~3 months of candles
+            candles = self._candles("stocks", sym, self.AVG_VOLUME_DAYS)
+            vols = [_f(v) for v in self._col(candles, "v") if _f(v) > 0]
+            avg_volume = sum(vols) / len(vols) if vols else 0.0
+        except Exception as exc:
+            log.info("marketdata average volume unavailable for %s: %s", sym, type(exc).__name__)
         return SpotQuote(
-            ticker=ticker.upper(),
+            ticker=sym,
             price=price,
-            avg_volume=avg_vol,
+            avg_volume=avg_volume,
             as_of=datetime.now(tz=UTC),
-            sector=sector,
+            sector="Unknown",  # MarketData.app quotes carry no sector; the curated list supplies it
         )
 
-    @_RETRY
     def list_expiries(self, ticker: str) -> list[date]:
-        return [date.fromisoformat(e) for e in self._ticker(ticker).options]
+        body = self._get(f"/options/expirations/{ticker.upper()}/")
+        out: list[date] = []
+        for raw in self._col(body, "expirations"):
+            parsed = _as_date(raw)
+            if parsed is not None:
+                out.append(parsed)
+        return sorted(out)
 
-    @_RETRY
     def get_option_chain(self, ticker: str, expiry: date) -> OptionChain:
-        ch = self._ticker(ticker).option_chain(expiry.isoformat())
+        sym = ticker.upper()
+        body = self._get(
+            f"/options/chain/{sym}/",
+            expiration=expiry.isoformat(),
+            strikeLimit=self.strike_limit or None,
+        )
+        if body.get("s") != "ok":
+            raise MarketDataError(f"{sym}: MarketData.app has no chain for {expiry}")
+        cols = {
+            k: self._col(body, k)
+            for k in (
+                "optionSymbol",
+                "side",
+                "strike",
+                "bid",
+                "ask",
+                "last",
+                "volume",
+                "openInterest",
+                "iv",
+            )
+        }
 
-        def rows(frame: Any, kind: str) -> list[OptionQuote]:
-            out: list[OptionQuote] = []
-            for rec in frame.to_dict(orient="records"):
-                try:
-                    out.append(
-                        OptionQuote(
-                            contract_symbol=str(rec["contractSymbol"]),
-                            kind="call" if kind == "call" else "put",
-                            strike=float(rec["strike"]),
-                            expiry=expiry,
-                            bid=_f(rec.get("bid")),
-                            ask=_f(rec.get("ask")),
-                            last=_f(rec.get("lastPrice")),
-                            volume=_i(rec.get("volume")),
-                            open_interest=_i(rec.get("openInterest")),
-                            iv=_f(rec.get("impliedVolatility")),
-                        )
-                    )
-                except (ValueError, TypeError) as exc:  # bad row: skip, don't fail the chain
-                    log.debug("skipping bad row %s: %s", rec.get("contractSymbol"), exc)
-            return out
+        def cell(key: str, i: int) -> Any:
+            col = cols[key]
+            return col[i] if i < len(col) else None
 
+        calls: list[OptionQuote] = []
+        puts: list[OptionQuote] = []
+        for i in range(len(cols["strike"])):
+            kind = str(cell("side", i) or "").lower()
+            if kind not in {"call", "put"}:
+                continue
+            try:
+                quote = OptionQuote(
+                    contract_symbol=str(cell("optionSymbol", i) or f"{sym}{expiry}{kind}"),
+                    kind="call" if kind == "call" else "put",
+                    strike=float(cell("strike", i)),
+                    expiry=expiry,
+                    bid=_f(cell("bid", i)),
+                    ask=_f(cell("ask", i)),
+                    last=_f(cell("last", i)),
+                    volume=_i(cell("volume", i)),
+                    open_interest=_i(cell("openInterest", i)),
+                    iv=_f(cell("iv", i)),
+                )
+            except (ValueError, TypeError) as exc:
+                log.debug("skipping bad MarketData.app row %s: %s", cell("optionSymbol", i), exc)
+                continue
+            (calls if kind == "call" else puts).append(quote)
         return OptionChain(
-            ticker=ticker.upper(),
-            expiry=expiry,
-            as_of=datetime.now(tz=UTC),
-            calls=rows(ch.calls, "call"),
-            puts=rows(ch.puts, "put"),
+            ticker=sym, expiry=expiry, as_of=datetime.now(tz=UTC), calls=calls, puts=puts
         )
 
-    @_RETRY
     def get_earnings_date(self, ticker: str) -> date | None:
-        cal = self._ticker(ticker).calendar or {}
-        dates = cal.get("Earnings Date") if isinstance(cal, dict) else None
-        if not dates:
-            return None
-        first = dates[0] if isinstance(dates, list | tuple) else dates
-        if isinstance(first, datetime):
-            return first.date()
-        if isinstance(first, date):
-            return first
-        return None
-
-    @_RETRY
-    def get_close_history(self, ticker: str, days: int) -> list[float]:
-        period = "3mo" if days <= 60 else ("1y" if days <= 252 else "2y")
-        hist = self._ticker(ticker).history(period=period, auto_adjust=True)
-        closes = [float(x) for x in hist["Close"].tolist() if x == x]  # drop NaN
-        return closes[-days:]
-
-    @_RETRY
-    def get_dividend_yield(self, ticker: str) -> float:
+        """Next projected report date from /stocks/earnings; None when nothing is scheduled."""
+        today = datetime.now(tz=UTC).date()
         try:
-            info = self._ticker(ticker).info or {}
-        except Exception:
+            body = self._get(
+                f"/stocks/earnings/{ticker.upper()}/",
+                **{
+                    "from": today.isoformat(),
+                    "to": (today + timedelta(days=self.EARNINGS_HORIZON_DAYS)).isoformat(),
+                },
+            )
+        except MarketDataError as exc:
+            log.info("marketdata earnings unavailable for %s: %s", ticker, exc)
+            return None
+        upcoming: list[date] = []
+        for raw in self._col(body, "reportDate") or self._col(body, "date"):
+            d = _as_date(raw)
+            if d is not None and d >= today:
+                upcoming.append(d)
+        return min(upcoming) if upcoming else None
+
+    def get_close_history(self, ticker: str, days: int) -> list[float]:
+        return self._closes("stocks", ticker.upper(), days)
+
+    def get_dividend_yield(self, ticker: str) -> float:
+        """Trailing yield implied by dividend adjustment: 1 - adjusted/split-only first close.
+
+        MarketData.app has no dividends endpoint. Its daily candles are dividend-adjusted by
+        default; the split-only series is the raw price. Over one year the ratio of the two
+        oldest closes is the product of (1 - D/P) over every ex-date, i.e. ~ the trailing yield.
+        """
+        sym = ticker.upper()
+        days = self.DIVIDEND_LOOKBACK_DAYS
+        try:
+            adjusted = self._closes("stocks", sym, days)
+            raw = self._closes("stocks", sym, days, adjustsplits="true", adjustdividends="false")
+        except Exception as exc:
+            log.info("marketdata dividend series unavailable for %s: %s", sym, type(exc).__name__)
             return 0.0
-        # yfinance 1.x: `dividendYield` is in percent (0.31 == 0.31%); trailing is a fraction.
-        if info.get("dividendYield") is not None:
-            return float(info["dividendYield"]) / 100.0
-        return float(info.get("trailingAnnualDividendYield") or 0.0)
+        if len(adjusted) < MIN_IV_HISTORY or len(adjusted) != len(raw) or raw[0] <= 0:
+            return 0.0
+        implied = 1.0 - adjusted[0] / raw[0]
+        return implied if 0.0 <= implied <= 0.20 else 0.0
 
-    @_RETRY
     def get_index_history(self, symbol: str, days: int) -> list[float]:
-        hist = self._ticker(symbol).history(period="1y" if days <= 252 else "2y")
-        closes = [float(x) for x in hist["Close"].tolist() if x == x]
-        return closes[-days:]
+        mapped = self._INDEX_SYMBOLS.get(symbol.upper())
+        if not mapped:
+            raise MarketDataError(f"MarketData.app cannot serve index history for {symbol}")
+        return self._closes("indices", mapped, days)
 
-    @_RETRY
     def get_index_last(self, symbol: str) -> float:
-        return float(self._ticker(symbol).fast_info["lastPrice"])
+        mapped = self._INDEX_SYMBOLS.get(symbol.upper())
+        if not mapped:  # ^IRX: no T-bill index; the facade falls back to RISK_FREE_FALLBACK
+            raise MarketDataError(f"MarketData.app cannot serve index quote for {symbol}")
+        body = self._get(f"/indices/quotes/{mapped}/")
+        last = self._col(body, "last") or self._col(body, "mid")
+        if body.get("s") != "ok" or not last or _f(last[0]) <= 0:
+            raise MarketDataError(f"MarketData.app returned no quote for {symbol}")
+        return _f(last[0])
 
     def now(self) -> datetime:
         return datetime.now(tz=UTC)
@@ -256,8 +400,8 @@ class TradierSource:
     Tradier gives quotes, expirations, option chains with IV and daily history for one API key.
     A free developer (sandbox) key returns 15-minute delayed data, which is all this educational
     screener needs. Earnings dates and dividends come from Tradier's *beta* fundamentals endpoints
-    and degrade to ``None`` / ``0.0`` when unavailable; index series (^VIX, ^IRX) fall back to the
-    keyless yfinance source when Tradier cannot serve them.
+    and degrade to ``None`` / ``0.0`` when unavailable; index series (^VIX, ^IRX) fall back to
+    ``fallback`` (a :class:`MarketDataAppSource` when a MarketData.app token is configured).
 
     The key is only ever sent as a bearer header; it is never logged, cached or echoed in errors.
     """
@@ -275,8 +419,6 @@ class TradierSource:
         http_client: Any | None = None,
         fallback: MarketSource | None = None,
     ) -> None:
-        import httpx
-
         key = api_key.strip()
         if not key:
             raise MarketDataError("Tradier API key is empty")
@@ -477,6 +619,24 @@ def _i(x: Any) -> int:
     return 0 if v != v else int(v)
 
 
+def _as_date(x: Any) -> date | None:
+    """MarketData.app dates: unix seconds (US Eastern midnight) or ISO strings."""
+    if x is None or isinstance(x, bool):
+        return None
+    if isinstance(x, int | float):
+        try:
+            return datetime.fromtimestamp(float(x), tz=UTC).date()
+        except (OverflowError, OSError, ValueError):
+            return None
+    raw = str(x).strip()
+    if raw.isdigit():
+        return _as_date(int(raw))
+    try:
+        return date.fromisoformat(raw[:10])
+    except ValueError:
+        return None
+
+
 # --------------------------------------------------------------------------------- facade
 class MarketData:
     """Cached, typed facade used by tools and agent nodes."""
@@ -512,9 +672,10 @@ class MarketData:
         """Build the facade.
 
         ``mode`` fixture → bundled JSON. Live → ``provider`` (argument, else
-        ``OPTIONS_SCOUT_MARKET_PROVIDER``, else ``settings.market_data.provider``). A keyed
-        provider takes ``api_key`` (argument wins; else the env var named in settings) and raises
-        :class:`MarketDataError` when none is available, so a missing key fails loudly up front.
+        ``OPTIONS_SCOUT_MARKET_PROVIDER``, else ``settings.market_data.provider``). Both live
+        providers are keyed: ``api_key`` (argument wins; else the env var named in settings) and
+        :class:`MarketDataError` is raised when none is available, so a missing key fails loudly
+        up front. Tradier uses MarketData.app for ^VIX/^IRX when that token is also configured.
         """
         mode = mode or cfg.settings.data_mode
         ttl = cfg.settings.cache_ttl_seconds.model_dump()
@@ -540,9 +701,19 @@ class MarketData:
                     "Tradier selected but no API key given (paste one in the UI or set "
                     f"{md_cfg.tradier.api_key_env})"
                 )
-            source = TradierSource(key, sandbox=md_cfg.tradier.sandbox, fallback=YFinanceSource())
-        elif chosen == "yfinance":
-            source = YFinanceSource()
+            fallback: MarketSource | None = None
+            md_key = os.environ.get(md_cfg.marketdata.api_key_env, "")
+            if md_key.strip():
+                fallback = MarketDataAppSource(md_key, strike_limit=md_cfg.marketdata.strike_limit)
+            source = TradierSource(key, sandbox=md_cfg.tradier.sandbox, fallback=fallback)
+        elif chosen == "marketdata":
+            key = api_key or os.environ.get(md_cfg.marketdata.api_key_env, "")
+            if not key.strip():
+                raise MarketDataError(
+                    "MarketData.app selected but no API token given (paste one in the UI or set "
+                    f"{md_cfg.marketdata.api_key_env})"
+                )
+            source = MarketDataAppSource(key, strike_limit=md_cfg.marketdata.strike_limit)
         else:
             raise MarketDataError(f"unknown market data provider {chosen!r}")
         return cls(
@@ -760,10 +931,10 @@ def default_cache_path(cfg: AppConfig) -> Path:
 __all__ = [
     "FixtureSource",
     "MarketData",
+    "MarketDataAppSource",
     "MarketDataError",
     "MarketSource",
     "TradierSource",
-    "YFinanceSource",
     "atm_implied_vol",
     "timedelta",
 ]

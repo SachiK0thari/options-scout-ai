@@ -6,9 +6,10 @@ Run: ``python -m options_scout.jobs.refresh_trends [--mode live|fixture]``
 from __future__ import annotations
 
 import argparse
+import os
 import sys
 
-from options_scout.config import get_config, load_env
+from options_scout.config import SOCIAL_SOURCE_NAMES, get_config, load_env
 from options_scout.llm.client import LLMClient
 from options_scout.social.pipeline import TrendScout, TrendStore
 
@@ -18,7 +19,18 @@ def main(argv: list[str] | None = None) -> int:
     parser = argparse.ArgumentParser(description="Refresh the trend board snapshot.")
     parser.add_argument("--mode", choices=["live", "fixture"], default=None)
     parser.add_argument("--top", type=int, default=15)
+    parser.add_argument(
+        "--sources",
+        default=None,
+        help=(
+            f"comma-separated subset of {','.join(SOCIAL_SOURCE_NAMES)} to run "
+            "(overrides config/social_sources.yaml)"
+        ),
+    )
     args = parser.parse_args(argv)
+    if args.sources:
+        os.environ["OPTIONS_SCOUT_SOCIAL_SOURCES"] = args.sources
+        get_config.cache_clear()
     cfg = get_config()
     llm = LLMClient.from_config(cfg)
     scout = TrendScout(cfg, llm, mode=args.mode)
@@ -26,6 +38,8 @@ def main(argv: list[str] | None = None) -> int:
     store = TrendStore(cfg.paths.cache_db.parent / "trends.sqlite")
     store.save(run)
     purged = store.purge(cfg.settings.trends.retention_hours)
+    by_src = " ".join(f"{k}={v}" for k, v in run.posts_by_source.items())
+    print(f"sources={','.join(run.sources_used)} posts_by_source: {by_src}")
     print(
         f"posts={run.posts_in} kept={run.filter_report.kept} entities={run.entities_found} "
         f"signals={len(run.signals)} "

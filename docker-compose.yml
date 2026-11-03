@@ -46,6 +46,8 @@ services:
       REDDIT_CLIENT_ID: ${REDDIT_CLIENT_ID:-}
       REDDIT_CLIENT_SECRET: ${REDDIT_CLIENT_SECRET:-}
       REDDIT_USER_AGENT: ${REDDIT_USER_AGENT:-options-scout-ai/0.1 (educational screener)}
+      X_BEARER_TOKEN: ${X_BEARER_TOKEN:-}
+      OPTIONS_SCOUT_SOCIAL_SOURCES: ${OPTIONS_SCOUT_SOCIAL_SOURCES:-}
     volumes: ["scout-data:/app/data"]
 
 volumes:

@@ -16,7 +16,8 @@ IVRankSource = Literal["history", "hv_proxy", "none"]
 RegimeLabel = Literal["high_iv", "normal", "low_iv"]
 EntityType = Literal["product", "brand", "company", "store"]
 Materiality = Literal["high", "medium", "low"]
-SourceName = Literal["reddit", "wikipedia", "news"]
+PostSourceName = Literal["reddit", "x"]
+SourceName = Literal["reddit", "x", "wikipedia", "google_trends", "news"]
 
 
 def utcnow() -> datetime:
@@ -300,8 +301,16 @@ class RiskReport(Model):
 
 # ------------------------------------------------------------------------------ social
 class SocialPost(Model):
+    """One public post from any post source, normalised so filters/extraction are source-agnostic.
+
+    Reddit: ``subreddit`` is the sub, ``author_karma`` is link+comment karma, ``score`` is upvotes.
+    X: ``subreddit`` is None (or the matched query label), ``author_karma`` is the follower count,
+    ``score`` is likes + reposts, ``title`` is empty and the text is in ``body``.
+    ``is_stock_sub`` means "stock-talk context" (a stock subreddit, a cashtag, a stock query).
+    """
+
     id: str
-    source: SourceName
+    source: PostSourceName
     subreddit: str | None
     author_id: str | None
     author_karma: int | None = None
@@ -360,7 +369,7 @@ class TickerResolution(Model):
 
 class EvidenceItem(Model):
     post_id: str
-    source: SourceName
+    source: PostSourceName
     subreddit: str | None
     score: int
     date: date

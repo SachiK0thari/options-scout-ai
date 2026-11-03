@@ -11,7 +11,13 @@ Window: 2026-08-26 .. 2026-10-27 (63 days = 8 baseline weeks
 - `reddit_posts.jsonl` - one post per line. `entities` is the GROUND-TRUTH extraction the offline
   fixture LLM replays (type in product|brand|company|store, sentiment in [-1, 1], one decimal).
   4788 posts, 625 authors, ~12% with empty `entities`.
+- `x_posts.jsonl` - 2307 X posts in the same schema (`source: x`, empty `title`, text in `body`,
+  `subreddit: null`, `author_karma` = followers, `score` = likes + reposts). 411 authors,
+  ~10% with empty `entities`. Designed rates are 0.5x the Reddit rates so every
+  trend shape shows up on both post sources (cross-source confirmation).
 - `pageviews.json` - Wikipedia article title -> 63 daily `{day, count}` entries.
+- `google_trends.json` - canonical entity name -> 63 daily `{day, count}` entries of a 0-100 interest index
+  (same attention shape as pageviews, damped to 80% of the pageview multiplier).
 - `news_items.jsonl` - 1334 financial headlines; `query` is the canonical entity name.
 
 ## Adversarial cases the filters must handle
@@ -31,41 +37,51 @@ Window: 2026-08-26 .. 2026-10-27 (63 days = 8 baseline weeks
 - **Aliases/misspellings**: hokas, elf, lulu, sbux, birks, TJ's, gamepass, etc. The ground truth
   always uses the canonical name.
 
+### X-specific cases (`x_posts.jsonl`)
+
+- **Fresh/low-follower accounts**: 119 posts come from accounts with `author_age_days < 30` and
+  `author_karma` (followers) `< 50`. The same spam filter thresholds apply to both sources.
+- **Poppi coupon burst**: 30 near-duplicate posts ("Just tried Poppi and OMG... code POP20")
+  from 4 fresh accounts in the last 7 days. Dedupe/account-age filters must remove them.
+- **Cashtags**: 328 posts carry a `$TICKER` cashtag and `is_stock_sub: true`; they are stock talk,
+  not consumer demand, and feed only the hype penalty (GameStop is 100% cashtag posts, Tesla ~70%).
+- **No titles**: X posts have `title: ""`; excerpt/evidence code must cope with body-only posts.
+
 ## Designed trend shapes
 
 Realised mentions/day count every entity mention (primary + co-mentions), so numbers sit a little
 above the design rate. Sentiment is the per-post mean at window start -> end.
 
-| Entity | Type | Design (base -> recent /day) | Realised base | Realised recent | Sentiment | News items | Pageviews x | Designed outcome |
-|---|---|---|---|---|---|---|---|---|
-| Owala | brand | 2 -> 12 | 1.5 | 7.3 | +0.7 -> +0.7 | 3 | 4 | HIGH: breakout + coverage gap (Reddit 6x, news flat). Private parent -> not directly investable; surfaces as a signal only. |
-| Stanley Quencher | product | 8 -> 3 | 5.0 | 2.1 | +0.4 -> -0.1 | 16 | 0.6 | LOW: fading (8 -> 3/day) with sentiment turning sarcastic. |
-| HOKA | brand | 3 -> 9 | 2.2 | 5.7 | +0.6 -> +0.6 | 41 | 2.5 | HIGH: strong rise (3 -> 9/day), positive, purchase intent, news only slightly up. |
-| Crocs | brand | 3 -> 7 | 1.9 | 4.3 | +0.5 -> +0.5 | 29 | 1.8 | MEDIUM-HIGH: rise (3 -> 7/day), positive. |
-| On Cloud | brand | 2 -> 4 | 1.2 | 2.6 | +0.5 -> +0.5 | 16 | 1.6 | MEDIUM: moderate rise (2 -> 4/day). |
-| Celsius | brand | 10 -> 10 | 6.5 | 6.3 | +0.3 -> +0.3 | 166 | 1 | LOW: hot the whole window (10/day flat) and heavily covered -> no novelty, no coverage gap. |
-| e.l.f. | brand | 3 -> 7 | 2.0 | 4.1 | +0.6 -> +0.6 | 46 | 1.9 | MEDIUM-HIGH: rise (3 -> 7/day), positive, purchase intent, teen-heavy subs. |
-| Kirkland Signature | brand | 5 -> 5 | 3.1 | 3.0 | +0.5 -> +0.5 | 7 | 1 | LOW-MEDIUM: steady 5/day, positive; no acceleration. |
-| Costco | store | 6 -> 6 | 4.1 | 3.7 | +0.4 -> +0.4 | 107 | 1 | LOW-MEDIUM: steady 6/day, positive; well covered by news. |
-| Dutch Bros | company | 2 -> 5 | 1.2 | 3.1 | +0.6 -> +0.6 | 23 | 1.8 | MEDIUM-HIGH: rise (2 -> 5/day), positive. |
-| CAVA | company | 1 -> 6 | 0.7 | 3.7 | +0.7 -> +0.7 | 6 | 3.5 | HIGH: breakout (1 -> 6/day), positive, purchase intent, news flat (coverage gap). |
-| Lululemon | company | 4 -> 4 | 2.4 | 2.4 | +0.1 -> +0.1 | 58 | 1 | LOW: flat 4/day, near-neutral sentiment. |
-| Nike | company | 6 -> 6 | 3.9 | 4.7 | +0.2 -> -0.3 | 88 | 1 | LOW: flat 6/day with sentiment sliding to -0.3; well covered. |
-| Chipotle | company | 5 -> 5 | 3.0 | 3.0 | -0.4 -> -0.4 | 88 | 1 | LOW: flat 5/day, negative (portion sizes), moderate news. |
-| Starbucks | company | 6 -> 3 | 3.6 | 2.3 | -0.3 -> -0.3 | 95 | 0.8 | LOW: declining (6 -> 3/day), negative. |
-| AirPods | product | 4 -> 4 | 2.5 | 2.4 | +0.3 -> +0.3 | 38 | 1 | LOW-MEDIUM: steady 4/day, mildly positive. |
-| Sweetgreen | company | 2 -> 2 | 0.9 | 1.1 | +0.0 -> +0.0 | 20 | 1 | LOW: flat 2/day, neutral. |
-| Oura Ring | product | 2 -> 5 | 1.2 | 3.1 | +0.5 -> +0.5 | 11 | 1.9 | MEDIUM signal but NOT investable (private). |
-| Liquid Death | brand | 2 -> 2 | 0.8 | 1.1 | +0.2 -> +0.2 | 3 | 1 | LOW: flat 2/day (private). |
-| Olipop | brand | 2 -> 5 | 1.0 | 9.3 | +0.5 -> +0.5 | 4 | 1.7 | MEDIUM organic rise (2 -> 5/day) PLUS a 40-post spam campaign the dedupe/bot filter must remove. Private. |
-| Poppi | brand | 2 -> 4 | 1.5 | 2.9 | +0.4 -> +0.4 | 4 | 1.5 | MEDIUM: rise (2 -> 4/day). Now owned by PepsiCo. |
-| Birkenstock | company | 2 -> 3 | 1.1 | 2.4 | +0.4 -> +0.4 | 19 | 1.2 | LOW-MEDIUM: slow rise (2 -> 3/day). |
-| Xbox Game Pass | product | 3 -> 3 | 1.8 | 1.9 | -0.2 -> -0.2 | 25 | 1.1 | LOW: steady 3/day, negative (price hikes). |
-| Abercrombie | company | 2 -> 5 | 1.3 | 3.0 | +0.5 -> +0.5 | 28 | 1.8 | MEDIUM-HIGH: rise (2 -> 5/day), positive. |
-| Trader Joe's | store | 4 -> 4 | 2.5 | 2.4 | +0.5 -> +0.5 | 7 | 1 | LOW-MEDIUM: steady 4/day, positive, NOT investable (private). |
-| Uniqlo | brand | 1 -> 3 | 0.6 | 2.0 | +0.5 -> +0.5 | 9 | 1.4 | MEDIUM signal but not US-listed (Fast Retailing, Tokyo). |
-| GameStop | company | 6 -> 15 | 3.7 | 9.0 | +0.3 -> +0.4 | 48 | 2 | PENALISED: all mentions are stock-sub hype (is_stock_talk=True), 6 -> 15/day. Zero consumer signal. |
-| Tesla | company | 8 -> 12 | 5.2 | 7.1 | +0.1 -> +0.1 | 329 | 1.3 | MIXED/PENALISED: 70% stock-sub hype; 30% consumer EV posts. Saturated news coverage. |
+| Entity | Type | Design (base -> recent /day) | Reddit base | Reddit recent | X base | X recent | Sentiment | News items | Pageviews x | Designed outcome |
+|---|---|---|---|---|---|---|---|---|---|---|
+| Owala | brand | 2 -> 12 | 1.5 | 7.3 | 0.7 | 3.6 | +0.7 -> +0.7 | 3 | 4 | HIGH: breakout + coverage gap (Reddit 6x, news flat). Private parent -> not directly investable; surfaces as a signal only. |
+| Stanley Quencher | product | 8 -> 3 | 5.0 | 2.1 | 2.7 | 1.0 | +0.4 -> -0.1 | 16 | 0.6 | LOW: fading (8 -> 3/day) with sentiment turning sarcastic. |
+| HOKA | brand | 3 -> 9 | 2.2 | 5.7 | 0.9 | 2.7 | +0.6 -> +0.6 | 41 | 2.5 | HIGH: strong rise (3 -> 9/day), positive, purchase intent, news only slightly up. |
+| Crocs | brand | 3 -> 7 | 1.9 | 4.3 | 1.0 | 2.1 | +0.5 -> +0.5 | 29 | 1.8 | MEDIUM-HIGH: rise (3 -> 7/day), positive. |
+| On Cloud | brand | 2 -> 4 | 1.2 | 2.6 | 0.4 | 1.3 | +0.5 -> +0.5 | 16 | 1.6 | MEDIUM: moderate rise (2 -> 4/day). |
+| Celsius | brand | 10 -> 10 | 6.5 | 6.3 | 3.2 | 3.0 | +0.3 -> +0.3 | 166 | 1 | LOW: hot the whole window (10/day flat) and heavily covered -> no novelty, no coverage gap. |
+| e.l.f. | brand | 3 -> 7 | 2.0 | 4.1 | 0.8 | 2.1 | +0.6 -> +0.6 | 46 | 1.9 | MEDIUM-HIGH: rise (3 -> 7/day), positive, purchase intent, teen-heavy subs. |
+| Kirkland Signature | brand | 5 -> 5 | 3.1 | 3.0 | 1.6 | 1.4 | +0.5 -> +0.5 | 7 | 1 | LOW-MEDIUM: steady 5/day, positive; no acceleration. |
+| Costco | store | 6 -> 6 | 4.1 | 3.7 | 2.1 | 2.0 | +0.4 -> +0.4 | 107 | 1 | LOW-MEDIUM: steady 6/day, positive; well covered by news. |
+| Dutch Bros | company | 2 -> 5 | 1.2 | 3.1 | 0.6 | 1.4 | +0.6 -> +0.6 | 23 | 1.8 | MEDIUM-HIGH: rise (2 -> 5/day), positive. |
+| CAVA | company | 1 -> 6 | 0.7 | 3.7 | 0.5 | 2.0 | +0.7 -> +0.7 | 6 | 3.5 | HIGH: breakout (1 -> 6/day), positive, purchase intent, news flat (coverage gap). |
+| Lululemon | company | 4 -> 4 | 2.4 | 2.4 | 1.0 | 1.1 | +0.1 -> +0.1 | 58 | 1 | LOW: flat 4/day, near-neutral sentiment. |
+| Nike | company | 6 -> 6 | 3.9 | 4.7 | 1.9 | 2.1 | +0.2 -> -0.3 | 88 | 1 | LOW: flat 6/day with sentiment sliding to -0.3; well covered. |
+| Chipotle | company | 5 -> 5 | 3.0 | 3.0 | 1.3 | 1.6 | -0.4 -> -0.4 | 88 | 1 | LOW: flat 5/day, negative (portion sizes), moderate news. |
+| Starbucks | company | 6 -> 3 | 3.6 | 2.3 | 1.8 | 1.1 | -0.3 -> -0.3 | 95 | 0.8 | LOW: declining (6 -> 3/day), negative. |
+| AirPods | product | 4 -> 4 | 2.5 | 2.4 | 1.1 | 1.3 | +0.3 -> +0.3 | 38 | 1 | LOW-MEDIUM: steady 4/day, mildly positive. |
+| Sweetgreen | company | 2 -> 2 | 0.9 | 1.1 | 0.5 | 0.7 | +0.0 -> +0.0 | 20 | 1 | LOW: flat 2/day, neutral. |
+| Oura Ring | product | 2 -> 5 | 1.2 | 3.1 | 0.6 | 1.4 | +0.5 -> +0.5 | 11 | 1.9 | MEDIUM signal but NOT investable (private). |
+| Liquid Death | brand | 2 -> 2 | 0.8 | 1.1 | 0.5 | 0.6 | +0.2 -> +0.2 | 3 | 1 | LOW: flat 2/day (private). |
+| Olipop | brand | 2 -> 5 | 1.0 | 9.3 | 0.5 | 1.4 | +0.5 -> +0.5 | 4 | 1.7 | MEDIUM organic rise (2 -> 5/day) PLUS a 40-post spam campaign the dedupe/bot filter must remove. Private. |
+| Poppi | brand | 2 -> 4 | 1.5 | 2.9 | 0.7 | 6.0 | +0.4 -> +0.4 | 4 | 1.5 | MEDIUM: rise (2 -> 4/day). Now owned by PepsiCo. |
+| Birkenstock | company | 2 -> 3 | 1.1 | 2.4 | 0.6 | 1.0 | +0.4 -> +0.4 | 19 | 1.2 | LOW-MEDIUM: slow rise (2 -> 3/day). |
+| Xbox Game Pass | product | 3 -> 3 | 1.8 | 1.9 | 0.9 | 0.9 | -0.2 -> -0.2 | 25 | 1.1 | LOW: steady 3/day, negative (price hikes). |
+| Abercrombie | company | 2 -> 5 | 1.3 | 3.0 | 0.6 | 1.6 | +0.5 -> +0.5 | 28 | 1.8 | MEDIUM-HIGH: rise (2 -> 5/day), positive. |
+| Trader Joe's | store | 4 -> 4 | 2.5 | 2.4 | 1.0 | 1.1 | +0.5 -> +0.5 | 7 | 1 | LOW-MEDIUM: steady 4/day, positive, NOT investable (private). |
+| Uniqlo | brand | 1 -> 3 | 0.6 | 2.0 | 0.4 | 1.0 | +0.5 -> +0.5 | 9 | 1.4 | MEDIUM signal but not US-listed (Fast Retailing, Tokyo). |
+| GameStop | company | 6 -> 15 | 3.7 | 9.0 | 2.1 | 4.6 | +0.3 -> +0.4 | 48 | 2 | PENALISED: all mentions are stock-sub hype (is_stock_talk=True), 6 -> 15/day. Zero consumer signal. |
+| Tesla | company | 8 -> 12 | 5.2 | 7.1 | 2.6 | 3.6 | +0.1 -> +0.1 | 329 | 1.3 | MIXED/PENALISED: 70% stock-sub hype; 30% consumer EV posts. Saturated news coverage. |
 
 ## Expected ranking (rough)
 
@@ -75,3 +91,6 @@ above the design rate. Sentiment is the per-post mean at window start -> end.
 - **Should score low**: Celsius (hot all window, saturated news -> no novelty), Stanley Quencher (fading, sarcastic),
   Starbucks (declining, negative), Nike/Chipotle (flat, negative), Lululemon/Sweetgreen (flat, neutral).
 - **Must be penalised as hype**: GameStop (100% stock talk), Tesla (70% stock talk, saturated coverage).
+- **Cross-source**: with Reddit + X + Wikipedia + Google Trends + news enabled, the breakouts (Owala, CAVA, HOKA)
+  are confirmed by several sources; flat names by none. Disable sources in `config/social_sources.yaml`
+  (or `OPTIONS_SCOUT_SOCIAL_SOURCES=reddit`) to see the single-source behaviour.

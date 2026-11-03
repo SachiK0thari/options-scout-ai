@@ -6,7 +6,7 @@ import json
 import logging
 import sqlite3
 from dataclasses import dataclass, field
-from datetime import UTC, datetime, timedelta
+from datetime import UTC, date, datetime, timedelta
 from pathlib import Path
 from typing import Literal
 
@@ -15,13 +15,11 @@ from options_scout.core.models import EvidenceItem, SocialPost, TrendSignal
 from options_scout.data.cache import SQLiteCache
 from options_scout.llm.client import LLMClient
 from options_scout.social import extraction, filters, signals
-from options_scout.social.adapters.base import SourceStatus, fixtures_social_dir
-from options_scout.social.adapters.news import NewsAdapter
-from options_scout.social.adapters.reddit import RedditAdapter
+from options_scout.social.adapters.base import SourceStatus, merge_ground_truth
 from options_scout.social.adapters.sec import SECAdapter
-from options_scout.social.adapters.wikipedia import WikipediaAdapter
-from options_scout.social.resolution import BrandMap, Resolver
+from options_scout.social.resolution import Brand, BrandMap, Resolver
 from options_scout.social.score import social_score
+from options_scout.social.sources import SourceSet, build_sources
 
 log = logging.getLogger(__name__)
 
@@ -36,19 +34,32 @@ class TrendRun:
     entities_found: int
     unvalidated_tickers_rejected: int
     errors: list[str] = field(default_factory=list)
+    posts_by_source: dict[str, int] = field(default_factory=dict)
+    sources_used: list[str] = field(default_factory=list)
 
 
 class TrendScout:
-    def __init__(self, cfg: AppConfig, llm: LLMClient, *, mode: str | None = None) -> None:
+    """Runs every enabled source (``config/social_sources.yaml``) through one pipeline.
+
+    Post sources (Reddit, X) are fetched and merged into one stream before the filters, so the
+    dedupe/author-cap logic also catches cross-posted campaigns. Attention sources (Wikipedia,
+    Google Trends) and news are queried per entity and only confirm what the posts found.
+    """
+
+    def __init__(
+        self,
+        cfg: AppConfig,
+        llm: LLMClient,
+        *,
+        mode: str | None = None,
+        sources: SourceSet | None = None,
+    ) -> None:
         self.cfg = cfg
         self.llm = llm
         self.mode = mode or cfg.settings.data_mode
-        fx = fixtures_social_dir(cfg.paths.fixtures_dir)
         live = self.mode == "live"
         m: Literal["live", "fixture"] = "live" if live else "fixture"
-        self.reddit = RedditAdapter(m, cfg.subreddits, fx / "reddit_posts.jsonl")
-        self.wiki = WikipediaAdapter(m, fx / "pageviews.json")
-        self.news = NewsAdapter(m, fx / "news_items.jsonl")
+        self.sources = sources or build_sources(cfg, m)
         self.sec = SECAdapter(
             m,
             cfg.paths.fixtures_dir / "sec_company_tickers.json",
@@ -65,17 +76,26 @@ class TrendScout:
         since = end - timedelta(days=days)
         errors: list[str] = []
 
-        posts = self.reddit.fetch(since)
+        posts: list[SocialPost] = []
+        posts_by_source: dict[str, int] = {}
+        for src in self.sources.posts:
+            fetched = src.fetch(since)
+            posts_by_source[src.name] = len(fetched)
+            posts.extend(fetched)
         clean, freport = filters.apply_filters(posts, cfg.filters)
         extracted = extraction.extract_all(
             clean,
             self.llm,
             batch_size=self.cfg.settings.llm.extraction_batch_size,
-            ground_truth=self.reddit.ground_truth or None,
+            ground_truth=merge_ground_truth(self.sources.posts),
         )
         capped: dict[str, dict[str, int]] = {}
         mentions = signals.aggregate_mentions(
-            clean, extracted, max_author_share=cfg.filters.max_author_share, capped=capped
+            clean,
+            extracted,
+            max_author_share=cfg.filters.max_author_share,
+            capped=capped,
+            source_weights=self.sources.weights,
         )
         for entity, authors in capped.items():
             for author, n in authors.items():
@@ -90,21 +110,21 @@ class TrendScout:
                 continue
             res = self.resolver.resolve(name)
             brand = self.brand_map.lookup(name)
-            wiki_series = None
-            if brand and brand.wikipedia:
-                pv = self.wiki.fetch(brand.wikipedia, start_date, end_date)
-                wiki_series = signals.series_from_counts(pv) if pv else None
-            news_items = self.news.fetch(name, since, res.ticker)
-            news_series = signals.series_from_news(news_items)
+            attention = self._attention_series(name, brand, start_date, end_date)
+            news_series = None
+            if self.sources.news is not None:
+                news_items = self.sources.news.fetch(name, since, res.ticker)
+                news_series = signals.series_from_news(news_items)
             mat = cfg.materiality.get(res.materiality or "medium", 0.5) if res.investable else 0.0
             comps = signals.compute_components(
                 em,
                 end=end_date,
                 windows=cfg.windows,
                 norm=cfg.normalization,
-                wiki=wiki_series,
+                attention=attention,
                 news=news_series,
                 materiality_weight=mat,
+                sources_available=self.sources.count,
             )
             score = social_score(
                 comps, cfg.weights, self.cfg.social.bias, cfg.normalization.velocity_z_clip
@@ -134,7 +154,8 @@ class TrendScout:
                 )
             )
         out.sort(key=lambda t: t.score, reverse=True)
-        status = {a.name: a.status() for a in (self.reddit, self.wiki, self.news, self.sec)}
+        status = self.sources.statuses()
+        status[self.sec.name] = self.sec.status()
         for s in status.values():
             errors.extend(f"{s.name}: {e}" for e in s.errors)
         return TrendRun(
@@ -146,15 +167,37 @@ class TrendScout:
             entities_found=len(mentions),
             unvalidated_tickers_rejected=self.resolver.hallucinated_rejections,
             errors=errors,
+            posts_by_source=posts_by_source,
+            sources_used=[
+                *(p.name for p in self.sources.posts),
+                *(a.name for a in self.sources.attention),
+                *(["news"] if self.sources.news else []),
+            ],
         )
+
+    def _attention_series(
+        self, entity: str, brand: Brand | None, start: date, end: date
+    ) -> dict[str, dict[date, float]]:
+        """One daily series per enabled attention source; a source with no keyword or no data
+        is reported as an empty series so it still appears (as z=0) in the components."""
+        out: dict[str, dict[date, float]] = {}
+        for src in self.sources.attention:
+            keyword = _attention_keyword(src.name, entity, brand)
+            if keyword is None:
+                out[src.name] = {}
+                continue
+            counts = src.fetch(keyword, start, end)
+            out[src.name] = signals.series_from_counts(counts) if counts else {}
+        return out
 
     def _fixture_end(self) -> datetime:
         if self.mode == "live":
             return datetime.now(tz=UTC)
-        # fixture corpora end on their last post day; peek cheaply
-        path = self.reddit.fixture_path
-        if path and path.exists():
-            last = None
+        # fixture corpora end on their last post day; peek cheaply across every post source
+        last: datetime | None = None
+        for path in self.sources.fixture_paths():
+            if not path.exists():
+                continue
             with path.open(encoding="utf-8") as fh:
                 for line in fh:
                     if line.strip():
@@ -162,8 +205,8 @@ class TrendScout:
                         if ts:
                             dt = datetime.fromisoformat(str(ts).replace("Z", "+00:00"))
                             last = dt if last is None or dt > last else last
-            if last:
-                return last.replace(hour=23, minute=59, second=59)
+        if last:
+            return last.replace(hour=23, minute=59, second=59)
         return datetime.now(tz=UTC)
 
     @staticmethod
@@ -191,6 +234,14 @@ class TrendScout:
             if len(items) >= n:
                 break
         return items
+
+
+def _attention_keyword(source: str, entity: str, brand: Brand | None) -> str | None:
+    if source == "wikipedia":
+        return brand.wikipedia if brand and brand.wikipedia else None
+    if source == "google_trends":
+        return brand.google_trends if brand and brand.google_trends else entity
+    return entity
 
 
 # ------------------------------------------------------------------- snapshot persistence

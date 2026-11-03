@@ -34,6 +34,7 @@ class Brand:
     sector: str
     type: str
     wikipedia: str | None
+    google_trends: str | None = None  # search keyword override; default is the brand name
 
     @property
     def names(self) -> tuple[str, ...]:
@@ -63,6 +64,9 @@ class BrandMap:
                     sector=str(item.get("sector", "Unknown")),
                     type=str(item.get("type", "brand")),
                     wikipedia=(str(item["wikipedia"]) if item.get("wikipedia") else None),
+                    google_trends=(
+                        str(item["google_trends"]) if item.get("google_trends") else None
+                    ),
                 )
             )
         return cls(brands)
