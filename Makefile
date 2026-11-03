@@ -4,7 +4,7 @@ UV        ?= uv
 PORT_API  ?= 8000
 PORT_UI   ?= 8501
 
-.PHONY: help install test test-live lint fmt eval api ui demo clean check
+.PHONY: help install test test-live lint fmt eval api ui demo demo-core index clean check
 
 help:
 	@grep -E '^[a-zA-Z_-]+:.*?## ' $(MAKEFILE_LIST) | awk 'BEGIN {FS = ":.*?## "}; {printf "  %-12s %s\n", $$1, $$2}'
@@ -47,6 +47,9 @@ demo: ## full agent pipeline in fixture mode, prints a report (ARGS="--no-llm" t
 demo-core: ## deterministic screeners + sizing + risk for every profile × account type
 	$(PY) -m options_scout.cli demo-core $(ARGS)
 
+index: ## regenerate knowledge/rules from PRD + config and rebuild data/knowledge.sqlite (offline, hash embedder)
+	$(PY) -m options_scout.rag.index
+
 clean:
-	rm -rf .venv .pytest_cache .mypy_cache .ruff_cache data/cache.sqlite data/checkpoints.sqlite
+	rm -rf .venv .pytest_cache .mypy_cache .ruff_cache data/cache.sqlite data/checkpoints.sqlite data/knowledge.sqlite
 	find . -name __pycache__ -type d -prune -exec rm -rf {} +

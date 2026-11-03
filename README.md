@@ -23,6 +23,7 @@ make demo             # full agent run on bundled market + social fixtures, prin
 make demo ARGS="--strategy csp --account cash --risk conservative --buying-power 50000"
 make demo ARGS="--no-llm"   # same, with the LLM steps replaced by deterministic stand-ins
 make demo-core        # screeners + sizing + risk for every risk profile × account type
+make index            # build the cited knowledge base (data/knowledge.sqlite) offline, < 1 s
 make ui               # one-page Streamlit app on :8501 (buying power → strategy → optional data key)
 make api              # FastAPI on :8000  (POST /v1/recommend → GET /v1/runs/{id}/stream → /report)
 make test lint eval   # offline tests, ruff + mypy --strict, evaluation suite → evals/reports/latest.md
@@ -65,6 +66,27 @@ flowchart TD
 Market Intelligence runs before Market Data because the universe node orders the curated list by trend score. Inside the specialists the Phase 9 nodes are unchanged: `intake_node → trend_scout_node → regime_node → universe_node → market_data_node×N → screener_node → ranker_node → allocator_node → sizing_node → risk_node → explainer_node → compliance_node → report_node`.
 
 LangGraph features used: typed `StateGraph` with reducers, **subgraphs** (one compiled graph per specialist, each testable standalone), `Send` map-reduce over tickers inside the Market Data agent, `interrupt()` + `Command(resume=…)` for human-in-the-loop profile confirmation inside the Orchestrator, SQLite checkpointing on the parent (resumable threads), bounded retry loops between agents (Portfolio ↔ Risk, Education ↔ Compliance), node- and agent-level streamed updates to the UI/API, per-agent timing in every report, and graceful degradation when a source fails.
+
+### Knowledge base and retrieval (RAG)
+
+Educational claims in the app must be traceable to a source the user can read, so the Education agent (step 10.3) answers from a **cited knowledge base** rather than from the model's memory. The corpus lives in [`knowledge/`](knowledge/) as Markdown with YAML front-matter (`id, title, source, url, kind, as_of`):
+
+| Collection | Contents | Where it comes from |
+|---|---|---|
+| `concepts/` | 21 authored docs (300–800 words): cash-secured puts, naked puts on margin, LEAPS, PMCC, assignment, the Greeks, extrinsic value, IV rank, Reg T margin, probability OTM, earnings, liquidity, rolling, the VIX regime, *why hype is a risk for short puts*, *how this app's quality gate works* | written here; each cites OCC, FINRA, Cboe, eCFR or SEC pages by URL |
+| `rules/` | the seven screening rules (PRD §3.1–3.7) with the exact thresholds in force | generated from `PRD.md` + `config/*.yaml` by `scripts/build_rules_docs.py` (`make index`); a test fails if the committed copy is stale |
+| `filings/` | SEC 10-K *Item 1A Risk Factors* excerpts (≤ 3,000 words) for the ten demo tickers; prospectus *Principal Risks* for SPY/QQQ | `scripts/fetch_filings.py` via EDGAR (public domain) |
+
+Pipeline ([`src/options_scout/rag/`](src/options_scout/rag/)): heading-aware chunking (≤ 400 tokens, 15% overlap, stable ids `<doc_id>#<n>`) → an `Embedder` (`HashEmbedder`: deterministic feature hashing, no download, used by tests/CI and by default; `FastEmbedEmbedder` with `BAAI/bge-small-en-v1.5` behind `pip install -e ".[rag]"`) → SQLite store with numpy cosine search + `rank_bm25` → hybrid retriever (reciprocal-rank fusion, `kind` filter, dense similarity floor) → `Citation(chunk_id, doc_id, title, url, quote)`. Settings are in [`config/rag.yaml`](config/rag.yaml).
+
+```bash
+make index                                                   # regenerate knowledge/rules + rebuild data/knowledge.sqlite
+python -m options_scout.rag.retriever "what is assignment"   # 6 cited chunks
+python -m options_scout.rag.retriever --kind rules "why was NKE excluded"
+OPTIONS_SCOUT_RAG_EMBEDDER=fastembed make index              # semantic embeddings (optional extra)
+```
+
+A query with nothing above the similarity floor returns an empty result, which the Education agent will turn into the fixed sentence *"I don't have a source for that in my knowledge base."* instead of an unsupported answer.
 
 ## Why the LLM never does math
 
@@ -116,7 +138,7 @@ Measured by `make eval` on 2026-10-27 in fixture mode with **no LLM key** (the r
 
 ## Repository layout
 
-See [`PRD.md`](PRD.md) section 8. Key paths: `config/*.yaml` (every threshold), `prompts/*.md` (versioned prompts), `src/options_scout/core` (math), `src/options_scout/social` (trend engine), `src/options_scout/agent` (graph), `src/options_scout/api`, `ui/streamlit_app.py`, `evals/`, `tests/fixtures/`.
+See [`PRD.md`](PRD.md) section 8. Key paths: `config/*.yaml` (every threshold), `prompts/*.md` (versioned prompts), `src/options_scout/core` (math), `src/options_scout/social` (trend engine), `src/options_scout/rag` + `knowledge/` (cited knowledge base), `src/options_scout/agent` (graph), `src/options_scout/api`, `ui/streamlit_app.py`, `evals/`, `tests/fixtures/`.
 
 ## Deploy
 

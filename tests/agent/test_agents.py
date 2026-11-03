@@ -4,8 +4,9 @@
 * each specialist runs standalone on a fixture state and writes only its slice (+ bookkeeping);
 * the parent graph visits the specialists in the documented order and records a per-agent trace;
 * the Markdown report of the ``make demo`` request is byte-identical to the Phase 9 golden after
-  normalising the three run-specific lines (run id, per-node latency, node visit order), and the
-  node visit order itself is the Phase 9 sequence regrouped by agent.
+  normalising the run-specific lines (run id, per-node latency, node visit order) and the config
+  hash (which changes whenever a config file is added, e.g. ``config/rag.yaml`` in step 10.2),
+  and the node visit order itself is the Phase 9 sequence regrouped by agent.
 
 Re-record the golden (only when the report *content* is meant to change) with
 ``OPTIONS_SCOUT_RECORD_GOLDEN=1 pytest tests/agent/test_agents.py -k phase9``.
@@ -217,13 +218,16 @@ def test_parent_graph_visits_agents_in_order_and_records_a_per_agent_trace(demo_
 
 
 def normalize_report_markdown(text: str) -> str:
-    """Drop the three run-specific lines; sort the data-source JSON (merge order follows agents)."""
+    """Blank the run id and config hash, drop the latency and node-order lines, and sort the
+    data-source JSON (its merge order follows the agent order)."""
     out: list[str] = []
     for line in text.splitlines():
         if line.startswith("# OptionsScout AI screening report: run `"):
             line = "# OptionsScout AI screening report: run `<run_id>`"
         elif line.startswith("- Latency per node (ms):") or line.startswith("- Nodes visited:"):
             continue
+        elif line.startswith("- Config hash: "):
+            line = "- Config hash: `<config_hash>`"
         elif line.startswith("- Data sources: "):
             line = "- Data sources: " + json.dumps(
                 json.loads(line[len("- Data sources: ") :]), sort_keys=True

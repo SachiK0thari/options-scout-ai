@@ -15,6 +15,7 @@ data/cache.sqlite
 data/checkpoints.sqlite
 data/*.sqlite-journal
 data/iv_snapshots.sqlite
+data/knowledge.sqlite
 .ipynb_checkpoints/
 .DS_Store
 .env.*

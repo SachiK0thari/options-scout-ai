@@ -162,7 +162,7 @@ PASS: 45 numbers checked, 0 ungrounded, banned phrases: none, disclaimer present
 ## Run metadata
 - Models: {"extraction": "deepseek/deepseek-v4.1-flash", "explanation": "deepseek/deepseek-v4.1-flash", "provider": "fixture"}
 - Prompt versions: {"explain_report": "1.1.0", "extract_entities": "1.0.0", "judge_explanation": "1.0.0", "parse_profile": "1.0.0"}
-- Config hash: `39f219f09f16`
+- Config hash: `<config_hash>`
 - Data sources: {"AAPL": "ok", "COST": "ok", "MSFT": "ok", "NKE": "ok", "QQQ": "ok", "SBUX": "ok", "SPY": "ok", "google_trends": "ok", "market_data": "fixture", "news": "ok", "reddit": "ok", "sec": "ok", "social": "ran (7095 posts, 28 entities)", "wikipedia": "ok", "x": "ok"}
 - Tokens: 0 in / 0 out · cost $0.0000
 

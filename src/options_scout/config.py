@@ -564,6 +564,61 @@ def _apply_source_overrides(raw: dict[str, Any]) -> dict[str, Any]:
     return out
 
 
+# ---------------------------------------------------------------------------- rag.yaml
+EmbedderName = Literal["hash", "fastembed"]
+CollectionName = Literal["concepts", "rules", "filings", "evidence"]
+COLLECTION_NAMES: tuple[str, ...] = ("concepts", "rules", "filings", "evidence")
+
+
+class CollectionConfig(_Strict):
+    weight: float = Field(default=1.0, ge=0.0)
+
+
+class RagConfig(_Strict):
+    """Retrieval layer settings (PRD section 5.6). ``OPTIONS_SCOUT_RAG_EMBEDDER`` overrides
+    ``embedder`` so CI can pin the hash embedder while a developer indexes with fastembed."""
+
+    embedder: EmbedderName = "hash"
+    fastembed_model: str = "BAAI/bge-small-en-v1.5"
+    hash_dimensions: int = Field(default=2048, ge=64)
+    top_k: int = Field(default=6, ge=1)
+    similarity_floor: dict[EmbedderName, float]
+    rrf_k: int = Field(default=60, ge=1)
+    chunk_tokens: int = Field(default=400, ge=50)
+    overlap: float = Field(default=0.15, ge=0.0, lt=0.5)
+    knowledge_dir: Path
+    index_db: Path
+    collections: dict[CollectionName, CollectionConfig]
+
+    @model_validator(mode="after")
+    def _complete(self) -> RagConfig:
+        missing = set(COLLECTION_NAMES) - set(self.collections)
+        if missing:
+            raise ValueError(f"rag.collections is missing {sorted(missing)}")
+        for name in ("hash", "fastembed"):
+            if name not in self.similarity_floor:
+                raise ValueError(f"rag.similarity_floor needs a value for {name!r}")
+        return self
+
+    @property
+    def floor(self) -> float:
+        return self.similarity_floor[self.embedder]
+
+    def weight(self, kind: str) -> float:
+        coll = self.collections.get(kind)  # type: ignore[call-overload]
+        return coll.weight if coll is not None else 1.0
+
+    def resolved(self, root: Path) -> RagConfig:
+        return self.model_copy(
+            update={"knowledge_dir": root / self.knowledge_dir, "index_db": root / self.index_db}
+        )
+
+
+def _apply_rag_overrides(raw: dict[str, Any]) -> dict[str, Any]:
+    env_val = os.environ.get("OPTIONS_SCOUT_RAG_EMBEDDER")
+    return {**raw, "embedder": env_val} if env_val else raw
+
+
 # ------------------------------------------------------------------------------- loading
 class AppConfig(_Strict):
     """Everything from config/ in one typed, frozen object."""
@@ -576,6 +631,7 @@ class AppConfig(_Strict):
     subreddits: Subreddits
     sources: SocialSources
     quality: QualityUniverse
+    rag: RagConfig
 
     @property
     def paths(self) -> Paths:
@@ -617,6 +673,7 @@ def load_config(root: Path | None = None) -> AppConfig:
             **_apply_source_overrides(_load_yaml(cfg_dir / "social_sources.yaml"))
         ),
         quality=QualityUniverse(**_load_yaml(cfg_dir / "quality_universe.yaml")),
+        rag=RagConfig(**_apply_rag_overrides(_load_yaml(cfg_dir / "rag.yaml"))).resolved(root),
     )
 
 

@@ -1,0 +1,34 @@
+# Retrieval layer (PRD.md section 5.6). Education and Market Intelligence may only make conceptual
+# claims they can tie to a chunk retrieved from here; numbers never come from retrieval.
+
+# hash      : deterministic feature hashing, no download, used by tests/CI and `make index` by default
+# fastembed : BAAI/bge-small-en-v1.5 via ONNX (pip install -e ".[rag]"); better recall, ~130 MB download
+# Override per run with OPTIONS_SCOUT_RAG_EMBEDDER=hash|fastembed.
+embedder: hash
+fastembed_model: BAAI/bge-small-en-v1.5
+hash_dimensions: 2048
+
+top_k: 6
+# A chunk is eligible only if its dense cosine similarity to the query reaches the floor for the
+# embedder in use; an empty result makes the Education agent answer with the fixed
+# "I don't have a source for that in my knowledge base." sentence instead of guessing.
+similarity_floor:
+  hash: 0.12
+  fastembed: 0.45
+rrf_k: 60                 # reciprocal-rank-fusion constant: score = Σ weight / (rrf_k + rank)
+
+# Heading-aware chunking: sections are split into windows of ≤ chunk_tokens tokens (≈ 0.75 words
+# per token) with `overlap` of each window repeated at the start of the next. chunk id = <doc_id>#<n>.
+chunk_tokens: 400
+overlap: 0.15
+
+knowledge_dir: knowledge          # concepts/, rules/, filings/ (Markdown + YAML front-matter)
+index_db: data/knowledge.sqlite   # rebuilt by `make index`; built lazily on first use if missing
+
+# Collections and their weight in the fused ranking (evidence is the per-run in-memory collection
+# of trend-scout posts and news, indexed by Market Intelligence in step 10.3).
+collections:
+  concepts: {weight: 1.0}
+  rules: {weight: 1.0}
+  filings: {weight: 0.8}
+  evidence: {weight: 1.0}
