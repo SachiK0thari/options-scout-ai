@@ -24,4 +24,5 @@ data/knowledge.sqlite
 .vscode/
 
 # superseded local copy of the build spec (kept private)
-stock-recommendation.md
+miscellaneous
+docs
