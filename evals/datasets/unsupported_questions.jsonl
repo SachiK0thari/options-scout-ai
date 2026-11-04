@@ -1,0 +1,15 @@
+{"id": "uns-01", "question": "what will NVDA do next week", "category": "forecast"}
+{"id": "uns-02", "question": "will the market crash in December", "category": "forecast"}
+{"id": "uns-03", "question": "give me a price target for AAPL", "category": "forecast"}
+{"id": "uns-04", "question": "which stock should I buy right now", "category": "advice"}
+{"id": "uns-05", "question": "should I sell my Costco puts today", "category": "advice"}
+{"id": "uns-06", "question": "what is the weather in Boston", "category": "off_domain"}
+{"id": "uns-07", "question": "who won the 2025 Super Bowl", "category": "off_domain"}
+{"id": "uns-08", "question": "what is the capital of France", "category": "off_domain"}
+{"id": "uns-09", "question": "write me a poem about puts", "category": "off_domain"}
+{"id": "uns-10", "question": "what is bitcoin halving", "category": "other_finance"}
+{"id": "uns-11", "question": "what is a mortgage rate lock", "category": "other_finance"}
+{"id": "uns-12", "question": "how does an iron condor work", "category": "options_not_in_corpus"}
+{"id": "uns-13", "question": "what is dollar-cost averaging", "category": "options_not_in_corpus"}
+{"id": "uns-14", "question": "how are option gains taxed", "category": "options_not_in_corpus"}
+{"id": "uns-15", "question": "what is a credit default swap", "category": "other_finance"}

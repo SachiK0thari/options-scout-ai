@@ -1,5 +1,8 @@
 """Hybrid retriever: dense cosine + BM25 fused by weighted reciprocal rank, with a ``kind`` filter
-and a dense similarity floor.
+and a dense similarity floor. With a lexical embedder (``hash``) a chunk must also share at least
+one content word with the query (``rag.require_shared_term``): a bag-of-words vector that shares no
+word can only clear the floor by hash collision, which is what made "what is the weather in Boston"
+cite the VIX document before the rule existed.
 
     python -m options_scout.rag.retriever "what is assignment" [--kind concepts] [--k 6]
 
@@ -71,12 +74,17 @@ class KnowledgeRetriever:
             return RetrievalResult(query=query, kind=kind, embedder=self.embedder.name, floor=floor)
         qvec = self.embedder.embed([query])[0]
         dense = self.store.dense_scores(qvec)
-        lexical = self._bm25_index(chunks).scores(query)
+        bm25 = self._bm25_index(chunks)
+        lexical = bm25.scores(query)
+        # lexical embedder: a chunk that shares no content word only matched by hash collision
+        shares = bm25.shares_term(query) if self.cfg.shared_term_required else None
 
         eligible = [
             i
             for i, c in enumerate(chunks)
-            if (kind is None or c.kind == kind) and float(dense[i]) >= floor
+            if (kind is None or c.kind == kind)
+            and float(dense[i]) >= floor
+            and (shares is None or bool(shares[i]))
         ]
         if not eligible:
             return RetrievalResult(query=query, kind=kind, embedder=self.embedder.name, floor=floor)

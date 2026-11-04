@@ -1,0 +1,40 @@
+{"id": "rag-01", "question": "what is a cash-secured put", "kind": "concepts", "doc_id": "cash-secured-put", "relevant_chunks": ["cash-secured-put#0"]}
+{"id": "rag-02", "question": "what is the breakeven of a cash-secured put at expiration", "kind": "concepts", "doc_id": "cash-secured-put", "relevant_chunks": ["cash-secured-put#2"]}
+{"id": "rag-03", "question": "what delta range does the CSP screener use", "kind": "concepts", "doc_id": "cash-secured-put", "relevant_chunks": ["cash-secured-put#4", "delta#3", "rules-3-3-csp-screener#1", "rules-3-3-csp-screener#2"]}
+{"id": "rag-04", "question": "what is assignment", "kind": "concepts", "doc_id": "assignment", "relevant_chunks": ["assignment#0"]}
+{"id": "rag-05", "question": "what happens to my account when a short put is assigned", "kind": "concepts", "doc_id": "assignment", "relevant_chunks": ["assignment#1"]}
+{"id": "rag-06", "question": "when does automatic exercise happen at expiration", "kind": "concepts", "doc_id": "assignment", "relevant_chunks": ["assignment#2"]}
+{"id": "rag-07", "question": "what is pin risk", "kind": "concepts", "doc_id": "assignment", "relevant_chunks": ["assignment#4"]}
+{"id": "rag-08", "question": "what does delta measure", "kind": "concepts", "doc_id": "delta", "relevant_chunks": ["delta#0"]}
+{"id": "rag-09", "question": "is delta the probability of finishing in the money", "kind": "concepts", "doc_id": "delta", "relevant_chunks": ["delta#2", "probability-otm#2"]}
+{"id": "rag-10", "question": "why would a call be exercised early before an ex-dividend date", "kind": "concepts", "doc_id": "early-assignment-dividends", "relevant_chunks": ["early-assignment-dividends#1", "extrinsic-value#4"]}
+{"id": "rag-11", "question": "why does this app exclude earnings dates from short puts", "kind": "concepts", "doc_id": "earnings-risk", "relevant_chunks": ["earnings-risk#2"]}
+{"id": "rag-12", "question": "what is the difference between intrinsic and extrinsic value", "kind": "concepts", "doc_id": "extrinsic-value", "relevant_chunks": ["extrinsic-value#0"]}
+{"id": "rag-13", "question": "why is extrinsic value the true cost of a deep in-the-money LEAPS", "kind": "concepts", "doc_id": "extrinsic-value", "relevant_chunks": ["extrinsic-value#2", "leaps#1"]}
+{"id": "rag-14", "question": "what is gamma", "kind": "concepts", "doc_id": "gamma", "relevant_chunks": ["gamma#0"]}
+{"id": "rag-15", "question": "why is hype a risk for short puts", "kind": "concepts", "doc_id": "hype-short-puts", "relevant_chunks": ["hype-short-puts#0", "hype-short-puts#1"]}
+{"id": "rag-16", "question": "how does this app contain the consumer-trend signal", "kind": "concepts", "doc_id": "hype-short-puts", "relevant_chunks": ["hype-short-puts#3"]}
+{"id": "rag-17", "question": "how is IV rank calculated", "kind": "concepts", "doc_id": "iv-rank", "relevant_chunks": ["iv-rank#1"]}
+{"id": "rag-18", "question": "what is the difference between IV rank and IV percentile", "kind": "concepts", "doc_id": "iv-rank", "relevant_chunks": ["iv-rank#1", "iv-rank#2"]}
+{"id": "rag-19", "question": "why does the app use an HV proxy when IV history is missing", "kind": "concepts", "doc_id": "iv-rank", "relevant_chunks": ["iv-rank#4"]}
+{"id": "rag-20", "question": "what are LEAPS", "kind": "concepts", "doc_id": "leaps", "relevant_chunks": ["leaps#0"]}
+{"id": "rag-21", "question": "why buy a deep in-the-money LEAPS call", "kind": "concepts", "doc_id": "leaps", "relevant_chunks": ["leaps#1"]}
+{"id": "rag-22", "question": "what is the bid-ask spread and why does it matter", "kind": "concepts", "doc_id": "liquidity", "relevant_chunks": ["liquidity#1"]}
+{"id": "rag-23", "question": "what is open interest", "kind": "concepts", "doc_id": "liquidity", "relevant_chunks": ["liquidity#2"]}
+{"id": "rag-24", "question": "what is a naked put on margin", "kind": "concepts", "doc_id": "naked-put-margin", "relevant_chunks": ["naked-put-margin#0"]}
+{"id": "rag-25", "question": "how is the Reg T margin requirement for a short put computed", "kind": "concepts", "doc_id": "reg-t-margin", "relevant_chunks": ["reg-t-margin#1", "naked-put-margin#2", "rules-3-6-formulas#1"]}
+{"id": "rag-26", "question": "what is the difference between a call and a put", "kind": "concepts", "doc_id": "options-basics", "relevant_chunks": ["options-basics#1"]}
+{"id": "rag-27", "question": "what does in the money and out of the money mean", "kind": "concepts", "doc_id": "options-basics", "relevant_chunks": ["options-basics#3"]}
+{"id": "rag-28", "question": "what is a poor man's covered call", "kind": "concepts", "doc_id": "pmcc", "relevant_chunks": ["pmcc#0"]}
+{"id": "rag-29", "question": "what is the PMCC safety rule", "kind": "concepts", "doc_id": "pmcc", "relevant_chunks": ["pmcc#2", "rules-3-5-pmcc-rules#1"]}
+{"id": "rag-30", "question": "where does probability OTM come from", "kind": "concepts", "doc_id": "probability-otm", "relevant_chunks": ["probability-otm#1"]}
+{"id": "rag-31", "question": "how does the quality gate work", "kind": "concepts", "doc_id": "quality-gate", "relevant_chunks": ["quality-gate#0", "quality-gate#2"]}
+{"id": "rag-32", "question": "how is the quality score computed", "kind": "concepts", "doc_id": "quality-gate", "relevant_chunks": ["quality-gate#3", "rules-3-7-quality-gate#4"]}
+{"id": "rag-33", "question": "what does rolling an option mean", "kind": "concepts", "doc_id": "rolling", "relevant_chunks": ["rolling#0"]}
+{"id": "rag-34", "question": "what is theta", "kind": "concepts", "doc_id": "theta", "relevant_chunks": ["theta#0"]}
+{"id": "rag-35", "question": "what is vega and who is short volatility", "kind": "concepts", "doc_id": "vega", "relevant_chunks": ["vega#0", "vega#1"]}
+{"id": "rag-36", "question": "what is volatility crush around earnings", "kind": "concepts", "doc_id": "vega", "relevant_chunks": ["vega#2"]}
+{"id": "rag-37", "question": "how is the volatility regime defined from the VIX percentile", "kind": "concepts", "doc_id": "volatility-regime", "relevant_chunks": ["volatility-regime#2"]}
+{"id": "rag-38", "question": "how is buying power allocated for a conservative profile", "kind": "rules", "doc_id": "rules-3-1-allocation", "relevant_chunks": ["rules-3-1-allocation#1", "rules-3-1-allocation#2"]}
+{"id": "rag-39", "question": "what are the portfolio risk constraints", "kind": "rules", "doc_id": "rules-3-2-constraints", "relevant_chunks": ["rules-3-2-constraints#1", "rules-3-2-constraints#2"]}
+{"id": "rag-40", "question": "what price and volume thresholds does the quality gate use", "kind": "rules", "doc_id": "rules-3-7-quality-gate", "relevant_chunks": ["rules-3-7-quality-gate#3", "quality-gate#2"]}

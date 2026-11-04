@@ -1,9 +1,12 @@
-"""Evaluation suite (section 11). Writes evals/reports/latest.md with honest, measured numbers.
+"""Evaluation suite (sections 11.1–11.3a). Writes evals/reports/latest.md with honest, measured numbers.
 
-Runs offline by default. LLM-backed variants of the extraction / profile / judge evals run only
-when an LLM key is set (OPENROUTER_API_KEY or ANTHROPIC_API_KEY, matching config/settings.yaml
-``llm.provider``); otherwise the report says so and
-the deterministic (rule-based) implementations are what gets measured.
+Runs offline by default. LLM-backed variants of the extraction / profile / routing / judge evals
+run only when an LLM key is set (OPENROUTER_API_KEY or ANTHROPIC_API_KEY, matching
+config/settings.yaml ``llm.provider``); otherwise the report says so and the deterministic
+(rule-based) implementations are what gets measured. The fastembed retrieval row runs only when
+the optional ``rag`` extra is installed. Step 10.8 added the 11.3a rows (retrieval quality,
+citation faithfulness, unsupported-question refusal, compliance on chat) and the full test suite
+with coverage, so one ``make eval`` produces every number the README quotes.
 """
 
 from __future__ import annotations
@@ -16,6 +19,7 @@ import subprocess
 import sys
 import time
 import unicodedata
+import xml.etree.ElementTree as ET
 from dataclasses import dataclass, field
 from datetime import UTC, datetime
 from pathlib import Path
@@ -23,18 +27,29 @@ from typing import Any
 
 ROOT = Path(__file__).resolve().parents[1]
 sys.path.insert(0, str(ROOT / "src"))
+os.environ.setdefault("OPTIONS_SCOUT_LOG_LEVEL", "WARNING")  # the graph runs below are chatty
 
+from options_scout.agent.chat import ChatSession  # noqa: E402
 from options_scout.agent.deps import Deps  # noqa: E402
-from options_scout.agent.graph import build_graph, initial_state, stream_run, thread_config  # noqa: E402
+from options_scout.agent.graph import (  # noqa: E402
+    build_graph,
+    initial_state,
+    question_state,
+    stream_run,
+    thread_config,
+)
 from options_scout.config import load_config, load_env  # noqa: E402
 from options_scout.core.compliance import (  # noqa: E402
     BANNED_PHRASES,
+    CANDIDATE_ID,
     check_citations,
     check_education_only,
     check_language,
     suitability_problems,
 )
 from options_scout.core.models import (  # noqa: E402
+    NO_SOURCE_SENTENCE,
+    SOURCE_TAG,
     Citation,
     Narrative,
     SocialPost,
@@ -42,9 +57,17 @@ from options_scout.core.models import (  # noqa: E402
 )
 from options_scout.llm.client import LLMClient  # noqa: E402
 from options_scout.llm.rules import RuleBasedExtractor, rule_parse_profile, rule_route  # noqa: E402
+from options_scout.rag.chunking import chunk_documents  # noqa: E402
+from options_scout.rag.corpus import load_corpus  # noqa: E402
+from options_scout.rag.embeddings import make_embedder  # noqa: E402
+from options_scout.rag.retriever import KnowledgeRetriever, chunk_params  # noqa: E402
+from options_scout.rag.store import KnowledgeStore  # noqa: E402
 from options_scout.social.adapters.sec import SECAdapter  # noqa: E402
 from options_scout.social.pipeline import TrendStore  # noqa: E402
 from options_scout.social.resolution import BrandMap, Resolver  # noqa: E402
+
+COVERED_PACKAGES = ("core", "rag", "agent")  # the step 10.8 coverage target applies to these
+COVERAGE_TARGET = 85.0
 
 DATASETS = ROOT / "evals" / "datasets"
 REPORTS = ROOT / "evals" / "reports"
@@ -79,26 +102,98 @@ def _norm(s: str) -> str:
     return "".join(ch for ch in s if ch.isalnum())
 
 
-# ---------------------------------------------------------------- 11.1 deterministic tests
-def eval_deterministic(res: Results) -> None:
+# ------------------------------------------------- 11.1 deterministic tests + coverage (10.8)
+def _junit_counts(path: Path, prefix: str) -> dict[str, int]:
+    counts = {"passed": 0, "failed": 0, "skipped": 0}
+    if not path.exists():
+        return counts
+    for case in ET.parse(path).iter("testcase"):
+        if not (case.get("classname") or "").startswith(prefix):
+            continue
+        tags = {child.tag for child in case}
+        if tags & {"failure", "error"}:
+            counts["failed"] += 1
+        elif "skipped" in tags:
+            counts["skipped"] += 1
+        else:
+            counts["passed"] += 1
+    return counts
+
+
+def _summary(c: dict[str, int]) -> str:
+    out = f"{c['passed']} passed"
+    if c["failed"]:
+        out += f", {c['failed']} failed"
+    if c["skipped"]:
+        out += f", {c['skipped']} skipped"
+    return out
+
+
+def coverage_of(data: dict[str, Any], packages: tuple[str, ...]) -> float:
+    """Line coverage (%) over ``src/options_scout/<package>/`` for the given packages."""
+    covered = statements = 0
+    for file, info in data["files"].items():
+        norm = file.replace("\\", "/")
+        if any(f"/options_scout/{pkg}/" in norm for pkg in packages):
+            covered += info["summary"]["covered_lines"]
+            statements += info["summary"]["num_statements"]
+    return 100.0 * covered / statements if statements else 0.0
+
+
+def eval_tests_and_coverage(res: Results, tmp: Path) -> None:
+    """One run of the whole offline suite under ``pytest --cov``: the 11.1 row (tests/unit), the
+    suite row and the step 10.8 coverage target on core/, rag/, agent/."""
     t0 = time.time()
+    cov_json, junit = tmp / "coverage.json", tmp / "junit.xml"
     proc = subprocess.run(
-        [sys.executable, "-m", "pytest", "tests/unit", "-p", "no:cacheprovider"],
+        [
+            sys.executable,
+            "-m",
+            "pytest",
+            "-p",
+            "no:cacheprovider",
+            "--cov=options_scout",
+            f"--cov-report=json:{cov_json}",
+            f"--junitxml={junit}",
+        ],
         cwd=ROOT,
         capture_output=True,
         text=True,
         check=False,
+        env={**os.environ, "COVERAGE_FILE": str(tmp / ".coverage")},
     )
-    m = re.search(r"(\d+ passed.*|\d+ failed.*|\d+ errors?.*)", proc.stdout)
-    summary = m.group(1).strip() if m else proc.stdout.strip()[-200:] or proc.stderr[-200:]
-    status = "PASS" if proc.returncode == 0 else "FAIL"
+    elapsed = time.time() - t0
+    unit, suite = _junit_counts(junit, "tests.unit"), _junit_counts(junit, "tests")
+    ok = proc.returncode == 0
     res.add(
         "11.1 Deterministic",
         "Golden-value + property tests (tests/unit)",
-        summary,
+        _summary(unit) if unit["passed"] else (proc.stdout.strip()[-200:] or proc.stderr[-200:]),
         "all pass",
-        status,
-        f"{time.time() - t0:.1f}s",
+        "PASS" if ok and unit["failed"] == 0 else "FAIL",
+    )
+    res.add(
+        "Quality",
+        "Offline test suite (unit + agent + API + UI + MCP)",
+        _summary(suite),
+        "all pass",
+        "PASS" if ok else "FAIL",
+        f"{elapsed:.0f}s",
+    )
+    if not cov_json.exists():
+        res.add(
+            "Quality", "Line coverage on core/, rag/, agent/", "n/a", "≥ 85%", "FAIL", "no report"
+        )
+        return
+    data = json.loads(cov_json.read_text(encoding="utf-8"))
+    cov = coverage_of(data, COVERED_PACKAGES)
+    res.add(
+        "Quality",
+        "Line coverage on core/, rag/, agent/ (pytest --cov, same run)",
+        f"{cov:.1f}%",
+        f"≥ {COVERAGE_TARGET:.0f}%",
+        "PASS" if cov >= COVERAGE_TARGET else "FAIL",
+        f"whole package {data['totals']['percent_covered']:.1f}%",
     )
 
 
@@ -343,9 +438,7 @@ REQUESTS = [
 ]
 
 
-def eval_agent(res: Results, cfg: Any, tmp: Path) -> None:
-    deps = Deps.from_config(cfg)
-    deps.trend_store = TrendStore(tmp / "trends.sqlite")
+def eval_agent(res: Results, cfg: Any, deps: Deps) -> None:
     graph = build_graph(deps)
     grounded = checked = 0
     first_pass = 0
@@ -601,6 +694,216 @@ def eval_routing(res: Results, llm: LLMClient | None) -> None:
     )
 
 
+# ------------------------------------------------------- 11.3a retrieval quality (10.8)
+def _retriever_for(cfg: Any, embedder_name: str, tmp: Path) -> KnowledgeRetriever:
+    """Index the committed corpus with one embedder into a temporary store."""
+    rag = cfg.rag.model_copy(
+        update={"embedder": embedder_name, "index_db": tmp / f"knowledge-{embedder_name}.sqlite"}
+    )
+    embedder = make_embedder(rag)
+    chunks = chunk_documents(load_corpus(rag.knowledge_dir), chunk_params(rag))
+    store = KnowledgeStore(rag.index_db)
+    store.rebuild(chunks, embedder)
+    return KnowledgeRetriever(store, embedder, rag)
+
+
+def eval_retrieval(res: Results, cfg: Any, tmp: Path) -> None:
+    rows = _jsonl(DATASETS / "rag_questions.jsonl")
+
+    def score(embedder_name: str, target: float, label: str) -> None:
+        retriever = _retriever_for(cfg, embedder_name, tmp)
+        hits = doc_hits = 0
+        rr = 0.0
+        misses: list[str] = []
+        for row in rows:
+            result = retriever.retrieve(row["question"])
+            ids = [h.chunk.id for h in result.hits]
+            rank = next((i for i, c in enumerate(ids, 1) if c in row["relevant_chunks"]), None)
+            if rank is not None:
+                hits += 1
+                rr += 1.0 / rank
+            else:
+                misses.append(row["id"])
+            doc_hits += int(row["doc_id"] in {h.chunk.doc_id for h in result.hits})
+        n = len(rows)
+        k = retriever.cfg.top_k
+        res.add(
+            "11.3a Retrieval",
+            f"Retrieval quality: recall@{k} on {n} labelled questions ({label})",
+            f"{hits / n:.2f} ({hits}/{n}) · MRR {rr / n:.2f}",
+            f"recall@{k} ≥ {target:.2f}",
+            "PASS" if hits / n >= target else "FAIL",
+            f"document-level recall {doc_hits}/{n}; chunk misses: {', '.join(misses) or 'none'}",
+        )
+
+    score("hash", 0.70, "hash embedder, CI default")
+    try:
+        import fastembed  # noqa: F401
+    except ImportError:
+        res.add(
+            "11.3a Retrieval",
+            "Retrieval quality: recall@6 (fastembed bge-small-en-v1.5)",
+            "n/a",
+            "recall@6 ≥ 0.85",
+            "NOT RUN",
+            "optional extra not installed: pip install -e '.[rag]' (downloads the model)",
+        )
+    else:
+        score("fastembed", 0.85, "fastembed bge-small-en-v1.5")
+
+
+# ------------------------------------- 11.3a citation faithfulness + refusal (10.8)
+def _ask(graph: Any, question: str, thread: str) -> dict[str, Any]:
+    """Education → Compliance on one question; refuses to return text without an audit entry."""
+    for _ in stream_run(graph, question_state(question), thread):
+        pass
+    values: dict[str, Any] = dict(graph.get_state(thread_config(thread)).values)
+    if values.get("compliance") is None or not values.get("audit_log"):
+        raise RuntimeError(f"answer without a ComplianceReport for {question!r}")
+    return values
+
+
+def eval_education(res: Results, cfg: Any, deps: Deps) -> None:
+    graph = build_graph(deps)
+    label = (
+        f"LLM {deps.llm.models.explanation_model}" if deps.llm.is_live else "rule-based answerer"
+    )
+    rows = _jsonl(DATASETS / "rag_questions.jsonl")
+    tags_total = tags_ok = edu_total = edu_cited = passed = refused = 0
+    for i, row in enumerate(rows):
+        v = _ask(graph, row["question"], f"eval-cite-{i}")
+        answer: Narrative = v["answer"]
+        n_sources = len(v.get("sources") or [])
+        for tag in answer.tags:
+            tags_total += 1
+            tags_ok += int(0 < int(tag[1:]) <= n_sources)
+        for p in answer.paragraphs:
+            if p.mode == "education":
+                edu_total += 1
+                edu_cited += int(bool(p.citations) or bool(re.search(SOURCE_TAG, p.text)))
+        passed += int(v["compliance"].passed)
+        refused += int(answer.markdown.startswith(NO_SOURCE_SENTENCE))
+    res.add(
+        "11.3a Citations",
+        f"Citation faithfulness: cited [Sn] tags that exist in the retrieved set ({label})",
+        f"{tags_ok}/{tags_total}",
+        "100%",
+        "PASS" if tags_total and tags_ok == tags_total else "FAIL",
+        f"over {len(rows)} answers",
+    )
+    res.add(
+        "11.3a Citations",
+        f"Citation faithfulness: education paragraphs carrying a citation ({label})",
+        f"{edu_cited}/{edu_total}",
+        "100%",
+        "PASS" if edu_total and edu_cited == edu_total else "FAIL",
+    )
+    res.add(
+        "11.3a Citations",
+        f"Answers to the {len(rows)} questions passing Compliance",
+        f"{passed}/{len(rows)}",
+        "100%",
+        "PASS" if passed == len(rows) else "FAIL",
+        f"{refused} answered with the no-source sentence",
+    )
+    res.add(
+        "11.3a Citations",
+        "LLM-judge: claim supported by the quoted chunk (20-sample subset)",
+        "n/a",
+        "report",
+        "NOT RUN",
+        "judge pass not implemented: needs the 20 human-rated samples to report agreement against",
+    )
+
+    # unsupported questions: the Education path must answer with the fixed no-source sentence
+    uns = _jsonl(DATASETS / "unsupported_questions.jsonl")
+    refused = 0
+    answered: list[str] = []
+    for i, row in enumerate(uns):
+        v = _ask(graph, row["question"], f"eval-uns-{i}")
+        text = v["answer"].markdown
+        ok = (
+            text.startswith(NO_SOURCE_SENTENCE)
+            and not CANDIDATE_ID.search(text)
+            and v["compliance"].passed
+        )
+        refused += int(ok)
+        if not ok:
+            docs = sorted({c.doc_id for c in (v.get("sources") or [])})
+            answered.append(f"{row['id']} ({row['question']}) quoted {', '.join(docs)}")
+    # The target binds the LLM answerer, which is instructed to refuse when the sources do not
+    # answer. The rule-based stand-in cannot judge relevance: with the lexical hash embedder it
+    # quotes any document that shares content words with the question, so its number is reported
+    # (INFO) rather than graded; docs/rag.md states this limit.
+    if refused == len(uns):
+        status = "PASS"
+    else:
+        status = "FAIL" if deps.llm.is_live else "INFO"
+    res.add(
+        "11.3a Refusal",
+        f"Unsupported-question refusal: fixed no-source sentence, no speculation "
+        f"({cfg.rag.embedder} embedder, {label})",
+        f"{refused}/{len(uns)}",
+        "100% (LLM answerer); report (rule-based)",
+        status,
+        "; ".join(answered) or "every question refused",
+    )
+    session = ChatSession(deps)
+    handled = 0
+    for i, row in enumerate(uns):
+        r = session.send(f"eval-uns-chat-{i}", row["question"])
+        handled += int(r.turn.intent == "off_topic" or NO_SOURCE_SENTENCE in r.turn.text)
+    res.add(
+        "11.3a Refusal",
+        "Unsupported questions refused or redirected when asked through the chat router",
+        f"{handled}/{len(uns)}",
+        "report",
+        "INFO",
+        "off_topic redirect or the no-source sentence",
+    )
+
+
+# ----------------------------------------------------------- 11.3a compliance on chat (10.8)
+CHAT_SCRIPT: list[tuple[str, Any]] = [
+    (
+        "send",
+        "I have $100,000 of buying power in a margin account. Show me CSPs and LEAPS/PMCC ideas. "
+        "I like COST, NKE and ELF.",
+    ),
+    ("resume", {"risk_profile": "balanced"}),
+    ("send", "Why was ELF excluded?"),
+    ("send", "What is assignment?"),
+    ("send", "What if I only had 30k?"),
+    ("send", "What's the weather in Paris?"),
+]
+
+
+def eval_chat(res: Results, deps: Deps) -> None:
+    """The scripted six-turn conversation of tests/agent/test_chat.py: every assistant turn must
+    carry a passing ComplianceReport with an audit id."""
+    session = ChatSession(deps)
+    thread = "eval-chat"
+    for kind, arg in CHAT_SCRIPT:
+        if kind == "send":
+            session.send(thread, arg)
+        else:
+            session.resume(thread, arg)
+    turns = [h for h in session.history(thread) if h.role == "assistant"]
+    ok = sum(
+        1
+        for h in turns
+        if h.compliance is not None and h.compliance.passed and h.compliance.audit_id
+    )
+    res.add(
+        "11.3a Conversation",
+        "Compliance on chat: assistant turns carrying a passing ComplianceReport (6-turn script)",
+        f"{ok}/{len(turns)}",
+        "100%",
+        "PASS" if turns and ok == len(turns) else "FAIL",
+        "intents: " + ", ".join(h.intent or "-" for h in turns),
+    )
+
+
 def eval_judge(res: Results, llm: LLMClient | None) -> None:
     if llm is None or not llm.is_live:
         res.add(
@@ -625,7 +928,7 @@ def write_report(res: Results, cfg: Any, llm_label: str) -> Path:
         f"_Generated {now:%Y-%m-%d %H:%M UTC} · data mode `{cfg.settings.data_mode}` · LLM: {llm_label}_",
         "",
         "Numbers below were measured by `make eval` on this machine. Rows marked **NOT RUN** need a live "
-        "LLM key and are reported as such rather than estimated.",
+        "LLM key (or the optional `fastembed` extra) and are reported as such rather than estimated.",
         "",
         "| Section | Metric | Result | Target | Status | Detail |",
         "|---|---|---|---|---|---|",
@@ -671,15 +974,21 @@ def main() -> int:
             llm = None
     import tempfile
 
-    with tempfile.TemporaryDirectory() as tmp:
-        eval_deterministic(res)
+    with tempfile.TemporaryDirectory() as tmp_dir:
+        tmp = Path(tmp_dir)
+        deps = Deps.from_config(cfg)
+        deps.trend_store = TrendStore(tmp / "trends.sqlite")
+        eval_tests_and_coverage(res, tmp)
         eval_extraction(res, cfg, llm)
         eval_resolution(res, cfg)
         eval_profile(res, cfg, llm)
         eval_injection(res, cfg, llm)
-        eval_agent(res, cfg, Path(tmp))
+        eval_agent(res, cfg, deps)
         eval_compliance(res, cfg)
         eval_routing(res, llm)
+        eval_retrieval(res, cfg, tmp)
+        eval_education(res, cfg, deps)
+        eval_chat(res, deps)
         eval_judge(res, llm)
     path = write_report(res, cfg, llm_label)
     print(path.read_text(encoding="utf-8"))

@@ -165,3 +165,29 @@ def test_from_config_openrouter_mode_is_live_with_key(
     assert client.is_live and client.provider.name == "openrouter"
     assert client.models.extraction_model == MODEL
     assert client.mode == "live"
+
+
+def test_strict_json_schema_requires_every_property_and_keeps_null() -> None:
+    """Step 10.8: the profile-parsing eval found the model omitting defaulted fields; strict mode
+    needs every property listed as required (null stays allowed) and no extra keys anywhere."""
+    from options_scout.core.models import ProfileParse
+    from options_scout.llm.client import strict_json_schema
+
+    schema = strict_json_schema(ProfileParse.model_json_schema())
+    assert set(schema["required"]) == set(schema["properties"])
+    assert schema["additionalProperties"] is False
+    account = schema["properties"]["account_type"]
+    assert {"type": "null"} in account["anyOf"]  # unknown is an explicit null, never a missing key
+    nested = strict_json_schema(
+        {
+            "type": "object",
+            "properties": {
+                "items": {
+                    "type": "array",
+                    "items": {"type": "object", "properties": {"a": {"type": "string"}}},
+                }
+            },
+        }
+    )
+    inner = nested["properties"]["items"]["items"]
+    assert inner["required"] == ["a"] and inner["additionalProperties"] is False

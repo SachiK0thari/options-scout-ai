@@ -4,7 +4,7 @@ UV        ?= uv
 PORT_API  ?= 8000
 PORT_UI   ?= 8501
 
-.PHONY: help install test test-live lint fmt eval api ui mcp demo demo-core index clean check
+.PHONY: help install test test-cov test-live lint fmt eval api ui mcp demo demo-core index clean check
 
 help:
 	@grep -E '^[a-zA-Z_-]+:.*?## ' $(MAKEFILE_LIST) | awk 'BEGIN {FS = ":.*?## "}; {printf "  %-12s %s\n", $$1, $$2}'
@@ -17,6 +17,10 @@ install: ## create .venv and install all deps (uv)
 
 test: ## unit + agent tests (offline, fixtures only)
 	$(PY) -m pytest
+
+test-cov: ## offline tests with coverage; fails below 85% on core/, rag/, agent/ (COV_ARGS="--cov-report=xml" in CI)
+	$(PY) -m pytest --cov=options_scout --cov-report=term-missing:skip-covered $(COV_ARGS)
+	$(PY) -m coverage report --include='src/options_scout/core/*,src/options_scout/rag/*,src/options_scout/agent/*' --skip-covered --fail-under=85
 
 test-live: ## integration tests that hit the network
 	$(PY) -m pytest -m live --override-ini="addopts=-q --strict-markers"
@@ -32,7 +36,7 @@ fmt: ## auto-format
 
 check: lint test ## lint + test
 
-eval: ## run the eval suite, write evals/reports/latest.md
+eval: ## run the eval suite (incl. the full test suite with coverage), write evals/reports/latest.md
 	$(PY) evals/run_evals.py
 
 api: ## FastAPI on :8000

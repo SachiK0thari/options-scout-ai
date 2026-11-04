@@ -276,6 +276,18 @@ def test_floor_returns_empty_for_unrelated_queries(retriever: KnowledgeRetriever
         assert "no chunks above the similarity floor" in format_result(result) or q == ""
 
 
+def test_lexical_embedder_needs_a_shared_content_word(retriever: KnowledgeRetriever) -> None:
+    """Step 10.8: no word of the question occurs anywhere in the corpus, so with the hash embedder
+    any cosine above the floor is collision noise and the retriever must return nothing (the
+    Education agent then answers with the fixed no-source sentence)."""
+    assert retriever.cfg.embedder == "hash" and retriever.cfg.shared_term_required
+    for q in ("what is the weather in Boston", "how does an iron condor work"):
+        result = retriever.retrieve(q)
+        assert result.empty, format_result(result)
+    # a question that does share content words is unaffected
+    assert not retriever.retrieve("what is assignment").empty
+
+
 def test_kind_filter_is_respected(retriever: KnowledgeRetriever) -> None:
     for kind in ("concepts", "rules", "filings"):
         result = retriever.retrieve("volatility risk", kind=kind)  # type: ignore[arg-type]

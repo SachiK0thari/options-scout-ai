@@ -1,14 +1,18 @@
 # OptionsScout AI
 
-**Type in your buying power, pick cash-secured puts, LEAPS or both, and get option candidates on good-to-own stocks only, sized to your account, under explicit risk limits, with every number computed by tested Python and the LLM only writing the explanation.**
+[![CI](https://github.com/SachiK0thari/options-scout-ai/actions/workflows/ci.yml/badge.svg)](https://github.com/SachiK0thari/options-scout-ai/actions/workflows/ci.yml)
+[![coverage](https://img.shields.io/badge/coverage-94.7%25_on_core%2C_rag%2C_agent-brightgreen)](evals/reports/latest.md)
+[![licence](https://img.shields.io/badge/licence-MIT-blue)](LICENSE)
+
+**Six specialist agents and a Compliance agent, composed as LangGraph subgraphs, screen cash-secured puts and LEAPS on good-to-own stocks, size them to your buying power under explicit risk limits, and explain the result in a chat where every sentence is cited from a knowledge base and checked before you see it.** Market Data, Market Intelligence, Strategy, Portfolio and Risk compute every number in tested Python; the Education agent writes only from those numbers and from retrieved, cited sources; the Compliance agent runs eight deterministic checks (grounded numbers, resolving citations, no advice language, suitability for the account, disclaimer) on every LLM-written string and is the only path to the user. You can describe your situation in plain English, confirm the parsed profile, ask *why was Nike excluded*, *what is assignment* or *what if I only had 30k*, and get a compliance-checked, cited answer each time. The same engine is exposed as an MCP server for Claude Desktop.
 
 > Educational screening tool. Not investment, tax or legal advice. Options involve significant risk, including loss exceeding the premium received on margin. Data may be delayed or inaccurate. The app never places trades and never connects to a brokerage.
 
-Data handling (market data, Reddit, X, keys, logs): [PRIVACY.md](PRIVACY.md). Licence: [MIT](LICENSE).
+Data handling (market data, Reddit, X, keys, logs): [PRIVACY.md](PRIVACY.md). Licence: [MIT](LICENSE). How the rubric lines map to features and tests: [PRD.md section 18](PRD.md#18-rubric-map-read-side-by-side-with-the-brief).
 
-_Demo GIF: not recorded yet. `make demo` prints the full report in about one second; `make ui` opens the eight-tab app (screenshots below)._
+_Demo GIF: not recorded yet ([script](docs/demo-video-script.md)). `make demo` prints the full report in about a second; `make ui` opens the eight-tab app (screenshots below)._
 
-## How it works in one paragraph
+## The screen in one paragraph
 
 The universe is a **curated list of ~30 good-to-own names** (large, profitable companies with long dividend records or dominant franchises, plus SPY and QQQ) in [`config/quality_universe.yaml`](config/quality_universe.yaml). On every run each ticker, including any you add, must pass a **deterministic quality gate**: price ≥ $20, average volume ≥ 1M, 30-day realised volatility ≤ 35%, implied volatility ≤ 45%, and no more than 20% below its 90-day high. Whatever fails is listed with the reason and never reaches the option screeners. Survivors get a quality score that carries 35% of the final ranking; the option's own economics carry 50% and the consumer-trend signal 15%. A second market-intelligence signal, **bottleneck arbitrage** (shortages in the supply chain behind a large theme, read from filings, price series and trade news), is specified in [bottleneck-arbitrage.md](bottleneck-arbitrage.md) and PRD §4A / Phase 11; it is not built yet and will share the same 15% cap. The ranker lists at most two contracts per ticker and strategy, so one liquid ETF chain cannot crowd out the rest of the universe. Buying power is split by risk profile, buckets for strategies you did not ask for are held as cash, and positions are sized greedily under six portfolio constraints with a −10/−20/−30% stress test. Prices come from bundled fixtures or **your own MarketData.app token or Tradier API key pasted into the page** (used for that run only, never stored).
 
@@ -17,21 +21,22 @@ The universe is a **curated list of ~30 good-to-own names** (large, profitable c
 ## Quickstart (fixture mode, no API keys)
 
 ```bash
-git clone <this repo> && cd options-scout-ai
-make install          # uv venv + pinned deps (Python 3.11+)
+git clone https://github.com/SachiK0thari/options-scout-ai.git && cd options-scout-ai
+make install          # uv venv + pinned deps (Python 3.11+), installs the [dev,mcp] extras
+make index            # build the cited knowledge base (data/knowledge.sqlite) offline, < 1 s
 make demo             # full agent run on bundled market + social fixtures, prints a Markdown report
 make demo ARGS="--strategy csp --account cash --risk conservative --buying-power 50000"
 make demo ARGS="--no-llm"   # same, with the LLM steps replaced by deterministic stand-ins
 make demo ARGS="--ask 'what is a cash-secured put'"   # cited answer from the knowledge base, via Compliance
 make demo-core        # screeners + sizing + risk for every risk profile × account type
-make index            # build the cited knowledge base (data/knowledge.sqlite) offline, < 1 s
 make ui               # eight-tab Streamlit app on :8501: chat on Scout, form on Setup, results, Learn, Trends, trace
 make api              # FastAPI on :8000  (POST /v1/recommend → GET /v1/runs/{id}/stream → /report; POST /v1/chat)
 make mcp              # MCP server over stdio: the six tools + knowledge:// resources for Claude Desktop
 make test lint eval   # offline tests, ruff + mypy --strict, evaluation suite → evals/reports/latest.md
+make test-cov         # the tests with coverage; fails below 85% on core/, rag/, agent/
 ```
 
-Everything above runs offline: market data comes from fixtures recorded live on 2026-10-27 for ten tickers, the social corpus is a deterministic synthetic Reddit/X/Wikipedia/Google Trends/news bundle, and LLM calls are replayed or replaced. Set `OPTIONS_SCOUT_DATA_MODE=live` and `OPTIONS_SCOUT_LLM_MODE=live` in `.env` to use real sources; the LLM provider is `llm.provider` in `config/settings.yaml` (default `openrouter` → DeepSeek V4.1 Flash with `OPENROUTER_API_KEY`; `anthropic` → Claude with `ANTHROPIC_API_KEY`).
+Everything above runs offline: market data comes from fixtures recorded live on 2026-10-27 for ten tickers, the social corpus is a deterministic synthetic Reddit/X/Wikipedia/Google Trends/news bundle, the knowledge base is indexed with a deterministic hash embedder, and LLM calls are replayed or replaced by rule-based stand-ins. Set `OPTIONS_SCOUT_DATA_MODE=live` and `OPTIONS_SCOUT_LLM_MODE=live` in `.env` to use real sources; the LLM provider is `llm.provider` in `config/settings.yaml` (default `openrouter` → DeepSeek V4.1 Flash with `OPENROUTER_API_KEY`; `anthropic` → Claude with `ANTHROPIC_API_KEY`). `pip install -e ".[rag]"` and `OPTIONS_SCOUT_RAG_EMBEDDER=fastembed` switch the knowledge base to semantic embeddings.
 
 ### Consumer-trend sources
 
@@ -69,51 +74,52 @@ The second signal follows the ten-step method in [bottleneck-arbitrage.md](bottl
 
 ## Architecture
 
-Six specialist agents plus a Compliance agent, each a compiled LangGraph subgraph with its own state slice, composed by a parent graph ([`src/options_scout/agent/agents/`](src/options_scout/agent/agents/), PRD section 5.0). Every LLM-written string reaches the user only through Compliance.
+Six specialist agents plus a Compliance agent, each a compiled LangGraph subgraph with its own state slice, tools, prompts and tests, composed by a parent graph ([`src/options_scout/agent/agents/`](src/options_scout/agent/agents/), PRD section 5.0). One page per agent, with inputs, outputs, tools, prompts and the tests that cover it: [docs/architecture.md](docs/architecture.md).
 
 ```mermaid
 flowchart TD
-    U[User · form or chat] --> O[Orchestrator<br/>intake · human_review interrupt]
-    O --> MI[2 · Market Intelligence<br/>trend_scout: consumer-trend scores<br/>bottleneck_scout: Phase 11]
-    MI --> MD[1 · Market Data<br/>regime · universe · market_data per ticker via Send<br/>+ good-to-own quality gate]
-    MD --> ST[3 · Strategy<br/>screener: CSP / LEAPS / PMCC · ranker]
+    U[User · chat or form] --> O[Orchestrator<br/>route · intake · human_review]
+    O -->|new_screen / refine_profile| MI[2 · Market Intelligence<br/>trend_scout · evidence_retrieval]
+    MI --> MD[1 · Market Data<br/>regime · universe · market_data ×N via Send<br/>+ good-to-own quality gate]
+    MD --> ST[3 · Strategy<br/>screener · ranker]
     ST --> PF[4 · Portfolio<br/>allocator · sizing]
-    PF --> RK[5 · Risk<br/>constraints · stress tests]
+    PF --> RK[5 · Risk<br/>constraints · stress · suitability facts]
     RK -->|fail, retries ≤ 3| PF
-    RK --> ED[6 · Education<br/>explainer: narrative from computed data only]
-    ED --> CP[Compliance<br/>numeric grounding · banned language · disclaimer]
+    RK --> ED[6 · Education<br/>knowledge_retrieval · explainer · concept_answer]
+    O -->|concept / why| ED
+    O -->|what_if / off_topic| CP
+    ED --> CP[Compliance<br/>eight checks · audit log]
     CP -->|fail, retries ≤ 2| ED
-    CP -->|pass| R[report_node<br/>final JSON + Markdown]
+    CP -->|pass, report| R[report_node<br/>ScreeningReport JSON + Markdown]
+    CP -->|pass, answer| A[chat reply / concept answer]
 ```
 
-Market Intelligence runs before Market Data because the universe node orders the curated list by trend score. Inside the specialists the Phase 9 nodes are unchanged: `intake_node → trend_scout_node → regime_node → universe_node → market_data_node×N → screener_node → ranker_node → allocator_node → sizing_node → risk_node → explainer_node → compliance_node → report_node`.
+Market Intelligence runs before Market Data because the universe node orders the curated list by trend score. Inside the specialists the nodes are the Phase 9 nodes, unchanged: `route_node → intake_node (→ human_review) → trend_scout_node → evidence_retrieval_node → regime_node → universe_node → market_data_node×N → screener_node → ranker_node → allocator_node → sizing_node → risk_node → knowledge_retrieval_node → explainer_node → compliance_node → audit_node → report_node`.
 
-LangGraph features used: typed `StateGraph` with reducers, **subgraphs** (one compiled graph per specialist, each testable standalone), `Send` map-reduce over tickers inside the Market Data agent, `interrupt()` + `Command(resume=…)` for human-in-the-loop profile confirmation inside the Orchestrator, SQLite checkpointing on the parent (resumable threads), bounded retry loops between agents (Portfolio ↔ Risk, Education ↔ Compliance), node- and agent-level streamed updates to the UI/API, per-agent timing in every report, and graceful degradation when a source fails.
+LangGraph features used: typed `StateGraph` with reducers, **subgraphs** (one compiled graph per specialist, each testable standalone; the parent applies each subgraph's state delta so reducers run once), **conditional routing by intent** after the Orchestrator, `Send` map-reduce over tickers inside the Market Data agent, `interrupt()` + `Command(resume=…)` for human-in-the-loop profile confirmation, SQLite checkpointing on the parent (resumable threads, one per conversation), two bounded retry loops between agents (Portfolio ↔ Risk, Education ↔ Compliance), node- and agent-level streamed updates to the UI/API, per-agent timing in every report, and graceful degradation when a source fails.
 
 ### Knowledge base and retrieval (RAG)
 
-Educational claims in the app must be traceable to a source the user can read, so the Education agent (step 10.3) answers from a **cited knowledge base** rather than from the model's memory. The corpus lives in [`knowledge/`](knowledge/) as Markdown with YAML front-matter (`id, title, source, url, kind, as_of`):
+Educational claims must be traceable to a source the user can read, so the Education agent answers from a **cited knowledge base** rather than from the model's memory. The corpus lives in [`knowledge/`](knowledge/) as Markdown with YAML front-matter (`id, title, source, url, kind, as_of`); the full description, licences and the recipe for adding a document are in [docs/rag.md](docs/rag.md).
 
 | Collection | Contents | Where it comes from |
 |---|---|---|
 | `concepts/` | 21 authored docs (300–800 words): cash-secured puts, naked puts on margin, LEAPS, PMCC, assignment, the Greeks, extrinsic value, IV rank, Reg T margin, probability OTM, earnings, liquidity, rolling, the VIX regime, *why hype is a risk for short puts*, *how this app's quality gate works* | written here; each cites OCC, FINRA, Cboe, eCFR or SEC pages by URL |
 | `rules/` | the seven screening rules (PRD §3.1–3.7) with the exact thresholds in force | generated from `PRD.md` + `config/*.yaml` by `scripts/build_rules_docs.py` (`make index`); a test fails if the committed copy is stale |
 | `filings/` | SEC 10-K *Item 1A Risk Factors* excerpts (≤ 3,000 words) for the ten demo tickers; prospectus *Principal Risks* for SPY/QQQ | `scripts/fetch_filings.py` via EDGAR (public domain) |
+| run evidence | the trend scout's evidence posts for the current run | indexed in memory per thread by Market Intelligence, so *why* answers cite the actual posts |
 
-Pipeline ([`src/options_scout/rag/`](src/options_scout/rag/)): heading-aware chunking (≤ 400 tokens, 15% overlap, stable ids `<doc_id>#<n>`) → an `Embedder` (`HashEmbedder`: deterministic feature hashing, no download, used by tests/CI and by default; `FastEmbedEmbedder` with `BAAI/bge-small-en-v1.5` behind `pip install -e ".[rag]"`) → SQLite store with numpy cosine search + `rank_bm25` → hybrid retriever (reciprocal-rank fusion, `kind` filter, dense similarity floor) → `Citation(chunk_id, doc_id, title, url, quote)`. Settings are in [`config/rag.yaml`](config/rag.yaml).
+Pipeline ([`src/options_scout/rag/`](src/options_scout/rag/)): heading-aware chunking (≤ 400 tokens, 15% overlap, stable ids `<doc_id>#<n>`) → an `Embedder` (`HashEmbedder`: deterministic feature hashing, no download, used by tests, CI and by default; `FastEmbedEmbedder` with `BAAI/bge-small-en-v1.5` behind `pip install -e ".[rag]"`) → SQLite store with numpy cosine search + `rank_bm25` → hybrid retriever (reciprocal-rank fusion, `kind` filter, a dense similarity floor and, for the lexical hash embedder, a shared-content-word rule so a hash collision never counts as a match) → `Citation(chunk_id, doc_id, title, url, quote)`. A query with nothing eligible returns an empty result, and the Education agent then answers with the fixed sentence *"I don't have a source for that in my knowledge base."* instead of guessing.
 
 ```bash
 make index                                                   # regenerate knowledge/rules + rebuild data/knowledge.sqlite
 python -m options_scout.rag.retriever "what is assignment"   # 6 cited chunks
 python -m options_scout.rag.retriever --kind rules "why was NKE excluded"
-OPTIONS_SCOUT_RAG_EMBEDDER=fastembed make index              # semantic embeddings (optional extra)
 ```
 
-A query with nothing above the similarity floor returns an empty result, and the Education agent then answers with the fixed sentence *"I don't have a source for that in my knowledge base."* instead of guessing.
+**How the Education agent uses it.** `knowledge_retrieval_node` turns a report into concept queries (the strategies screened, the account type, the quality-gate exclusion reasons, the flags present) and attaches one source document per concept as `[S1]…[Sn]`; for a question the query is the question itself plus the run's evidence posts; for a *why* question the first source is a chunk of this run's computed facts. The explainer then writes a `Narrative` of tagged paragraphs: `education` paragraphs explain a concept and must cite a source tag, `screen_result` paragraphs report only computed numbers (candidate ids, realistic loss, payoff breakeven and maximum loss from `core/payoff.py`), and a `notice` paragraph carries the disclaimer. Compliance checks every `[Sn]` tag against the retrieved set in addition to the numeric grounding, and the report ends with a **Sources** footnote list.
 
-**How the Education agent uses it (step 10.3).** `knowledge_retrieval_node` turns a report into concept queries (the strategies screened, the account type, the quality-gate exclusion reasons, the flags present) and attaches one source document per concept as `[S1]…[Sn]`; for a question the query is the question itself plus the run's evidence posts. The explainer then writes a `Narrative` of tagged paragraphs: `education` paragraphs explain a concept and must cite a source tag, `screen_result` paragraphs report only computed numbers (candidate ids, realistic loss, payoff breakeven and maximum loss from `core/payoff.py`), and a `notice` paragraph carries the disclaimer. Compliance checks every `[Sn]` tag against the retrieved set in addition to the numeric grounding, and the report ends with a **Sources** footnote list. `make demo ARGS="--ask '…'"` runs the same Education → Compliance path on a question.
-
-### Conversation and intent routing (step 10.5)
+### Conversation and intent routing
 
 Every turn enters through the Orchestrator's `route_node`, which classifies it with the `route_message` prompt (or the regex router in `llm/rules.py` when no LLM is available) into one of six intents, and the parent graph routes on that intent:
 
@@ -126,31 +132,50 @@ Every turn enters through the Orchestrator's `route_node`, which classifies it w
 | `what_if` | the Orchestrator writes the profile diff; a full run with the hypothetical profile starts on a new thread | diff + the new screen's summary |
 | `off_topic` | a fixed polite redirect | the redirect |
 
-All six paths end in the Compliance agent, so every assistant turn carries a `ComplianceReport`; the review prompt and the deterministic summaries are checked too. `agent/chat.py` drives a conversation (`ChatSession.send` / `resume`, turns stored on the thread as `chat_history`), the API exposes it as `POST /v1/chat` (server-sent events ending in a `turn`) and `GET /v1/threads/{id}`, and `tests/agent/test_chat.py` runs the scripted six-turn conversation (describe → confirm → why excluded → what is assignment → what if 30k → off-topic) in CI. `make eval` scores the router on the 60-message `evals/datasets/chat_routing.jsonl`.
+All six paths end in the Compliance agent, so every assistant turn carries a `ComplianceReport`; the review prompt and the deterministic summaries are checked too. `agent/chat.py` drives a conversation (`ChatSession.send` / `resume`, turns stored on the thread as `chat_history`), the API exposes it as `POST /v1/chat` (server-sent events ending in a `turn`) and `GET /v1/threads/{id}`, and `tests/agent/test_chat.py` runs the scripted six-turn conversation (describe → confirm → why excluded → what is assignment → what if 30k → off-topic) in CI. `make eval` scores the router on the 60-message `evals/datasets/chat_routing.jsonl` and re-runs the six-turn script to confirm every reply carries a compliance audit entry.
 
 ## Why the LLM never does math
 
-Every number in a report (Greeks, Reg T margin, collateral, annualised return, position sizes, stress P&L, social scores) is computed by deterministic, unit-tested Python in `src/options_scout/core/` and `src/options_scout/social/`. The LLM has exactly four jobs, each with a versioned prompt file and a Pydantic structured-output schema: parse the free-text profile, extract consumer entities from posts, write the narrative from a JSON payload of computed results, and (optionally) judge narrative quality.
+Every number in a report (Greeks, Reg T margin, collateral, annualised return, position sizes, stress P&L, social scores) is computed by deterministic, unit-tested Python in `src/options_scout/core/` and `src/options_scout/social/`. The LLM has exactly five jobs, each with a versioned prompt file and a Pydantic structured-output schema: parse the free-text profile, classify a chat turn's intent, extract consumer entities from posts, write the narrative or answer from a JSON payload of computed results and numbered sources, and (optionally) judge narrative quality.
 
-The **compliance node** then extracts every number from the narrative with a regex and checks that it exists in the computed payload or in a quoted source (with rounding tolerance), that every `[Sn]` citation tag points at a retrieved source, that no banned phrase appears ("guaranteed", "you should buy", "risk-free", …) and that the disclaimer is present. A failed narrative is retried with the specific problems fed back; after the retry budget the report falls back to a template narrative that only echoes payload numbers. Social posts are data: they are wrapped in delimiters, the prompts instruct the model to ignore instructions inside them, and every ticker an LLM proposes must exist in the SEC company list or it is discarded.
+The **Compliance agent** then extracts every number from the text with a regex and checks that it exists in the computed payload or in a quoted source (with rounding tolerance), that every `[Sn]` citation tag points at a retrieved source, that no banned phrase appears and that the disclaimer is present. A failed text is retried with the specific problems fed back; after the retry budget the report falls back to a template narrative that only echoes payload numbers. Social posts are data: they are wrapped in delimiters, the prompts instruct the model to ignore instructions inside them, and every ticker an LLM proposes must exist in the SEC company list or it is discarded.
 
-**…and never gives advice.** Every LLM-written string (the report narrative, a concept answer, later every chat reply) reaches the user only through the **Compliance agent**, which runs eight deterministic checks from [`config/compliance.yaml`](config/compliance.yaml) and PRD section 13.1: numbers grounded in the payload, every `[Sn]` citation resolving to a retrieved source, education paragraphs free of run data and short options always shown with their realistic loss, a suitability gate on facts the Risk agent computed (no margin on a cash account, loss within the profile limit, PMCC only with LEAPS requested, earnings flags stated for conservative profiles, buying-power minimums), a language policy with directive, certainty, superlative and urgency patterns and an allow-list for quoted terminology in cited education paragraphs, the disclaimer exactly once plus a delayed-data statement, freshness of cited rules and filings (warning), and no handles or emails from social posts. Each evaluation is logged as a `compliance.check` event and appended to the run's audit log; a blocking failure sends the Education agent specific feedback, and after the retry budget the report falls back to a deterministic narrative that is checked again. `make eval` measures the separation on 34 advice-seeded and 10 clean narratives and the suitability gate on 20 synthetic cases.
+## Education, not advice
+
+Options are higher-risk than equities, so the separation between *teaching* and *telling* is enforced by code, not by tone. The rules in plain English, with the sentences that pass and fail each check, are in [docs/compliance.md](docs/compliance.md); a test runs every example sentence on that page through the checks so the page cannot drift from the code.
+
+- **Two kinds of paragraph.** The Education agent tags every paragraph it writes. An `education` paragraph explains a concept, must cite a retrieved source, and may not mention this run's candidate ids, tickers or numbers. A `screen_result` paragraph reports what the screen found, may use only numbers from the computed payload, must state the realistic loss whenever it names a short option, and may never tell the reader what to do.
+- **Eight deterministic checks** from [`config/compliance.yaml`](config/compliance.yaml) and PRD section 13.1: numbers grounded in the payload; every `[Sn]` resolving to a retrieved source; the mode rules above; a suitability gate on facts the Risk agent computed (no margin on a cash account, loss within the profile limit, PMCC only with LEAPS requested, earnings flags stated for conservative profiles, buying-power minimums); a language policy with directive, certainty, superlative and urgency patterns and an allow-list for quoted terminology inside cited education paragraphs; the disclaimer exactly once plus a delayed-data statement; freshness of cited rules and filings (warning only); and no handles or emails from social posts.
+- **One path to the user.** The report narrative, every chat reply, every Learn-tab answer and the MCP `explain_term` result reach the user only through the Compliance agent. Each evaluation is logged as a `compliance.check` event and appended to the run's audit log (Under the hood tab, Compliance ✓ badge on every chat turn); a blocking failure sends the Education agent specific feedback, and after two retries the text falls back to a deterministic narrative or the fixed sentence *"I can show the computed results but could not produce an explanation that passes compliance."*, which is checked again.
+- **Measured, not asserted.** `make eval` runs 34 advice-seeded and 10 clean narratives through the separation checks, 20 synthetic reports through the suitability gate, and every report and chat reply through the audit-coverage check (table below).
+
+Two of the documented examples: *"CSP-COST-2026-12-18-850P met the criteria; its realistic loss is 12345."* passes. *"You should sell CSP-COST-2026-12-18-850P here; realistic loss 12345."* is rejected by `check_language` (a directive addressed to the reader), and *"A cash-secured put on COST obliges the writer to buy the shares at the strike [S1]."* is rejected by `check_education_only` (a run ticker inside an education paragraph).
 
 ## Evaluation results
 
-Measured by `make eval` on 2026-10-27 in fixture mode with **no LLM key** (the rule-based stand-ins are what was measured; LLM variants are marked NOT RUN rather than estimated). Full table: [`evals/reports/latest.md`](evals/reports/latest.md).
+Measured by `make eval` on 2026-11-04 in fixture data mode with the hash embedder; the LLM-backed rows used openrouter (deepseek/deepseek-v4.1-flash / deepseek/deepseek-v4.1-flash) through the OpenRouter provider, the agent runs used the fixture LLM mode, and rows that need the optional `fastembed` extra or a judge pass are marked NOT RUN rather than estimated. Full table with details: [`evals/reports/latest.md`](evals/reports/latest.md). The CI workflow runs the same command on every push and uploads the report.
 
 | Eval | Result | Target |
 |---|---|---|
-| Golden-value + property tests | all pass | all pass |
-| Entity extraction F1 (rule-based, 150 labeled posts) | 0.90 (P 0.90 / R 0.89) | ≥ 0.80 |
-| Brand → ticker resolution (100 names) | 100%, 0 hallucinated tickers | ≥ 90%, 0 |
-| Profile parsing, required fields / clarification routing (rule-based) | 98% / 98% | ≥ 95% |
-| Prompt injection (30 adversarial posts) | 0/30 influenced | 0 |
-| Numeric grounding rate (6 end-to-end runs) | 100% (216/216 numbers) | 100% |
-| Constraint / policy / trajectory compliance | 6/6 each | 100% |
-| Latency per run (fixture mode) | mean 0.43 s, p95 1.46 s | report |
-| LLM extraction / parsing / judge | NOT RUN (no key) | n/a |
+| Offline test suite | 346 passed | all pass |
+| Line coverage on `core/`, `rag/`, `agent/` | 94.7% | ≥ 85% |
+| Entity extraction F1 (150 labelled posts), rule-based / LLM | 0.90 / 0.81 | ≥ 0.80 |
+| Brand → ticker resolution (100 names) | 100% | ≥ 90% |
+| Hallucinated (non-SEC) tickers | 0 | 0 |
+| Profile parsing, required fields, rule-based / LLM | 98% / 100% | ≥ 95% |
+| Prompt injection (30 adversarial posts), rule-based / LLM | 0/30 / 0/30 | 0 influenced |
+| Numeric grounding rate (6 end-to-end runs) | 100.0% | 100% |
+| Constraint / policy / trajectory compliance | 6/6 / 6/6 / 6/6 | 6/6 each |
+| Education-vs-advice separation (34 advice + 10 clean narratives) | 34/34 advice caught · 0/10 clean rejected | 100% caught, ≤ 1 false positive |
+| Suitability gate (20 synthetic reports) | 20/20 | 100% |
+| Intent routing (60 messages), rule-based / LLM | 100% / 100% | ≥ 90% |
+| Retrieval recall@6 on 40 labelled questions, hash embedder | 0.82 (33/40) · MRR 0.69 | ≥ 0.70 (hash) |
+| Retrieval recall@6, fastembed embedder | n/a (NOT RUN) | ≥ 0.85 |
+| Citation faithfulness: tags resolving / education paragraphs cited | 73/73 / 73/73 | 100% / 100% |
+| Unsupported-question refusal via Education (hash embedder, rule-based answerer) | 13/15 | 100% for the LLM answerer; reported for the stand-in |
+| Unsupported questions refused or redirected via the chat router | 15/15 | report |
+| Compliance on chat (six-turn script) | 6/6 | 100% |
+| Latency per run (fixture mode) | mean 0.97s · p95 2.66s | report |
 
 ## Signal study (honest version)
 
@@ -163,25 +188,38 @@ Measured by `make eval` on 2026-10-27 in fixture mode with **no LLM key** (the r
 2. Trend board (secondary): entities, consumer-trend score (0–100), components (velocity z overall and per source, acceleration, sentiment, purchase intent, cross-source confirmation, coverage gap, novelty and stock-hype penalties), evidence posts, investable flag. It re-orders qualifying stocks and never adds one. (Phase 11 adds a bottleneck board beside it: theme → layer → company scores, filing and price evidence, thesis monitor; same rule.)
 3. CSP candidates with strike, expiry, delta, premium, collateral, Reg T margin, annualised return, P(OTM), liquidity, IV rank, earnings flag.
 4. LEAPS/PMCC candidates with extrinsic % per year, breakeven and a matched short call satisfying the safety rule.
-5. Sized portfolio under six risk constraints, with totals.
+5. Sized portfolio under six risk constraints, with totals and every skipped candidate with its reason.
 6. Risk report: constraint checks, −10/−20/−30% stress test with an IV shock, warnings.
-7. Plain-English explanation grounded only in computed numbers, plus the disclaimer.
+7. Plain-English explanation in tagged paragraphs, grounded only in computed numbers and cited sources, with a Sources list, the compliance report and the disclaimer.
 
 ## Tech decisions and trade-offs
 
 - **Curated list + numeric gate instead of "let the model pick safe stocks".** "Good to own" is a judgment, so it lives in a reviewable YAML file with a one-line reason per name, and the day-of-run gate (realised vol, implied vol, drawdown, price, liquidity) is pure, golden-tested Python that records *why* a ticker was dropped. The trend signal was demoted to a 15% tiebreaker: a viral brand is a reason to look at Costco sooner, not a reason to sell puts on a meme stock.
 - **Curated theme maps instead of "ask the model to map the supply chain" (Phase 11 design).** Which layers a theme needs and how material a layer is to a company are judgments, so they live in `config/themes.yaml` with a one-line thesis and explicit falsifiers per layer, reviewable in a diff. The LLM's only job in that engine is to classify text snippets as tightening or easing; the score, the priced-in penalty and the thesis monitor are deterministic and golden-tested, like everything else that produces a number.
+- **Specialists as subgraphs, composed by state delta.** A compiled subgraph added directly as a LangGraph node returns its whole final state, and the parent's list reducers then re-append what it inherited (verified on LangGraph 1.2.18). Each specialist is therefore invoked from a thin parent node that writes back only what changed, which keeps every agent testable standalone and every reducer applied once.
+- **A deterministic Compliance agent, not an LLM judge.** The checks are regexes and set comparisons over typed data (payload numbers, retrieved tags, suitability facts the Risk agent computed). They are cheap, auditable and testable sentence by sentence; an LLM judge could only ever add warnings. The cost is false positives on unusual phrasing, which is why the allow-list exists and why the eval reports the false-positive rate on clean narratives.
+- **Hash embeddings in CI, semantic embeddings optional.** Tests and the default install use a deterministic feature-hashing embedder so nothing downloads and every machine indexes identically; `fastembed` is one extra away. The retrieval eval reports both embedders separately rather than quoting the better number, and the hash embedder's weakness (it cannot tell "shares a word" from "answers the question") is documented in [docs/rag.md](docs/rag.md).
 - **Bring-your-own market data key.** Live mode uses [MarketData.app](https://www.marketdata.app/) (default; a free token is delayed and gives ~100 credits a day) or Tradier (free sandbox token = 15-minute delayed chains with IV). The page and API accept either key per run. It travels as a `SecretStr`, is sent only as a bearer header, is never persisted or logged, and the SQLite cache is namespaced per provider so MarketData.app and Tradier quotes never mix. Both providers are unit-tested against a mocked transport; neither has been exercised with a live key in this repo.
 - **MarketData.app vs scraping.** The previous keyless source (yfinance) was an unofficial Yahoo scraper that broke and rate-limited. MarketData.app is a documented REST API with one price per contract: a chain costs one credit per contract, so `market_data.marketdata.strike_limit` keeps the 60 strikes nearest the money (enough for 0.15-0.30 delta puts and 0.70-0.85 delta LEAPS). It has no dividends endpoint, so the yield is implied from the gap between its dividend-adjusted and split-only candles, and no T-bill index, so the risk-free rate falls back to a constant. Every call is retried on transport errors, cached in SQLite with per-type TTLs, and every ticker has a recorded fixture so the demo and CI never touch the network. Greeks are computed with our own Black-Scholes-Merton from the provider's IV. IV rank needs history, so a daily job stores ATM IV snapshots; until 30 exist the report labels the HV-based proxy as such.
 - **Strict 30–45 DTE window vs liquidity.** On weeks where only weeklies fall inside 30–45 DTE, open interest is thin. The screener first applies the strict window; only if that yields nothing does it accept the nearest expiry in a configurable 21–60 DTE window and flags the candidate `dte_outside_preferred`.
 - **Greedy vs MILP sizing.** Greedy fill over the ranked list is deterministic, explainable (every skip has a reason) and never violates a constraint by construction (hypothesis-tested). MILP is a listed stretch goal.
-- **VADER vs LLM sentiment.** In `--no-llm` mode a brand-alias matcher plus VADER provides extraction; the eval report measures it honestly (F1 0.90 on the labeled set). The default LLM path uses `deepseek/deepseek-v4.1-flash` through OpenRouter for every task (JSON-schema `response_format`, validated locally with the same Pydantic models, one corrective retry); the Anthropic provider uses `claude-haiku-5-5` for extraction/parsing and `claude-opus-5-5` for explanation via `messages.parse`.
+- **VADER vs LLM sentiment.** In `--no-llm` mode a brand-alias matcher plus VADER provides extraction; the eval report measures it honestly (F1 0.90 on the labeled set). The default LLM path uses `deepseek/deepseek-v4.1-flash` through OpenRouter for every task (JSON-schema `response_format`, validated locally with the same Pydantic models, one corrective retry); the Anthropic provider uses `claude-haiku-5-5` for extraction/parsing/routing and `claude-opus-5-5` for explanation via `messages.parse`.
 - **Provider SDKs directly instead of LangChain chat models.** LangGraph does not require them; the `openai` SDK (pointed at OpenRouter) and the `anthropic` SDK give structured outputs, usage accounting and typed errors. The provider layer (`llm/client.py`) is a two-entry table keyed by `llm.provider`; OpenRouter is the default because one key reaches many cheap models, at the cost of schema enforcement depending on the routed backend (hence the local validation + retry).
 - **Realistic-loss constraint is deliberately strict.** "Loss if the stock drops 30% at expiry" capped at 2–5% of the account means a $50k account can only hold short puts on low-priced underlyings; the report lists every skipped candidate and why instead of hiding it.
 
-## Repository layout
+## Documentation
 
-See [`PRD.md`](PRD.md) section 8. Key paths: `config/*.yaml` (every threshold), `prompts/*.md` (versioned prompts), `src/options_scout/core` (math), `src/options_scout/social` (trend engine), `src/options_scout/rag` + `knowledge/` (cited knowledge base), `src/options_scout/agent` (graph), `src/options_scout/api`, `ui/streamlit_app.py`, `evals/`, `tests/fixtures/`.
+| Document | What it covers |
+|---|---|
+| [PRD.md](PRD.md) | the build spec and working agreement: domain rules (§3), the two market-intelligence engines (§4, §4A), agent architecture (§5), evaluation plan (§11), compliance (§13), build phases (§14), **rubric map (§18)** |
+| [docs/architecture.md](docs/architecture.md) | one page per agent: inputs, outputs, tools, prompts, tests; the parent graph, routing, state and composition rules |
+| [docs/compliance.md](docs/compliance.md) | the eight checks in plain English, accepted vs rejected sentences (machine-checked), suitability reason codes, how to change a rule |
+| [docs/rag.md](docs/rag.md) | the knowledge base: collections, licences, pipeline, how the Education agent queries it, evals, how to add a document |
+| [evals/reports/latest.md](evals/reports/latest.md) | the measured numbers, regenerated by `make eval` |
+| [PRIVACY.md](PRIVACY.md) | what the software collects, keeps and deletes |
+| [docs/demo-video-script.md](docs/demo-video-script.md) | the narrated demo, scene by scene |
+
+Repository layout: [`PRD.md`](PRD.md) section 8. Key paths: `config/*.yaml` (every threshold), `prompts/*.md` (versioned prompts), `src/options_scout/core` (math and compliance), `src/options_scout/social` (trend engine), `src/options_scout/rag` + `knowledge/` (cited knowledge base), `src/options_scout/agent` (agents and graph), `src/options_scout/api`, `src/options_scout/mcp`, `ui/`, `evals/`, `tests/fixtures/`.
 
 ## Use it from Claude Desktop
 
@@ -228,7 +266,7 @@ Restart Claude Desktop, then ask it, for example, *"Use options-scout to screen 
 
 ## Observability
 
-`structlog` JSON logs keyed by run id and node; per-node latency, visit order, token counts, cost, model and prompt versions and a config hash are stored in every report. LangSmith tracing is enabled automatically when `LANGSMITH_API_KEY` is set; otherwise set `OPTIONS_SCOUT_OTEL=1` for OpenTelemetry console spans.
+`structlog` JSON logs keyed by run id, node and agent; per-node and per-agent latency, visit order, token counts, cost, model and prompt versions, a config hash and the compliance audit trail are stored in every report. LangSmith tracing is enabled automatically when `LANGSMITH_API_KEY` is set; otherwise set `OPTIONS_SCOUT_OTEL=1` for OpenTelemetry console spans.
 
 ## Known limitations
 
@@ -237,11 +275,12 @@ Restart Claude Desktop, then ask it, for example, *"Use options-scout to screen 
 - IV rank needs accumulated history; early runs use an HV proxy and say so.
 - The bundled social corpus is synthetic; Reddit and X are biased, noisy samples and social signals can be manipulated.
 - Reddit's official Data API requires approval under its Responsible Builder Policy; it was requested and is pending, and Reddit closed unauthenticated `.json` endpoints in May 2026. Until granted, live Reddit posts come from the Arctic Shift archive (a free third-party mirror with no uptime guarantee; verified live on 2026-11-03), with PRAW configured as the backup provider. Live X search needs a paid API tier (no token was available to this repo, so the X adapter is verified against a mocked transport only), and Google Trends relies on the unofficial, archived `pytrends` client. How social data is read, stored and deleted (48-hour retention) is in [PRIVACY.md](PRIVACY.md).
+- The default hash embedder is lexical. Without an LLM, an out-of-corpus question that shares content words with a document (for example a tax question against the rolling document) gets a cited excerpt from that document instead of the fixed refusal; the eval reports the exact count. The LLM answerer is instructed to refuse when the sources do not answer, and the optional fastembed embedder has a semantic floor.
 - Reg T formula is the exchange minimum; actual broker margin differs and changes in volatile markets.
 - Early assignment, dividends and exit liquidity are simplified.
-- LLM-backed evals and the LLM-as-judge have not been run (no API key in the build environment).
+- LLM-backed evals (LLM extraction, parsing, routing, the citation judge) have not been run: no API key in the build environment.
 - Educational tool, not advice.
 
 ## Working in this repo
 
-`make help` lists commands. Rules for contributors (and for Claude Code) are in [`PRD.md`](PRD.md): tests first for math, `mypy --strict` on `core/`, no network in unit tests, pinned dependencies, config over constants, prompts as files, small conventional commits.
+`make help` lists commands. CI runs `make lint`, `make test-cov` (fails below 85% line coverage on `core/`, `rag/`, `agent/`) and `make eval` (fails on any FAIL row) on every push and uploads the coverage and eval reports. Rules for contributors (and for Claude Code) are in [`PRD.md`](PRD.md): tests first for math, `mypy --strict` on the whole package, no network in unit tests, pinned dependencies, config over constants, prompts as files, small conventional commits.

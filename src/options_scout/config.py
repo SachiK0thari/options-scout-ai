@@ -578,6 +578,10 @@ class CollectionConfig(_Strict):
     weight: float = Field(default=1.0, ge=0.0)
 
 
+def _default_shared_term() -> dict[EmbedderName, bool]:
+    return {"hash": True, "fastembed": False}
+
+
 class RagConfig(_Strict):
     """Retrieval layer settings (PRD section 5.6). ``OPTIONS_SCOUT_RAG_EMBEDDER`` overrides
     ``embedder`` so CI can pin the hash embedder while a developer indexes with fastembed."""
@@ -589,6 +593,7 @@ class RagConfig(_Strict):
     report_sources: int = Field(default=6, ge=1)
     similarity_floor: dict[EmbedderName, float]
     rrf_k: int = Field(default=60, ge=1)
+    require_shared_term: dict[EmbedderName, bool] = Field(default_factory=_default_shared_term)
     chunk_tokens: int = Field(default=400, ge=50)
     overlap: float = Field(default=0.15, ge=0.0, lt=0.5)
     knowledge_dir: Path
@@ -608,6 +613,12 @@ class RagConfig(_Strict):
     @property
     def floor(self) -> float:
         return self.similarity_floor[self.embedder]
+
+    @property
+    def shared_term_required(self) -> bool:
+        """Whether a chunk must share a content word with the query to be eligible (lexical
+        embedders only; see ``config/rag.yaml``)."""
+        return self.require_shared_term.get(self.embedder, False)
 
     def weight(self, kind: str) -> float:
         coll = self.collections.get(kind)  # type: ignore[call-overload]

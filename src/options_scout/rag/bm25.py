@@ -18,10 +18,18 @@ class BM25Index:
 
         self.ids = [c.id for c in chunks]
         corpus = [tokenize(c.index_text) or ["<empty>"] for c in chunks]
+        self._tokens = [frozenset(toks) for toks in corpus]
         self._bm25: Any = BM25Okapi(corpus) if corpus else None
 
     def __len__(self) -> int:
         return len(self.ids)
+
+    def shares_term(self, query: str) -> NDArray[np.bool_]:
+        """Per chunk: does it contain at least one content word of ``query``? (A BM25 score of
+        zero is not the same test: IDF is zero for a term found in one of two documents.)"""
+        q = frozenset(tokenize(query))
+        shares = (bool(q & toks) for toks in self._tokens)
+        return np.fromiter(shares, dtype=bool, count=len(self.ids))
 
     def scores(self, query: str) -> NDArray[np.float64]:
         """Raw BM25 score per chunk (0.0 where no query term occurs)."""

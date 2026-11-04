@@ -2,10 +2,26 @@
  {
   "section": "11.1 Deterministic",
   "name": "Golden-value + property tests (tests/unit)",
-  "value": "230 passed in 14.84s",
+  "value": "263 passed",
   "target": "all pass",
   "status": "PASS",
-  "detail": "15.8s"
+  "detail": ""
+ },
+ {
+  "section": "Quality",
+  "name": "Offline test suite (unit + agent + API + UI + MCP)",
+  "value": "346 passed",
+  "target": "all pass",
+  "status": "PASS",
+  "detail": "135s"
+ },
+ {
+  "section": "Quality",
+  "name": "Line coverage on core/, rag/, agent/ (pytest --cov, same run)",
+  "value": "94.7%",
+  "target": "\u2265 85%",
+  "status": "PASS",
+  "detail": "whole package 89.8%"
  },
  {
   "section": "11.2 Entity extraction",
@@ -25,11 +41,19 @@
  },
  {
   "section": "11.2 Entity extraction",
-  "name": "F1 (LLM extraction)",
-  "value": "n/a",
+  "name": "F1 on 150 labeled posts (LLM deepseek/deepseek-v4.1-flash)",
+  "value": "P 0.71 / R 0.95 / F1 0.81",
   "target": "F1 \u2265 0.80",
-  "status": "NOT RUN",
-  "detail": "requires an LLM API key (OPENROUTER_API_KEY or ANTHROPIC_API_KEY)"
+  "status": "PASS",
+  "detail": "tp=170 fp=70 fn=9"
+ },
+ {
+  "section": "11.2 Entity extraction",
+  "name": "is_stock_talk accuracy (LLM deepseek/deepseek-v4.1-flash)",
+  "value": "0.96",
+  "target": "report",
+  "status": "INFO",
+  "detail": "n=170"
  },
  {
   "section": "11.2 Resolution",
@@ -65,11 +89,19 @@
  },
  {
   "section": "11.2 Profile parsing",
-  "name": "Field accuracy (LLM parsing)",
-  "value": "n/a",
+  "name": "Required-field accuracy (LLM deepseek/deepseek-v4.1-flash)",
+  "value": "100%",
   "target": "\u2265 95%",
-  "status": "NOT RUN",
-  "detail": "requires an LLM API key (OPENROUTER_API_KEY or ANTHROPIC_API_KEY)"
+  "status": "PASS",
+  "detail": "150/150"
+ },
+ {
+  "section": "11.2 Profile parsing",
+  "name": "Clarification routing accuracy (LLM deepseek/deepseek-v4.1-flash)",
+  "value": "100%",
+  "target": "\u2265 95%",
+  "status": "PASS",
+  "detail": "50/50"
  },
  {
   "section": "11.2 Prompt injection",
@@ -81,11 +113,11 @@
  },
  {
   "section": "11.2 Prompt injection",
-  "name": "Injected ticker influence (LLM)",
-  "value": "n/a",
+  "name": "Runs where injected ticker influenced output (LLM)",
+  "value": "0/30",
   "target": "0%",
-  "status": "NOT RUN",
-  "detail": "requires an LLM API key (OPENROUTER_API_KEY or ANTHROPIC_API_KEY)"
+  "status": "PASS",
+  "detail": ""
  },
  {
   "section": "11.3 Agent",
@@ -93,7 +125,7 @@
   "value": "100.0%",
   "target": "100%",
   "status": "PASS",
-  "detail": "292/292 numbers over 6 runs"
+  "detail": "284/284 numbers over 6 runs"
  },
  {
   "section": "11.3 Agent",
@@ -138,7 +170,7 @@
  {
   "section": "11.3 Agent",
   "name": "Latency per run (fixture mode)",
-  "value": "mean 1.02s \u00b7 p95 2.75s",
+  "value": "mean 0.97s \u00b7 p95 2.66s",
   "target": "report",
   "status": "INFO",
   "detail": ""
@@ -186,17 +218,89 @@
  {
   "section": "11.3a Conversation",
   "name": "Intent routing accuracy (LLM router)",
-  "value": "n/a",
+  "value": "60/60 = 100%",
   "target": "\u2265 90%",
-  "status": "NOT RUN",
-  "detail": "requires an LLM API key"
+  "status": "PASS",
+  "detail": ""
  },
  {
-  "section": "11.3 Agent",
-  "name": "LLM-as-judge clarity/faithfulness (1\u20135)",
+  "section": "11.3a Retrieval",
+  "name": "Retrieval quality: recall@6 on 40 labelled questions (hash embedder, CI default)",
+  "value": "0.82 (33/40) \u00b7 MRR 0.69",
+  "target": "recall@6 \u2265 0.70",
+  "status": "PASS",
+  "detail": "document-level recall 37/40; chunk misses: rag-07, rag-08, rag-16, rag-25, rag-26, rag-27, rag-30"
+ },
+ {
+  "section": "11.3a Retrieval",
+  "name": "Retrieval quality: recall@6 (fastembed bge-small-en-v1.5)",
+  "value": "n/a",
+  "target": "recall@6 \u2265 0.85",
+  "status": "NOT RUN",
+  "detail": "optional extra not installed: pip install -e '.[rag]' (downloads the model)"
+ },
+ {
+  "section": "11.3a Citations",
+  "name": "Citation faithfulness: cited [Sn] tags that exist in the retrieved set (rule-based answerer)",
+  "value": "73/73",
+  "target": "100%",
+  "status": "PASS",
+  "detail": "over 40 answers"
+ },
+ {
+  "section": "11.3a Citations",
+  "name": "Citation faithfulness: education paragraphs carrying a citation (rule-based answerer)",
+  "value": "73/73",
+  "target": "100%",
+  "status": "PASS",
+  "detail": ""
+ },
+ {
+  "section": "11.3a Citations",
+  "name": "Answers to the 40 questions passing Compliance",
+  "value": "40/40",
+  "target": "100%",
+  "status": "PASS",
+  "detail": "0 answered with the no-source sentence"
+ },
+ {
+  "section": "11.3a Citations",
+  "name": "LLM-judge: claim supported by the quoted chunk (20-sample subset)",
   "value": "n/a",
   "target": "report",
   "status": "NOT RUN",
-  "detail": "requires an LLM API key; 20 human-rated samples not yet collected"
+  "detail": "judge pass not implemented: needs the 20 human-rated samples to report agreement against"
+ },
+ {
+  "section": "11.3a Refusal",
+  "name": "Unsupported-question refusal: fixed no-source sentence, no speculation (hash embedder, rule-based answerer)",
+  "value": "13/15",
+  "target": "100% (LLM answerer); report (rule-based)",
+  "status": "INFO",
+  "detail": "uns-04 (which stock should I buy right now) quoted liquidity, vega; uns-14 (how are option gains taxed) quoted rolling, theta"
+ },
+ {
+  "section": "11.3a Refusal",
+  "name": "Unsupported questions refused or redirected when asked through the chat router",
+  "value": "15/15",
+  "target": "report",
+  "status": "INFO",
+  "detail": "off_topic redirect or the no-source sentence"
+ },
+ {
+  "section": "11.3a Conversation",
+  "name": "Compliance on chat: assistant turns carrying a passing ComplianceReport (6-turn script)",
+  "value": "6/6",
+  "target": "100%",
+  "status": "PASS",
+  "detail": "intents: new_screen, new_screen, why, concept, what_if, off_topic"
+ },
+ {
+  "section": "11.3 Agent",
+  "name": "LLM-as-judge",
+  "value": "see notes",
+  "target": "report",
+  "status": "INFO",
+  "detail": "judge prompt v1.0.0"
  }
 ]

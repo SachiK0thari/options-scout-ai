@@ -17,6 +17,12 @@ similarity_floor:
   hash: 0.12
   fastembed: 0.45
 rrf_k: 60                 # reciprocal-rank-fusion constant: score = Σ weight / (rrf_k + rank)
+# A lexical embedder (hash) is a bag of words: a chunk that shares no content word with the query
+# can only clear the floor by hash collision, so it is not eligible. A semantic embedder may match a
+# paraphrase that shares no word, so the rule is off for fastembed. Measured by the refusal eval.
+require_shared_term:
+  hash: true
+  fastembed: false
 
 # Heading-aware chunking: sections are split into windows of ≤ chunk_tokens tokens (≈ 0.75 words
 # per token) with `overlap` of each window repeated at the start of the next. chunk id = <doc_id>#<n>.

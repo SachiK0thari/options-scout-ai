@@ -156,7 +156,7 @@ class OpenRouterProvider:
             "json_schema": {
                 "name": schema.__name__,
                 "strict": True,
-                "schema": schema.model_json_schema(),
+                "schema": strict_json_schema(schema.model_json_schema()),
             },
         }
         totals = TokenUsage(model=model, task=task)
@@ -203,6 +203,32 @@ class OpenRouterProvider:
                     },
                 ]
         raise RuntimeError(f"schema validation failed for task={task}: {last_error}")
+
+
+def strict_json_schema(schema: dict[str, Any]) -> dict[str, Any]:
+    """Make a Pydantic JSON schema acceptable to strict structured-output modes.
+
+    Strict mode (OpenAI and the OpenRouter backends that honour it) requires every property of
+    every object to be listed in ``required`` and ``additionalProperties: false``. Pydantic leaves
+    defaulted fields out of ``required``, and a model given such a schema simply omits them: the
+    profile-parsing eval measured 42% field accuracy because ``account_type`` and ``risk_profile``
+    never came back at all. Listing them as required (``null`` stays allowed through ``anyOf``)
+    makes "unknown" an explicit ``null`` instead of a missing key.
+    """
+    out = dict(schema)
+    if out.get("type") == "object" and isinstance(out.get("properties"), dict):
+        props = {k: strict_json_schema(v) for k, v in out["properties"].items()}
+        out["properties"] = props
+        out["required"] = list(props)
+        out["additionalProperties"] = False
+    for key in ("anyOf", "oneOf", "allOf"):
+        if isinstance(out.get(key), list):
+            out[key] = [strict_json_schema(v) for v in out[key]]
+    if isinstance(out.get("items"), dict):
+        out["items"] = strict_json_schema(out["items"])
+    if isinstance(out.get("$defs"), dict):
+        out["$defs"] = {k: strict_json_schema(v) for k, v in out["$defs"].items()}
+    return out
 
 
 def _strip_fences(text: str) -> str:
