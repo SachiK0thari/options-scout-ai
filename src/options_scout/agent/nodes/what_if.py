@@ -36,6 +36,14 @@ def make(deps: Deps) -> Callable[[AgentState], dict[str, Any]]:
                 Paragraph(mode="notice", text=deps.cfg.settings.disclaimer),
             ]
         )
-        return {"answer": answer, "citations": [], "sources": [], "explain_payload": {}}
+        # The diff quotes profile numbers (buying power before and after); Compliance grounds
+        # every number in the payload, so the two profiles are the payload of this reply.
+        profile = state.get("profile")
+        payload = {
+            "profile_before": profile.model_dump(mode="json") if profile is not None else {},
+            "profile_after": dict(state.get("what_if_profile") or {}),
+            "diff": diff,
+        }
+        return {"answer": answer, "citations": [], "sources": [], "explain_payload": payload}
 
     return what_if_node

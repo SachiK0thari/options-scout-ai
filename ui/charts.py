@@ -1,0 +1,449 @@
+"""Every chart in the app, one function each, returning a Plotly figure styled by ``ui.theme``.
+
+Charts never compute finance: they take report objects or the output of ``ui.compute``.
+"""
+
+from __future__ import annotations
+
+from collections.abc import Mapping, Sequence
+
+import plotly.graph_objects as go
+
+from options_scout.core.models import OptionCandidate, QualityCheck, StressResult, TrendSignal
+from ui import theme
+
+AGENT_LABELS = {
+    "orchestrator_agent": "Orchestrator",
+    "market_intelligence_agent": "2 · Market Intelligence",
+    "market_data_agent": "1 · Market Data",
+    "strategy_agent": "3 · Strategy",
+    "portfolio_agent": "4 · Portfolio",
+    "risk_agent": "5 · Risk",
+    "education_agent": "6 · Education",
+    "compliance_agent": "C · Compliance",
+}
+
+
+# ------------------------------------------------------------------------------ quality
+def quality_bar(checks: Sequence[QualityCheck]) -> go.Figure:
+    rows = sorted(checks, key=lambda q: (q.passed, q.score))
+    fig = go.Figure()
+    for passed, label, color in ((True, "passed", theme.GOOD), (False, "excluded", theme.CRITICAL)):
+        sub = [q for q in rows if q.passed == passed]
+        if not sub:
+            continue
+        fig.add_bar(
+            name=label,
+            orientation="h",
+            y=[q.ticker for q in sub],
+            x=[round(q.score * 100) for q in sub],
+            marker={"color": color, "line": {"width": 0}},
+            text=[f"{label} · {round(q.score * 100)}" for q in sub],
+            textposition="outside",
+            cliponaxis=False,
+            customdata=[("; ".join(q.reasons) or q.why_good_to_own or "") for q in sub],
+            hovertemplate="%{y}: quality %{x}<br>%{customdata}<extra></extra>",
+        )
+    fig.update_layout(barmode="overlay")
+    fig.update_xaxes(range=[0, 115])
+    return theme.style(
+        fig,
+        "Quality score by ticker",
+        "Quality score (0–100)",
+        "",
+        height=max(260, 34 * len(rows) + 90),
+    )
+
+
+# --------------------------------------------------------------------------- candidates
+def delta_return_scatter(cands: Sequence[OptionCandidate]) -> go.Figure:
+    colors = theme.color_map([c.ticker for c in cands])
+    max_oi = max((c.open_interest for c in cands), default=1) or 1
+    fig = go.Figure()
+    for ticker, color in colors.items():
+        sub = [c for c in cands if c.ticker == ticker]
+        fig.add_scatter(
+            name=ticker,
+            mode="markers+text",
+            x=[abs(c.delta) for c in sub],
+            y=[(c.annualized_return or 0.0) * 100 for c in sub],
+            text=[ticker] * len(sub),
+            textposition="top center",
+            marker={
+                "color": color,
+                "size": [10 + 22 * (c.open_interest / max_oi) for c in sub],
+                "line": {"color": "#ffffff", "width": 2},
+            },
+            customdata=[
+                [c.id, c.open_interest, c.prob_otm * 100, c.mid, c.strike, str(c.expiry)]
+                for c in sub
+            ],
+            hovertemplate=(
+                "%{customdata[0]}<br>strike %{customdata[4]} · expiry %{customdata[5]}"
+                "<br>|delta| %{x:.2f} · annualized %{y:.1f}%<br>open interest %{customdata[1]:,}"
+                " · prob. OTM %{customdata[2]:.0f}% · mid $%{customdata[3]:.2f}<extra></extra>"
+            ),
+        )
+    return theme.style(
+        fig,
+        "Cash-secured puts: delta vs annualized return",
+        "|Delta| (chance of assignment, roughly)",
+        "Annualized return on collateral (%)",
+    )
+
+
+def strike_ladder(cands: Sequence[OptionCandidate], spot: float) -> go.Figure:
+    sub = sorted(cands, key=lambda c: c.strike)
+    fig = go.Figure()
+    fig.add_scatter(
+        name="premium (mid)",
+        mode="lines+markers",
+        x=[c.strike for c in sub],
+        y=[c.mid for c in sub],
+        line={"color": theme.ACCENT, "width": 2},
+        marker={"size": 9, "color": theme.ACCENT, "line": {"color": "#ffffff", "width": 2}},
+        customdata=[[c.delta, c.annualized_return or 0.0, str(c.expiry), c.dte] for c in sub],
+        hovertemplate=(
+            "strike %{x} · mid $%{y:.2f}<br>delta %{customdata[0]:.2f} · annualized "
+            "%{customdata[1]:.1%}<br>expiry %{customdata[2]} (%{customdata[3]} days)<extra></extra>"
+        ),
+    )
+    fig.add_vline(
+        x=spot,
+        line={"color": theme.MUTED, "width": 1},
+        annotation={"text": f"spot ${spot:,.2f}", "font": {"color": theme.MUTED}},
+        annotation_position="top left",
+    )
+    return theme.style(
+        fig, "Premium by strike", "Strike ($)", "Premium per share ($, mid)", legend=False
+    )
+
+
+# ------------------------------------------------------------------------------ portfolio
+def allocation_donut(parts: Mapping[str, float]) -> go.Figure:
+    names = [k for k, v in parts.items() if v > 0]
+    colors = theme.color_map(names)
+    fig = go.Figure(
+        go.Pie(
+            labels=names,
+            values=[parts[k] for k in names],
+            hole=0.58,
+            sort=False,
+            marker={"colors": [colors[n] for n in names], "line": {"color": "#ffffff", "width": 2}},
+            textinfo="label+percent",
+            hovertemplate="%{label}: $%{value:,.0f} (%{percent})<extra></extra>",
+        )
+    )
+    fig.update_layout(showlegend=False)
+    return theme.style(fig, "How buying power is split", "", "", height=320, legend=False)
+
+
+def stress_bars(stress: Sequence[StressResult]) -> go.Figure:
+    fig = go.Figure(
+        go.Bar(
+            x=[f"{s.shock:+.0%}" for s in stress],
+            y=[s.pnl for s in stress],
+            marker={
+                "color": [theme.NEGATIVE if s.pnl < 0 else theme.POSITIVE for s in stress],
+                "line": {"width": 0},
+            },
+            text=[f"${s.pnl:,.0f}" for s in stress],
+            textposition="outside",
+            cliponaxis=False,
+            customdata=[s.pnl_pct_account * 100 for s in stress],
+            hovertemplate="market %{x}: P&L $%{y:,.0f} (%{customdata:.1f}% of account)<extra></extra>",
+        )
+    )
+    fig.update_xaxes(type="category")
+    return theme.style(
+        fig,
+        "Portfolio stress test (IV +50% on down moves)",
+        "Instant market move",
+        "P&L ($)",
+        legend=False,
+    )
+
+
+def stress_by_position_bars(
+    per_position: Mapping[str, Mapping[float, float]], shocks: Sequence[float]
+) -> go.Figure:
+    fig = go.Figure()
+    ids = list(per_position)
+    for i, shock in enumerate(shocks):
+        fig.add_bar(
+            name=f"{shock:+.0%}",
+            x=ids,
+            y=[per_position[cid].get(shock, 0.0) for cid in ids],
+            marker={"color": theme.SEQUENTIAL[min(i + 1, len(theme.SEQUENTIAL) - 1)]},
+            hovertemplate="%{x}<br>market " + f"{shock:+.0%}" + ": P&L $%{y:,.0f}<extra></extra>",
+        )
+    fig.update_layout(barmode="group")
+    return theme.style(fig, "Stress P&L per position", "Position", "P&L ($)", height=380)
+
+
+def portfolio_payoff(points: Sequence[tuple[float, float]]) -> go.Figure:
+    xs = [m * 100 for m, _ in points]
+    ys = [p for _, p in points]
+    fig = go.Figure()
+    fig.add_scatter(
+        x=xs,
+        y=ys,
+        mode="lines",
+        name="P&L at expiry",
+        line={"color": theme.ACCENT, "width": 2},
+        hovertemplate="market %{x:+.0f}%: P&L $%{y:,.0f}<extra></extra>",
+    )
+    fig.add_hline(y=0, line={"color": theme.AXIS, "width": 1})
+    return theme.style(
+        fig,
+        "Portfolio payoff at expiry vs a uniform market move",
+        "Move in every underlying (%)",
+        "P&L ($)",
+        legend=False,
+    )
+
+
+def loss_meter(value_pct: float, limit_pct: float, title: str) -> go.Figure:
+    """Bullet meter: a single ratio against its limit, same hue as the sequential ramp."""
+    top = max(limit_pct * 1.5, value_pct * 1.15, 0.01)
+    fig = go.Figure(
+        go.Indicator(
+            mode="number+gauge",
+            value=value_pct * 100,
+            number={"suffix": "%", "font": {"size": 28}},
+            gauge={
+                "shape": "bullet",
+                "axis": {"range": [0, top * 100], "ticksuffix": "%"},
+                "bar": {"color": theme.NEGATIVE if value_pct > limit_pct else theme.ACCENT},
+                "bgcolor": "rgba(0,0,0,0)",
+                "borderwidth": 0,
+                "steps": [{"range": [0, limit_pct * 100], "color": "#e1e0d9"}],
+                "threshold": {
+                    "line": {"color": theme.CRITICAL, "width": 3},
+                    "thickness": 0.9,
+                    "value": limit_pct * 100,
+                },
+            },
+            domain={"x": [0.0, 1], "y": [0.2, 0.8]},
+        )
+    )
+    fig.update_layout(
+        title={"text": title, "x": 0.0, "xanchor": "left"},
+        height=170,
+        margin={"l": 8, "r": 24, "t": 48, "b": 8},
+        paper_bgcolor="rgba(0,0,0,0)",
+    )
+    return fig
+
+
+# ----------------------------------------------------------------------------- payoff (Learn)
+def payoff_diagram(
+    points: Sequence[tuple[float, float]],
+    breakevens: Sequence[float],
+    spot: float,
+    title: str,
+) -> go.Figure:
+    xs = [s for s, _ in points]
+    ys = [p for _, p in points]
+    fig = go.Figure()
+    fig.add_scatter(
+        x=xs,
+        y=[max(y, 0.0) for y in ys],
+        mode="lines",
+        line={"width": 0},
+        fill="tozeroy",
+        fillcolor="rgba(42,120,214,0.12)",
+        hoverinfo="skip",
+        showlegend=False,
+    )
+    fig.add_scatter(
+        x=xs,
+        y=[min(y, 0.0) for y in ys],
+        mode="lines",
+        line={"width": 0},
+        fill="tozeroy",
+        fillcolor="rgba(208,59,59,0.12)",
+        hoverinfo="skip",
+        showlegend=False,
+    )
+    fig.add_scatter(
+        x=xs,
+        y=ys,
+        mode="lines",
+        name="P&L at expiry",
+        line={"color": theme.ACCENT, "width": 2},
+        hovertemplate="stock at $%{x:,.2f}: P&L $%{y:,.0f}<extra></extra>",
+    )
+    fig.add_hline(y=0, line={"color": theme.AXIS, "width": 1})
+    fig.add_vline(
+        x=spot,
+        line={"color": theme.MUTED, "width": 1},
+        annotation={"text": f"spot ${spot:,.2f}", "font": {"color": theme.MUTED}},
+        annotation_position="top left",
+    )
+    if breakevens:
+        fig.add_scatter(
+            x=list(breakevens),
+            y=[0.0] * len(breakevens),
+            mode="markers+text",
+            name="breakeven",
+            text=[f"breakeven ${b:,.2f}" for b in breakevens],
+            textposition="bottom right",
+            marker={"color": theme.ACCENT, "size": 10, "line": {"color": "#ffffff", "width": 2}},
+            hovertemplate="breakeven $%{x:,.2f}<extra></extra>",
+        )
+    return theme.style(
+        fig, title, "Stock price at expiry ($)", "P&L per position ($)", legend=False
+    )
+
+
+# -------------------------------------------------------------------------------- trends
+def trend_velocity(trends: Sequence[TrendSignal], limit: int = 8) -> go.Figure:
+    top = list(trends)[:limit]
+    fig = go.Figure()
+    fig.add_bar(
+        name="baseline (weekly mean, prior 8 weeks)",
+        x=[t.entity for t in top],
+        y=[t.components.get("mentions_baseline_weekly_mean", 0.0) for t in top],
+        marker={"color": theme.MUTED},
+        hovertemplate="%{x}<br>baseline %{y:.1f} mentions / week<extra></extra>",
+    )
+    fig.add_bar(
+        name="last 7 days",
+        x=[t.entity for t in top],
+        y=[t.components.get("mentions_recent", 0.0) for t in top],
+        marker={"color": theme.ACCENT},
+        customdata=[t.components.get("velocity_z", 0.0) for t in top],
+        hovertemplate="%{x}<br>recent %{y:.0f} mentions · velocity z %{customdata:.2f}<extra></extra>",
+    )
+    fig.update_layout(barmode="group")
+    return theme.style(
+        fig, "Mention velocity: last week vs baseline", "Entity", "Mentions (weighted count)"
+    )
+
+
+def per_source_z(trends: Sequence[TrendSignal], limit: int = 6) -> go.Figure:
+    top = list(trends)[:limit]
+    sources = ["reddit", "x", "wikipedia", "google_trends", "news"]
+    colors = theme.color_map(sources)
+    fig = go.Figure()
+    for src in sources:
+        key = f"{src}_z"
+        if not any(key in t.components for t in top):
+            continue
+        fig.add_bar(
+            name=src.replace("_", " "),
+            x=[t.entity for t in top],
+            y=[t.components.get(key, 0.0) for t in top],
+            marker={"color": colors[src]},
+            hovertemplate="%{x} · " + src + ": z %{y:.2f}<extra></extra>",
+        )
+    fig.update_layout(barmode="group")
+    return theme.style(fig, "Velocity z-score per source", "Entity", "z-score (own series)")
+
+
+def zscore_components(signal: TrendSignal) -> go.Figure:
+    keys = [
+        ("velocity_z", "velocity z"),
+        ("acceleration_norm", "acceleration"),
+        ("sentiment", "sentiment"),
+        ("purchase_intent_rate", "purchase intent"),
+        ("cross_source_norm", "cross-source confirmation"),
+        ("coverage_gap", "coverage gap"),
+        ("materiality", "materiality"),
+        ("novelty_penalty", "novelty penalty (−)"),
+        ("stock_hype_penalty", "stock-hype penalty (−)"),
+    ]
+    labels = [lab for k, lab in keys if k in signal.components]
+    values = [
+        -signal.components[k] if k.endswith("penalty") else signal.components[k]
+        for k, _ in keys
+        if k in signal.components
+    ]
+    fig = go.Figure(
+        go.Bar(
+            orientation="h",
+            y=labels,
+            x=values,
+            marker={"color": [theme.NEGATIVE if v < 0 else theme.POSITIVE for v in values]},
+            text=[f"{v:+.2f}" for v in values],
+            textposition="outside",
+            cliponaxis=False,
+            hovertemplate="%{y}: %{x:+.2f}<extra></extra>",
+        )
+    )
+    fig.update_yaxes(autorange="reversed")
+    return theme.style(
+        fig,
+        f"Score components for {signal.entity}",
+        "Contribution before weighting (penalties shown negative)",
+        "",
+        height=380,
+        legend=False,
+    )
+
+
+def sentiment_intent_scatter(
+    trends: Sequence[TrendSignal], curated: set[str], label_top: int = 8
+) -> go.Figure:
+    labelled = {t.entity for t in sorted(trends, key=lambda t: -t.score)[:label_top]}
+    fig = go.Figure()
+    groups = (
+        ("on the good-to-own list", theme.ACCENT, [t for t in trends if t.ticker in curated]),
+        ("not investable here", theme.MUTED, [t for t in trends if t.ticker not in curated]),
+    )
+    for name, color, sub in groups:
+        if not sub:
+            continue
+        fig.add_scatter(
+            name=name,
+            mode="markers+text",
+            x=[t.components.get("sentiment", 0.0) for t in sub],
+            y=[t.components.get("purchase_intent_rate", 0.0) * 100 for t in sub],
+            text=[t.entity if t.entity in labelled else "" for t in sub],
+            hovertext=[t.entity for t in sub],
+            textposition="top center",
+            marker={
+                "color": color,
+                "size": [8 + t.score / 5 for t in sub],
+                "line": {"color": "#ffffff", "width": 2},
+            },
+            customdata=[[t.ticker or "private", t.score] for t in sub],
+            hovertemplate=(
+                "%{hovertext} (%{customdata[0]})<br>sentiment %{x:.2f} · purchase intent %{y:.0f}%"
+                "<br>trend score %{customdata[1]:.0f}<extra></extra>"
+            ),
+        )
+    fig.update_xaxes(range=[-1.05, 1.05])
+    return theme.style(
+        fig,
+        "Sentiment vs purchase intent (size = trend score)",
+        "Mean sentiment (−1 … +1)",
+        "Mentions with purchase intent (%)",
+    )
+
+
+# ------------------------------------------------------------------------ under the hood
+def agent_latency(latency_ms: Mapping[str, float], order: Sequence[str]) -> go.Figure:
+    names = [a for a in order if a in latency_ms] + [a for a in latency_ms if a not in order]
+    fig = go.Figure(
+        go.Bar(
+            orientation="h",
+            y=[AGENT_LABELS.get(a, a) for a in names],
+            x=[latency_ms[a] for a in names],
+            marker={"color": theme.ACCENT},
+            text=[f"{latency_ms[a]:,.0f} ms" for a in names],
+            textposition="outside",
+            cliponaxis=False,
+            hovertemplate="%{y}: %{x:,.0f} ms<extra></extra>",
+        )
+    )
+    fig.update_yaxes(autorange="reversed")
+    return theme.style(
+        fig,
+        "Latency per specialist agent",
+        "Milliseconds (summed over retries)",
+        "",
+        height=max(260, 34 * len(names) + 90),
+        legend=False,
+    )

@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+from collections import Counter
 from datetime import UTC, datetime
 
 import pytest
@@ -106,6 +107,38 @@ def test_blend_golden_and_quality_moves_rank(world: dict[str, object]) -> None:
     best_hi = next(r.rank for r in hi if r.candidate.ticker == tk)
     best_lo = next(r.rank for r in lo if r.candidate.ticker == tk)
     assert best_hi < best_lo  # a higher stock-quality score ranks the same contracts higher
+
+
+def test_rank_cap_keeps_best_n_per_ticker_and_strategy(world: dict[str, object]) -> None:
+    cfg: AppConfig = world["cfg"]  # type: ignore[assignment]
+    full = _rank(world)  # uncapped: SPY's $1-strike ladder fills the top of the list
+    capped = ranking.rank_candidates(
+        world["cands"],  # type: ignore[arg-type]
+        {"COST": 80.0, "NKE": 70.0},
+        {"COST": 0.9, "ELF": 0.1},
+        weights=cfg.settings.ranking.weights,
+        option_weights=cfg.settings.ranking.option_quality_weights,
+        rules=cfg.rules,
+        pmcc_pairs=world["pairs"],  # type: ignore[arg-type]
+        max_per_ticker=2,
+    )
+    per_group = Counter((r.candidate.ticker, r.candidate.strategy) for r in capped)
+    assert per_group and max(per_group.values()) <= 2
+    assert [r.rank for r in capped] == list(range(1, len(capped) + 1))
+    scores = [r.final_score for r in capped]
+    assert scores == sorted(scores, reverse=True)
+    for key in per_group:  # the survivors are exactly the best-ranked of their group, in order
+        best = [r.candidate.id for r in full if (r.candidate.ticker, r.candidate.strategy) == key]
+        kept = [r.candidate.id for r in capped if (r.candidate.ticker, r.candidate.strategy) == key]
+        assert kept == best[:2]
+    # the ticker that dominated the uncapped top 10 holds fewer slots (at most 2 CSP + 2 LEAPS)
+    dominant, n_full = Counter(r.candidate.ticker for r in full[:10]).most_common(1)[0]
+    top_capped = Counter(r.candidate.ticker for r in capped[:10])
+    assert top_capped[dominant] < n_full and max(top_capped.values()) <= 4
+    assert len(capped) < len(full)
+    # PMCC pairs stay attached to the LEAPS that survive
+    assert any(r.pmcc is not None for r in capped if r.candidate.strategy == "leaps")
+    assert ranking.cap_per_ticker(full, 0) == []  # n=0 keeps nothing; callers pass 0 to skip
 
 
 @pytest.mark.parametrize("risk_profile", ["conservative", "balanced", "aggressive"])

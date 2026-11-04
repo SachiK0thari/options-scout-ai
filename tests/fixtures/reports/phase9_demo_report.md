@@ -50,39 +50,27 @@ Universe considered: NKE, COST, AAPL, MSFT, SBUX, SPY, QQQ
 ## CSP candidates
 | ID | Strike | Expiry | DTE | Delta | Mid | Collateral | Reg T margin | Ann. return | P(OTM) | OI / spread | IV rank | Earnings | Flags |
 |---|---|---|---|---|---|---|---|---|---|---|---|---|---|
-| CSP-NKE-2026-11-20-35P | 35 | 2026-11-20 | 24 | -0.23 | 0.56 | $3,444 | $552 | 25.0% | 73% | 20,879/9% | 94%* | no | dte_outside_preferred |
-| CSP-SPY-2026-11-30-755P | 755 | 2026-11-30 | 34 | -0.30 | 7.20 | $74,780 | $14,647 | 10.3% | 69% | 3,326/1% | 85%* | no |  |
-| CSP-SPY-2026-11-30-754P | 754 | 2026-11-30 | 34 | -0.29 | 6.98 | $74,702 | $14,526 | 10.0% | 70% | 681/1% | 85%* | no |  |
-| CSP-SPY-2026-11-30-752P | 752 | 2026-11-30 | 34 | -0.27 | 6.58 | $74,542 | $14,286 | 9.5% | 71% | 1,408/1% | 85%* | no |  |
-| CSP-SPY-2026-11-27-750P | 750 | 2026-11-27 | 31 | -0.25 | 5.91 | $74,409 | $14,018 | 9.4% | 73% | 1,081/1% | 85%* | no |  |
+| CSP-SPY-2026-11-30-735P | 735 | 2026-11-30 | 34 | -0.17 | 4.10 | $73,090 | $12,337 | 6.0% | 82% | 7,250/1% | 85%* | no |  |
 | CSP-SPY-2026-11-30-750P | 750 | 2026-11-30 | 34 | -0.26 | 6.21 | $74,379 | $14,048 | 9.0% | 73% | 9,144/1% | 85%* | no |  |
-| CSP-SPY-2026-11-30-749P | 749 | 2026-11-30 | 34 | -0.25 | 6.04 | $74,296 | $13,931 | 8.7% | 74% | 682/0% | 85%* | no |  |
-| CSP-SPY-2026-11-30-748P | 748 | 2026-11-30 | 34 | -0.24 | 5.87 | $74,214 | $13,814 | 8.5% | 74% | 917/1% | 85%* | no |  |
-| CSP-SPY-2026-11-30-747P | 747 | 2026-11-30 | 34 | -0.23 | 5.70 | $74,130 | $13,697 | 8.2% | 75% | 620/1% | 85%* | no |  |
-| CSP-SPY-2026-11-27-745P | 745 | 2026-11-27 | 31 | -0.22 | 5.10 | $73,990 | $13,437 | 8.1% | 77% | 745/1% | 85%* | no |  |
-| CSP-SPY-2026-11-30-746P | 746 | 2026-11-30 | 34 | -0.23 | 5.54 | $74,046 | $13,581 | 8.0% | 76% | 1,552/1% | 85%* | no |  |
-| CSP-SPY-2026-11-30-745P | 745 | 2026-11-30 | 34 | -0.22 | 5.39 | $73,961 | $13,466 | 7.8% | 77% | 3,263/1% | 85%* | no |  |
-| CSP-SPY-2026-11-27-743P | 743 | 2026-11-27 | 31 | -0.20 | 4.82 | $73,818 | $13,209 | 7.7% | 78% | 555/1% | 85%* | no |  |
-| CSP-SPY-2026-11-30-744P | 744 | 2026-11-30 | 34 | -0.21 | 5.24 | $73,876 | $13,351 | 7.6% | 77% | 1,214/1% | 85%* | no |  |
-| CSP-SPY-2026-11-27-742P | 742 | 2026-11-27 | 31 | -0.20 | 4.68 | $73,732 | $13,095 | 7.5% | 79% | 675/1% | 85%* | no |  |
+| CSP-QQQ-2026-11-30-700P | 700 | 2026-11-30 | 34 | -0.30 | 10.43 | $68,956 | $13,344 | 16.2% | 68% | 4,918/1% | 62%* | no |  |
+| CSP-QQQ-2026-11-30-695P | 695 | 2026-11-30 | 34 | -0.27 | 9.27 | $68,573 | $12,727 | 14.5% | 71% | 5,930/2% | 62%* | no |  |
+| CSP-NKE-2026-11-20-35P | 35 | 2026-11-20 | 24 | -0.23 | 0.56 | $3,444 | $552 | 25.0% | 73% | 20,879/9% | 94%* | no | dte_outside_preferred |
 
 \* IV rank from HV proxy (fewer than 30 stored IV snapshots).
 
 ## LEAPS / PMCC candidates
 | ID | Strike | Expiry | DTE | Delta | Mid | Extrinsic/yr | Breakeven | OI / spread | PMCC short call | Flags |
 |---|---|---|---|---|---|---|---|---|---|---|
-| LEAPS-NKE-2028-12-15-20C | 20 | 2028-12-15 | 780 | 0.82 | 18.80 | 1.5% | 38.80 | 575/5% | 40C 2026-11-20 Δ0.30 mid 0.72 (net Δ 0.52, safety +1.20) | high_iv_rank |
-| LEAPS-COST-2028-12-15-800C | 800 | 2028-12-15 | 780 | 0.78 | 297.00 | 4.9% | 1097.00 | 172/3% | n/a | high_iv_rank |
+| LEAPS-SPY-2028-12-15-555C | 555 | 2028-12-15 | 780 | 0.83 | 265.65 | 3.1% | 820.65 | 143/2% | n/a | high_iv_rank |
+| LEAPS-SPY-2028-01-21-550C | 550 | 2028-01-21 | 451 | 0.85 | 254.28 | 3.6% | 804.28 | 758/2% | 805C 2026-12-18 Δ0.22 mid 4.11 (net Δ 0.63, safety +0.72) | shorter_than_preferred_dte, high_iv_rank |
+| LEAPS-QQQ-2029-01-19-500C | 500 | 2029-01-19 | 815 | 0.84 | 286.00 | 4.0% | 786.00 | 458/2% | n/a | high_iv_rank |
+| LEAPS-QQQ-2028-12-15-500C | 500 | 2028-12-15 | 780 | 0.84 | 284.00 | 4.1% | 784.00 | 224/2% | n/a | high_iv_rank |
 | LEAPS-AAPL-2028-12-15-230C | 230 | 2028-12-15 | 780 | 0.85 | 146.30 | 3.9% | 376.30 | 924/3% | n/a | high_iv_rank |
-| LEAPS-AAPL-2029-01-19-240C | 240 | 2029-01-19 | 815 | 0.84 | 139.95 | 4.2% | 379.95 | 181/3% | n/a | high_iv_rank |
 | LEAPS-AAPL-2028-12-15-240C | 240 | 2028-12-15 | 780 | 0.84 | 138.85 | 4.3% | 378.85 | 1,766/3% | n/a | high_iv_rank |
-| LEAPS-AAPL-2028-03-17-240C | 240 | 2028-03-17 | 507 | 0.85 | 128.18 | 4.4% | 368.18 | 477/3% | 370C 2026-12-18 Δ0.28 mid 4.80 (net Δ 0.57, safety +1.82) | shorter_than_preferred_dte, high_iv_rank |
-| LEAPS-AAPL-2027-12-17-245C | 245 | 2027-12-17 | 416 | 0.85 | 119.90 | 4.5% | 364.90 | 581/3% | 365C 2026-11-20 Δ0.25 mid 3.25 (net Δ 0.60, safety +0.10) | shorter_than_preferred_dte, high_iv_rank |
-| LEAPS-AAPL-2029-01-19-250C | 250 | 2029-01-19 | 815 | 0.82 | 132.65 | 4.6% | 382.65 | 526/2% | n/a | high_iv_rank |
-| LEAPS-AAPL-2028-12-15-250C | 250 | 2028-12-15 | 780 | 0.82 | 131.25 | 4.6% | 381.25 | 2,501/3% | n/a | high_iv_rank |
-| LEAPS-AAPL-2028-01-21-250C | 250 | 2028-01-21 | 451 | 0.84 | 116.88 | 4.6% | 366.88 | 1,842/2% | 367.5C 2026-11-20 Δ0.22 mid 2.67 (net Δ 0.62, safety +0.62) | shorter_than_preferred_dte, high_iv_rank |
-| LEAPS-AAPL-2028-03-17-250C | 250 | 2028-03-17 | 507 | 0.83 | 119.78 | 4.7% | 369.77 | 612/3% | 370C 2026-12-18 Δ0.28 mid 4.80 (net Δ 0.56, safety +0.23) | shorter_than_preferred_dte, high_iv_rank |
-| LEAPS-AAPL-2027-12-17-250C | 250 | 2027-12-17 | 416 | 0.84 | 115.75 | 4.7% | 365.75 | 3,382/3% | 367.5C 2026-11-20 Δ0.22 mid 2.67 (net Δ 0.62, safety +1.75) | shorter_than_preferred_dte, high_iv_rank |
+| LEAPS-NKE-2028-12-15-20C | 20 | 2028-12-15 | 780 | 0.82 | 18.80 | 1.5% | 38.80 | 575/5% | 40C 2026-11-20 Δ0.30 mid 0.72 (net Δ 0.52, safety +1.20) | high_iv_rank |
+| LEAPS-MSFT-2028-12-15-340C | 340 | 2028-12-15 | 780 | 0.85 | 234.50 | 3.8% | 574.50 | 345/2% | 575C 2026-11-27 Δ0.21 mid 5.35 (net Δ 0.63, safety +0.50) | high_iv_rank |
+| LEAPS-MSFT-2028-12-15-350C | 350 | 2028-12-15 | 780 | 0.84 | 227.00 | 4.0% | 577.00 | 1,853/2% | 580C 2026-12-18 Δ0.25 mid 7.92 (net Δ 0.59, safety +3.00) | high_iv_rank |
+| LEAPS-COST-2028-12-15-800C | 800 | 2028-12-15 | 780 | 0.78 | 297.00 | 4.9% | 1097.00 | 172/3% | n/a | high_iv_rank |
 
 ## Sized portfolio
 | Candidate | Strategy | Contracts | Strike | Expiry | Capital | Margin | Loss @ -30% | $ delta | Premium | Score | PMCC short call |
@@ -101,16 +89,16 @@ Universe considered: NKE, COST, AAPL, MSFT, SBUX, SPY, QQQ
 | Net premium (income − debits) | -1,639 |
 | Cash reserve | $96,536 |
 
-<details><summary>Skipped candidates (135)</summary>
+<details><summary>Skipped candidates (13)</summary>
 
 - CSP-SPY-2026-11-30-735P: 0 contracts fit (max loss per position)
 - CSP-SPY-2026-11-30-750P: 0 contracts fit (max loss per position)
-- CSP-SPY-2026-11-30-740P: 0 contracts fit (max loss per position)
-- CSP-SPY-2026-11-30-745P: 0 contracts fit (max loss per position)
-- CSP-SPY-2026-11-30-755P: 0 contracts fit (max loss per position)
-- CSP-SPY-2026-11-27-735P: 0 contracts fit (max loss per position)
-- CSP-SPY-2026-11-27-750P: 0 contracts fit (max loss per position)
-- CSP-SPY-2026-11-27-740P: 0 contracts fit (max loss per position)
+- LEAPS-SPY-2028-12-15-555C: 0 contracts fit (allocation budget)
+- CSP-QQQ-2026-11-30-700P: 0 contracts fit (max loss per position)
+- LEAPS-SPY-2028-01-21-550C: 0 contracts fit (allocation budget)
+- CSP-QQQ-2026-11-30-695P: 0 contracts fit (max loss per position)
+- LEAPS-QQQ-2029-01-19-500C: 0 contracts fit (allocation budget)
+- LEAPS-QQQ-2028-12-15-500C: 0 contracts fit (allocation budget)
 - …
 
 </details>
@@ -193,6 +181,7 @@ PASS: 50 numbers checked, 0 ungrounded, banned phrases: none, disclaimer present
 - Tokens: 0 in / 0 out · cost $0.0000
 
 ## Notes and degraded sources
+- ranker: kept the best 2 contracts per ticker and strategy (122 near-duplicate strikes/expiries not listed)
 - universe: no offline fixture for PEP, GOOGL, AMZN, CSCO, TXN, ACN, WMT, PG, KO, MCD, HD, LOW, TJX, JNJ, ABBV, MRK, ABT, JPM, V, MA, HON, UNP, LMT, XOM, CVX; skipped
 - universe: trending ticker ANF is not on the good-to-own list; skipped
 - universe: trending ticker BIRK is not on the good-to-own list; skipped

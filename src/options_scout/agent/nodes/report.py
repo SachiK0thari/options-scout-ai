@@ -155,7 +155,12 @@ def make(deps: Deps) -> Callable[[AgentState], dict[str, Any]]:
             agent_latency_ms=dict(state.get("agent_latency_ms", {})),
             agents_visited=list(state.get("agents_visited", [])),
         )
-        cands = state.get("candidates", [])
+        # The report lists the ranker's shortlist (best N per ticker and strategy, in rank order),
+        # not every strike the screeners emitted: otherwise one ETF's ladder fills the tables.
+        ranked = state.get("ranked", [])
+        cands = [r.candidate for r in ranked] or state.get("candidates", [])
+        kept_leaps = {c.id for c in cands if c.strategy == "leaps"}
+        pairs = [p for p in state.get("pmcc_pairs", []) if p.leaps.id in kept_leaps]
         rep = ScreeningReport(
             run_id=meta.run_id,
             as_of=deps.md.now(),
@@ -169,8 +174,8 @@ def make(deps: Deps) -> Callable[[AgentState], dict[str, Any]]:
             ],
             csp_candidates=[c for c in cands if c.strategy == "csp"],
             leaps_candidates=[c for c in cands if c.strategy == "leaps"],
-            pmcc_candidates=state.get("pmcc_pairs", []),
-            ranked=state.get("ranked", []),
+            pmcc_candidates=pairs,
+            ranked=ranked,
             portfolio=portfolio,
             risk=risk,
             narrative=narrative,

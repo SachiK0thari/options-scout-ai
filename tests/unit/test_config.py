@@ -9,6 +9,7 @@ def test_config_loads_and_is_typed(config: AppConfig) -> None:
     assert config.settings.data_mode == "fixture"
     w = config.settings.ranking.weights
     assert (w.option_quality, w.stock_quality, w.social) == (0.5, 0.35, 0.15)
+    assert config.settings.ranking.max_per_ticker == 2
     assert config.quality.get("AAPL") is not None and config.quality.gates.max_hv30 == 0.35
     assert set(config.risk.allocation) == {"conservative", "balanced", "aggressive"}
     for split in config.risk.allocation.values():

@@ -79,10 +79,12 @@ _COMPANY_TICKERS = {
     "pepsi": "PEP",
     "coca-cola": "KO",
     "coke": "KO",
+    "bloom energy": "BE",
+    "freeport": "FCX",
+    "philip morris": "PM",
 }
-_NOT_TICKERS = {
-    "I",
-    "A",
+# Options and account jargon users capitalise on purpose: never a ticker (unless written $CSP).
+_JARGON = {
     "CSP",
     "CSPS",
     "LEAPS",
@@ -102,12 +104,22 @@ _NOT_TICKERS = {
     "ATM",
     "YOLO",
     "AI",
-    "TV",
-    "PM",
-    "AM",
     "K",
     "M",
     "MM",
+    "FYI",
+    "BTW",
+}
+
+# Everyday words that are also real tickers (BE, SO, IT, PM, UP, DO, ON ...). A match counts as a
+# ticker only when it is clearly deliberate: written as a cashtag ($BE), or capitalised inside a
+# message that is otherwise lower case. Single letters (I, A) need the cashtag.
+_ENGLISH_WORDS = {
+    "I",
+    "A",
+    "TV",
+    "PM",
+    "AM",
     "NO",
     "AND",
     "OR",
@@ -131,8 +143,6 @@ _NOT_TICKERS = {
     "IF",
     "UP",
     "BP",
-    "FYI",
-    "BTW",
     "IMO",
     "ASAP",
     "LOL",
@@ -246,7 +256,24 @@ def _strategies(low: str) -> list[Strategy] | None:
     return out or None
 
 
+def _is_ticker(token: str, before: str, *, shouted: bool) -> bool:
+    """Decide whether an upper-case word is a ticker. ``before`` is the text preceding it."""
+    if before.endswith("$"):
+        return True  # a cashtag is always deliberate
+    if token in _JARGON:
+        return False
+    if token in _ENGLISH_WORDS:
+        if shouted or len(token) < 2:
+            return False  # "I LIKE IT" or "I like AAPL": not a ticker
+        if re.search(r"\d\s*$", before):
+            return False  # "3 PM", "9 AM"
+    return True
+
+
 def _tickers_after(low_text: str, text: str, keywords: tuple[str, ...]) -> list[str]:
+    # Someone writing in lower case who types BE in capitals means Bloom Energy; in an all-caps
+    # message the same letters are just the verb.
+    shouted = re.search(r"[a-z]{2,}", text) is None
     found: list[str] = []
     for kw in keywords:
         for m in re.finditer(kw, low_text):
@@ -254,8 +281,9 @@ def _tickers_after(low_text: str, text: str, keywords: tuple[str, ...]) -> list[
             segment = re.split(
                 r"[.;\n]| but | and (?:no|skip|avoid|exclude|exclud)", segment, maxsplit=1
             )[0]
-            for t in _TICKER.findall(segment):
-                if t not in _NOT_TICKERS and t not in found:
+            for tm in _TICKER.finditer(segment):
+                t = tm.group(0)
+                if t not in found and _is_ticker(t, segment[: tm.start()], shouted=shouted):
                     found.append(t)
             seg_low = segment.lower()
             for name, t in _COMPANY_TICKERS.items():
@@ -313,6 +341,7 @@ def rule_parse_profile(user_prompt: str) -> ProfileParse:
             text,
             (
                 r"\b(?:like|watchlist|watch list|interested in|focus on|favou?rite|love|own|prefer|such as|e\.g\.|including|in)\b",
+                r"\b(?:puts?|calls?|csps?|leaps|pmccs?|wheel|options?|trades?) (?:on|for|against)\b",
             ),
         )
         if t not in exclude

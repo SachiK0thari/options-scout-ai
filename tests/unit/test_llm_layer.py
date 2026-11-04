@@ -89,6 +89,27 @@ def test_rule_parse_profile_tickers_and_strategies() -> None:
     assert set(out.exclude) == {"TSLA", "GME"}
 
 
+@pytest.mark.parametrize(
+    ("text", "watch", "exclude"),
+    [
+        ("sell puts on BE", ["BE"], []),  # a deliberate capital in a lower-case message
+        ("CSPs on BE and FCX, skip IT", ["BE", "FCX"], ["IT"]),
+        ("interested in $BE and $SO", ["BE", "SO"], []),  # cashtags always win
+        ("focus on bloom energy and freeport", ["BE", "FCX"], []),
+        ("in my IRA I like PM", ["PM"], []),  # IRA is jargon, PM is Philip Morris
+        ("I like AAPL, meet at 3 PM", ["AAPL"], []),  # a time, not a ticker
+        ("I LIKE AAPL AND IT IS SO", ["AAPL"], []),  # shouting: AND/IT/IS/SO stay English
+        ("I like AAPL in my IRA", ["AAPL"], []),  # single letters and jargon never resolve
+    ],
+)
+def test_rule_parse_profile_ambiguous_tickers(
+    text: str, watch: list[str], exclude: list[str]
+) -> None:
+    out = rules.rule_parse_profile(f"<request>\n{text}\n</request>")
+    assert out.watchlist == watch
+    assert out.exclude == exclude
+
+
 def test_fixture_provider_replays_then_falls_back(tmp_path: Path, config: AppConfig) -> None:
     calls = {"n": 0}
 

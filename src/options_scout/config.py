@@ -146,6 +146,10 @@ class RankingWeights(_Strict):
 class RankingSettings(_Strict):
     weights: RankingWeights
     option_quality_weights: OptionQualityWeights
+    # Keep at most this many ranked candidates per (ticker, strategy); 0 = no cap. Without it a
+    # dense ETF chain (SPY: $1 strikes × several expiries) fills the whole top of the list with
+    # near-identical contracts.
+    max_per_ticker: int = Field(default=2, ge=0)
 
 
 MarketProviderName = Literal["marketdata", "tradier"]

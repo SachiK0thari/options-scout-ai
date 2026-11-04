@@ -3,6 +3,8 @@
 *How much weight consumer trends should carry when picking stocks for LEAPS, PMCCs and cash-secured puts.*
 
 > Not financial advice. This is a framework for thinking about strategy fit, not a recommendation on any position.
+>
+> Companion framework: `bottleneck-arbitrage.md` covers the second candidate-picking signal (supply-chain shortages behind a large theme) and how it fits the same three strategies.
 
 ---
 

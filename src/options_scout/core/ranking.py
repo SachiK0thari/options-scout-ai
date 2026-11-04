@@ -1,9 +1,13 @@
-"""Blend option quality, 'good to own' stock quality and the social score (ranker_node)."""
+"""Blend option quality, 'good to own' stock quality and the social score (ranker_node).
+
+After scoring, :func:`rank_candidates` keeps only the best ``max_per_ticker`` contracts per
+(ticker, strategy) so the shortlist spans the universe instead of listing one ETF's strike ladder.
+"""
 
 from __future__ import annotations
 
 import math
-from collections.abc import Iterable, Mapping
+from collections.abc import Iterable, Mapping, Sequence
 
 from options_scout.config import OptionQualityWeights, RankingWeights, ScreenerRules
 from options_scout.core.models import OptionCandidate, PMCCCandidate, RankedCandidate
@@ -60,8 +64,13 @@ def rank_candidates(
     option_weights: OptionQualityWeights,
     rules: ScreenerRules,
     pmcc_pairs: Iterable[PMCCCandidate] = (),
+    max_per_ticker: int = 0,
 ) -> list[RankedCandidate]:
-    """Score every candidate with :func:`blend`; sort descending (ties → higher open interest)."""
+    """Score every candidate with :func:`blend`; sort descending (ties → higher open interest).
+
+    ``max_per_ticker`` > 0 keeps only that many of the best contracts per (ticker, strategy); the
+    rest are dropped so one ticker cannot monopolise the shortlist. 0 keeps everything.
+    """
     quality_scores = quality_scores or {}
     pair_by_leaps = {p.leaps.id: p for p in pmcc_pairs}
     ranked: list[RankedCandidate] = []
@@ -83,6 +92,20 @@ def rank_candidates(
             )
         )
     ranked.sort(key=lambda r: (r.final_score, r.candidate.open_interest), reverse=True)
+    if max_per_ticker > 0:
+        ranked = cap_per_ticker(ranked, max_per_ticker)
     for i, r in enumerate(ranked, start=1):
         r.rank = i
     return ranked
+
+
+def cap_per_ticker(ranked: Sequence[RankedCandidate], n: int) -> list[RankedCandidate]:
+    """Keep the first ``n`` entries per (ticker, strategy), preserving order (input is sorted)."""
+    seen: dict[tuple[str, str], int] = {}
+    out: list[RankedCandidate] = []
+    for r in ranked:
+        key = (r.candidate.ticker, r.candidate.strategy)
+        if seen.get(key, 0) < n:
+            seen[key] = seen.get(key, 0) + 1
+            out.append(r)
+    return out
