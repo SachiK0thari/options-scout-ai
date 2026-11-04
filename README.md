@@ -27,6 +27,7 @@ make demo-core        # screeners + sizing + risk for every risk profile × acco
 make index            # build the cited knowledge base (data/knowledge.sqlite) offline, < 1 s
 make ui               # eight-tab Streamlit app on :8501: chat on Scout, form on Setup, results, Learn, Trends, trace
 make api              # FastAPI on :8000  (POST /v1/recommend → GET /v1/runs/{id}/stream → /report; POST /v1/chat)
+make mcp              # MCP server over stdio: the six tools + knowledge:// resources for Claude Desktop
 make test lint eval   # offline tests, ruff + mypy --strict, evaluation suite → evals/reports/latest.md
 ```
 
@@ -181,6 +182,45 @@ Measured by `make eval` on 2026-10-27 in fixture mode with **no LLM key** (the r
 ## Repository layout
 
 See [`PRD.md`](PRD.md) section 8. Key paths: `config/*.yaml` (every threshold), `prompts/*.md` (versioned prompts), `src/options_scout/core` (math), `src/options_scout/social` (trend engine), `src/options_scout/rag` + `knowledge/` (cited knowledge base), `src/options_scout/agent` (graph), `src/options_scout/api`, `ui/streamlit_app.py`, `evals/`, `tests/fixtures/`.
+
+## Use it from Claude Desktop
+
+The same engine is exposed as an [MCP](https://modelcontextprotocol.io) server (`src/options_scout/mcp/server.py`, `mcp` SDK 2.x, stdio). Six tools wrap the deterministic layer and the graph, and the knowledge base is served as resources:
+
+| Tool | Wraps | Returns |
+|---|---|---|
+| `quality_check(tickers)` | `core/quality.py` on a fresh snapshot per ticker | pass/fail with reasons, 0–1 score, the gate values |
+| `screen_options(buying_power, strategy, account, risk, tickers?, exclude?, max_positions)` | the full parent graph, fixture or live per env | `ScreeningReport` JSON (compliance-checked narrative), its Markdown and a one-paragraph summary |
+| `price_option(spot, strike, dte, iv, rate, kind, dividend_yield)` | `core/pricing.py` | price, delta, gamma, theta, vega, probability OTM |
+| `compute_margin(strike, premium, spot, account, contracts, dte?)` | `core/margin.py` | cash-secured collateral, Reg T minimum, what the account must hold |
+| `payoff_curve(legs, spot?, points)` | `core/payoff.py` | spot grid, P&L, breakevens, max loss / gain |
+| `explain_term(term)` | Education agent → Compliance | cited answer with its `ComplianceReport` |
+
+Resources: `knowledge://concepts` (index) and `knowledge://concepts/<id>` (one cited concept document, e.g. `knowledge://concepts/cash-secured-put`). The server never accepts a market-data key as a tool argument; it reads `MARKETDATA_API_KEY` / `TRADIER_API_KEY` and the `OPTIONS_SCOUT_*` modes from the environment it is started with, and every narrative passes the same Compliance agent as the chat and the API before it is returned. Logs go to stderr, so stdout stays a clean JSON-RPC channel.
+
+Add this to `claude_desktop_config.json` (**Settings → Developer → Edit Config**), with the two absolute paths replaced; `make install` already installed the `[mcp]` extra into `.venv`:
+
+```json
+{
+  "mcpServers": {
+    "options-scout": {
+      "command": "/ABSOLUTE/PATH/TO/options-scout-ai/.venv/bin/python",
+      "args": ["-m", "options_scout.mcp.server"],
+      "env": {
+        "OPTIONS_SCOUT_ROOT": "/ABSOLUTE/PATH/TO/options-scout-ai",
+        "OPTIONS_SCOUT_DATA_MODE": "fixture",
+        "OPTIONS_SCOUT_LLM_MODE": "fixture"
+      }
+    }
+  }
+}
+```
+
+Restart Claude Desktop, then ask it, for example, *"Use options-scout to screen cash-secured puts for $40,000 in a cash account, conservative"* (it calls `screen_options`) or *"What does options-scout say a cash-secured put is?"* (it calls `explain_term`, and the reply carries the `[S1]` citation and the compliance audit id). Switch the two mode variables to `live` and add your market-data key to that `env` block for delayed live quotes.
+
+![Claude Desktop calling screen_options](docs/screenshots/claude-desktop-screen-options.png)
+
+`tests/agent/test_mcp.py` drives the server through the SDK's in-process client (tool listing, `price_option` against the pricing goldens, `explain_term` carrying a passing `ComplianceReport`, a fixture `screen_options` run, the resources) and once more over real stdio as a subprocess.
 
 ## Deploy
 

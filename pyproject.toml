@@ -44,6 +44,10 @@ trends = [
 rag = [
     "fastembed==0.9.1",
 ]
+# MCP server for Claude Desktop (step 10.7). 2.x renamed FastMCP to MCPServer; the code targets 2.x.
+mcp = [
+    "mcp==2.3.0",
+]
 dev = [
     "pytest==9.1.1",
     "pytest-cov==7.1.0",

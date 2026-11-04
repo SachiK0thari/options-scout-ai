@@ -4,14 +4,14 @@ UV        ?= uv
 PORT_API  ?= 8000
 PORT_UI   ?= 8501
 
-.PHONY: help install test test-live lint fmt eval api ui demo demo-core index clean check
+.PHONY: help install test test-live lint fmt eval api ui mcp demo demo-core index clean check
 
 help:
 	@grep -E '^[a-zA-Z_-]+:.*?## ' $(MAKEFILE_LIST) | awk 'BEGIN {FS = ":.*?## "}; {printf "  %-12s %s\n", $$1, $$2}'
 
 install: ## create .venv and install all deps (uv)
 	$(UV) venv .venv --python 3.12 --allow-existing
-	$(UV) pip install --python $(PY) -e ".[dev]"
+	$(UV) pip install --python $(PY) -e ".[dev,mcp]"
 	@test -f .env || cp .env.example .env
 	@echo "Installed. Edit .env if you want live data / an LLM key."
 
@@ -40,6 +40,9 @@ api: ## FastAPI on :8000
 
 ui: ## Streamlit on :8501
 	$(PY) -m streamlit run ui/streamlit_app.py --server.port $(PORT_UI)
+
+mcp: ## MCP server over stdio for Claude Desktop (see README "Use it from Claude Desktop")
+	$(PY) -m options_scout.mcp.server
 
 demo: ## full agent pipeline in fixture mode, prints a report (ARGS="--no-llm" to skip LLM steps)
 	$(PY) -m options_scout.cli demo $(ARGS)

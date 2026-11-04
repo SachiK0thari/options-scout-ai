@@ -2,7 +2,7 @@
 
 > Build spec and working agreement for Claude Code.
 > Read this whole file before writing any code. Work through the **Build Phases** (section 14) in order, and do not start a phase until the previous phase's acceptance criteria pass.
-> **Current phase: 10, step 10.7** (section 14, "Rubric alignment"; steps 10.1–10.6 done 2026-11-03). Phases 0–9 are complete and must not regress. Section 18 maps every rubric line to the feature and test that earns it. **Phase 11** (section 4A, the bottleneck-arbitrage signal) was specified on 2026-11-03 and is queued after step 10.8; nothing in it is built yet, and the three-term ranking in section 3.7 stays in force until it ships.
+> **Current phase: 10, step 10.8** (section 14, "Rubric alignment"; steps 10.1–10.7 done 2026-11-04). Phases 0–9 are complete and must not regress. Section 18 maps every rubric line to the feature and test that earns it. **Phase 11** (section 4A, the bottleneck-arbitrage signal) was specified on 2026-11-03 and is queued after step 10.8; nothing in it is built yet, and the three-term ranking in section 3.7 stays in force until it ships.
 
 ---
 
@@ -878,7 +878,7 @@ The results list above now maps onto the Quality Screen, Candidates, Portfolio &
 
 ### 10.1 MCP server (bonus): `src/options_scout/mcp/server.py`
 
-A FastMCP server (`mcp` Python SDK) exposing the deterministic tools and the full run so Claude Desktop or any MCP client can drive the screener:
+A FastMCP server (`mcp` Python SDK; in 2.x the class is `MCPServer`) exposing the deterministic tools and the full run so Claude Desktop or any MCP client can drive the screener:
 
 | Tool | Wraps | Returns |
 |---|---|---|
@@ -1101,10 +1101,10 @@ Work the steps **in order**; each step is one PR-sized unit with its own tests a
 - [x] Tests: extend `tests/agent/test_ui.py` (`AppTest`) — all 8 tabs render with no report and with a fixture report; CSP-only hides the LEAPS table; chat turn renders a Compliance badge; Learn concept page shows ≥ 1 citation; disclaimer present on every tab. _(12 tests, incl. describe → confirm → what-if → off-topic through the chat and the Greeks / Reg T pages bound to a screened candidate.)_
 - **Accept:** `make ui` shows the 8 tabs; a screenshot per tab is committed under `docs/screenshots/` and linked from the README. _(Met: screenshots taken headless with Chrome against the fixture run.)_
 
-**Step 10.7 — MCP server (bonus)**
-- [ ] `mcp/server.py` (FastMCP, stdio) with the six tools and the `knowledge://` resource per 10.1; `make mcp`; `mcp` SDK pinned in `pyproject.toml` under `[mcp]`.
-- [ ] Tests: `tests/agent/test_mcp.py` — in-process client lists tools, `price_option` matches `core/pricing` goldens, `explain_term` result carries a `ComplianceReport` with `passed=True`, `screen_options` in fixture mode returns a report.
-- **Accept:** README section "Use it from Claude Desktop" with the config snippet and a screenshot of Claude Desktop calling `screen_options`.
+**Step 10.7 — MCP server (bonus)** — done 2026-11-04
+- [x] `mcp/server.py` (FastMCP, stdio) with the six tools and the `knowledge://` resource per 10.1; `make mcp`; `mcp` SDK pinned in `pyproject.toml` under `[mcp]`. _(`mcp==2.3.0`, where `FastMCP` is now `MCPServer`; `create_server(deps)` builds the server with lazily constructed `Deps`, so listing tools never touches market data. Every tool returns a typed Pydantic result (structured output); `screen_options` returns the `ScreeningReport`, its Markdown and the chat's `screen_summary`, and refuses to return a report without a compliance audit entry, like the API; `explain_term` is `answer_question` (Education → Compliance). Anticipated failures are `ToolError`s with a readable message; a second static resource `knowledge://concepts` indexes the concept documents, and ids are accepted hyphenated or in file spelling. `make install` installs `.[dev,mcp]`.)_
+- [x] Tests: `tests/agent/test_mcp.py` — in-process client lists tools, `price_option` matches `core/pricing` goldens, `explain_term` result carries a `ComplianceReport` with `passed=True`, `screen_options` in fixture mode returns a report. _(16 tests incl. `compute_margin` against the Reg T / CSP goldens, `payoff_curve` breakevens, `quality_check` dedupe and per-ticker errors, both resources, and one real stdio subprocess round-trip, the `make mcp` path; `pytest.importorskip("mcp")` keeps a plain `[dev]` install green.)_
+- **Accept:** README section "Use it from Claude Desktop" with the config snippet and a screenshot of Claude Desktop calling `screen_options`. _(Met: `docs/screenshots/claude-desktop-screen-options.png` shows Claude Desktop calling `screen_options` for a $40,000 conservative cash account on the fixture data and summarising the compliance-checked result.)_
 
 **Step 10.8 — Docs, evals, packaging**
 - [ ] README: new one-paragraph pitch (six specialists + compliance, RAG with citations, chat), 5.0 diagram, tab screenshots, "Education, not advice" section, eval table including 11.3a rows, rubric map link (section 18), MCP section.
