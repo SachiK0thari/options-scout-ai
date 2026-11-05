@@ -4,6 +4,7 @@ title: 'Rule 3.4: LEAPS screener rules'
 source: PRD.md section 3.4 and config/screener_rules.yaml
 url: PRD.md#34-leaps-screener-rules
 kind: rules
+level: intermediate
 as_of: '2026-11-03'
 ---
 

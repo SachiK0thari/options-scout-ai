@@ -204,20 +204,21 @@ def test_portfolio_agent_skips_the_allocator_on_a_sizing_retry(deps: Deps, demo_
 
 def test_parent_graph_visits_agents_in_order_and_records_a_per_agent_trace(demo_run: Any) -> None:
     updates, final = demo_run
+    # Goal Planning runs only when the turn or the screen carries a goal; Tax & Accounts is
+    # chat-only (Phase 12)
+    expected = [a for a in AGENT_ORDER if a not in ("goal_planning_agent", "tax_agent")]
     agent_updates = [k for u in updates for k in u if k in AGENT_ORDER]
-    assert agent_updates == AGENT_ORDER  # no retries on the demo request
+    assert agent_updates == expected  # no retries on the demo request
     node_updates = [k for u in updates for k in u if k not in AGENT_ORDER]
     assert node_updates[0] == "route_node" and node_updates[-1] == "report_node"
     assert set(node_updates) <= set(NODE_ORDER)
     rep: ScreeningReport = final["report"]
-    assert rep.metadata.agents_visited == AGENT_ORDER
-    assert set(rep.metadata.agent_latency_ms) == set(AGENT_ORDER)
+    assert rep.metadata.agents_visited == expected
+    assert set(rep.metadata.agent_latency_ms) == set(expected)
     assert all(ms >= 0 for ms in rep.metadata.agent_latency_ms.values())
     # every node ran inside the agent that owns it, in agent order
     seen_agents = [AGENT_OF_NODE[n] for n in rep.metadata.nodes_visited if n in AGENT_OF_NODE]
-    assert [
-        a for i, a in enumerate(seen_agents) if i == 0 or a != seen_agents[i - 1]
-    ] == AGENT_ORDER
+    assert [a for i, a in enumerate(seen_agents) if i == 0 or a != seen_agents[i - 1]] == expected
 
 
 def normalize_report_markdown(text: str) -> str:
@@ -252,7 +253,15 @@ def test_report_markdown_identical_to_golden(demo_run: Any) -> None:
     # two Phase 10 retrieval nodes added
     visited = final["report"].metadata.nodes_visited
     renamed = ["compliance_node" if n == "verifier_node" else n for n in PHASE9_NODE_SEQUENCE]
-    added = ["route_node", "evidence_retrieval_node", "knowledge_retrieval_node", "audit_node"]
+    added = [
+        "route_node",
+        "evidence_retrieval_node",
+        "knowledge_retrieval_node",
+        "audit_node",
+        "news_fetch_node",  # Phase 12: News Desk between Strategy and Portfolio
+        "news_classify_node",
+        "news_brief_node",
+    ]
     assert Counter(visited) == Counter(renamed + added)
     assert visited == [
         "route_node",  # step 10.5
@@ -264,6 +273,9 @@ def test_report_markdown_identical_to_golden(demo_run: Any) -> None:
         *["market_data_node"] * 7,
         "screener_node",
         "ranker_node",
+        "news_fetch_node",
+        "news_classify_node",
+        "news_brief_node",
         "allocator_node",
         "sizing_node",
         "risk_node",

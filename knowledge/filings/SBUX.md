@@ -4,6 +4,7 @@ title: 'STARBUCKS CORP 10-K: Item 1A, Risk Factors (2025)'
 source: SEC EDGAR 10-K filed 2025-11-14
 url: https://www.sec.gov/Archives/edgar/data/829224/000082922425000114/sbux-20250928.htm
 kind: filings
+level: advanced
 as_of: '2025-11-14'
 ---
 

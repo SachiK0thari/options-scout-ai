@@ -9,6 +9,7 @@ from pydantic import BaseModel, ConfigDict, Field, PositiveFloat, field_validato
 
 AccountType = Literal["cash", "margin", "portfolio_margin"]
 RiskProfile = Literal["conservative", "balanced", "aggressive"]
+KnowledgeLevel = Literal["beginner", "intermediate", "advanced"]  # Phase 12: learning path
 Strategy = Literal["csp", "leaps", "pmcc"]
 OptionKind = Literal["call", "put"]
 CandidateStrategy = Literal["csp", "leaps", "pmcc_short_call"]
@@ -32,6 +33,16 @@ class Model(BaseModel):
     model_config = ConfigDict(extra="forbid", validate_assignment=True)
 
 
+GoalKind = Literal["income", "growth", "contribution", "fire"]
+FireVariant = Literal["lean", "regular", "fat", "coast", "barista"]
+FeasibilityStatus = Literal["fits", "stretch", "does_not_fit"]
+LeverName = Literal["more_capital", "longer_horizon", "different_profile"]
+NewsCategory = Literal[
+    "earnings", "guidance", "product", "legal_regulatory", "macro", "m_and_a", "other"
+]
+NewsRelevance = Literal["high", "medium", "low"]
+
+
 # ------------------------------------------------------------------------------- user
 class UserProfile(Model):
     buying_power: PositiveFloat
@@ -43,6 +54,7 @@ class UserProfile(Model):
     exclude: list[str] = Field(default_factory=list)
     max_positions: int = Field(default=8, ge=1, le=50)
     options_level: int | None = None  # broker approval level, informational only
+    knowledge_level: KnowledgeLevel | None = None  # Phase 12: caps retrieval, sets the prose level
 
     @field_validator("watchlist", "exclude", mode="before")
     @classmethod
@@ -72,6 +84,7 @@ class ProfileParse(Model):
     watchlist: list[str] = Field(default_factory=list)
     exclude: list[str] = Field(default_factory=list)
     max_positions: int | None = None
+    knowledge_level: KnowledgeLevel | None = None  # Phase 12
     needs_clarification: list[str] = Field(
         default_factory=list, description="Required fields the text did not state unambiguously."
     )
@@ -335,6 +348,7 @@ class NewsItem(Model):
     source: str
     url: str | None = None
     query: str
+    sentiment: float | None = Field(default=None, ge=-1.0, le=1.0)  # provider score (Phase 12)
 
 
 class ExtractedEntity(Model):
@@ -528,7 +542,265 @@ class ComplianceReport(Model):
 
 
 # -------------------------------------------------------------- conversation (Phase 10, 10.5)
-Intent = Literal["new_screen", "refine_profile", "concept", "why", "what_if", "off_topic"]
+# ------------------------------------------------------------------- goals (Phase 12, 12.2)
+class Goal(Model):
+    """What the user wants the account to do. Money in dollars, rates as fractions, time in years.
+    ``start_balance`` defaults to the profile's account value when the agent builds the goal."""
+
+    kind: GoalKind
+    start_balance: float = Field(ge=0)
+    monthly_contribution: float = Field(default=0.0, ge=0)
+    target_monthly_income: float | None = Field(default=None, gt=0)  # income
+    target_balance: float | None = Field(default=None, gt=0)  # growth / contribution
+    horizon_years: float | None = Field(default=None, gt=0)
+    # fire
+    variant: FireVariant | None = None
+    annual_expenses: float | None = Field(default=None, gt=0)
+    minimum_expenses: float | None = Field(default=None, gt=0)  # lean
+    fat_expenses: float | None = Field(default=None, gt=0)  # fat (else fat_multiple x expenses)
+    part_time_income: float = Field(default=0.0, ge=0)  # barista, per year
+    withdrawal_rate: float | None = Field(default=None, gt=0, lt=0.5)
+    current_age: float | None = Field(default=None, gt=0)
+    target_age: float | None = Field(default=None, gt=0)
+
+    @field_validator("variant", mode="before")
+    @classmethod
+    def _lower_variant(cls, v: object) -> object:
+        return str(v).strip().lower() if isinstance(v, str) else v
+
+
+class GoalParse(Model):
+    """Structured output of ``prompts/parse_goal.md``: every field optional so the model can say
+    'not stated'; ``goal_intake_node`` fills ``start_balance`` from the profile when absent."""
+
+    kind: GoalKind | None = None
+    target_monthly_income: float | None = Field(default=None, gt=0)
+    target_balance: float | None = Field(default=None, gt=0)
+    horizon_years: float | None = Field(default=None, gt=0)
+    monthly_contribution: float | None = Field(default=None, ge=0)
+    start_balance: float | None = Field(default=None, ge=0)
+    annual_expenses: float | None = Field(default=None, gt=0)
+    minimum_expenses: float | None = Field(default=None, gt=0)
+    fat_expenses: float | None = Field(default=None, gt=0)
+    part_time_income: float | None = Field(default=None, ge=0)
+    withdrawal_rate: float | None = Field(default=None, gt=0, lt=0.5)
+    variant: FireVariant | None = None
+    current_age: float | None = Field(default=None, gt=0)
+    target_age: float | None = Field(default=None, gt=0)
+    needs_clarification: list[str] = Field(default_factory=list)
+
+    @field_validator("variant", mode="before")
+    @classmethod
+    def _lower_variant(cls, v: object) -> object:
+        return str(v).strip().lower() if isinstance(v, str) else v
+
+
+class YieldEstimate(Model):
+    """What the sized portfolio earns per year, as the Goal Planning agent sees it."""
+
+    gross_yield: float  # capital-weighted annualised return incl. the cash reserve at cash_rate
+    stress_adjusted_yield: float  # gross minus assignment_frequency x realistic loss / capital
+    cash_rate: float
+    capital_used: float
+    cash_reserve: float
+    realistic_loss: float
+    assignment_frequency: float
+    detail: list[str] = Field(default_factory=list)
+
+    @property
+    def total_capital(self) -> float:
+        return self.capital_used + self.cash_reserve
+
+
+class GoalLever(Model):
+    name: LeverName
+    value: float | None  # dollars, years, or None when no profile cap admits the goal
+    detail: str
+
+
+class FeasibilityVerdict(Model):
+    status: FeasibilityStatus
+    required_return: float | None  # None when the goal needs no return (already met)
+    available_return: float  # the stress-adjusted yield the verdict was judged against
+    profile_cap: float
+    gap: float  # required - available in return points (negative = headroom)
+    levers: list[GoalLever] = Field(default_factory=list)
+    notes: list[str] = Field(default_factory=list)
+
+
+class ProjectionPoint(Model):
+    year: float
+    balance: float
+
+
+class ProjectionPath(Model):
+    label: Literal["stress", "base", "best", "assumed"]
+    annual_return: float
+    points: list[ProjectionPoint]
+    note: str = ""
+
+
+class FirePlan(Model):
+    variant: FireVariant
+    expense_target: float
+    withdrawal_rate: float
+    fire_number: float
+    assumed_return: float  # the diversified-portfolio assumption the projection uses
+    years_to_fi: float | None  # None: not reached within the horizon cap at the assumed return
+    coast_balance: float | None  # balance needed today to coast to the FIRE number by target age
+    savings_rate: float | None
+    income_coverage: float | None  # share of the expense target the stress-adjusted yield covers
+    buying_power_for_full_coverage: float | None
+    targets: dict[str, float] = Field(default_factory=dict)  # lean/regular/fat FIRE numbers
+    notes: list[str] = Field(default_factory=list)
+
+
+class GoalPlan(Model):
+    goal: Goal
+    yield_estimate: YieldEstimate
+    feasibility: FeasibilityVerdict
+    projection: list[ProjectionPath]
+    fire: FirePlan | None = None
+    assumptions: list[str] = Field(default_factory=list)
+
+
+# -------------------------------------------------------------------- news (Phase 12, 12.3)
+class ClassifiedNews(Model):
+    item: NewsItem
+    ticker: str
+    category: NewsCategory = "other"
+    relevance: NewsRelevance = "low"
+    summary: str = ""
+    sentiment: float | None = Field(default=None, ge=-1.0, le=1.0)  # provider score, pass-through
+    weight: float = Field(ge=0.0, le=1.0)  # recency weight
+    stale: bool = False
+
+
+class NewsClassification(Model):
+    """One headline's label from ``prompts/classify_news.md`` (or the rule-based stand-in)."""
+
+    id: str
+    category: NewsCategory = "other"
+    relevance: NewsRelevance = "low"
+    summary: str = Field(default="", max_length=300)
+
+
+class NewsClassificationBatch(Model):
+    items: list[NewsClassification] = Field(default_factory=list)
+
+
+class NewsFlag(Model):
+    candidate_id: str
+    ticker: str
+    flag: Literal["earnings_within_dte", "ex_dividend_before_expiry", "ex_dividend_capture_window"]
+    event_date: date
+    detail: str
+
+
+class NewsBrief(Model):
+    ticker: str
+    items: list[ClassifiedNews]
+    flags: list[NewsFlag] = Field(default_factory=list)
+    as_of: datetime
+
+
+# ---------------------------------------------------------------- holdings (Phase 12, 12.6)
+class Holding(Model):
+    ticker: str = Field(min_length=1, max_length=10)
+    shares: float = Field(gt=0)
+    cost_basis: float | None = Field(default=None, ge=0)  # per share
+    account: AccountType | Literal["ira"] | None = None
+
+    @field_validator("ticker", mode="before")
+    @classmethod
+    def _upper(cls, v: object) -> str:
+        return str(v).strip().upper()
+
+
+class TaxFacts(Model):
+    """Illustrative mechanics computed by ``core/tax.py`` for a tax reply (Phase 12, 12.6): the
+    screened put's assignment basis, the LEAPS long-term threshold, the wash-sale window around
+    today, and the Section 1256 status of the run's tickers. Never a liability or a rate."""
+
+    as_of: date
+    candidate_id: str | None = None
+    ticker: str | None = None
+    strike: float | None = None
+    premium: float | None = None
+    assigned_basis_per_share: float | None = None
+    assigned_total_basis: float | None = None
+    cash_paid_at_assignment: float | None = None
+    premium_if_expired: float | None = None
+    leaps_candidate_id: str | None = None
+    leaps_long_term_from: date | None = None
+    leaps_days_to_long_term: int | None = None
+    wash_sale_window_start: date | None = None
+    wash_sale_window_end: date | None = None
+    wash_sale_window_days: int | None = None
+    section_1256: dict[str, bool | None] = Field(default_factory=dict)
+    account_type: str | None = None
+    notes: list[str] = Field(default_factory=list)
+
+
+class HoldingsParse(Model):
+    """Structured output of ``prompts/parse_holdings.md``: the positions a message lists."""
+
+    holdings: list[Holding] = Field(default_factory=list)
+    needs_clarification: list[str] = Field(default_factory=list)
+
+
+class HoldingValue(Model):
+    ticker: str
+    shares: float
+    price: float
+    market_value: float
+    cost: float | None
+    unrealised_pnl: float | None
+    weight: float  # share of total market value
+    sector: str
+    expense_ratio: float | None  # fraction per year, ETFs only
+    beta: float | None
+    covered_call_lots: int
+
+
+class PostAssignment(Model):
+    candidate_id: str
+    ticker: str
+    strike: float
+    shares_added: int
+    cash_used: float
+    weight_before: float
+    weight_after: float
+
+
+class HoldingsAnalysis(Model):
+    positions: list[HoldingValue]
+    total_value: float
+    by_sector: dict[str, float]  # weights
+    hhi: float
+    effective_positions: float
+    diversification_score: float  # 0-100 = 100 x (1 - HHI)
+    weighted_expense_ratio: float | None
+    beta_weighted_exposure: float | None  # sum of weight x beta over positions with a beta
+    largest_position: str | None
+    largest_sector: str | None
+    covered_call_eligible: list[str]
+    post_assignment: list[PostAssignment] = Field(default_factory=list)
+    notes: list[str] = Field(default_factory=list)
+
+
+Intent = Literal[
+    "new_screen",
+    "refine_profile",
+    "concept",
+    "why",
+    "what_if",
+    "off_topic",
+    "goal",
+    "holdings",
+    "news",
+    "tax",
+]
 INTENTS: tuple[str, ...] = (
     "new_screen",
     "refine_profile",
@@ -536,6 +808,10 @@ INTENTS: tuple[str, ...] = (
     "why",
     "what_if",
     "off_topic",
+    "goal",  # Phase 12
+    "holdings",
+    "news",
+    "tax",
 )
 OFF_TOPIC_REPLY = (
     "I can help with options education and with screening cash-secured puts, LEAPS and PMCCs on "
@@ -616,6 +892,9 @@ class ScreeningReport(Model):
     verification: VerificationResult
     compliance: ComplianceReport | None = None  # Phase 10 step 10.4: the eight checks + audit id
     audit_log: list[ComplianceReport] = Field(default_factory=list)  # every evaluation this run
+    goal_plan: GoalPlan | None = None  # Phase 12: present when the run carried a goal
+    news_briefs: list[NewsBrief] = Field(default_factory=list)  # Phase 12: News Desk
+    news_flags: list[NewsFlag] = Field(default_factory=list)
     errors: list[str]
     metadata: RunMetadata
     disclaimer: str

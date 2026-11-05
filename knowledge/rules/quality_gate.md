@@ -4,6 +4,7 @@ title: 'Rule 3.7: Good-to-own universe (quality gate)'
 source: PRD.md section 3.7 and config/quality_universe.yaml, config/settings.yaml
 url: PRD.md#37-good-to-own-universe-quality-gate
 kind: rules
+level: intermediate
 as_of: '2026-11-03'
 ---
 

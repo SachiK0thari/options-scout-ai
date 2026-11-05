@@ -8,7 +8,10 @@ from options_scout.core.models import (
     AllocationPlan,
     Citation,
     ComplianceReport,
+    GoalPlan,
     MarketRegime,
+    NewsBrief,
+    NewsFlag,
     OptionCandidate,
     PMCCCandidate,
     QualityCheck,
@@ -323,6 +326,84 @@ def render_risk(r: RiskReport) -> str:
     status = "**All constraints pass.**" if r.passed else "**Constraint failures present.**"
     stress_title = "**Stress test (instant move, repriced with BSM):**"
     return f"{status}\n\n{checks}\n\n{stress_title}\n\n{stress}\n\n{warn}"
+
+
+def render_news(briefs: Sequence[NewsBrief], flags: Sequence[NewsFlag]) -> str:
+    """The News Desk's per-ticker briefs and the calendar flags on candidates (Phase 12)."""
+    if not briefs and not flags:
+        return "_No headlines were fetched for this run._"
+    lines: list[str] = []
+    for b in briefs:
+        if not b.items:
+            lines.append(f"- **{b.ticker}**: no headlines in the lookback window")
+            continue
+        head = b.items[0]
+        lines.append(
+            f"- **{b.ticker}** ({len(b.items)} headline(s)): “{head.item.title}” — "
+            f"{head.item.source}, {head.item.published_at:%Y-%m-%d}, {head.category}, "
+            f"{head.relevance} relevance"
+            + (f", sentiment {head.sentiment:+.2f}" if head.sentiment is not None else "")
+            + (", stale" if head.stale else "")
+        )
+    if flags:
+        lines.append("")
+        lines.append(
+            _table(
+                ["Candidate", "Flag", "Event date", "Detail"],
+                [[f.candidate_id, f.flag, f.event_date.isoformat(), f.detail] for f in flags],
+            )
+        )
+    lines.append("")
+    lines.append("_Headlines never change the ranking; they flag what to read before trading._")
+    return "\n".join(lines)
+
+
+def render_goal(plan: GoalPlan | None) -> str:
+    """The Goal Planning agent's computed plan (Phase 12): verdict, levers, projection, FIRE."""
+    if plan is None:
+        return "_No goal on this run._"
+    g, v, y = plan.goal, plan.feasibility, plan.yield_estimate
+    status = {"fits": "fits", "stretch": "stretch", "does_not_fit": "does not fit"}[v.status]
+    lines = [
+        f"**{g.kind} goal: {status}.** Required return "
+        f"{pct(v.required_return) if v.required_return is not None else 'n/a'}, stress-adjusted "
+        f"yield {pct(v.available_return)}, profile cap {pct(v.profile_cap, 0)} "
+        f"(gross yield {pct(y.gross_yield)}, cash at {pct(y.cash_rate, 2)}).",
+        "",
+        _table(
+            ["Lever", "Value", "Detail"],
+            [
+                [
+                    lever.name.replace("_", " "),
+                    "n/a" if lever.value is None else f"{lever.value:,.1f}",
+                    lever.detail,
+                ]
+                for lever in v.levers
+            ],
+        ),
+        "",
+        _table(
+            ["Path", "Return", f"Balance after {plan.projection[0].points[-1].year:g} years"],
+            [[p.label, pct(p.annual_return), money(p.points[-1].balance)] for p in plan.projection],
+        )
+        if plan.projection
+        else "",
+    ]
+    if plan.fire is not None:
+        f = plan.fire
+        lines += [
+            "",
+            f"**{f.variant} FIRE:** expenses {money(f.expense_target)} a year at a "
+            f"{pct(f.withdrawal_rate)} withdrawal rate give a FIRE number of "
+            f"{money(f.fire_number)}; "
+            f"years to FI at {pct(f.assumed_return, 0)}: "
+            f"{'not within the horizon cap' if f.years_to_fi is None else f'{f.years_to_fi:.1f}'}; "
+            f"coast balance {money(f.coast_balance)}; income coverage "
+            f"{pct(f.income_coverage, 0) if f.income_coverage is not None else 'n/a'}.",
+        ]
+        lines += [f"- {n}" for n in f.notes]
+    lines += ["", *[f"- {a}" for a in plan.assumptions]]
+    return "\n".join(lines)
 
 
 def render_sources(citations: Sequence[Citation]) -> str:

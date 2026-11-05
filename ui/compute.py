@@ -1,12 +1,14 @@
-"""Deterministic helpers the tabs chart: per-position stress, payoff legs, Reg T steps.
+"""Deterministic helpers the tabs chart: per-position stress, payoff legs, Reg T steps, and the
+market overview strip's quotes and data age.
 
 Nothing here is new math; every function calls ``core/`` and reshapes the result for a chart.
 """
 
 from __future__ import annotations
 
+from collections.abc import Mapping, Sequence
 from dataclasses import dataclass
-from datetime import date
+from datetime import date, datetime
 from typing import Any
 
 from options_scout.config import AppConfig
@@ -14,12 +16,14 @@ from options_scout.core import payoff as po
 from options_scout.core import risk as core_risk
 from options_scout.core.margin import csp_collateral, reg_t_put_margin
 from options_scout.core.models import (
+    MarketRegime,
     OptionCandidate,
     ScreeningReport,
     SizedPortfolio,
     SizedPosition,
     TickerSnapshot,
 )
+from options_scout.data.market import MarketData
 
 
 def candidate_index(report: ScreeningReport) -> dict[str, OptionCandidate]:
@@ -174,4 +178,99 @@ def profile_from_interrupt(intr: dict[str, Any]) -> dict[str, Any]:
         "max_positions": int(parsed.get("max_positions") or 6),
         "watchlist": list(parsed.get("watchlist") or []),
         "exclude": list(parsed.get("exclude") or []),
+        "knowledge_level": parsed.get("knowledge_level") or "intermediate",
     }
+
+
+# ------------------------------------------------------------------- market overview strip
+STRIP_TICKERS: tuple[str, ...] = ("SPY", "QQQ")
+STRIP_HISTORY_DAYS = 90  # the window market_data_node already fetched, so live runs hit the cache
+
+
+@dataclass(frozen=True)
+class StripQuote:
+    ticker: str
+    price: float | None  # None when the source had no quote
+    change: float | None  # fraction against the previous close; None without two closes
+    in_run: bool  # the quote is this run's snapshot, not an extra lookup
+
+
+@dataclass(frozen=True)
+class MarketStrip:
+    """What the market overview strip shows (Phase 12, 12.7); built once per run."""
+
+    quotes: tuple[StripQuote, ...]
+    regime: MarketRegime | None
+    provider: str
+    live: bool
+    fetched_at: datetime | None  # oldest quote shown: the fixture's recording or the fetch time
+    age: str
+
+
+def day_change(price: float, closes: Sequence[float]) -> float | None:
+    """``price`` against the previous daily close, as a fraction.
+
+    A daily series may or may not already end on today's bar (after the close, or in a recorded
+    fixture, the last close *is* the quote), so a last close equal to the price is today's and the
+    one before it is the previous close.
+    """
+    history = [c for c in closes if c > 0]
+    if history and abs(history[-1] - price) < 1e-9:
+        history = history[:-1]
+    if not history:
+        return None
+    return price / history[-1] - 1.0
+
+
+def data_age(live: bool, fetched_at: datetime | None, now: datetime) -> str:
+    """The freshness line under the provider: quotes are recorded or delayed, never real-time."""
+    if fetched_at is None:
+        return "no quotes fetched"
+    if not live:
+        return f"fixture, recorded {fetched_at:%Y-%m-%d}"
+    minutes = max(int((now - fetched_at).total_seconds() // 60), 0)
+    return f"delayed quotes, fetched {fetched_at:%H:%M} UTC ({minutes} min ago)"
+
+
+def market_strip(
+    md: MarketData,
+    snapshots: Mapping[str, TickerSnapshot],
+    regime: MarketRegime | None,
+    *,
+    now: datetime | None = None,
+    tickers: Sequence[str] = STRIP_TICKERS,
+) -> MarketStrip:
+    """SPY and QQQ with their day change, the regime, the provider and the data age.
+
+    A ticker the run screened reuses its snapshot; one it did not is looked up through the same
+    cached facade. Either lookup failing leaves that cell empty instead of failing the page.
+    """
+    live = md.source.name != "fixture"
+    quotes: list[StripQuote] = []
+    stamps = [s.spot.as_of for s in snapshots.values()]
+    for ticker in tickers:
+        snap = snapshots.get(ticker)
+        spot = snap.spot if snap is not None else None
+        if spot is None:
+            try:
+                spot = md.get_spot(ticker)
+            except Exception:  # no quote for this cell
+                quotes.append(StripQuote(ticker, None, None, False))
+                continue
+        stamps.append(spot.as_of)
+        try:
+            change = day_change(spot.price, md.get_close_history(ticker, STRIP_HISTORY_DAYS))
+        except Exception:  # a price without a history still shows
+            change = None
+        quotes.append(StripQuote(ticker, spot.price, change, snap is not None))
+    # the oldest quote on screen: a cache hit keeps its original fetch time, so this is the age
+    # of the stalest number, not the time of the run
+    fetched_at = min(stamps) if stamps else (regime.as_of if regime is not None else None)
+    return MarketStrip(
+        quotes=tuple(quotes),
+        regime=regime,
+        provider=md.source.name,
+        live=live,
+        fetched_at=fetched_at,
+        age=data_age(live, fetched_at, now or md.now()),
+    )

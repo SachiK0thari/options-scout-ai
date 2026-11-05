@@ -4,6 +4,7 @@ title: "Naked put on margin: the same short put, secured by margin instead of ca
 source: "FINRA Rule 4210 (Margin Requirements); OCC disclosure document chapter X"
 url: https://www.finra.org/rules-guidance/rulebooks/finra-rules/4210
 kind: concepts
+level: advanced
 as_of: 2026-11-03
 ---
 

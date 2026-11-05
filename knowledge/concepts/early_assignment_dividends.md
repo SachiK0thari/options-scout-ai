@@ -4,6 +4,7 @@ title: "Early assignment and dividends: when American-style options are exercise
 source: "OCC disclosure document chapter VIII; SEC, 'Ex-Dividend Dates: When Are You Entitled to Stock and Cash Dividends'"
 url: https://www.theocc.com/company-information/documents-and-archives/options-disclosure-document
 kind: concepts
+level: advanced
 as_of: 2026-11-03
 ---
 

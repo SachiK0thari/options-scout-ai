@@ -4,6 +4,7 @@ title: 'Rule 3.2: Portfolio risk constraints (all configurable)'
 source: PRD.md section 3.2 and config/risk_profiles.yaml
 url: PRD.md#32-portfolio-risk-constraints-all-configurable
 kind: rules
+level: intermediate
 as_of: '2026-11-03'
 ---
 

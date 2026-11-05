@@ -4,6 +4,7 @@ title: 'Apple Inc. 10-K: Item 1A, Risk Factors (2026)'
 source: SEC EDGAR 10-K filed 2026-11-03
 url: https://www.sec.gov/Archives/edgar/data/320193/000032019326000026/aapl-20260926.htm
 kind: filings
+level: advanced
 as_of: '2026-11-03'
 ---
 

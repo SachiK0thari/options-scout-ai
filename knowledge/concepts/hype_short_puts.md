@@ -4,6 +4,7 @@ title: "Why hype is a risk for short puts: what a consumer-trend signal can and 
 source: "FINRA, 'Social Sentiment Investing Tools' investor insight; OCC disclosure document chapter X; PRD.md sections 3.7 and 4"
 url: https://www.finra.org/investors/insights/social-sentiment-investing-tools
 kind: concepts
+level: intermediate
 as_of: 2026-11-03
 ---
 

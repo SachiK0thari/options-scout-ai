@@ -4,7 +4,8 @@ A ``ChatSession`` sends one user message at a time to a thread, lets the Orchest
 and turns the outcome into an assistant ``ChatTurn`` whose text always carries the
 ``ComplianceReport`` it passed:
 
-* ``concept`` / ``why`` / ``off_topic`` → the graph's ``answer`` and its compliance report;
+* ``concept`` / ``why`` / ``off_topic`` / ``goal`` → the graph's ``answer`` and its compliance
+  report;
 * ``what_if`` → the Orchestrator's diff reply, then a **full run on a new thread** seeded with the
   hypothetical profile (``<thread>-2``, ``<thread>-3`` …);
 * ``new_screen`` / ``refine_profile`` on a thread that already holds a report → a **handoff**: the
@@ -93,6 +94,11 @@ class ChatSession:
                 "handoff": None,
                 "what_if_profile": None,
                 "what_if_diff": [],
+                "goal_text": None,
+                "goal_clarification": None,
+                "holdings_text": None,
+                "news_text": None,
+                "tax_text": None,
                 "verifier_feedback": None,
                 "chat_history": carried,
             }
@@ -113,6 +119,7 @@ class ChatSession:
                 "profile": values["what_if_profile"],
                 "review_requested": False,
                 "diff": list(values.get("what_if_diff") or []),
+                "holdings": list(values.get("holdings") or []),
             }
             answer: Narrative = values["answer"]
             return self._start_handoff(
@@ -125,9 +132,9 @@ class ChatSession:
                 compliance=values["compliance"],
             )
         if values.get("handoff"):
-            return self._start_handoff(
-                thread_id, dict(values["handoff"]), carried, run_handoffs, on_update
-            )
+            handoff = dict(values["handoff"])
+            handoff.setdefault("holdings", list(values.get("holdings") or []))
+            return self._start_handoff(thread_id, handoff, carried, run_handoffs, on_update)
         return self._finish(thread_id, intent, values)
 
     def resume(
@@ -227,6 +234,8 @@ class ChatSession:
     ) -> ChatResult:
         seed = dict(initial_state(handoff.get("request_text") or "", handoff.get("profile")))
         seed["review_requested"] = bool(handoff.get("review_requested"))
+        if handoff.get("holdings"):  # Phase 12: what the user owns follows them to the new screen
+            seed["holdings"] = list(handoff["holdings"])
         if handoff.get("profile"):  # the review prompt shows the merged profile, not "unknown"
             fields = {k: v for k, v in handoff["profile"].items() if k in ProfileParse.model_fields}
             seed["parsed"] = ProfileParse.model_validate(fields)
@@ -265,7 +274,17 @@ class ChatSession:
             return ChatResult(turn, thread_id, "interrupted", interrupt=interrupt)
         answer: Narrative | None = values.get("answer")
         rep: ScreeningReport | None = values.get("report")
-        if intent in ("concept", "why", "what_if", "off_topic") and answer is not None:
+        reply_intents = (
+            "concept",
+            "why",
+            "what_if",
+            "off_topic",
+            "goal",
+            "holdings",
+            "news",
+            "tax",
+        )
+        if intent in reply_intents and answer is not None:
             text = answer.markdown
             report = values.get("compliance")
             citations = list(values.get("citations") or [])

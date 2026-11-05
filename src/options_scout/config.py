@@ -232,6 +232,9 @@ class Constraints(_Strict):
     max_exposure_per_ticker: float
     max_per_sector: float
     max_dollar_delta_x: float
+    # Phase 12 (12.4), the seventh constraint: a ticker's share of (holdings + buying power) after
+    # a cash-secured put on it is assigned; applied only when the user entered holdings.
+    max_ticker_concentration_after_assignment: float = Field(default=1.0, gt=0.0, le=1.0)
 
 
 class RiskProfiles(_Strict):
@@ -568,10 +571,130 @@ def _apply_source_overrides(raw: dict[str, Any]) -> dict[str, Any]:
     return out
 
 
+# ------------------------------------------------------------------------- goals.yaml
+class SavingsRateTable(_Strict):
+    rates: list[float] = Field(min_length=1)
+    real_return: float = Field(gt=-1.0, lt=1.0)
+
+    @field_validator("rates")
+    @classmethod
+    def _rates_in_unit_interval(cls, v: list[float]) -> list[float]:
+        if any(not 0.0 < r < 1.0 for r in v):
+            raise ValueError("savings rates must be strictly between 0 and 1")
+        return v
+
+
+class GoalsConfig(_Strict):
+    """Goal Planning assumptions (Phase 12 section 12.2); printed beside every projection."""
+
+    withdrawal_rate: float = Field(gt=0.0, lt=0.5)
+    fat_multiple: float = Field(gt=1.0)
+    stretch_band: float = Field(ge=0.0, lt=0.5)
+    max_horizon_years: int = Field(default=100, ge=1)
+    assumed_return: dict[RiskProfileName, float]
+    max_assumed_return: dict[RiskProfileName, float]
+    assignment_frequency: dict[RiskProfileName, float]
+    retirement_age: float = Field(gt=0.0)
+    savings_rate_table: SavingsRateTable
+
+    @model_validator(mode="after")
+    def _every_profile(self) -> GoalsConfig:
+        for name, table in (
+            ("assumed_return", self.assumed_return),
+            ("max_assumed_return", self.max_assumed_return),
+            ("assignment_frequency", self.assignment_frequency),
+        ):
+            missing = {"conservative", "balanced", "aggressive"} - set(table)
+            if missing:
+                raise ValueError(f"goals.{name} is missing {sorted(missing)}")
+        for profile, cap in self.max_assumed_return.items():
+            if self.assumed_return[profile] > cap:
+                raise ValueError(f"goals.assumed_return[{profile}] exceeds its max_assumed_return")
+        return self
+
+
+# -------------------------------------------------------------------------- news.yaml
+class AlphaVantageNewsConfig(_Strict):
+    enabled: bool = True
+    api_key_env: str = "ALPHAVANTAGE_API_KEY"
+    fixture_file: str = "ticker_news.jsonl"
+    limit: int = Field(default=50, ge=1, le=1000)
+    max_attempts: int = Field(default=3, ge=1, le=6)
+
+
+class RssNewsConfig(_Strict):
+    enabled: bool = True
+
+
+class NewsSourcesConfig(_Strict):
+    alphavantage: AlphaVantageNewsConfig = Field(default_factory=AlphaVantageNewsConfig)
+    rss: RssNewsConfig = Field(default_factory=RssNewsConfig)
+
+
+class NewsConfig(_Strict):
+    """News Desk parameters and sources (Phase 12 section 12.3)."""
+
+    half_life_days: float = Field(gt=0.0)
+    stale_days: int = Field(ge=1)
+    capture_window_days: int = Field(ge=0)
+    max_items_per_ticker: int = Field(ge=1)
+    cache_ttl_minutes: int = Field(ge=1)
+    lookback_days: int = Field(default=14, ge=1)
+    sources: NewsSourcesConfig = Field(default_factory=NewsSourcesConfig)
+
+
+# --------------------------------------------------------------------------- tax.yaml
+class TaxConfig(_Strict):
+    """Tax & Accounts mechanics (Phase 12 section 12.4); no rates, no liability."""
+
+    long_term_holding_days: int = Field(ge=1)
+    wash_sale_window_days: int = Field(ge=1)
+    early_withdrawal_age: float = Field(gt=0.0)
+    section_1256_underlyings: list[str]
+    equity_option_etfs: list[str]
+
+    @field_validator("section_1256_underlyings", "equity_option_etfs", mode="before")
+    @classmethod
+    def _upper(cls, v: object) -> list[str]:
+        if not isinstance(v, list):
+            raise ValueError("expected a list of symbols")
+        return sorted({str(t).strip().upper() for t in v if str(t).strip()})
+
+    @model_validator(mode="after")
+    def _disjoint(self) -> TaxConfig:
+        both = set(self.section_1256_underlyings) & set(self.equity_option_etfs)
+        if both:
+            raise ValueError(f"symbols listed as both 1256 and equity options: {sorted(both)}")
+        return self
+
+
+# ---------------------------------------------------------------------- holdings.yaml
+class HoldingsConfig(_Strict):
+    """Holdings analysis parameters (Phase 12 section 12.6)."""
+
+    covered_call_lot: int = Field(ge=1)
+    beta_lookback_days: int = Field(ge=10)
+    beta_index: str = Field(min_length=1)
+    expense_ratios_pct: dict[str, float] = Field(default_factory=dict)
+    sectors: dict[str, str] = Field(default_factory=dict)
+
+    @field_validator("expense_ratios_pct", "sectors", mode="before")
+    @classmethod
+    def _upper_keys(cls, v: object) -> dict[str, Any]:
+        if not isinstance(v, dict):
+            raise ValueError("expected a mapping keyed by ticker")
+        return {str(k).strip().upper(): val for k, val in v.items()}
+
+    def expense_ratio(self, ticker: str) -> float | None:
+        """Annual expense ratio as a fraction (0.0945% -> 0.000945), None for a stock."""
+        pct = self.expense_ratios_pct.get(ticker.upper())
+        return None if pct is None else pct / 100.0
+
+
 # ---------------------------------------------------------------------------- rag.yaml
 EmbedderName = Literal["hash", "fastembed"]
-CollectionName = Literal["concepts", "rules", "filings", "evidence"]
-COLLECTION_NAMES: tuple[str, ...] = ("concepts", "rules", "filings", "evidence")
+CollectionName = Literal["concepts", "basics", "tax", "rules", "filings", "evidence"]
+COLLECTION_NAMES: tuple[str, ...] = ("concepts", "basics", "tax", "rules", "filings", "evidence")
 
 
 class CollectionConfig(_Strict):
@@ -593,6 +716,7 @@ class RagConfig(_Strict):
     report_sources: int = Field(default=6, ge=1)
     similarity_floor: dict[EmbedderName, float]
     rrf_k: int = Field(default=60, ge=1)
+    title_boost: float = Field(default=0.0, ge=0.0)  # BM25F-style bonus for a title-head match
     require_shared_term: dict[EmbedderName, bool] = Field(default_factory=_default_shared_term)
     chunk_tokens: int = Field(default=400, ge=50)
     overlap: float = Field(default=0.15, ge=0.0, lt=0.5)
@@ -647,6 +771,32 @@ class SuitabilityConfig(_Strict):
     reject_leverage_opportunity_when_conservative: bool = True
 
 
+class GoalComplianceConfig(_Strict):
+    """Check 9 (Phase 12): rules for a Goal Planning narrative."""
+
+    require_status: bool = True  # "fits" / "stretch" / "does not fit" must appear
+    require_stress_path: bool = True  # the stress path is named whenever a projection is shown
+    fire_requires_withdrawal_source: bool = True  # variant + withdrawal rate + diversified research
+    promise_pattern: str = r"\bwill (?:reach|hit|have|grow|be worth|cover|get you|retire)\b"
+
+
+class TaxComplianceConfig(_Strict):
+    """Check 11 (Phase 12): rules for a Tax & Accounts reply."""
+
+    disclaimer: str = (
+        "This is education, not tax advice; rules change and individual situations differ, so "
+        "confirm with a tax professional or the IRS publication cited."
+    )
+    forbid_rates: bool = True  # never state the rate a reader will pay
+    rate_pattern: str = (
+        r"\b(?:taxed|tax rate|bracket|rate)\s+(?:at|of|is|will be)\s+\d{1,2}(?:\.\d+)?\s?%"
+        r"|\b\d{1,2}(?:\.\d+)?\s?%\s+(?:tax|bracket|rate)\b"
+    )
+    imperative_pattern: str = (
+        r"(?:^|[.!?]\s+)(?:file|report|claim|deduct|elect)\s+(?:your|the|a|form)\b"
+    )
+
+
 class ComplianceConfig(_Strict):
     """Section 13.1 rules: banned patterns with an allow-list, suitability limits, freshness."""
 
@@ -656,6 +806,8 @@ class ComplianceConfig(_Strict):
     banned_patterns: list[BannedPattern]
     allow_list: list[str] = Field(default_factory=list)
     suitability: SuitabilityConfig
+    goal: GoalComplianceConfig = Field(default_factory=GoalComplianceConfig)  # check 9 (Phase 12)
+    tax: TaxComplianceConfig = Field(default_factory=TaxComplianceConfig)  # check 11 (Phase 12)
 
     @model_validator(mode="after")
     def _patterns_compile(self) -> ComplianceConfig:
@@ -665,6 +817,9 @@ class ComplianceConfig(_Strict):
             re.compile(bp.pattern, re.IGNORECASE)
         for a in self.allow_list:
             re.compile(a, re.IGNORECASE)
+        re.compile(self.goal.promise_pattern, re.IGNORECASE)
+        re.compile(self.tax.rate_pattern, re.IGNORECASE)
+        re.compile(self.tax.imperative_pattern, re.IGNORECASE)
         return self
 
 
@@ -682,6 +837,10 @@ class AppConfig(_Strict):
     quality: QualityUniverse
     rag: RagConfig
     compliance: ComplianceConfig
+    goals: GoalsConfig
+    news: NewsConfig
+    tax: TaxConfig
+    holdings: HoldingsConfig
 
     @property
     def paths(self) -> Paths:
@@ -725,6 +884,10 @@ def load_config(root: Path | None = None) -> AppConfig:
         quality=QualityUniverse(**_load_yaml(cfg_dir / "quality_universe.yaml")),
         rag=RagConfig(**_apply_rag_overrides(_load_yaml(cfg_dir / "rag.yaml"))).resolved(root),
         compliance=ComplianceConfig(**_load_yaml(cfg_dir / "compliance.yaml")),
+        goals=GoalsConfig(**_load_yaml(cfg_dir / "goals.yaml")),
+        news=NewsConfig(**_load_yaml(cfg_dir / "news.yaml")),
+        tax=TaxConfig(**_load_yaml(cfg_dir / "tax.yaml")),
+        holdings=HoldingsConfig(**_load_yaml(cfg_dir / "holdings.yaml")),
     )
 
 

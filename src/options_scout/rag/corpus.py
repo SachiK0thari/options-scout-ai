@@ -1,4 +1,7 @@
-"""Load ``knowledge/<kind>/*.md`` into :class:`Document` objects (YAML front-matter + body)."""
+"""Load ``knowledge/<kind>/*.md`` into :class:`Document` objects (YAML front-matter + body).
+
+Collections: concepts (options), basics (investing for beginners), tax (tax and account
+types), rules (generated from the PRD and config), filings (SEC excerpts); evidence is per run."""
 
 from __future__ import annotations
 
@@ -9,7 +12,7 @@ from typing import Any
 import yaml
 
 from options_scout.config import COLLECTION_NAMES
-from options_scout.rag.models import Document
+from options_scout.rag.models import DEFAULT_LEVEL, Document
 
 _FRONT = re.compile(r"\A---\s*\n(.*?)\n---\s*\n", re.DOTALL)
 REQUIRED_FIELDS: tuple[str, ...] = ("id", "title", "source", "url", "kind", "as_of")
@@ -32,6 +35,7 @@ def parse_document(text: str, *, path: str = "") -> Document:
         source=str(meta["source"]),
         url=str(meta["url"]),
         kind=meta["kind"],
+        level=meta.get("level", DEFAULT_LEVEL),
         as_of=meta["as_of"],
         body=body,
         path=path,
@@ -67,6 +71,7 @@ def render_document(doc: Document) -> str:
         "source": doc.source,
         "url": doc.url,
         "kind": doc.kind,
+        "level": doc.level,
         "as_of": doc.as_of.isoformat(),
     }
     header = yaml.safe_dump(front, sort_keys=False, allow_unicode=True, width=1000).strip()

@@ -4,6 +4,7 @@ title: "Cash-secured put (CSP): selling a put while holding the cash to buy the 
 source: "OCC, Characteristics and Risks of Standardized Options, chapter X (Principal Risks of Options Positions); PRD.md section 3.3"
 url: https://www.theocc.com/company-information/documents-and-archives/options-disclosure-document
 kind: concepts
+level: intermediate
 as_of: 2026-11-03
 ---
 

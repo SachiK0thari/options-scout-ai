@@ -255,10 +255,13 @@ def test_concept_docs_pass_the_language_check_as_cited_education(
     """The knowledge base is quoted into education paragraphs; none of it may read as advice."""
     from options_scout.rag.corpus import load_corpus
 
-    for doc in load_corpus(config.rag.knowledge_dir, kinds=("concepts",)):
+    failures: list[tuple[str, str]] = []
+    for doc in load_corpus(config.rag.knowledge_dir, kinds=("concepts", "basics", "tax")):
         paragraphs = [edu(t, "S1") for t in doc.body.split("\n\n") if t.strip()]
         c = cc.check_language(Narrative(paragraphs=paragraphs), ccfg)
-        assert c.passed, (doc.id, c.detail)
+        if not c.passed:
+            failures.append((doc.id, c.detail))
+    assert not failures, failures
 
 
 # ------------------------------------------------------------------------- 6 disclaimer
@@ -352,6 +355,9 @@ def test_run_compliance_report_and_feedback(ccfg: ComplianceConfig) -> None:
         "check_disclaimer",
         "check_sources_fresh",
         "check_no_pii",
+        "goal_narrative",  # Phase 12 check 9; trivially passing without a goal plan
+        "news_grounding",  # Phase 12 check 10; trivially passing without headlines
+        "tax_reply",  # Phase 12 check 11; trivially passing without a tax reply
     ]
     assert rep.retry_feedback == "" and len(rep.audit_id) == 10 and rep.text_kind == "report"
     assert isinstance(rep.verification, VerificationResult) and rep.verification.passed

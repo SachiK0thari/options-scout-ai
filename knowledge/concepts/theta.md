@@ -4,6 +4,7 @@ title: "Theta: time decay, the daily cost of holding an option and the income of
 source: "Cboe Options Institute (the Greeks); OCC disclosure document chapter X"
 url: https://www.cboe.com/education/
 kind: concepts
+level: intermediate
 as_of: 2026-11-03
 ---
 

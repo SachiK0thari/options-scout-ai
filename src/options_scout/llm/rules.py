@@ -22,7 +22,13 @@ from options_scout.core.models import (
     EntityType,
     ExtractedEntity,
     ExtractionBatch,
+    FireVariant,
+    GoalKind,
+    GoalParse,
+    Holding,
+    HoldingsParse,
     Intent,
+    KnowledgeLevel,
     Narrative,
     Paragraph,
     PostExtraction,
@@ -314,6 +320,35 @@ def _amount_near(text: str, phrase: re.Pattern[str], window: int = 45) -> float 
     return None
 
 
+_LEVEL_BEGINNER = re.compile(
+    r"\b(never (?:traded|sold|bought|used) (?:an? )?options?|new to options|new to (?:this|investing|"
+    r"trading)|beginner|complete novice|first (?:time|option)|just (?:starting|getting started)|"
+    r"don'?t (?:really )?(?:know|understand) (?:options|much)|explain (?:everything|like i'?m new))\b",
+    re.IGNORECASE,
+)
+_LEVEL_ADVANCED = re.compile(
+    r"\b(advanced|experienced|been (?:trading|selling) options for|years of options|"
+    r"i (?:know|understand) the greeks|skip the basics|no need to explain|professional)\b",
+    re.IGNORECASE,
+)
+_LEVEL_INTERMEDIATE = re.compile(
+    r"\b(intermediate|some experience|traded (?:a few|some) options|know the basics|"
+    r"comfortable with (?:options|puts|calls))\b",
+    re.IGNORECASE,
+)
+
+
+def parse_knowledge_level(text: str) -> KnowledgeLevel | None:
+    """beginner / intermediate / advanced from self-descriptions, or None (Phase 12)."""
+    if _LEVEL_BEGINNER.search(text):
+        return "beginner"
+    if _LEVEL_ADVANCED.search(text):
+        return "advanced"
+    if _LEVEL_INTERMEDIATE.search(text):
+        return "intermediate"
+    return None
+
+
 def rule_parse_profile(user_prompt: str) -> ProfileParse:
     m = re.search(r"<request>\n?(.*?)\n?</request>", user_prompt, re.DOTALL)
     text = m.group(1) if m else user_prompt
@@ -364,6 +399,7 @@ def rule_parse_profile(user_prompt: str) -> ProfileParse:
         watchlist=watch,
         exclude=exclude,
         max_positions=int(mp.group(1)) if mp else None,
+        knowledge_level=parse_knowledge_level(text),
         needs_clarification=needs,
     )
 
@@ -707,6 +743,565 @@ def rule_answer_concept(user_prompt: str) -> Narrative:
     return Narrative(paragraphs=paras)
 
 
+# ------------------------------------------------------------------- goals (Phase 12, 12.3)
+_AMOUNT = re.compile(
+    r"\$?\s*(\d{1,3}(?:,\d{3})+|\d+(?:\.\d+)?)\s*(k|m|mm|thousand|grand|million|mil)?\b(?!\s*%)",
+    re.IGNORECASE,
+)
+_PER_MONTH = r"(?:a|per|each|every|/)\s*(?:month|mo\b|mth)"
+_PER_YEAR = r"(?:a|per|each|every|/)\s*(?:year|yr|annum)|annually|yearly"
+_MONTHLY = re.compile(_PER_MONTH, re.IGNORECASE)
+_YEARLY = re.compile(_PER_YEAR, re.IGNORECASE)
+_INCOME_CUE = re.compile(
+    r"\b(make|earn|generate|collect|take home|bring in|want|need|live (?:on|off)|income|premium)\b",
+    re.IGNORECASE,
+)
+_CONTRIB_CUE = re.compile(
+    r"\b(add|adding|contribute|contributing|save|saving|put (?:in|away|aside)|invest(?:ing)?|"
+    r"deposit(?:ing)?|dca)\b",
+    re.IGNORECASE,
+)
+_EXPENSE_CUE = re.compile(
+    r"\b(spend|spending|expenses?|cost of living|costs? me|burn|budget|live on|retire on|"
+    r"need to live)\b",
+    re.IGNORECASE,
+)
+_MIN_EXPENSE_CUE = re.compile(
+    r"\b(bare[- ]?minimum|minimum|lean|at least|barebones)\b", re.IGNORECASE
+)
+_PART_TIME_CUE = re.compile(r"part[- ]time", re.IGNORECASE)
+_TARGET_BALANCE = re.compile(
+    r"\b(?:grow|get|turn|build|take|double|go)\b[^.?!]{0,40}?\b(?:to|into|of)\s+("
+    + _AMOUNT.pattern
+    + r")|\b(?:reach|hit|get to|end up with)\s+(?:about |around )?("
+    + _AMOUNT.pattern
+    + r")",
+    re.IGNORECASE,
+)
+_GROW_FROM = re.compile(
+    r"\b(?:grow|turn|take|double)\s+(?:my |the )?(" + _AMOUNT.pattern + r")\s+(?:to|into)\b",
+    re.IGNORECASE,
+)
+_NUMBER_WORDS = {
+    "one": 1,
+    "two": 2,
+    "three": 3,
+    "four": 4,
+    "five": 5,
+    "six": 6,
+    "seven": 7,
+    "eight": 8,
+    "nine": 9,
+    "ten": 10,
+    "twelve": 12,
+    "fifteen": 15,
+    "twenty": 20,
+    "thirty": 30,
+    "forty": 40,
+}
+_HORIZON = re.compile(
+    r"\b(?:in|within|over|for|during|next)\s+(\d+(?:\.\d+)?|[a-z]+)\s*(?:years?|yrs?)\b|"
+    r"\b(\d+(?:\.\d+)?)\s*(?:years?|yrs?)\s+(?:from now|out|horizon|away)\b",
+    re.IGNORECASE,
+)
+_TARGET_AGE = re.compile(r"\b(?:by|at|before)\s+(?:age\s+)?(\d{2})\b", re.IGNORECASE)
+_CURRENT_AGE = re.compile(
+    r"\b(?:i(?:'| a)?m|i am|age|aged)\s+(\d{2})\b(?!\s*(?:k|%|years? (?:from|out|away)))|"
+    r"\b(\d{2})\s+years?\s+old\b",
+    re.IGNORECASE,
+)
+_HAVE = re.compile(
+    r"\b(?:have|got|hold(?:ing)?|sitting on|saved|balance of|portfolio of|account of|on my)\s+"
+    r"(?:about |around |roughly |some )?(" + _AMOUNT.pattern + r")"
+    r"(?!\s*(?:" + _PER_MONTH + r"|" + _PER_YEAR + r"))",
+    re.IGNORECASE,
+)
+_WITHDRAWAL = re.compile(
+    r"(\d(?:\.\d+)?)\s?%\s*(?:withdrawal|rule|swr|safe withdrawal)", re.IGNORECASE
+)
+_FIRE_WORDS = re.compile(
+    r"\b(fire|f\.i\.r\.e\.|financial(?:ly)? independen(?:ce|t)|retire(?:ment|d)?|"
+    r"early retirement|lean fire|fat fire|coast fire|barista fire|coast|barista)\b",
+    re.IGNORECASE,
+)
+_VARIANTS: tuple[tuple[FireVariant, re.Pattern[str]], ...] = (
+    ("lean", re.compile(r"\blean\b", re.IGNORECASE)),
+    ("fat", re.compile(r"\bfat\b", re.IGNORECASE)),
+    ("coast", re.compile(r"\bcoast(?:ing)?\b", re.IGNORECASE)),
+    ("barista", re.compile(r"\bbarista\b|\bpart[- ]time\b", re.IGNORECASE)),
+)
+_GOAL_VERB = re.compile(
+    r"\b(can i|could i|will i|would i|when (?:can|could|will|would|am|do) i|how long|"
+    r"how many years|years (?:to|until)|i want|i'?d like|i need|"
+    r"is it (?:possible|realistic|feasible|doable)|is \S+ enough|enough to|"
+    r"does (?:this|that|it) (?:fit|work|get me|cover)|plan(?:ning)? (?:for|to)|on track|"
+    r"retire|be financially independent|reach|grow|double|make|earn|generate|"
+    r"cover my|live (?:off|on)|get to|want to|would like to|hope to|aim to|spend)\b",
+    re.IGNORECASE,
+)
+_GOAL_NOUN = re.compile(
+    r"\b(goal|fire|financial(?:ly)? independen(?:ce|t)|retire\w*|coast|barista|savings rate|"
+    r"income|premium|a month|per month|monthly|/month|million|target|expenses?)\b|"
+    r"\d+\s?k\b|\$\s?\d",
+    re.IGNORECASE,
+)
+_DEFINITION_START = re.compile(
+    r"^\s*(what (?:is|are|does|do)|define|explain what|how does .* work)", re.IGNORECASE
+)
+
+
+def _amount_value(m: re.Match[str]) -> float | None:
+    raw, unit = m.group(1), (m.group(2) or "").lower()
+    try:
+        val = float(raw.replace(",", ""))
+    except ValueError:
+        return None
+    return val * _MULT.get(unit, 1.0)
+
+
+def _amount_in(text: str | None) -> float | None:
+    """The first money amount in ``text`` (None when there is none)."""
+    m = _AMOUNT.search(text or "")
+    return _amount_value(m) if m else None
+
+
+def _amounts_with_context(text: str) -> list[tuple[float, str, str]]:
+    """(value, 40 chars before, 30 chars after) for every money amount in the text."""
+    out: list[tuple[float, str, str]] = []
+    for m in _AMOUNT.finditer(text):
+        val = _amount_value(m)
+        if val is None:
+            continue
+        out.append((val, text[max(0, m.start() - 40) : m.start()], text[m.end() : m.end() + 30]))
+    return out
+
+
+def _horizon_years(message: str) -> float | None:
+    for m in _HORIZON.finditer(message):
+        token = (m.group(1) or m.group(2) or "").lower()
+        if token in _NUMBER_WORDS:
+            return float(_NUMBER_WORDS[token])
+        try:
+            return float(token)
+        except ValueError:
+            continue
+    return None
+
+
+def rule_parse_goal(user_prompt: str) -> GoalParse:
+    """Regex goal parser: the ``--no-llm`` stand-in for ``parse_goal`` and the fallback when the
+    LLM is unavailable. Amounts are read with their surrounding words: "add $500 a month" is a
+    contribution, "make $400 a month" an income target, "spend 48k a year" expenses."""
+    message = _tag(user_prompt, "message") or user_prompt
+    low = message.lower()
+    fields: dict[str, Any] = {}
+    for val, before, after in _amounts_with_context(message):
+        lead = after.lstrip()
+        per_month = bool(_MONTHLY.match(lead))
+        per_year = bool(_YEARLY.match(lead))
+        near_part_time = bool(_PART_TIME_CUE.search(before[-25:] + after[:25]))
+        if per_month and _CONTRIB_CUE.search(before):
+            fields.setdefault("monthly_contribution", val)
+        elif per_month and _EXPENSE_CUE.search(before):
+            key = "minimum_expenses" if _MIN_EXPENSE_CUE.search(before) else "annual_expenses"
+            fields.setdefault(key, val * 12.0)
+        elif per_month:
+            fields.setdefault("target_monthly_income", val)
+        elif per_year and _EXPENSE_CUE.search(before[-20:]):
+            key = "minimum_expenses" if _MIN_EXPENSE_CUE.search(before) else "annual_expenses"
+            fields.setdefault(key, val)
+        elif (per_year and near_part_time) or near_part_time:
+            fields.setdefault("part_time_income", val)
+    m_t = _TARGET_BALANCE.search(message)
+    if m_t:
+        target = _amount_in(m_t.group(1) or m_t.group(4))
+        if target is not None and target >= 1_000:
+            fields["target_balance"] = target
+    m_g = _GROW_FROM.search(message)
+    if m_g:
+        grow_from = _amount_in(m_g.group(1))
+        if grow_from is not None and grow_from >= 1_000:
+            fields["start_balance"] = grow_from
+    m_h = _HAVE.search(message)
+    if m_h and "start_balance" not in fields:
+        start = _amount_in(m_h.group(1))
+        if start is not None and start >= 1_000 and start != fields.get("target_balance"):
+            fields["start_balance"] = start
+    horizon = _horizon_years(message)
+    if horizon is not None:
+        fields["horizon_years"] = horizon
+    m_a = _TARGET_AGE.search(message)
+    if m_a:
+        fields["target_age"] = float(m_a.group(1))
+    m_c = _CURRENT_AGE.search(message)
+    if m_c:
+        fields["current_age"] = float(m_c.group(1) or m_c.group(2))
+    m_w = _WITHDRAWAL.search(message)
+    if m_w:
+        fields["withdrawal_rate"] = float(m_w.group(1)) / 100.0
+    if _FIRE_WORDS.search(low):
+        fields["kind"] = "fire"
+        fields["variant"] = next((v for v, pat in _VARIANTS if pat.search(low)), "regular")
+        if "annual_expenses" not in fields and "minimum_expenses" in fields:
+            fields["annual_expenses"] = fields["minimum_expenses"]
+    elif "target_monthly_income" in fields:
+        fields["kind"] = "income"
+    elif "target_balance" in fields:
+        kind: GoalKind = "contribution" if fields.get("monthly_contribution") else "growth"
+        fields["kind"] = kind
+    needs: list[str] = []
+    k = fields.get("kind")
+    if k is None:
+        needs.append("goal")
+    elif k == "fire" and "annual_expenses" not in fields:
+        needs.append("annual_expenses")
+    elif k in ("growth", "contribution") and not (
+        fields.get("horizon_years") or fields.get("target_age")
+    ):
+        needs.append("horizon_years")
+    fields["needs_clarification"] = needs
+    return GoalParse(**fields)
+
+
+def is_goal_message(message: str) -> bool:
+    """Router test for the ``goal`` intent: a goal verb and a goal noun (or FIRE wording), not a
+    definition question and not a hypothetical profile change."""
+    low = message.lower()
+    if _DEFINITION_START.match(low) or _WHAT_IF.search(low):
+        return False
+    if _FIRE_WORDS.search(low):
+        return True
+    if not (_GOAL_VERB.search(low) and _GOAL_NOUN.search(low)):
+        return False
+    return rule_parse_goal(message).kind is not None
+
+
+def rule_explain_goal(user_prompt: str) -> Narrative:
+    """Deterministic goal narrative: numbers copied from the payload, concepts quoted from the
+    sources, the status and the stress path always stated (compliance check 9)."""
+    payload = _payload_from(user_prompt)
+    sources = parse_sources_block(user_prompt)
+    m_disc = re.search(r"copied exactly: (.+)", user_prompt)
+    disc = m_disc.group(1).strip() if m_disc else "Education, not advice."
+    plan = payload.get("goal_plan") or {}
+    paras: list[Paragraph] = []
+    if plan.get("clarification"):
+        paras.append(Paragraph(mode="notice", text=str(plan["clarification"])))
+    else:
+        goal = plan.get("goal", {})
+        status = plan.get("status_text", "does not fit")
+        req, avail, cap = (
+            plan.get("required_return_pct"),
+            plan.get("available_return_pct"),
+            plan.get("profile_cap_pct"),
+        )
+        text = f"**Goal check: this goal {status}.**"
+        if req is not None:
+            text += f" The {goal.get('kind', 'goal')} goal needs about {req}% a year"
+            if avail is not None:
+                text += (
+                    f"; the stress-adjusted yield available is {avail}% and the "
+                    f"{goal.get('risk_profile', 'current')} profile's cap is {cap}%."
+                )
+            else:
+                text += "."
+        for note in plan.get("notes") or []:
+            text += f" {note}."
+        paras.append(Paragraph(mode="screen_result", text=text))
+        levers = plan.get("levers") or []
+        if levers:
+            paras.append(
+                Paragraph(
+                    mode="screen_result",
+                    text="Levers, none of them a recommendation: " + " ".join(levers) + ".",
+                )
+            )
+        proj = plan.get("projection") or {}
+        if proj.get("base") is not None:
+            paras.append(
+                Paragraph(
+                    mode="screen_result",
+                    text=(
+                        f"At the base yield the balance would be about ${proj['base']:,} after "
+                        f"{proj['years']} years; on the stress path, which takes the "
+                        f"{proj['stress_drop_pct']}% scenario's realistic loss in year one, it "
+                        f"would be about ${proj['stress']:,}."
+                    ),
+                )
+            )
+        fire = plan.get("fire")
+        if fire:
+            text = (
+                f"This is a {fire['variant']} FIRE plan: expenses of ${fire['expense_target']:,} "
+                f"a year at a {fire['withdrawal_rate_pct']}% withdrawal rate give a FIRE number "
+                f"of ${fire['fire_number']:,}"
+            )
+            if fire.get("years_to_fi") is not None:
+                text += (
+                    f", which the diversified-portfolio projection at "
+                    f"{fire['assumed_return_pct']}% would reach in about {fire['years_to_fi']} years"
+                )
+            text += (
+                ". The withdrawal rate comes from research on diversified stock and bond "
+                "portfolios, not from options income"
+            )
+            if fire.get("income_coverage_pct") is not None:
+                text += (
+                    f"; the screen's premium yield would cover about "
+                    f"{fire['income_coverage_pct']}% of those expenses and is not a safe "
+                    "withdrawal rate"
+                )
+            paras.append(Paragraph(mode="screen_result", text=text + "."))
+    paras.extend(education_paragraphs(sources, limit=2))
+    paras.append(Paragraph(mode="notice", text=disc))
+    return Narrative(paragraphs=paras)
+
+
+# -------------------------------------------------------------- holdings (Phase 12, 12.4)
+_HOLDING_FORMS = (
+    # "200 AAPL at $150", "200 shares of AAPL bought at 150", "200 AAPL @150"
+    re.compile(
+        r"(?P<shares>\d+(?:,\d{3})*(?:\.\d+)?)\s*(?:shares?\s+(?:of\s+)?|x\s*)?(?P<ticker>[A-Z]{1,5})\b"
+        r"(?:[^,;\n]{0,25}?(?:@|at|for|cost(?: basis)?(?: of)?|basis(?: of)?|paid)\s*\$?\s*(?P<cost>\d+(?:,\d{3})*(?:\.\d+)?))?",
+    ),
+    # "AAPL 200 @ 150", "AAPL: 200 shares at 150", "AAPL,200,150"
+    re.compile(
+        r"\b(?P<ticker>[A-Z]{1,5})\b[:,\s]+(?P<shares>\d+(?:,\d{3})*(?:\.\d+)?)\s*(?:shares?|sh)?"
+        r"(?:[^,;\n]{0,25}?(?:@|at|for|cost(?: basis)?(?: of)?|basis(?: of)?|paid|,)\s*\$?\s*(?P<cost>\d+(?:,\d{3})*(?:\.\d+)?))?",
+    ),
+)
+_HOLDINGS_CUE = re.compile(
+    r"\b(my (?:holdings|positions|portfolio|shares|stocks|account holds)|i (?:own|hold|have|bought)|"
+    r"holdings?:|portfolio:|positions?:|here (?:are|is) (?:my|what i)|analy[sz]e (?:my|these|this)|"
+    r"shares? of|long \d)\b",
+    re.IGNORECASE,
+)
+_NOT_TICKERS = {
+    "CSP",
+    "LEAPS",
+    "PMCC",
+    "IRA",
+    "ETF",
+    "USD",
+    "AT",
+    "FOR",
+    "AND",
+    "OR",
+    "THE",
+    "MY",
+    "IN",
+    "ON",
+    "TO",
+    "OF",
+    "A",
+    "I",
+    "DTE",
+    "IV",
+    "OTM",
+    "ITM",
+    "ROTH",
+    "K",
+}
+_ACCOUNT_WORDS = (("ira", "ira"), ("roth", "ira"), ("margin", "margin"), ("cash", "cash"))
+
+
+def _holding_from(match: re.Match[str]) -> Holding | None:
+    ticker = match.group("ticker").upper()
+    if ticker in _NOT_TICKERS or (len(ticker) < 2 and ticker not in {"V", "F", "T", "C", "K"}):
+        return None
+    try:
+        shares = float(match.group("shares").replace(",", ""))
+    except (TypeError, ValueError):
+        return None
+    if shares <= 0 or shares > 10_000_000:
+        return None
+    cost_raw = match.group("cost")
+    cost = float(cost_raw.replace(",", "")) if cost_raw else None
+    return Holding(ticker=ticker, shares=shares, cost_basis=cost)
+
+
+_CSV_ROW = re.compile(
+    r"^\s*(?P<ticker>[A-Za-z]{1,5})\s*[,;\t|]\s*(?P<shares>\d+(?:\.\d+)?)\s*"
+    r"(?:[,;\t|]\s*\$?(?P<cost>\d+(?:\.\d+)?)?)?\s*(?:[,;\t|]\s*(?P<account>\w+))?\s*$"
+)
+
+
+def _merge_into(found: dict[str, Holding], h: Holding) -> None:
+    prev = found.get(h.ticker)
+    if prev is None:
+        found[h.ticker] = h
+        return
+    shares = prev.shares + h.shares
+    basis = (
+        (prev.shares * prev.cost_basis + h.shares * h.cost_basis) / shares
+        if prev.cost_basis is not None and h.cost_basis is not None
+        else None
+    )
+    found[h.ticker] = Holding(ticker=h.ticker, shares=shares, cost_basis=basis)
+
+
+def rule_parse_holdings(user_prompt: str) -> HoldingsParse:
+    """Regex holdings parser: the ``--no-llm`` stand-in for ``parse_holdings``. Reads CSV rows
+    ("AAPL,200,150"), "200 AAPL at 150", "AAPL 200 @ 150" and "200 shares of MSFT"; lots of one
+    ticker are merged."""
+    message = _tag(user_prompt, "message") or user_prompt
+    low = message.lower()
+    account = next((acct for word, acct in _ACCOUNT_WORDS if re.search(rf"\b{word}\b", low)), None)
+    found: dict[str, Holding] = {}
+    prose_lines: list[str] = []
+    for line in message.splitlines():
+        m_csv = _CSV_ROW.match(line)
+        if m_csv and m_csv.group("ticker").upper() not in _NOT_TICKERS | {"TICKER", "SYMBOL"}:
+            cost = m_csv.group("cost")
+            _merge_into(
+                found,
+                Holding(
+                    ticker=m_csv.group("ticker"),
+                    shares=float(m_csv.group("shares")),
+                    cost_basis=float(cost) if cost else None,
+                ),
+            )
+        elif m_csv and m_csv.group("ticker").upper() in {"TICKER", "SYMBOL"}:
+            continue  # a CSV header
+        else:
+            prose_lines.append(line)
+    prose = "\n".join(prose_lines)
+    spans: list[tuple[int, int]] = []
+    for form in _HOLDING_FORMS:
+        for m in form.finditer(prose):
+            if any(a <= m.start() < b for a, b in spans):
+                continue
+            h = _holding_from(m)
+            if h is None:
+                continue
+            spans.append((m.start(), m.end()))
+            _merge_into(found, h)
+    holdings = [h.model_copy(update={"account": account}) if account else h for h in found.values()]
+    needs = [] if holdings else ["holdings"]
+    return HoldingsParse(
+        holdings=sorted(holdings, key=lambda h: h.ticker), needs_clarification=needs
+    )
+
+
+def is_holdings_message(message: str) -> bool:
+    """Router test for the ``holdings`` intent: a holdings cue plus at least one parsable
+    position, or two or more parsable positions on their own (a pasted list)."""
+    parsed = rule_parse_holdings(message)
+    if not parsed.holdings:
+        return False
+    return bool(_HOLDINGS_CUE.search(message)) or len(parsed.holdings) >= 2
+
+
+# ------------------------------------------------------------------ news (Phase 12, 12.5)
+_HEADLINE_BLOCK = re.compile(r'<headline id="([^"]+)"[^>]*>\n?(.*?)\n?</headline>', re.DOTALL)
+_NEWS_CUE = re.compile(
+    r"\b(news|headlines?|in the press|announce[ds]?|any (?:news|updates?)|"
+    r"what(?:'s| is) (?:happening|going on|new) (?:with|at|on)|earnings (?:date|call|report|release)|"
+    r"ex[- ]dividend|dividend date|before (?:my |the )?(?:expiry|expiration)|catalysts?|"
+    r"events? (?:before|coming|ahead)|recall|lawsuit)\b",
+    re.IGNORECASE,
+)
+
+
+def rule_classify_news(user_prompt: str) -> BaseModel:
+    """The ``--no-llm`` stand-in for ``classify_news``: the keyword classifier of ``core/news.py``
+    on each rendered headline; the summary is the headline itself (data, never rewritten)."""
+    from options_scout.core.models import NewsClassification, NewsClassificationBatch
+    from options_scout.core.news import classify_rule_based
+
+    items = []
+    for hid, title in _HEADLINE_BLOCK.findall(user_prompt):
+        category, relevance = classify_rule_based(title)
+        items.append(
+            NewsClassification(
+                id=hid, category=category, relevance=relevance, summary=title.strip()[:300]
+            )
+        )
+    return NewsClassificationBatch(items=items)
+
+
+def is_news_message(message: str) -> bool:
+    """Router test for the ``news`` intent: a news cue that is not a definition question."""
+    low = message.lower()
+    if _DEFINITION_START.match(low) or _WHAT_IF.search(low):
+        return False
+    return bool(_NEWS_CUE.search(low))
+
+
+# -------------------------------------------------------------------- tax (Phase 12, 12.6)
+_TAX_CUE = re.compile(
+    r"\b(tax(?:es|ed|able|ation)?|wash[- ]sale|cost basis|\bbasis\b|holding period|long[- ]term|"
+    r"short[- ]term|1256|1099|8949|schedule d|capital gains?|qualified covered call|straddle rule|"
+    r"early withdrawal|59 ?1/2|59\.5|roth|\bira\b|retirement account|pattern day|pdt\b|"
+    r"portfolio margin|approval level|which account|what account|kind of account|"
+    r"type of account|in an? (?:cash|margin|ira|roth) account|allowed in (?:an? )?(?:ira|roth|cash|margin))",
+    re.IGNORECASE,
+)
+
+
+def is_tax_message(message: str) -> bool:
+    """Router test for the ``tax`` intent: a tax or account-type cue, not a hypothetical, and not
+    a profile description (which carries a buying-power amount)."""
+    low = message.lower()
+    if _WHAT_IF.search(low) or not _TAX_CUE.search(low):
+        return False
+    has_amount = _parse_amount(message) is not None
+    strong = re.search(r"\b(tax|wash|basis|1256|1099|8949|holding period|withdrawal)", low)
+    return bool(strong) or not has_amount
+
+
+def rule_answer_tax(user_prompt: str) -> Narrative:
+    """``--no-llm`` tax answer: the illustrative facts as one screen_result paragraph, the tax
+    sources' opening sentences as cited education, the tax disclaimer, the app disclaimer."""
+    sources = parse_sources_block(user_prompt)
+    m = re.search(r"copied exactly: (.*?)\n", user_prompt, re.DOTALL)
+    disclaimer = m.group(1).strip() if m else "Education, not advice."
+    m_tax = re.search(r"tax disclaimer: (.*?)\n", user_prompt, re.DOTALL)
+    tax_disc = m_tax.group(1).strip() if m_tax else ""
+    facts = _tag(user_prompt, "facts")
+    question = _tag(user_prompt, "question").lower()
+    paras: list[Paragraph] = []
+    try:
+        f = json.loads(facts) if facts else {}
+    except json.JSONDecodeError:
+        f = {}
+    asks_basis = any(w in question for w in ("assign", "basis", "premium", "expire", "taxed"))
+    asks_wash = any(w in question for w in ("wash", "loss"))
+    if asks_basis and f.get("ticker") and f.get("assigned_basis_per_share") is not None:
+        paras.append(
+            Paragraph(
+                mode="screen_result",
+                text=(
+                    f"Illustration with the screened {f['ticker']} {f['strike']:g} put: the premium "
+                    f"of {f['premium']} per share is not taxed when received; if the put is assigned "
+                    f"the shares' basis would be {f['assigned_basis_per_share']} per share "
+                    f"({f['assigned_total_basis']:,} in total for the cash paid of "
+                    f"{f['cash_paid_at_assignment']:,}); if it expires the whole "
+                    f"{f['premium_if_expired']:,} would be a short-term gain."
+                ),
+            )
+        )
+    if asks_wash and f.get("wash_sale_window_start"):
+        paras.append(
+            Paragraph(
+                mode="screen_result",
+                text=(
+                    f"A loss realised on {f['as_of']} would carry a wash-sale window from "
+                    f"{f['wash_sale_window_start']} to {f['wash_sale_window_end']} "
+                    f"({f['wash_sale_window_days']} days)."
+                ),
+            )
+        )
+    knowledge = [s for s in sources if not is_run_data(s)]
+    paras.extend(education_paragraphs(knowledge, limit=2))
+    if not knowledge:
+        paras.append(Paragraph(mode="notice", text=NO_SOURCE_SENTENCE))
+    if tax_disc:
+        paras.append(Paragraph(mode="notice", text=tax_disc))
+    paras.append(Paragraph(mode="notice", text=disclaimer))
+    return Narrative(paragraphs=paras)
+
+
 # ------------------------------------------------------------------------ intent routing
 _OFF_TOPIC = re.compile(
     r"\b(weather|joke|poem|recipe|movie|song|football|soccer|basketball|election|president|"
@@ -788,17 +1383,30 @@ def rule_route(user_prompt: str) -> RouteDecision:
     if parsed.max_positions:
         changes["max_positions"] = parsed.max_positions
 
+    # the stated experience level rides along with a profile change but never decides the intent
+    # on its own account below ("I'm new to this, what is a put?" stays a concept question)
+    level = parse_knowledge_level(message)
+
     def decide(intent: Intent, reason: str) -> RouteDecision:
         q = message.strip() if intent in ("concept", "why") else None
+        carried = {**changes, **({"knowledge_level": level} if level else {})}
         return RouteDecision(
             intent=intent,
             question=q,
-            profile_changes=changes if intent in ("refine_profile", "what_if") else {},
+            profile_changes=carried if intent in ("refine_profile", "what_if") else {},
             reason=reason,
         )
 
     if _OFF_TOPIC.search(low) and not (_CONCEPT.search(low) and _PROFILE_WORDS.search(low)):
         return decide("off_topic", "off-topic keyword or advice request")
+    if is_holdings_message(message) and not is_goal_message(message):
+        return decide("holdings", "a list of positions the user already owns")
+    if is_news_message(message) and not is_goal_message(message):
+        return decide("news", "news or calendar events for a ticker")
+    if is_tax_message(message) and not is_goal_message(message):
+        return decide("tax", "a tax or account-type question")
+    if is_goal_message(message):
+        return decide("goal", "a goal the account should reach")
     if _WHAT_IF.search(low) and (changes or _PROFILE_WORDS.search(low)):
         return decide("what_if" if has_report else "new_screen", "hypothetical profile change")
     if _WHY.search(low) and (has_report or _WHY_RUN_WORDS.search(low)):
@@ -812,6 +1420,9 @@ def rule_route(user_prompt: str) -> RouteDecision:
         and (changes or _PROFILE_WORDS.search(low))
     ):
         return decide("refine_profile", "profile field changed on an existing thread")
+    if has_report and level and not changes and not _STRONG_NEW_SCREEN.search(low):
+        # "treat me as a beginner" after a screen: same profile, explanations at the new level
+        return decide("refine_profile", "knowledge level stated on an existing thread")
     if changes or _SCREEN_VERBS.search(low) or _PROFILE_WORDS.search(low):
         return decide("new_screen", "profile description or screen request")
     return decide("off_topic", "no options-screening content recognised")
@@ -844,4 +1455,9 @@ def handlers(cfg: AppConfig) -> dict[str, Callable[[str], BaseModel]]:
         "answer_concept": rule_answer_concept,
         "route_message": rule_route,
         "judge_explanation": rule_judge,
+        "parse_goal": rule_parse_goal,
+        "explain_goal": rule_explain_goal,
+        "parse_holdings": rule_parse_holdings,
+        "classify_news": rule_classify_news,
+        "answer_tax": rule_answer_tax,
     }

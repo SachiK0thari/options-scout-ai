@@ -63,6 +63,13 @@ def _review_form(view: session.View) -> None:
             default=defaults["strategies"],
             key="rv_strat",
         )
+        levels = allowed.get("knowledge_level") or ["beginner", "intermediate", "advanced"]
+        level = st.selectbox(
+            "Your options experience",
+            levels,
+            index=levels.index(defaults["knowledge_level"]),
+            key="rv_level",
+        )
         confirmed = st.form_submit_button("Confirm and run", type="primary")
     if confirmed:
         answer: dict[str, Any] = {
@@ -72,6 +79,7 @@ def _review_form(view: session.View) -> None:
             "risk_profile": risk,
             "strategies": sorted(strategies) or ["csp"],
             "max_positions": defaults["max_positions"],
+            "knowledge_level": level,
         }
         with st.chat_message("assistant"):
             status = st.status("Running the screen…", expanded=True)

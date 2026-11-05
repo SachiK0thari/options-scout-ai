@@ -23,6 +23,7 @@ PROFILE_FIELDS = frozenset(
         "exclude",
         "max_positions",
         "options_level",
+        "knowledge_level",  # Phase 12
     }
 )
 
@@ -42,6 +43,7 @@ def make(deps: Deps) -> Callable[[AgentState], dict[str, Any]]:
                 "account_type": ["cash", "margin", "portfolio_margin"],
                 "risk_profile": ["conservative", "balanced", "aggressive"],
                 "strategies": ["csp", "leaps", "pmcc"],
+                "knowledge_level": ["beginner", "intermediate", "advanced"],
             },
         }
         answer = interrupt(payload)  # execution pauses here until Command(resume=...)

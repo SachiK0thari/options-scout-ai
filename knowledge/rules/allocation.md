@@ -4,6 +4,7 @@ title: 'Rule 3.1: Allocation of buying power'
 source: PRD.md section 3.1 and config/risk_profiles.yaml
 url: PRD.md#31-allocation-of-buying-power
 kind: rules
+level: intermediate
 as_of: '2026-11-03'
 ---
 

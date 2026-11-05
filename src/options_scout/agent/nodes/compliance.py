@@ -20,7 +20,7 @@ from options_scout.core.models import ComplianceReport, Narrative, TextKind
 from options_scout.observability import get_logger
 from options_scout.rag.models import citation_of
 
-ANSWER_INTENTS = ("concept", "why", "what_if", "off_topic")
+ANSWER_INTENTS = ("concept", "why", "what_if", "off_topic", "goal", "holdings", "news", "tax")
 
 
 def text_kind(state: AgentState) -> TextKind:

@@ -36,6 +36,26 @@ VIX 17.51 (57th percentile, normal), risk-free rate 4.04% (fixture data).
 
 Universe considered: NKE, COST, AAPL, MSFT, SBUX, SPY, QQQ
 
+## News desk
+- **AAPL** (6 headline(s)): “Apple reports record services revenue as iPhone sales hold steady” — Reuters, 2026-10-26, earnings, high relevance, sentiment +0.31
+- **COST** (6 headline(s)): “Costco quarterly results beat on membership fee growth” — Reuters, 2026-10-26, earnings, high relevance, sentiment +0.27
+- **MSFT** (6 headline(s)): “Microsoft cloud revenue tops estimates as Azure growth accelerates” — Reuters, 2026-10-26, earnings, high relevance, sentiment +0.35
+- **NKE** (6 headline(s)): “Nike earnings miss estimates as China sales fall” — Reuters, 2026-10-26, earnings, high relevance, sentiment -0.33
+- **QQQ** (6 headline(s)): “Nasdaq-100 rallies as megacap earnings impress” — Reuters, 2026-10-26, earnings, high relevance, sentiment +0.25
+- **SBUX** (6 headline(s)): “Starbucks same-store sales fall for fourth straight quarter” — Reuters, 2026-10-26, earnings, high relevance, sentiment -0.29
+- **SPY** (5 headline(s)): “S&P 500 closes at record as earnings season beats expectations” — Reuters, 2026-10-26, earnings, high relevance, sentiment +0.21
+
+| Candidate | Flag | Event date | Detail |
+|---|---|---|---|
+| PMCCSC-AAPL-2026-12-18-370C | earnings_within_dte | 2026-11-02 | earnings on 2026-11-02 fall before the 2026-12-18 expiry |
+| PMCCSC-AAPL-2026-11-20-365C | earnings_within_dte | 2026-11-02 | earnings on 2026-11-02 fall before the 2026-11-20 expiry |
+| PMCCSC-AAPL-2026-11-20-367.5C | earnings_within_dte | 2026-11-02 | earnings on 2026-11-02 fall before the 2026-11-20 expiry |
+| PMCCSC-MSFT-2026-11-27-575C | earnings_within_dte | 2026-10-28 | earnings on 2026-10-28 fall before the 2026-11-27 expiry |
+| PMCCSC-MSFT-2026-12-18-580C | earnings_within_dte | 2026-10-28 | earnings on 2026-10-28 fall before the 2026-12-18 expiry |
+| PMCCSC-MSFT-2026-12-18-590C | earnings_within_dte | 2026-10-28 | earnings on 2026-10-28 fall before the 2026-12-18 expiry |
+
+_Headlines never change the ranking; they flag what to read before trading._
+
 ## Good-to-own quality screen
 | Ticker | Name | Sector | Quality | 30d vol | Below 90d high | Why it's on the list |
 |---|---|---|---|---|---|---|
@@ -138,7 +158,7 @@ Universe considered: NKE, COST, AAPL, MSFT, SBUX, SPY, QQQ
 
 **Assignment: what happens when a short option is exercised against you.** **Assignment** is the process by which an option writer is selected to fulfil the obligation of a contract that a holder has exercised. When a put holder exercises, some put writer is obliged to take the shares at the strike; when a call holder exercises, some call writer must deliver them. [S2]
 
-**Poor man's covered call (PMCC): a short near-term call written against a LEAPS call.** A **poor man's covered call** is a two-leg position: a long, deep in-the-money LEAPS call (expiring a year or more out) and a short, near-term, out-of-the-money call on the same stock. Formally it is a **long call diagonal spread**: different strikes and different expirations. [S3]
+**LEAPS: long-dated call options as a leveraged stand-in for owning shares.** **LEAPS** (Long-term Equity AnticiPation Securities) is the exchanges' name for listed options with more than a year until expiration. They trade and settle exactly like shorter options; only the time horizon is different. This app screens **deep in-the-money LEAPS calls** as a way to hold long exposure to a good-to-own stock for a year or more while committing less capital than buying the shares outright. [S3]
 
 **Sized positions.** CSP-NKE-2026-11-20-35P: 3 contract(s) of the csp with strike 35.0 expiring 2026-11-20, using 1655 of capital with a realistic loss of 2443 if the underlying falls 30%. Breakeven at expiry 34.44, maximum loss 10330. LEAPS-NKE-2028-12-15-20C: 1 contract(s) of the leaps with strike 20.0 expiring 2028-12-15, using 1808 of capital with a realistic loss of 1808 if the underlying falls 30%. Breakeven at expiry 38.09, maximum loss 1808. It is paired with short call PMCCSC-NKE-2026-11-20-40C.
 
@@ -155,8 +175,8 @@ Educational screening tool. Not investment, tax or legal advice. Options involve
   “A **cash-secured put** is a short put position in which the writer sets aside enough cash to buy the shares at the strike price if the put is assigned.”
 - **[S2]** Assignment: what happens when a short option is exercised against you — concepts (https://www.theocc.com/company-information/documents-and-archives/options-disclosure-document)  
   “**Assignment** is the process by which an option writer is selected to fulfil the obligation of a contract that a holder has exercised.”
-- **[S3]** Poor man's covered call (PMCC): a short near-term call written against a LEAPS call — concepts (https://www.cboe.com/education/)  
-  “A **poor man's covered call** is a two-leg position: a long, deep in-the-money LEAPS call (expiring a year or more out) and a short, near-term, out-of-the-money call on the same stock.”
+- **[S3]** LEAPS: long-dated call options as a leveraged stand-in for owning shares — concepts (https://www.cboe.com/education/)  
+  “**LEAPS** (Long-term Equity AnticiPation Securities) is the exchanges' name for listed options with more than a year until expiration. They trade and settle exactly like shorter options; only the time horizon is different.”
 
 ## Compliance
 PASS · audit `<audit_id>` · report · attempt 1
@@ -169,15 +189,18 @@ PASS · audit `<audit_id>` · report · attempt 1
 - ✓ `check_disclaimer`: disclaimer present once
 - ✓ `check_sources_fresh`: cited rules and filings are current
 - ✓ `check_no_pii`: no handles or emails
+- ✓ `goal_narrative`: no goal reply to check
+- ✓ `news_grounding`: no headlines to check
+- ✓ `tax_reply`: no tax reply to check
 
 ## Verification
 PASS: 50 numbers checked, 0 ungrounded, banned phrases: none, disclaimer present, citations 3 checked / 0 unknown, attempts 1.
 
 ## Run metadata
 - Models: {"extraction": "deepseek/deepseek-v4.1-flash", "explanation": "deepseek/deepseek-v4.1-flash", "provider": "fixture"}
-- Prompt versions: {"answer_concept": "1.1.0", "explain_report": "2.0.0", "extract_entities": "1.0.0", "judge_explanation": "1.0.0", "parse_profile": "1.1.0", "route_message": "1.0.0"}
+- Prompt versions: {"answer_concept": "1.2.0", "answer_tax": "1.0.0", "classify_news": "1.0.0", "explain_goal": "1.0.0", "explain_report": "2.1.0", "extract_entities": "1.0.0", "judge_explanation": "1.0.0", "parse_goal": "1.0.0", "parse_holdings": "1.0.0", "parse_profile": "1.2.0", "route_message": "1.2.0"}
 - Config hash: `<config_hash>`
-- Data sources: {"AAPL": "ok", "COST": "ok", "MSFT": "ok", "NKE": "ok", "QQQ": "ok", "SBUX": "ok", "SPY": "ok", "google_trends": "ok", "market_data": "fixture", "news": "ok", "reddit": "ok", "sec": "ok", "social": "ran (7095 posts, 28 entities)", "wikipedia": "ok", "x": "ok"}
+- Data sources: {"AAPL": "ok", "COST": "ok", "MSFT": "ok", "NKE": "ok", "QQQ": "ok", "SBUX": "ok", "SPY": "ok", "google_trends": "ok", "market_data": "fixture", "news": "ok", "news_alphavantage_news": "ok", "news_desk": "41 headlines for 7 ticker(s)", "news_rss": "ok", "reddit": "ok", "sec": "ok", "social": "ran (7095 posts, 28 entities)", "wikipedia": "ok", "x": "ok"}
 - Tokens: 0 in / 0 out · cost $0.0000
 
 ## Notes and degraded sources

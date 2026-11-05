@@ -23,6 +23,7 @@ from options_scout.rag.filings import (
     ETF_CIKS,
     FORMS_10K,
     FORMS_PROSPECTUS,
+    PREDECESSOR_CIKS,
     EdgarClient,
     extract_item_1a,
     extract_principal_risks,
@@ -53,6 +54,9 @@ def main(argv: list[str]) -> int:
                 failures += 1
                 continue
             ref = client.latest_filing(cik, FORMS_10K)
+            if ref is None and ticker in PREDECESSOR_CIKS:  # new registrant, no 10-K yet
+                cik = PREDECESSOR_CIKS[ticker]
+                ref = client.latest_filing(cik, FORMS_10K)
             section = "Item 1A"
             excerpt = extract_item_1a(client.document_text(ref)) if ref is not None else None
             if excerpt is None:  # fund issuers: full prospectus first, then supplements

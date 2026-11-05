@@ -48,8 +48,8 @@ def _assert_reply(turn: ChatTurn) -> None:
     assert turn.compliance.audit_id
 
 
-# ------------------------------------------------------------- the scripted 6-turn conversation
-def test_scripted_six_turn_conversation(session: ChatSession, deps: Deps) -> None:
+# ------------------------------------------------------------- the scripted 7-turn conversation
+def test_scripted_seven_turn_conversation(session: ChatSession, deps: Deps) -> None:
     t = "t-conv"
     # 1 · describe (risk profile missing → human review)
     r1 = session.send(t, DESCRIBE)
@@ -88,10 +88,19 @@ def test_scripted_six_turn_conversation(session: ChatSession, deps: Deps) -> Non
     new_rep = session.graph.get_state({"configurable": {"thread_id": "t-conv-2"}}).values["report"]
     assert new_rep.profile.buying_power == 30_000 and new_rep.profile.account_type == "margin"
     assert new_rep.run_id != rep.run_id
-    # 6 · off-topic
-    r6 = session.send(t, "What's the weather in Paris?")
-    assert r6.turn.intent == "off_topic" and OFF_TOPIC_REPLY in r6.turn.text
+    # 6 · goal (Phase 12): judged against this thread's sized portfolio
+    r6 = session.send(t, "Can I make $400 a month from this account?")
+    assert r6.status == "completed" and r6.turn.intent == "goal"
     _assert_reply(r6.turn)
+    low = r6.turn.text.lower()
+    assert any(w in low for w in ("fits", "stretch", "does not fit")) and "stress" in low
+    assert {c.name for c in r6.turn.compliance.checks} >= {"goal_narrative", "check_numbers"}
+    plan = session.graph.get_state({"configurable": {"thread_id": t}}).values["goal_plan"]
+    assert plan.goal.target_monthly_income == 400 and plan.goal.start_balance == 100_000
+    # 7 · off-topic
+    r7 = session.send(t, "What's the weather in Paris?")
+    assert r7.turn.intent == "off_topic" and OFF_TOPIC_REPLY in r7.turn.text
+    _assert_reply(r7.turn)
     # every reply carries a ComplianceReport; the history alternates user/assistant
     history = session.history(t)
     # the confirmation is a form resume, not a message: the review prompt and the summary are two
@@ -99,7 +108,7 @@ def test_scripted_six_turn_conversation(session: ChatSession, deps: Deps) -> Non
     assert [h.role for h in history] == ["user", "assistant", "assistant"] + [
         "user",
         "assistant",
-    ] * 4
+    ] * 5
     assert all(
         h.compliance is not None and h.compliance.passed for h in history if h.role == "assistant"
     )
@@ -109,6 +118,7 @@ def test_scripted_six_turn_conversation(session: ChatSession, deps: Deps) -> Non
         "why",
         "concept",
         "what_if",
+        "goal",
         "off_topic",
     ]
     assert session.related_threads(t) == ["t-conv-2"]
@@ -193,7 +203,7 @@ def test_apply_changes_and_diff() -> None:
 def test_rule_router_on_the_dataset() -> None:
     text = (REPO_ROOT / "evals/datasets/chat_routing.jsonl").read_text(encoding="utf-8")
     rows = [json.loads(line) for line in text.splitlines() if line.strip()]
-    assert len(rows) == 60
+    assert len(rows) == 100  # 60 Phase 10 rows + goal, holdings, news and tax rows (Phase 12)
     hits = 0
     for row in rows:
         ctx = "exists" if row["has_report"] else "does not exist yet"

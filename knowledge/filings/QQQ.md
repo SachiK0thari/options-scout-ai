@@ -4,6 +4,7 @@ title: 'INVESCO QQQ TRUST, SERIES 1 485BPOS: Principal Risks (2025)'
 source: SEC EDGAR 485BPOS filed 2025-12-19
 url: https://www.sec.gov/Archives/edgar/data/1067839/000110465925123273/tm2529177d1_485bpos.htm
 kind: filings
+level: advanced
 as_of: '2025-12-19'
 ---
 

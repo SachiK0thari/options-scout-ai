@@ -1,0 +1,20 @@
+{"id": "tax-q-01", "question": "How is the premium from a short put taxed when it expires?", "doc_id": "short-put-premium-taxation"}
+{"id": "tax-q-02", "question": "What happens to my cost basis when a cash-secured put is assigned?", "doc_id": "assignment-cost-basis"}
+{"id": "tax-q-03", "question": "Can assignment on a put trigger a wash sale?", "doc_id": "wash-sales-and-options"}
+{"id": "tax-q-04", "question": "Is a LEAPS call held more than a year taxed as long-term?", "doc_id": "leaps-holding-period"}
+{"id": "tax-q-05", "question": "Tax difference between exercising a LEAPS and selling it?", "doc_id": "leaps-exercise-vs-sale"}
+{"id": "tax-q-06", "question": "Does a qualified covered call suspend the holding period of my shares?", "doc_id": "qualified-covered-calls"}
+{"id": "tax-q-07", "question": "Are SPY and QQQ options Section 1256 contracts?", "doc_id": "section-1256-contracts"}
+{"id": "tax-q-08", "question": "How do option trades appear on Form 1099-B and Form 8949?", "doc_id": "form-1099b-and-8949"}
+{"id": "tax-q-09", "question": "What is the more-than-one-year test for long-term gains?", "doc_id": "short-term-vs-long-term"}
+{"id": "tax-q-10", "question": "Which account types allow cash-secured puts, LEAPS and PMCCs?", "doc_id": "account-types-for-options"}
+{"id": "tax-q-11", "question": "Can I sell cash-secured puts in an IRA?", "doc_id": "options-in-an-ira"}
+{"id": "tax-q-12", "question": "Why is there no margin lending in an IRA?", "doc_id": "options-in-an-ira"}
+{"id": "tax-q-13", "question": "What is the additional tax on early IRA distributions?", "doc_id": "early-withdrawal-from-an-ira"}
+{"id": "tax-q-14", "question": "What is the difference between Reg T margin and portfolio margin?", "doc_id": "reg-t-vs-portfolio-margin"}
+{"id": "tax-q-15", "question": "What is the pattern day trading rule?", "doc_id": "pattern-day-trading-rule"}
+{"id": "tax-q-16", "question": "Is the premium received taxed when I receive it?", "doc_id": "short-put-premium-taxation"}
+{"id": "tax-q-17", "question": "When does the holding period of assigned shares start?", "doc_id": "assignment-cost-basis"}
+{"id": "tax-q-18", "question": "What is the 61-day wash sale window?", "doc_id": "wash-sales-and-options"}
+{"id": "tax-q-19", "question": "Are gains inside a Roth IRA taxed when the put expires?", "doc_id": "options-in-an-ira"}
+{"id": "tax-q-20", "question": "What is Form 6781 used for?", "doc_id": "section-1256-contracts"}

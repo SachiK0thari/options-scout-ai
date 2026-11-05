@@ -17,6 +17,11 @@ similarity_floor:
   hash: 0.12
   fastembed: 0.45
 rrf_k: 60                 # reciprocal-rank-fusion constant: score = Σ weight / (rrf_k + rank)
+# Title-field boost (BM25F-style): each chunk gains title_boost × the share of its document's
+# title head (the words before the first ":" or "(") that occur in the query. "what is a
+# cash-secured put" then cites *Cash-secured put (CSP)* before *The wheel: cash-secured put, …*,
+# whose body mentions the term just as often. 0.01 is about the gap between RRF ranks 1 and 30.
+title_boost: 0.01
 # A lexical embedder (hash) is a bag of words: a chunk that shares no content word with the query
 # can only clear the floor by hash collision, so it is not eligible. A semantic embedder may match a
 # paraphrase that shares no word, so the rule is off for fastembed. Measured by the refusal eval.
@@ -29,13 +34,15 @@ require_shared_term:
 chunk_tokens: 400
 overlap: 0.15
 
-knowledge_dir: knowledge          # concepts/, rules/, filings/ (Markdown + YAML front-matter)
+knowledge_dir: knowledge          # concepts/, basics/, tax/, rules/, filings/ (Markdown + YAML front-matter)
 index_db: data/knowledge.sqlite   # rebuilt by `make index`; built lazily on first use if missing
 
 # Collections and their weight in the fused ranking (evidence is the per-run in-memory collection
 # of trend-scout posts and news, indexed by Market Intelligence in step 10.3).
 collections:
   concepts: {weight: 1.0}
+  basics: {weight: 1.0}    # investing for beginners (Phase 12)
+  tax: {weight: 1.0}       # tax mechanics and account types (Phase 12, Tax & Accounts agent)
   rules: {weight: 1.0}
   filings: {weight: 0.8}
   evidence: {weight: 1.0}

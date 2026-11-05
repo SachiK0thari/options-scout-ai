@@ -4,6 +4,7 @@ title: 'Rule 3.3: CSP screener rules'
 source: PRD.md section 3.3 and config/screener_rules.yaml
 url: PRD.md#33-csp-screener-rules
 kind: rules
+level: intermediate
 as_of: '2026-11-03'
 ---
 

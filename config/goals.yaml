@@ -1,0 +1,33 @@
+# Goal Planning agent (Phase 12, docs/capstone-plan.md section 12.2). Every number here is an
+# assumption the Goals tab prints next to its chart; nothing is a forecast.
+
+withdrawal_rate: 0.04        # FIRE number = expense target / withdrawal rate (Bengen 1994, Trinity study)
+fat_multiple: 1.5            # fat FIRE expense target when the user gives no figure: x current expenses
+stretch_band: 0.02           # required return within this many points above the available yield -> "stretch"
+max_horizon_years: 100       # years_to_target gives up (None) beyond this
+
+# Annual return a *diversified stock/bond portfolio* projection assumes per risk profile (nominal).
+# Used for the conventional goal and FIRE projections, never for the options income view.
+assumed_return:
+  conservative: 0.05
+  balanced: 0.06
+  aggressive: 0.07
+
+# The highest return a goal may assume under each profile. A required return above the cap makes
+# the verdict "does_not_fit" whatever the current screen yields (knowledge/basics/risk_profiles.md).
+max_assumed_return:
+  conservative: 0.06
+  balanced: 0.09
+  aggressive: 0.12
+
+# Share of years in which the -30% stress scenario is assumed to hit, used to amortise the sized
+# portfolio's realistic loss into a stress-adjusted yield (the options income-coverage view).
+assignment_frequency:
+  conservative: 0.10
+  balanced: 0.15
+  aggressive: 0.20
+
+retirement_age: 59.5         # IRA balances are treated as unavailable before this age
+savings_rate_table:          # illustration on the Goals tab: savings rates x years to independence
+  rates: [0.10, 0.20, 0.30, 0.50]
+  real_return: 0.05

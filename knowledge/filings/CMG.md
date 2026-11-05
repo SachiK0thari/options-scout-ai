@@ -4,6 +4,7 @@ title: 'CHIPOTLE MEXICAN GRILL INC 10-K: Item 1A, Risk Factors (2026)'
 source: SEC EDGAR 10-K filed 2026-02-04
 url: https://www.sec.gov/Archives/edgar/data/1058090/000105809026000009/cmg-20251231.htm
 kind: filings
+level: advanced
 as_of: '2026-02-04'
 ---
 

@@ -13,6 +13,7 @@ from typing import Any
 
 from options_scout.agent.deps import Deps
 from options_scout.agent.nodes.explainer import render_sources_block, sources_payload
+from options_scout.agent.nodes.knowledge_retrieval import audience_for
 from options_scout.agent.state import AgentState
 from options_scout.core.compliance import resolve_citations
 from options_scout.core.models import NO_SOURCE_SENTENCE, Narrative, Paragraph
@@ -43,7 +44,13 @@ def make(deps: Deps) -> Callable[[AgentState], dict[str, Any]]:
             block = render_sources_block(sources)
             intent = "why" if state.get("intent") == "why" else "concept"
             try:
-                answer = deps.llm.answer_concept(question, block, disclaimer, intent=intent)
+                answer = deps.llm.answer_concept(
+                    question,
+                    block,
+                    disclaimer,
+                    intent=intent,
+                    audience=audience_for(state.get("profile")),
+                )
             except Exception as exc:
                 errors.append(f"concept_answer: LLM failed ({exc}); using source excerpts")
                 answer = rule_answer_concept(

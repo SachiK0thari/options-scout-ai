@@ -23,6 +23,9 @@ data/knowledge.sqlite
 .idea/
 .vscode/
 
-# superseded local copy of the build spec (kept private)
-miscellaneous
-docs
+# private planning material (not part of the repo)
+miscellaneous/
+docs/capstone-plan.md
+docs/architecture.md
+docs/compliance.md
+docs/rag.md

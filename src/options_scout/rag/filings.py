@@ -80,6 +80,18 @@ _ITEM_1A_END = re.compile(
     r"|item\s*2\s*[.:\-—–]*\s*properties",
     re.IGNORECASE,
 )
+# Some issuers (McDonald's, Honeywell) print the section as a bare "Risk Factors" heading and keep
+# "Item 1A" only in a cross-reference index, so a heading-only fallback runs when the first fails.
+_RISK_FACTORS_HEADING = re.compile(r"^\s*risk\s+factors\s*$", re.IGNORECASE | re.MULTILINE)
+_RISK_FACTORS_HEADING_END = re.compile(
+    r"^\s*(?:item\s*1b\b[^\n]*|unresolved\s+staff\s+comments|item\s*1c\b[^\n]*|item\s*2\b[^\n]*)\s*$",
+    re.IGNORECASE | re.MULTILINE,
+)
+# A ticker whose current registrant has not filed a 10-K yet (a new holding company after a
+# reorganisation) falls back to the predecessor registrant's CIK for the risk-factor excerpt.
+PREDECESSOR_CIKS: dict[str, int] = {
+    "XOM": 34088,  # Exxon Mobil Corp; ExxonMobil Holdings Corp (CIK 2115436) has the ticker
+}
 _PRINCIPAL_RISKS = re.compile(
     r"^\s*principal\s+risks(?:\s+of\s+investing[^\n]*)?$", re.IGNORECASE | re.MULTILINE
 )
@@ -102,8 +114,24 @@ def extract_section(text: str, start: re.Pattern[str], end: re.Pattern[str]) -> 
     return best.strip() if best and len(best.split()) >= 200 else None
 
 
+def extract_last_section(text: str, start: re.Pattern[str], end: re.Pattern[str]) -> str | None:
+    """Span after the *last* start match that still holds a real section (>= 200 words). A bare
+    heading also appears in the table of contents, which comes first, so the longest-span rule
+    would begin the excerpt with the index; the real section is the last heading."""
+    for s in reversed(list(start.finditer(text))):
+        e = end.search(text, s.end())
+        span = text[s.start() : e.start()] if e else text[s.start() :]
+        if len(span.split()) >= 200:
+            return span.strip()
+    return None
+
+
 def extract_item_1a(text: str) -> str | None:
-    return extract_section(text, _ITEM_1A, _ITEM_1A_END)
+    """Item 1A by its numbered heading, else by a bare "Risk Factors" heading line."""
+    found = extract_section(text, _ITEM_1A, _ITEM_1A_END)
+    if found is None:
+        found = extract_last_section(text, _RISK_FACTORS_HEADING, _RISK_FACTORS_HEADING_END)
+    return found
 
 
 def extract_principal_risks(text: str) -> str | None:
@@ -166,6 +194,7 @@ def filing_document(ticker: str, ref: FilingRef, excerpt: str, *, section: str) 
         source=f"SEC EDGAR {ref.form} filed {ref.filed.isoformat()}",
         url=ref.url,
         kind="filings",
+        level="advanced",  # 10-K risk factors are dense reading; a beginner cap skips them
         as_of=ref.filed,
         body=body,
         path=f"knowledge/filings/{ticker}.md",

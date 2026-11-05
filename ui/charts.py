@@ -9,7 +9,14 @@ from collections.abc import Mapping, Sequence
 
 import plotly.graph_objects as go
 
-from options_scout.core.models import OptionCandidate, QualityCheck, StressResult, TrendSignal
+from options_scout.core.models import (
+    GoalPlan,
+    HoldingsAnalysis,
+    OptionCandidate,
+    QualityCheck,
+    StressResult,
+    TrendSignal,
+)
 from ui import theme
 
 AGENT_LABELS = {
@@ -19,6 +26,9 @@ AGENT_LABELS = {
     "strategy_agent": "3 · Strategy",
     "portfolio_agent": "4 · Portfolio",
     "risk_agent": "5 · Risk",
+    "goal_planning_agent": "7 · Goal Planning",
+    "news_desk_agent": "8 · News Desk",
+    "tax_agent": "9 · Tax & Accounts",
     "education_agent": "6 · Education",
     "compliance_agent": "C · Compliance",
 }
@@ -446,4 +456,113 @@ def agent_latency(latency_ms: Mapping[str, float], order: Sequence[str]) -> go.F
         "",
         height=max(260, 34 * len(names) + 90),
         legend=False,
+    )
+
+
+# ------------------------------------------------------------------------------- goals
+PATH_LABELS = {
+    "stress": "stress path",
+    "base": "base (stress-adjusted yield)",
+    "best": "best (gross yield, capped)",
+    "assumed": "diversified-portfolio assumption",
+}
+
+
+def goal_projection(plan: GoalPlan) -> go.Figure:
+    """Balance by year on the plan's paths, with target lines and the coast marker (Phase 12)."""
+    fig = go.Figure()
+    colors = {
+        "stress": theme.NEGATIVE,
+        "base": theme.ACCENT,
+        "best": theme.GOOD,
+        "assumed": theme.MUTED,
+    }
+    for path in plan.projection:
+        fig.add_scatter(
+            name=PATH_LABELS.get(path.label, path.label),
+            x=[p.year for p in path.points],
+            y=[p.balance for p in path.points],
+            mode="lines",
+            line={
+                "color": colors.get(path.label, theme.MUTED),
+                "width": 2,
+                "dash": "dot" if path.label == "assumed" else "solid",
+            },
+            hovertemplate="year %{x:g}: $%{y:,.0f}<extra>" + path.label + "</extra>",
+        )
+    targets: dict[str, float] = {}
+    if plan.fire is not None:
+        targets.update({f"{k} FIRE number": v for k, v in plan.fire.targets.items()})
+        if plan.fire.coast_balance is not None:
+            fig.add_scatter(
+                name="coast balance today",
+                x=[0.0],
+                y=[plan.fire.coast_balance],
+                mode="markers",
+                marker={"size": 11, "color": theme.WARNING, "symbol": "diamond"},
+                hovertemplate="coast balance: $%{y:,.0f}<extra></extra>",
+            )
+    elif plan.goal.target_balance is not None:
+        targets["target balance"] = plan.goal.target_balance
+    for label, value in targets.items():
+        fig.add_hline(
+            y=value,
+            line={"dash": "dash", "color": theme.AXIS, "width": 1},
+            annotation_text=f"{label}: ${value:,.0f}",
+            annotation_position="top left",
+        )
+    years = plan.projection[0].points[-1].year if plan.projection else 0
+    return theme.style(fig, "Projected balance by year", f"Years (0–{years:g})", "Balance ($)")
+
+
+# ---------------------------------------------------------------------------- holdings
+def sector_weights_bar(analysis: HoldingsAnalysis) -> go.Figure:
+    """Sector weights of what the user already owns (Phase 12)."""
+    rows = sorted(analysis.by_sector.items(), key=lambda kv: kv[1])
+    fig = go.Figure(
+        go.Bar(
+            orientation="h",
+            y=[k for k, _ in rows],
+            x=[round(v * 100, 1) for _, v in rows],
+            marker={"color": theme.ACCENT, "line": {"width": 0}},
+            text=[f"{v:.0%}" for _, v in rows],
+            textposition="outside",
+            cliponaxis=False,
+            hovertemplate="%{y}: %{x:.1f}%<extra></extra>",
+        )
+    )
+    fig.update_xaxes(range=[0, 115])
+    return theme.style(
+        fig, "Holdings by sector", "Weight (%)", "", height=max(220, 34 * len(rows) + 90)
+    )
+
+
+def concentration_after_assignment_bar(analysis: HoldingsAnalysis, cap: float) -> go.Figure:
+    """Each screened put's ticker weight before and after assignment, against the profile cap."""
+    rows = analysis.post_assignment
+    fig = go.Figure()
+    fig.add_bar(
+        name="today",
+        x=[r.ticker for r in rows],
+        y=[round(r.weight_before * 100, 1) for r in rows],
+        marker={"color": theme.MUTED},
+        hovertemplate="%{x} today: %{y:.1f}%<extra></extra>",
+    )
+    fig.add_bar(
+        name="if assigned",
+        x=[r.ticker for r in rows],
+        y=[round(r.weight_after * 100, 1) for r in rows],
+        marker={"color": [theme.NEGATIVE if r.weight_after > cap else theme.ACCENT for r in rows]},
+        customdata=[r.candidate_id for r in rows],
+        hovertemplate="%{customdata}: %{y:.1f}% after assignment<extra></extra>",
+    )
+    fig.add_hline(
+        y=cap * 100,
+        line={"dash": "dash", "color": theme.CRITICAL, "width": 1},
+        annotation_text=f"profile cap {cap:.0%}",
+        annotation_position="top left",
+    )
+    fig.update_layout(barmode="group")
+    return theme.style(
+        fig, "Ticker weight before and after assignment", "", "Share of holdings + buying power (%)"
     )

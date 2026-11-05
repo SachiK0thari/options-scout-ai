@@ -15,6 +15,7 @@ from options_scout.config import Constraints
 from options_scout.core import margin
 from options_scout.core.models import (
     AllocationPlan,
+    HoldingsAnalysis,
     OptionCandidate,
     PortfolioTotals,
     RankedCandidate,
@@ -48,6 +49,7 @@ class _Book:
         self.dollar_delta = 0.0
         self.premium = 0.0
         self.tickers_by_strategy: set[tuple[str, str]] = set()
+        self.csp_notional_by_ticker: dict[str, float] = {}  # for the concentration constraint
 
     def add(self, p: SizedPosition) -> None:
         self.positions.append(p)
@@ -56,6 +58,9 @@ class _Book:
         if p.strategy == "csp":
             self.notional += p.notional
             self.csp_capital += p.capital_used
+            self.csp_notional_by_ticker[p.ticker] = (
+                self.csp_notional_by_ticker.get(p.ticker, 0.0) + p.notional
+            )
         elif p.strategy == "leaps":
             self.leaps_capital += p.capital_used
         self.margin += p.margin_used
@@ -98,6 +103,7 @@ def _max_contracts(
     ticker: str,
     sector: str,
     is_csp: bool,
+    holdings: HoldingsAnalysis | None = None,
 ) -> tuple[int, str]:
     av = profile.account_value
     caps: list[tuple[int, str]] = [
@@ -135,8 +141,37 @@ def _max_contracts(
                 "margin usage",
             )
         )
+    if is_csp and holdings is not None and holdings.positions:
+        # seventh constraint (Phase 12): the ticker's share of (holdings + buying power) if the
+        # put is assigned; the collateral is cash inside that base, so the base does not grow
+        caps.append(
+            (
+                _floor_div(concentration_room(holdings, profile, limits, ticker, book), notional),
+                "concentration after assignment",
+            )
+        )
     n, reason = min(caps, key=lambda x: x[0])
     return max(n, 0), reason
+
+
+def concentration_base(holdings: HoldingsAnalysis, profile: UserProfile) -> float:
+    """What a ticker's weight is measured against: existing holdings plus the account's cash."""
+    return holdings.total_value + profile.buying_power
+
+
+def concentration_room(
+    holdings: HoldingsAnalysis,
+    profile: UserProfile,
+    limits: Constraints,
+    ticker: str,
+    book: _Book,
+) -> float:
+    """Dollars of further ``ticker`` stock (assigned shares) that keep its share of the base at or
+    below ``max_ticker_concentration_after_assignment``."""
+    held = sum(p.market_value for p in holdings.positions if p.ticker == ticker)
+    already = book.csp_notional_by_ticker.get(ticker, 0.0)
+    cap = limits.max_ticker_concentration_after_assignment
+    return cap * concentration_base(holdings, profile) - held - already
 
 
 def size_portfolio(
@@ -148,8 +183,10 @@ def size_portfolio(
     realistic_loss_drop: float,
     scale: float = 1.0,
     attempt: int = 1,
+    holdings: HoldingsAnalysis | None = None,
 ) -> SizedPortfolio:
-    """Greedy fill. ``scale`` < 1 shrinks strategy budgets (used by the sizing↔risk retry loop)."""
+    """Greedy fill. ``scale`` < 1 shrinks strategy budgets (used by the sizing↔risk retry loop).
+    ``holdings`` (Phase 12) enables the seventh constraint, concentration after assignment."""
     book = _Book()
     skipped: list[str] = []
     csp_budget = allocation.csp_dollars * scale if "csp" in profile.strategies else 0.0
@@ -190,6 +227,7 @@ def size_portfolio(
                 ticker=c.ticker,
                 sector=c.sector,
                 is_csp=True,
+                holdings=holdings,
             )
             if n < 1:
                 skipped.append(f"{c.id}: 0 contracts fit ({why})")

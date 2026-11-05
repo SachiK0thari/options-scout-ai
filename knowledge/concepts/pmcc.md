@@ -4,6 +4,7 @@ title: "Poor man's covered call (PMCC): a short near-term call written against a
 source: "Cboe Options Institute (diagonal spreads); OCC disclosure document chapter X; PRD.md section 3.5"
 url: https://www.cboe.com/education/
 kind: concepts
+level: advanced
 as_of: 2026-11-03
 ---
 

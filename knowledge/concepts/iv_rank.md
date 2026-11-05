@@ -4,6 +4,7 @@ title: "IV rank and IV percentile: is implied volatility high or low for this st
 source: "Cboe Options Institute (implied volatility); PRD.md section 3.6"
 url: https://www.cboe.com/education/
 kind: concepts
+level: advanced
 as_of: 2026-11-03
 ---
 

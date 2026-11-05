@@ -4,6 +4,7 @@ title: "The VIX and the volatility regime: how market-wide implied volatility ti
 source: "Cboe, VIX Index overview and methodology; PRD.md section 3.1"
 url: https://www.cboe.com/tradable_products/vix/
 kind: concepts
+level: advanced
 as_of: 2026-11-03
 ---
 

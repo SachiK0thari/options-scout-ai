@@ -4,6 +4,7 @@ title: 'COSTCO WHOLESALE CORP /NEW 10-K: Item 1A, Risk Factors (2026)'
 source: SEC EDGAR 10-K filed 2026-10-07
 url: https://www.sec.gov/Archives/edgar/data/909832/000090983226000093/cost-20260830.htm
 kind: filings
+level: advanced
 as_of: '2026-10-07'
 ---
 

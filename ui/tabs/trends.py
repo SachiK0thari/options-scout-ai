@@ -9,8 +9,66 @@ from ui import charts, session, theme
 from ui.session import CFG
 
 
+def _news_board(view: session.View) -> None:
+    """The News Desk's per-ticker briefs and the calendar flags on candidates (Phase 12)."""
+    st.write(
+        "Headlines for the stocks that passed the gate, labelled by category and relevance to a "
+        "short-option holder, with the provider's sentiment where it exists. Headlines **never** "
+        "change the ranking; they become calendar flags on candidates (📰 on the Candidates tab)."
+    )
+    briefs = list(view.state.get("news_briefs") or [])
+    flags = list(view.state.get("news_flags") or [])
+    if not briefs:
+        st.info(
+            "Run a screen, or ask Scout *any news on COST before expiry?*, to fill the news desk."
+        )
+        return
+    if flags:
+        st.markdown("**Calendar flags on screened candidates**")
+        st.dataframe(
+            pd.DataFrame(
+                [
+                    {
+                        "Candidate": f.candidate_id,
+                        "Flag": f.flag.replace("_", " "),
+                        "Event date": f.event_date.isoformat(),
+                        "Detail": f.detail,
+                    }
+                    for f in flags
+                ]
+            ),
+            width="stretch",
+            hide_index=True,
+        )
+    for b in briefs:
+        label = f"{b.ticker} · {len(b.items)} headline(s)"
+        with st.expander(label, expanded=False):
+            if not b.items:
+                st.caption("No headlines in the lookback window.")
+                continue
+            for c in b.items:
+                link = f"[{c.item.title}]({c.item.url})" if c.item.url else c.item.title
+                sent = f" · sentiment {c.sentiment:+.2f}" if c.sentiment is not None else ""
+                stale = " · stale" if c.stale else ""
+                st.markdown(
+                    f"• {link}  \n  {c.item.source} · {c.item.published_at:%Y-%m-%d} · "
+                    f"{c.category.replace('_', ' ')} · {c.relevance} relevance{sent}{stale}"
+                )
+    for turn in reversed(view.history):
+        if turn.role == "assistant" and turn.intent == "news":
+            with st.expander("Scout's news reply", expanded=False):
+                st.markdown(turn.text)
+                session.compliance_badge(turn.compliance, "news-badge")
+                session.citations_expander(turn.citations, "news-cites")
+            break
+
+
 def render(view: session.View) -> None:
-    st.subheader("Trends")
+    st.subheader("Trends & News")
+    board = st.radio("Board", ["Consumer trends", "News desk"], horizontal=True, key="trends_board")
+    if board == "News desk":
+        _news_board(view)
+        return
     st.write(
         "Mentions of brands and products on consumer subreddits and X, confirmed by Wikipedia page "
         "views, Google Trends and news, scored 0–100. Stock-tip chatter is a **penalty**, not a signal."

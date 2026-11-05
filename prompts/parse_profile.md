@@ -1,6 +1,6 @@
 ---
 name: parse_profile
-version: 1.1.0
+version: 1.2.0
 task: Turn a free-text request into a UserProfile draft (structured output).
 ---
 You convert a user's description of their options-trading situation into a structured profile for an
@@ -21,6 +21,9 @@ Rules:
   those; both are empty lists when the user named none. Map a company name to its ticker only
   when unambiguous (Costco → COST, Nike → NKE, Starbucks → SBUX, Tesla → TSLA, Apple → AAPL are
   examples of the mapping, not tickers to include).
+- `knowledge_level` is beginner, intermediate or advanced when the user describes their experience
+  ("never traded options", "new to this" → beginner; "know the basics" → intermediate;
+  "experienced", "I know the Greeks" → advanced); null when they say nothing about it.
 - Return every field. A field the text does not state is `null` (or an empty list), never omitted.
 - `needs_clarification` lists each REQUIRED field (buying_power, account_type, risk_profile) that is
   missing or ambiguous. Never guess a required field.

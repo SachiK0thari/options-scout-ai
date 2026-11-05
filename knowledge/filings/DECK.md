@@ -4,6 +4,7 @@ title: 'DECKERS OUTDOOR CORP 10-K: Item 1A, Risk Factors (2026)'
 source: SEC EDGAR 10-K filed 2026-05-22
 url: https://www.sec.gov/Archives/edgar/data/910521/000162828026037664/deck-20260331.htm
 kind: filings
+level: advanced
 as_of: '2026-05-22'
 ---
 

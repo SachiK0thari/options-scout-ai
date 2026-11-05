@@ -516,6 +516,117 @@ def check_no_pii(narrative: Narrative) -> ComplianceCheck:
 
 
 # ------------------------------------------------------------------------------- outcome
+_STATUS_WORDS = ("fits", "stretch", "does not fit")
+_FIRE_VARIANTS = ("lean", "regular", "fat", "coast", "barista")
+
+
+def check_goal_narrative(
+    narrative: Narrative,
+    payload: dict[str, Any],
+    cfg: ComplianceConfig,
+    text_kind: TextKind = "answer",
+) -> ComplianceCheck:
+    """Check 9 (Phase 12): a Goal Planning reply states the verdict, keeps the stress path beside
+    any projection, never promises a projected figure, and (FIRE) names the variant and sources
+    the withdrawal rate. Applies to goal replies only: a screening report that carries a plan has
+    it in the payload to ground numbers, and its narrative is the Education agent's."""
+    plan = payload.get("goal_plan")
+    if text_kind != "answer" or not isinstance(plan, dict) or plan.get("clarification"):
+        return ComplianceCheck(name="goal_narrative", passed=True, detail="no goal reply to check")
+    text = narrative.markdown
+    low = text.lower()
+    problems: list[str] = []
+    rules = cfg.goal
+    if rules.require_status and not any(w in low for w in _STATUS_WORDS):
+        problems.append("the verdict (fits / stretch / does not fit) is not stated")
+    projection = plan.get("projection") or {}
+    if rules.require_stress_path and projection.get("base") is not None and "stress" not in low:
+        problems.append("a projection is shown without naming the stress path")
+    promise = re.compile(rules.promise_pattern, re.IGNORECASE)
+    hits = sorted({m.group(0).lower() for m in promise.finditer(text)})
+    if hits:
+        problems.append(f"projected figures are promised ({', '.join(hits)}); use 'would'")
+    fire = plan.get("fire")
+    if isinstance(fire, dict) and rules.fire_requires_withdrawal_source:
+        variant = str(fire.get("variant", "")).lower()
+        if variant in _FIRE_VARIANTS and variant not in low:
+            problems.append(f"the FIRE variant ({variant}) is not named")
+        if "withdrawal" not in low:
+            problems.append("the withdrawal rate is not mentioned")
+        if "diversified" not in low:
+            problems.append("the reply does not source the rate to diversified-portfolio research")
+    return ComplianceCheck(
+        name="goal_narrative",
+        passed=not problems,
+        detail="; ".join(problems) if problems else "verdict stated, stress path kept, no promises",
+    )
+
+
+_QUOTED_SPAN = re.compile(r"[\"“]([^\"”]{12,300})[\"”]")
+
+
+def _norm_headline(text: str) -> str:
+    return " ".join(re.findall(r"[a-z0-9]+", text.lower()))
+
+
+def check_news_grounding(narrative: Narrative, payload: dict[str, Any]) -> ComplianceCheck:
+    """Check 10 (Phase 12): every quoted span in a News Desk reply is a headline the payload
+    carries, verbatim. Passes trivially when the payload holds no headlines."""
+    news = payload.get("news")
+    if not isinstance(news, dict) or not news.get("headlines"):
+        return ComplianceCheck(name="news_grounding", passed=True, detail="no headlines to check")
+    titles = {_norm_headline(str(h.get("title", ""))) for h in news["headlines"]}
+    bad: list[str] = []
+    checked = 0
+    for p in narrative.paragraphs:
+        if p.mode == "education":
+            continue  # cited education text quotes its sources, which check_citations verifies
+        for span in _QUOTED_SPAN.findall(p.text):
+            checked += 1
+            if _norm_headline(span) not in titles:
+                bad.append(span[:80])
+    return ComplianceCheck(
+        name="news_grounding",
+        passed=not bad,
+        detail=(
+            f"quoted text is not a fetched headline: {'; '.join(bad)}"
+            if bad
+            else f"{checked} quoted headline(s) match the fetched items"
+        ),
+        locations=bad,
+    )
+
+
+def check_tax_reply(
+    narrative: Narrative, payload: dict[str, Any], cfg: ComplianceConfig
+) -> ComplianceCheck:
+    """Check 11 (Phase 12): a Tax & Accounts reply carries the tax disclaimer exactly once, states
+    no rate a reader will pay and gives no filing instruction. Passes trivially otherwise."""
+    tax = payload.get("tax")
+    if not isinstance(tax, dict):
+        return ComplianceCheck(name="tax_reply", passed=True, detail="no tax reply to check")
+    rules = cfg.tax
+    text = narrative.markdown
+    problems: list[str] = []
+    n = text.count(rules.disclaimer)
+    if n != 1:
+        problems.append(f"tax disclaimer appears {n} time(s), expected once")
+    if rules.forbid_rates:
+        hits = [m.group(0) for m in re.finditer(rules.rate_pattern, text, re.IGNORECASE)]
+        if hits:
+            problems.append(f"a tax rate is stated ({'; '.join(hits[:3])})")
+    imperatives = [
+        m.group(0).strip() for m in re.finditer(rules.imperative_pattern, text, re.IGNORECASE)
+    ]
+    if imperatives:
+        problems.append(f"filing instruction in the imperative ({'; '.join(imperatives[:3])})")
+    return ComplianceCheck(
+        name="tax_reply",
+        passed=not problems,
+        detail="; ".join(problems) if problems else "tax disclaimer once, no rate, no instruction",
+    )
+
+
 def run_compliance(
     narrative: Narrative,
     *,
@@ -531,7 +642,8 @@ def run_compliance(
     delayed_data: bool = True,
     today: date | None = None,
 ) -> ComplianceReport:
-    """Run the eight checks; ``passed`` is False on any blocking failure. Warnings never block."""
+    """Run the eleven checks (eight of 13.1 plus the goal, news and tax checks of Phase 12);
+    ``passed`` is False on any blocking failure. Warnings never block."""
     text = narrative.markdown
     verification = verify_narrative(
         text,
@@ -557,6 +669,9 @@ def run_compliance(
         ),
         check_sources_fresh(citations, cfg, today),
         check_no_pii(narrative),
+        check_goal_narrative(narrative, payload, cfg, text_kind),
+        check_news_grounding(narrative, payload),
+        check_tax_reply(narrative, payload, cfg),
     ]
     blocking = [c for c in checks if not c.passed and c.severity == "block"]
     feedback = "; ".join(f"{c.name}: {c.detail}" for c in blocking)

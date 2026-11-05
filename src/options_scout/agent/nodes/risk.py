@@ -34,7 +34,9 @@ def make(deps: Deps) -> Callable[[AgentState], dict[str, Any]]:
             today=deps.md.today(),
             account_value=profile.account_value,
         )
-        report = risk_core.build_risk_report(portfolio, profile, limits, stress, cands)
+        report = risk_core.build_risk_report(
+            portfolio, profile, limits, stress, cands, state.get("holdings_analysis")
+        )
         out: dict[str, Any] = {
             "risk": report,
             "suitability_facts": risk_core.suitability_facts(portfolio, profile, limits, cands),

@@ -13,6 +13,7 @@ from collections.abc import Callable, Sequence
 from typing import Any
 
 from options_scout.agent.deps import Deps
+from options_scout.agent.nodes.knowledge_retrieval import audience_for
 from options_scout.agent.state import AgentState
 from options_scout.core import payoff
 from options_scout.core.compliance import resolve_citations
@@ -206,6 +207,11 @@ def build_explain_payload(
         "errors": state.get("errors", [])[:8],
         "disclaimer": disclaimer,
     }
+    plan = state.get("goal_plan")
+    if plan is not None:  # Phase 12: a screen seeded with a goal
+        from options_scout.agent.nodes.goal_explainer import goal_payload
+
+        payload["goal_plan"] = goal_payload(plan, disclaimer, profile.risk_profile)["goal_plan"]
     if sources is not None:
         payload["sources"] = sources_payload(sources)
     return payload
@@ -227,7 +233,9 @@ def make(deps: Deps) -> Callable[[AgentState], dict[str, Any]]:
         usage_before = len(deps.llm.usage)
         errors: list[str] = []
         try:
-            narrative: Narrative = deps.llm.explain(payload, block)
+            narrative: Narrative = deps.llm.explain(
+                payload, block, audience=audience_for(state.get("profile"))
+            )
         except Exception as exc:
             errors.append(f"explainer: LLM failed ({exc}); using deterministic narrative")
             narrative = rule_explain(rule_prompt(payload, block))

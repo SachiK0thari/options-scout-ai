@@ -7,6 +7,14 @@ Phase 9 wired the fourteen nodes directly; Phase 10 groups them into eight speci
   (or END with a ``handoff`` when the thread already holds a report: the session starts the new
   screen on a fresh thread so list reducers never append one run onto another);
 * ``concept`` / ``why`` → Education → Compliance → END (``answer`` + ``citations``);
+* ``goal`` → Goal Planning → Compliance → END (Phase 12; a screen seeded with a ``goal`` also
+  passes through Goal Planning between Risk and Education);
+* ``holdings`` → Portfolio (intake, analysis, reply) → Compliance → END (Phase 12; a screen
+  whose thread holds ``holdings`` analyses them after allocation and sizes under the seventh
+  constraint);
+* ``news`` → News Desk → Compliance → END (Phase 12; every screen also runs News Desk between
+  Strategy and Portfolio for the calendar flags and per-ticker briefs);
+* ``tax`` → Tax & Accounts → Compliance → END (Phase 12; check 11 on the reply);
 * ``what_if`` / ``off_topic`` → the Orchestrator's own reply → Compliance → END.
 
 Compliance retries Education (bounded) and otherwise releases a report to ``report_node`` or an
@@ -29,12 +37,15 @@ from langgraph.types import Command
 from options_scout.agent.agents import (
     compliance,
     education,
+    goal_planning,
     market_data,
     market_intelligence,
+    news_desk,
     orchestrator,
     portfolio,
     risk,
     strategy,
+    tax,
 )
 from options_scout.agent.agents.base import compose
 from options_scout.agent.deps import Deps
@@ -49,8 +60,11 @@ AGENT_ORDER = [
     market_intelligence.NAME,
     market_data.NAME,
     strategy.NAME,
+    news_desk.NAME,  # Phase 12: headlines → flags and briefs, after the candidates exist
     portfolio.NAME,
     risk.NAME,
+    goal_planning.NAME,  # Phase 12: runs when the turn or the screen carries a goal
+    tax.NAME,  # Phase 12: chat-only, the `tax` intent
     education.NAME,
     compliance.NAME,
 ]
@@ -67,6 +81,9 @@ NODE_ORDER = [
     "market_data_node",
     "screener_node",
     "ranker_node",
+    "news_fetch_node",
+    "news_classify_node",
+    "news_brief_node",
     "allocator_node",
     "sizing_node",
     "risk_node",
@@ -77,7 +94,20 @@ NODE_ORDER = [
     "report_node",
 ]
 # chat-only nodes (not part of a screen's progress bar)
-CHAT_NODES = ["what_if_node", "redirect_node", "concept_answer_node"]
+CHAT_NODES = [
+    "what_if_node",
+    "redirect_node",
+    "concept_answer_node",
+    "goal_intake_node",
+    "goal_math_node",
+    "goal_explainer_node",
+    "holdings_intake_node",
+    "holdings_analysis_node",
+    "holdings_reply_node",
+    "tax_retrieval_node",
+    "tax_math_node",
+    "tax_answer_node",
+]
 
 AGENT_OF_NODE = {
     "route_node": orchestrator.NAME,
@@ -92,9 +122,21 @@ AGENT_OF_NODE = {
     "market_data_node": market_data.NAME,
     "screener_node": strategy.NAME,
     "ranker_node": strategy.NAME,
+    "news_fetch_node": news_desk.NAME,
+    "news_classify_node": news_desk.NAME,
+    "news_brief_node": news_desk.NAME,
     "allocator_node": portfolio.NAME,
     "sizing_node": portfolio.NAME,
+    "holdings_intake_node": portfolio.NAME,
+    "holdings_analysis_node": portfolio.NAME,
+    "holdings_reply_node": portfolio.NAME,
+    "tax_retrieval_node": tax.NAME,
+    "tax_math_node": tax.NAME,
+    "tax_answer_node": tax.NAME,
     "risk_node": risk.NAME,
+    "goal_intake_node": goal_planning.NAME,
+    "goal_math_node": goal_planning.NAME,
+    "goal_explainer_node": goal_planning.NAME,
     "knowledge_retrieval_node": education.NAME,
     "explainer_node": education.NAME,
     "concept_answer_node": education.NAME,
@@ -131,8 +173,11 @@ def build_agents(deps: Deps) -> dict[str, Any]:
         market_intelligence.NAME: market_intelligence.build_market_intelligence_agent(deps),
         market_data.NAME: market_data.build_market_data_agent(deps),
         strategy.NAME: strategy.build_strategy_agent(deps),
+        news_desk.NAME: news_desk.build_news_desk_agent(deps),
         portfolio.NAME: portfolio.build_portfolio_agent(deps),
         risk.NAME: risk.build_risk_agent(deps),
+        goal_planning.NAME: goal_planning.build_goal_planning_agent(deps),
+        tax.NAME: tax.build_tax_agent(deps),
         education.NAME: education.build_education_agent(deps),
         compliance.NAME: compliance.build_compliance_agent(deps),
     }
@@ -143,11 +188,48 @@ def route_after_orchestrator(state: AgentState) -> str:
     intent = state.get("intent") or "new_screen"
     if intent in ("concept", "why"):
         return education.NAME
+    if intent == "goal":
+        return goal_planning.NAME
+    if intent == "holdings":
+        return portfolio.NAME  # Phase 12: holdings analysis lives in the Portfolio agent
+    if intent == "news":
+        return news_desk.NAME
+    if intent == "tax":
+        return tax.NAME
     if intent in ("what_if", "off_topic"):
         return compliance.NAME
     if state.get("handoff"):
         return END  # the session starts the new screen on a fresh thread
     return market_intelligence.NAME
+
+
+def route_after_risk(deps: Deps) -> Any:
+    """Risk's own router (retry Portfolio or continue), with a detour through Goal Planning when
+    the screen carries a goal (Phase 12)."""
+    inner = risk.make_router(deps)
+
+    def route(state: AgentState) -> str:
+        nxt = inner(state)
+        if nxt == education.NAME and state.get("goal") is not None:
+            return goal_planning.NAME
+        return nxt
+
+    return route
+
+
+def route_after_news_desk(state: AgentState) -> str:
+    """A news chat turn ends in Compliance; inside a screen the pipeline continues to Portfolio."""
+    return compliance.NAME if state.get("intent") == "news" else portfolio.NAME
+
+
+def route_after_portfolio(state: AgentState) -> str:
+    """A holdings chat turn ends in Compliance; inside a screen the pipeline continues to Risk."""
+    return compliance.NAME if state.get("intent") == "holdings" else risk.NAME
+
+
+def route_after_goal_planning(state: AgentState) -> str:
+    """A goal chat turn goes straight to Compliance; inside a screen the pipeline continues."""
+    return compliance.NAME if state.get("intent") == "goal" else education.NAME
 
 
 def build_graph(deps: Deps, checkpointer: BaseCheckpointSaver[Any] | None = None) -> Any:
@@ -161,16 +243,44 @@ def build_graph(deps: Deps, checkpointer: BaseCheckpointSaver[Any] | None = None
     g.add_conditional_edges(
         orchestrator.NAME,
         route_after_orchestrator,
-        [market_intelligence.NAME, education.NAME, compliance.NAME, END],
+        [
+            market_intelligence.NAME,
+            education.NAME,
+            goal_planning.NAME,
+            portfolio.NAME,
+            news_desk.NAME,
+            tax.NAME,
+            compliance.NAME,
+            END,
+        ],
     )
     g.add_edge(market_intelligence.NAME, market_data.NAME)
     g.add_edge(market_data.NAME, strategy.NAME)
-    g.add_edge(strategy.NAME, portfolio.NAME)
-    g.add_edge(portfolio.NAME, risk.NAME)
-    g.add_conditional_edges(risk.NAME, risk.make_router(deps), [portfolio.NAME, education.NAME])
-    g.add_edge(education.NAME, compliance.NAME)
+    g.add_edge(strategy.NAME, news_desk.NAME)
     g.add_conditional_edges(
-        compliance.NAME, compliance.make_router(deps), [education.NAME, "report_node", END]
+        news_desk.NAME, route_after_news_desk, [portfolio.NAME, compliance.NAME]
+    )
+    g.add_conditional_edges(portfolio.NAME, route_after_portfolio, [risk.NAME, compliance.NAME])
+    g.add_conditional_edges(
+        risk.NAME, route_after_risk(deps), [portfolio.NAME, goal_planning.NAME, education.NAME]
+    )
+    g.add_conditional_edges(
+        goal_planning.NAME, route_after_goal_planning, [education.NAME, compliance.NAME]
+    )
+    g.add_edge(education.NAME, compliance.NAME)
+    g.add_edge(tax.NAME, compliance.NAME)
+    g.add_conditional_edges(
+        compliance.NAME,
+        compliance.make_router(deps),
+        [
+            education.NAME,
+            goal_planning.NAME,
+            portfolio.NAME,
+            news_desk.NAME,
+            tax.NAME,
+            "report_node",
+            END,
+        ],
     )
     g.add_edge("report_node", END)
     return g.compile(checkpointer=checkpointer or InMemorySaver(serde=serializer()))

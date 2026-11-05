@@ -1,4 +1,9 @@
-"""Candidates tab: CSP and/or LEAPS tables (only the requested strategies) with charts."""
+"""Candidates tab: CSP and/or LEAPS tables (only the requested strategies) with charts.
+
+The tables follow the profile's knowledge level (Phase 12, 12.7): a beginner sees the
+plain-language columns, an intermediate reader adds delta, open interest and the screener flags,
+an advanced reader adds implied volatility, gamma, theta, vega and the spread. Every header carries a
+glossary tooltip at every level."""
 
 from __future__ import annotations
 
@@ -8,11 +13,13 @@ import pandas as pd
 import streamlit as st
 
 from options_scout.core.models import OptionCandidate, ScreeningReport
-from ui import charts, session, theme
+from ui import charts, glossary, session, theme
+from ui.components import market_strip
 from ui.session import CFG, pct
 
 
-def _csp_rows(cands: list[OptionCandidate]) -> pd.DataFrame:
+def _csp_rows(cands: list[OptionCandidate], flagged: set[str] | None = None) -> pd.DataFrame:
+    flagged = flagged or set()
     return pd.DataFrame(
         [
             {
@@ -27,7 +34,9 @@ def _csp_rows(cands: list[OptionCandidate]) -> pd.DataFrame:
                 "Chance it expires worthless": pct(c.prob_otm, 0),
                 "Delta": round(c.delta, 2),
                 "Open interest": c.open_interest,
+                **_greek_cells(c),
                 "Earnings before expiry": "⚠️" if c.earnings_before_expiry else "",
+                "News": "📰" if c.id in flagged else "",  # Phase 12: a News Desk calendar flag
                 "Flags": ", ".join(f for f in c.flags if f != "iv_rank_is_hv_proxy"),
                 "id": c.id,
             }
@@ -51,6 +60,7 @@ def _leaps_rows(cands: list[OptionCandidate], report: ScreeningReport) -> pd.Dat
                 "Time value per year": pct(c.extrinsic_per_year_pct),
                 "Breakeven at expiry": round(c.breakeven, 2),
                 "Open interest": c.open_interest,
+                **_greek_cells(c),
                 "PMCC short call": (
                     f"{pairs[c.id].short_call.strike:g}C {pairs[c.id].short_call.expiry}"
                     if c.id in pairs
@@ -62,6 +72,61 @@ def _leaps_rows(cands: list[OptionCandidate], report: ScreeningReport) -> pd.Dat
             for c in cands
         ]
     )
+
+
+# what each level adds to the plain-language columns
+INTERMEDIATE_COLUMNS = ("Delta", "Open interest", "Flags")
+ADVANCED_COLUMNS = ("Implied vol", "Gamma", "Theta / day", "Vega", "Spread")
+LEVEL_CAPTIONS = {
+    "beginner": (
+        "Beginner view: the plain-language columns, each header with a definition on hover. "
+        "Delta, open interest and the other Greeks are in *Show the full math*."
+    ),
+    "intermediate": (
+        "Intermediate view: adds delta, open interest and the screener flags. Hover a header "
+        "for its definition; the remaining Greeks are in *Show the full math*."
+    ),
+    "advanced": (
+        "Advanced view: adds implied volatility, gamma, theta, vega and the bid-ask spread to "
+        "every row. Hover a header for its definition."
+    ),
+}
+
+
+def _greek_cells(c: OptionCandidate) -> dict[str, object]:
+    return {
+        "Implied vol": pct(c.iv),
+        "Gamma": round(c.gamma, 4),
+        "Theta / day": round(c.theta, 3),
+        "Vega": round(c.vega, 3),
+        "Spread": pct(c.spread_pct),
+    }
+
+
+def reader_level(report: ScreeningReport) -> str:
+    """The profile's knowledge level; a profile that never stated one reads as intermediate."""
+    return report.profile.knowledge_level or "intermediate"
+
+
+def table_view(frame: pd.DataFrame, level: str) -> pd.DataFrame:
+    """The columns a reader at ``level`` sees; the rest stay in the full-math expander."""
+    hidden: set[str] = set()
+    if level != "advanced":
+        hidden.update(ADVANCED_COLUMNS)
+    if level == "beginner":
+        hidden.update(INTERMEDIATE_COLUMNS)
+    return frame.drop(columns=[c for c in frame.columns if c in hidden])
+
+
+def _table(frame: pd.DataFrame, level: str, formats: dict[str, str], key: str) -> None:
+    shown = table_view(frame, level)
+    st.dataframe(
+        shown,
+        width="stretch",
+        hide_index=True,
+        column_config=glossary.column_config(list(shown.columns), formats),
+    )
+    glossary.terms_expander(list(shown.columns), key)
 
 
 def _math(cands: list[OptionCandidate], key: str) -> None:
@@ -76,6 +141,9 @@ def render(view: session.View) -> None:
     if report is None:
         st.info("Run a screen to see option candidates on the stocks that passed the gate.")
         return
+    market_strip.render(view)
+    level = reader_level(report)
+    st.caption(LEVEL_CAPTIONS[level])
     rules = CFG.rules
     if view.show_csp:
         st.markdown("### Cash-secured put candidates")
@@ -86,16 +154,16 @@ def render(view: session.View) -> None:
             "Annualized return = premium ÷ (strike − premium) × 365 ÷ days."
         )
         if report.csp_candidates:
-            st.dataframe(
-                _csp_rows(report.csp_candidates),
-                width="stretch",
-                hide_index=True,
-                column_config={
-                    "Strike": st.column_config.NumberColumn(format="dollar"),
-                    "Premium (mid)": st.column_config.NumberColumn(format="$%.2f"),
-                    "Cash to secure": st.column_config.NumberColumn(format="dollar"),
-                    "Reg T margin": st.column_config.NumberColumn(format="dollar"),
+            _table(
+                _csp_rows(report.csp_candidates, {f.candidate_id for f in report.news_flags}),
+                level,
+                {
+                    "Strike": "dollar",
+                    "Premium (mid)": "$%.2f",
+                    "Cash to secure": "dollar",
+                    "Reg T margin": "dollar",
                 },
+                "csp_terms",
             )
             _math(report.csp_candidates, "csp_math")
             c1, c2 = st.columns(2)
@@ -126,16 +194,16 @@ def render(view: session.View) -> None:
             "of the stock price per year."
         )
         if report.leaps_candidates:
-            st.dataframe(
+            _table(
                 _leaps_rows(report.leaps_candidates, report),
-                width="stretch",
-                hide_index=True,
-                column_config={
-                    "Strike": st.column_config.NumberColumn(format="dollar"),
-                    "Price (mid)": st.column_config.NumberColumn(format="$%.2f"),
-                    "Cost per contract": st.column_config.NumberColumn(format="dollar"),
-                    "Breakeven at expiry": st.column_config.NumberColumn(format="$%.2f"),
+                level,
+                {
+                    "Strike": "dollar",
+                    "Price (mid)": "$%.2f",
+                    "Cost per contract": "dollar",
+                    "Breakeven at expiry": "$%.2f",
                 },
+                "leaps_terms",
             )
             _math(report.leaps_candidates, "leaps_math")
         else:

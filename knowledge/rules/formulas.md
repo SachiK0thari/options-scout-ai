@@ -4,6 +4,7 @@ title: 'Rule 3.6: Formulas (implement exactly, test with golden values)'
 source: PRD.md section 3.6 and config/settings.yaml
 url: PRD.md#36-formulas-implement-exactly-test-with-golden-values
 kind: rules
+level: intermediate
 as_of: '2026-11-03'
 ---
 

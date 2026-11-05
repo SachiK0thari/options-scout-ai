@@ -50,3 +50,19 @@ suitability:
   min_buying_power: {csp: 2500, leaps: 1000, pmcc: 2500}   # dollars needed before a strategy is described
   reject_naked_language_on_cash: true
   reject_leverage_opportunity_when_conservative: true
+
+# Check 9 (Phase 12, Goal Planning narratives): the verdict is stated in words, the stress path is
+# named whenever a projection is, a FIRE reply names its variant and sources its withdrawal rate
+# from diversified-portfolio research, and no projected figure is promised ("would", never "will").
+goal:
+  require_status: true
+  require_stress_path: true
+  fire_requires_withdrawal_source: true
+  promise_pattern: "\\bwill (?:reach|hit|have|grow|be worth|cover|get you|retire)\\b"
+
+# Check 11 (Phase 12, Tax & Accounts replies): the tax disclaimer sentence appears exactly once,
+# no reply states the rate a reader will pay, no filing instruction is given in the imperative;
+# account-type claims live in cited education paragraphs (check 2 covers the citations).
+tax:
+  disclaimer: "This is education, not tax advice; rules change and individual situations differ, so confirm with a tax professional or the IRS publication cited."
+  forbid_rates: true

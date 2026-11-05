@@ -4,6 +4,7 @@ title: "How this app's good-to-own quality gate works"
 source: "PRD.md section 3.7 and config/quality_universe.yaml; OCC disclosure document chapter X on assignment risk"
 url: PRD.md#37-good-to-own-universe-quality-gate
 kind: concepts
+level: intermediate
 as_of: 2026-11-03
 ---
 

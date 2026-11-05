@@ -58,3 +58,43 @@
 {"id": "off_topic-08", "message": "Will the market crash next week?", "has_report": true, "expected": "off_topic"}
 {"id": "off_topic-09", "message": "Can you recommend a crypto to buy?", "has_report": true, "expected": "off_topic"}
 {"id": "off_topic-10", "message": "Write a poem about options.", "has_report": true, "expected": "off_topic"}
+{"id": "goal-01", "message": "Can I make $400 a month from this account?", "has_report": true, "expected": "goal"}
+{"id": "goal-02", "message": "I want to grow 40k to 55k in three years, is that realistic?", "has_report": true, "expected": "goal"}
+{"id": "goal-03", "message": "I add $500 a month, can I reach 100k in 5 years?", "has_report": false, "expected": "goal"}
+{"id": "goal-04", "message": "I spend $48k a year, have $220k and add $2k a month. When am I financially independent?", "has_report": false, "expected": "goal"}
+{"id": "goal-05", "message": "When could I lean FIRE on this? My minimum expenses are 36k a year.", "has_report": true, "expected": "goal"}
+{"id": "goal-06", "message": "I'm 35 and want to coast FIRE by 50, expenses 4k a month.", "has_report": false, "expected": "goal"}
+{"id": "goal-07", "message": "Barista FIRE with 20k a year part-time income, I spend 50k a year.", "has_report": true, "expected": "goal"}
+{"id": "goal-08", "message": "Is 1.2 million enough to retire on 48k a year?", "has_report": false, "expected": "goal"}
+{"id": "goal-09", "message": "How long until this account generates 1,000 a month in premium?", "has_report": true, "expected": "goal"}
+{"id": "goal-10", "message": "Does this screen get me to fat FIRE at 90k a year of spending by 55? I'm 40.", "has_report": true, "expected": "goal"}
+{"id": "holdings-01", "message": "My holdings: 200 AAPL at $150, MSFT 100 @ 300, 40 SPY, 10 COST at 800.", "has_report": true, "expected": "holdings"}
+{"id": "holdings-02", "message": "AAPL,200,150\nMSFT,100,300\nSPY,40,", "has_report": false, "expected": "holdings"}
+{"id": "holdings-03", "message": "I own 300 shares of NKE at 70 in my IRA and 100 AAPL.", "has_report": true, "expected": "holdings"}
+{"id": "holdings-04", "message": "Analyze my portfolio: COST 10, SPY 40, QQQ 25.", "has_report": false, "expected": "holdings"}
+{"id": "holdings-05", "message": "Here are my positions: 150 MSFT @ 310, 60 SPY @ 450.", "has_report": true, "expected": "holdings"}
+{"id": "holdings-06", "message": "I hold 500 shares of SBUX bought at 90 and 200 AAPL at 170, what does that look like?", "has_report": true, "expected": "holdings"}
+{"id": "holdings-07", "message": "ticker,shares,cost\nAAPL,200,150\nCOST,10,800", "has_report": false, "expected": "holdings"}
+{"id": "holdings-08", "message": "My account holds 100 AAPL, 100 MSFT and 20 COST, how concentrated is that?", "has_report": true, "expected": "holdings"}
+{"id": "holdings-09", "message": "I have 200 NKE at 70 and 40 SPY; analyse these holdings against the screen.", "has_report": true, "expected": "holdings"}
+{"id": "holdings-10", "message": "Positions: AAPL 300 at 140, SBUX 200 at 85.", "has_report": false, "expected": "holdings"}
+{"id": "news-01", "message": "Anything in the news on COST before expiry?", "has_report": true, "expected": "news"}
+{"id": "news-02", "message": "Any headlines on Nike this week?", "has_report": true, "expected": "news"}
+{"id": "news-03", "message": "What's happening with Starbucks right now?", "has_report": true, "expected": "news"}
+{"id": "news-04", "message": "When is the earnings date for AAPL and does it fall before my expiry?", "has_report": true, "expected": "news"}
+{"id": "news-05", "message": "Is there an ex-dividend date for SPY before the short call expires?", "has_report": true, "expected": "news"}
+{"id": "news-06", "message": "Any catalysts coming up for the screened names?", "has_report": true, "expected": "news"}
+{"id": "news-07", "message": "Did Costco announce anything this month?", "has_report": false, "expected": "news"}
+{"id": "news-08", "message": "Show me the news desk for MSFT.", "has_report": true, "expected": "news"}
+{"id": "news-09", "message": "Was there a recall or lawsuit involving e.l.f. recently?", "has_report": true, "expected": "news"}
+{"id": "news-10", "message": "Any events ahead for CMG before the November expiration?", "has_report": true, "expected": "news"}
+{"id": "tax-01", "message": "What happens to my taxes if I get assigned?", "has_report": true, "expected": "tax"}
+{"id": "tax-02", "message": "Can I sell cash-secured puts in my IRA?", "has_report": true, "expected": "tax"}
+{"id": "tax-03", "message": "Is a wash sale triggered if I get assigned after selling at a loss?", "has_report": true, "expected": "tax"}
+{"id": "tax-04", "message": "Which account type do I need for a PMCC?", "has_report": false, "expected": "tax"}
+{"id": "tax-05", "message": "How are SPY options taxed, are they Section 1256?", "has_report": true, "expected": "tax"}
+{"id": "tax-06", "message": "What is the holding period for long-term gains on a LEAPS?", "has_report": true, "expected": "tax"}
+{"id": "tax-07", "message": "How does the premium from an expired put show up on my 1099?", "has_report": true, "expected": "tax"}
+{"id": "tax-08", "message": "Does writing a covered call reset the holding period of my shares?", "has_report": false, "expected": "tax"}
+{"id": "tax-09", "message": "What's the cost basis of shares I get through assignment?", "has_report": true, "expected": "tax"}
+{"id": "tax-10", "message": "Can naked puts be sold in a Roth account?", "has_report": false, "expected": "tax"}

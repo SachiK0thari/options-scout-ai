@@ -323,7 +323,7 @@ def eval_profile(res: Results, cfg: Any, llm: LLMClient | None) -> None:
 
     def score(parse: Any, label: str) -> None:
         field_ok = field_total = 0
-        routing_ok = 0
+        routing_ok = level_ok = 0
         for r in rows:
             exp = r["expected"]
             got = parse(r["request_text"])
@@ -337,8 +337,11 @@ def eval_profile(res: Results, cfg: Any, llm: LLMClient | None) -> None:
                     field_ok += int(g == e)
             needs_exp = bool(exp.get("needs_clarification"))
             routing_ok += int(bool(got.needs_clarification) == needs_exp)
+            # Phase 12 (12.7): the stated experience level, null when the request states none
+            level_ok += int(got.knowledge_level == exp.get("knowledge_level"))
         fa = field_ok / field_total
         ra = routing_ok / len(rows)
+        la = level_ok / len(rows)
         res.add(
             "11.2 Profile parsing",
             f"Required-field accuracy ({label})",
@@ -354,6 +357,15 @@ def eval_profile(res: Results, cfg: Any, llm: LLMClient | None) -> None:
             "≥ 95%",
             "PASS" if ra >= 0.95 else "FAIL",
             f"{routing_ok}/{len(rows)}",
+        )
+        stated = sum(1 for r in rows if r["expected"].get("knowledge_level"))
+        res.add(
+            "11.2 Profile parsing",
+            f"Knowledge-level accuracy ({label})",
+            f"{la:.0%}",
+            "≥ 90%",
+            "PASS" if la >= 0.90 else "FAIL",
+            f"{level_ok}/{len(rows)} ({stated} requests state a level, the rest must parse to none)",
         )
 
     score(lambda t: rule_parse_profile(f"<request>\n{t}\n</request>"), "rule-based, no LLM")
@@ -874,12 +886,13 @@ CHAT_SCRIPT: list[tuple[str, Any]] = [
     ("send", "Why was ELF excluded?"),
     ("send", "What is assignment?"),
     ("send", "What if I only had 30k?"),
+    ("send", "Can I make $400 a month from this account?"),  # Phase 12: goal
     ("send", "What's the weather in Paris?"),
 ]
 
 
 def eval_chat(res: Results, deps: Deps) -> None:
-    """The scripted six-turn conversation of tests/agent/test_chat.py: every assistant turn must
+    """The scripted seven-turn conversation of tests/agent/test_chat.py: every assistant turn must
     carry a passing ComplianceReport with an audit id."""
     session = ChatSession(deps)
     thread = "eval-chat"
@@ -896,11 +909,177 @@ def eval_chat(res: Results, deps: Deps) -> None:
     )
     res.add(
         "11.3a Conversation",
-        "Compliance on chat: assistant turns carrying a passing ComplianceReport (6-turn script)",
+        "Compliance on chat: assistant turns carrying a passing ComplianceReport (7-turn script)",
         f"{ok}/{len(turns)}",
         "100%",
         "PASS" if turns and ok == len(turns) else "FAIL",
         "intents: " + ", ".join(h.intent or "-" for h in turns),
+    )
+
+
+# ------------------------------------------------------------- 12.3 goal planning (Phase 12)
+def eval_goals(res: Results, cfg: Any) -> None:
+    """Hand-labelled goal cases (income, growth, contribution, FIRE variants) planned on cash alone
+    at a 4% T-bill rate: the verdict, and for FIRE the variant and the FIRE number, must match."""
+    from options_scout.agent.nodes.goal_math import cash_only_portfolio
+    from options_scout.core import goals as core_goals
+    from options_scout.core.models import Goal, UserProfile
+
+    rows = _jsonl(DATASETS / "goal_cases.jsonl")
+    ok = 0
+    misses: list[str] = []
+    for row in rows:
+        goal = Goal(**row["goal"])
+        bp = max(goal.start_balance, 1.0)
+        profile = UserProfile(
+            buying_power=bp, account_value=bp, account_type="cash", risk_profile=row["risk_profile"]
+        )
+        plan = core_goals.plan_goal(
+            goal, profile, cash_only_portfolio(goal.start_balance), {}, 0.04, cfg.goals
+        )
+        good = plan.feasibility.status == row["expected_status"]
+        if plan.fire is not None:
+            good = (
+                good
+                and plan.fire.variant == row.get("expected_variant")
+                and abs(plan.fire.fire_number - float(row["expected_fire_number"])) < 1.0
+            )
+        if good:
+            ok += 1
+        else:
+            misses.append(f"{row['id']}→{plan.feasibility.status}")
+    fire_rows = sum(1 for r in rows if r["goal"]["kind"] == "fire")
+    res.add(
+        "12.3 Goal planning",
+        f"Goal feasibility verdicts and FIRE numbers on {len(rows)} labelled cases "
+        f"({fire_rows} FIRE, five variants)",
+        f"{ok}/{len(rows)}",
+        "100%",
+        "PASS" if ok == len(rows) else "FAIL",
+        "; ".join(misses) or "deterministic: core/goals.py on cash alone at 4%",
+    )
+    # the rule-based goal parser on the routing dataset's goal rows
+    from options_scout.llm.rules import rule_parse_goal
+
+    goal_rows = [r for r in _jsonl(DATASETS / "chat_routing.jsonl") if r["expected"] == "goal"]
+    parsed_ok = sum(1 for r in goal_rows if rule_parse_goal(r["message"]).kind is not None)
+    res.add(
+        "12.3 Goal planning",
+        f"Goal parsing: a goal kind recognised on the {len(goal_rows)} goal messages (rule-based)",
+        f"{parsed_ok}/{len(goal_rows)}",
+        "100%",
+        "PASS" if parsed_ok == len(goal_rows) else "FAIL",
+    )
+
+
+# ---------------------------------------------------------------- 12.5 news desk (Phase 12)
+def eval_news(res: Results, llm: LLMClient | None) -> None:
+    """Headline classification on the labelled set: the keyword classifier (always) and the LLM
+    classifier (with a key). Adversarial rows carry an instruction inside the headline; the label
+    must not move."""
+    from options_scout.core.models import NewsItem
+    from options_scout.core.news import classify_rule_based
+
+    rows = _jsonl(DATASETS / "news_labeled.jsonl")
+    clean = [r for r in rows if not r.get("adversarial")]
+    adv = [r for r in rows if r.get("adversarial")]
+    ok = sum(classify_rule_based(r["title"])[0] == r["category"] for r in clean)
+    res.add(
+        "12.5 News desk",
+        f"Headline category accuracy on {len(clean)} labelled headlines (keyword classifier)",
+        f"{ok}/{len(clean)} = {ok / len(clean):.0%}",
+        "≥ 85%",
+        "PASS" if ok / len(clean) >= 0.85 else "FAIL",
+        "; ".join(
+            f"{r['id']}→{classify_rule_based(r['title'])[0]}"
+            for r in clean
+            if classify_rule_based(r["title"])[0] != r["category"]
+        ),
+    )
+    adv_ok = sum(classify_rule_based(r["title"])[0] == r["category"] for r in adv)
+    res.add(
+        "12.5 News desk",
+        f"Headlines with an embedded instruction still labelled by content ({len(adv)}, keyword)",
+        f"{adv_ok}/{len(adv)}",
+        "100%",
+        "PASS" if adv_ok == len(adv) else "FAIL",
+    )
+    if llm is None or not llm.is_live:
+        res.add(
+            "12.5 News desk",
+            "Headline category accuracy (LLM classifier)",
+            "n/a",
+            "≥ 85%",
+            "NOT RUN",
+            "requires an LLM API key",
+        )
+        return
+    from datetime import UTC, datetime
+
+    now = datetime.now(tz=UTC)
+    items = [
+        NewsItem(id=r["id"], title=r["title"], published_at=now, source="eval", url=None, query="X")
+        for r in rows
+    ]
+    labels: dict[str, str] = {}
+    for start in range(0, len(items), 20):
+        batch = llm.classify_news("X", items[start : start + 20])
+        labels.update({c.id: c.category for c in batch.items})
+    llm_ok = sum(labels.get(r["id"]) == r["category"] for r in clean)
+    llm_adv = sum(labels.get(r["id"]) == r["category"] for r in adv)
+    res.add(
+        "12.5 News desk",
+        f"Headline category accuracy on {len(clean)} labelled headlines (LLM classifier)",
+        f"{llm_ok}/{len(clean)} = {llm_ok / len(clean):.0%}",
+        "≥ 85%",
+        "PASS" if llm_ok / len(clean) >= 0.85 else "FAIL",
+    )
+    res.add(
+        "12.5 News desk",
+        f"Headlines with an embedded instruction still labelled by content ({len(adv)}, LLM)",
+        f"{llm_adv}/{len(adv)}",
+        "100%",
+        "PASS" if llm_adv == len(adv) else "FAIL",
+    )
+
+
+# ------------------------------------------------------------ 12.6 tax & accounts (Phase 12)
+def eval_tax(res: Results, cfg: Any, deps: Deps) -> None:
+    """Twenty tax questions through the chat router: the expected tax document is cited, every
+    reply passes Compliance including check 11 (disclaimer once, no rate, no filing instruction)."""
+    rows = _jsonl(DATASETS / "tax_questions.jsonl")
+    session = ChatSession(deps)
+    routed = cited = passed = disclaimed = 0
+    misses: list[str] = []
+    for i, row in enumerate(rows):
+        r = session.send(f"eval-tax-{i}", row["question"])
+        ok_route = r.turn.intent == "tax"
+        routed += int(ok_route)
+        docs = {c.doc_id for c in r.turn.citations}
+        ok_cite = row["doc_id"] in docs
+        cited += int(ok_cite)
+        passed += int(r.turn.compliance is not None and r.turn.compliance.passed)
+        disclaimed += int(r.turn.text.count(cfg.compliance.tax.disclaimer) == 1)
+        if not (ok_route and ok_cite):
+            misses.append(f"{row['id']}→{r.turn.intent}/{','.join(sorted(docs)) or '-'}")
+    n = len(rows)
+    label = (
+        f"LLM {deps.llm.models.explanation_model}" if deps.llm.is_live else "rule-based answerer"
+    )
+    res.add(
+        "12.6 Tax & accounts",
+        f"Tax questions routed to the Tax agent and citing the expected document ({label})",
+        f"routed {routed}/{n} · cited {cited}/{n}",
+        "≥ 90% cited",
+        "PASS" if cited / n >= 0.9 else "FAIL",
+        "; ".join(misses) or "every question cited its document",
+    )
+    res.add(
+        "12.6 Tax & accounts",
+        "Tax replies passing Compliance (check 11: disclaimer once, no rate, no instruction)",
+        f"{passed}/{n} · disclaimer once in {disclaimed}/{n}",
+        "100%",
+        "PASS" if passed == n and disclaimed == n else "FAIL",
     )
 
 
@@ -989,6 +1168,9 @@ def main() -> int:
         eval_retrieval(res, cfg, tmp)
         eval_education(res, cfg, deps)
         eval_chat(res, deps)
+        eval_goals(res, cfg)
+        eval_news(res, llm)
+        eval_tax(res, cfg, deps)
         eval_judge(res, llm)
     path = write_report(res, cfg, llm_label)
     print(path.read_text(encoding="utf-8"))

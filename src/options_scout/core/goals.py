@@ -1,0 +1,522 @@
+"""Goal Planning math (Phase 12, docs/capstone-plan.md section 12.2).
+
+Pure, deterministic functions behind the Goal Planning agent: balance projections, the return a
+goal requires, what the sized portfolio actually yields, a feasibility verdict with its levers,
+and the FIRE variants (lean, regular, fat, coast, barista). Rates are annual effective fractions,
+time is in years, contributions are monthly. Compounding is monthly at the effective-annual-
+equivalent rate, so a whole year compounds by exactly ``(1 + r)`` and goldens stay hand-checkable.
+
+Nothing here forecasts. The agent prints every assumption beside the chart, and the options
+income view is always shown next to the diversified-portfolio projection, never blended with it.
+"""
+
+from __future__ import annotations
+
+import math
+from collections.abc import Mapping, Sequence
+
+from options_scout.config import GoalsConfig
+from options_scout.core.models import (
+    FeasibilityStatus,
+    FeasibilityVerdict,
+    FirePlan,
+    FireVariant,
+    Goal,
+    GoalLever,
+    GoalPlan,
+    OptionCandidate,
+    ProjectionPath,
+    ProjectionPoint,
+    RiskProfile,
+    SizedPortfolio,
+    UserProfile,
+    YieldEstimate,
+)
+
+MIN_RETURN = -0.95  # bisection bounds for the required return
+MAX_RETURN = 10.0
+_PROFILES: tuple[RiskProfile, ...] = ("conservative", "balanced", "aggressive")
+_FIRE_TARGETS: tuple[FireVariant, ...] = ("lean", "regular", "fat")
+DEFAULT_HORIZON_YEARS = 10.0  # projection length when a goal has no horizon (income goals)
+
+
+# ------------------------------------------------------------------------- compounding
+def monthly_rate(annual_return: float) -> float:
+    """Monthly rate equivalent to an effective annual return: (1 + r) ** (1/12) - 1."""
+    if annual_return <= -1.0:
+        raise ValueError("annual return must be above -100%")
+    return float((1.0 + annual_return) ** (1.0 / 12.0) - 1.0)
+
+
+def project_balance(
+    start: float, annual_return: float, years: float, monthly_contribution: float = 0.0
+) -> float:
+    """Balance after ``years`` with monthly compounding and end-of-month contributions."""
+    if start < 0 or years < 0 or monthly_contribution < 0:
+        raise ValueError("start, years and contribution must be non-negative")
+    rm = monthly_rate(annual_return)
+    n = years * 12.0
+    growth = float((1.0 + rm) ** n)
+    if abs(rm) < 1e-12:
+        contributions = monthly_contribution * n
+    else:
+        contributions = monthly_contribution * (growth - 1.0) / rm
+    return start * growth + contributions
+
+
+def required_annual_return(
+    start: float, target: float, years: float, monthly_contribution: float = 0.0
+) -> float | None:
+    """Effective annual return that turns ``start`` plus contributions into ``target`` in ``years``.
+    Closed form without contributions, bisection with them. ``None`` when nothing can grow
+    (no start and no contributions) or the target needs more than ``MAX_RETURN`` a year."""
+    if target <= 0 or years <= 0:
+        raise ValueError("target and years must be positive")
+    if start <= 0 and monthly_contribution <= 0:
+        return None
+    if monthly_contribution == 0:
+        return float((target / start) ** (1.0 / years) - 1.0)
+    lo, hi = MIN_RETURN, MAX_RETURN
+    if project_balance(start, hi, years, monthly_contribution) < target:
+        return None
+    if project_balance(start, lo, years, monthly_contribution) >= target:
+        return lo
+    for _ in range(200):
+        mid = (lo + hi) / 2.0
+        if project_balance(start, mid, years, monthly_contribution) < target:
+            lo = mid
+        else:
+            hi = mid
+    return (lo + hi) / 2.0
+
+
+def years_to_target(
+    start: float,
+    target: float,
+    annual_return: float,
+    monthly_contribution: float = 0.0,
+    max_years: float = 100.0,
+) -> float | None:
+    """Years until the projected balance reaches ``target``; 0 when already there; ``None`` when
+    it is not reached within ``max_years`` (the balance is non-decreasing in time whenever the
+    return is non-negative, which is the only case the agent asks about)."""
+    if target <= start:
+        return 0.0
+    if project_balance(start, annual_return, max_years, monthly_contribution) < target:
+        return None
+    lo, hi = 0.0, max_years
+    for _ in range(200):
+        mid = (lo + hi) / 2.0
+        if project_balance(start, annual_return, mid, monthly_contribution) < target:
+            lo = mid
+        else:
+            hi = mid
+    return (lo + hi) / 2.0
+
+
+# ------------------------------------------------------------------- the portfolio's yield
+def portfolio_yield(
+    portfolio: SizedPortfolio,
+    candidates: Mapping[str, OptionCandidate],
+    cash_rate: float,
+    assignment_frequency: float,
+) -> YieldEstimate:
+    """Capital-weighted annualised yield of the sized positions plus the cash reserve at
+    ``cash_rate``. Short options earn ``premium / capital_used x 365 / dte``; LEAPS are held for
+    appreciation and count at 0% income. The stress-adjusted yield amortises the portfolio's
+    realistic loss (the -30% scenario) at ``assignment_frequency`` per year."""
+    totals = portfolio.totals
+    capital = max(totals.capital_used, 0.0)
+    cash = max(totals.cash_reserve, 0.0)
+    total = capital + cash
+    detail: list[str] = []
+    weighted = 0.0
+    for p in portfolio.positions:
+        c = candidates.get(p.candidate_id)
+        if p.strategy == "leaps":
+            y = 0.0
+            detail.append(f"{p.candidate_id}: LEAPS held for appreciation, counted at 0% income")
+        elif p.capital_used > 0 and c is not None and c.dte > 0:
+            y = p.premium / p.capital_used * 365.0 / c.dte
+        elif c is not None and c.annualized_return is not None:
+            y = c.annualized_return
+        else:
+            y = 0.0
+            detail.append(f"{p.candidate_id}: no yield data, counted at 0%")
+        weighted += p.capital_used * y
+    gross = (weighted + cash * cash_rate) / total if total > 0 else 0.0
+    loss_share = totals.realistic_loss / total if total > 0 else 0.0
+    stress = gross - assignment_frequency * loss_share
+    detail.append(
+        f"gross {gross:.2%} on ${total:,.0f} (cash ${cash:,.0f} at {cash_rate:.2%}); "
+        f"stress-adjusted {stress:.2%} after {assignment_frequency:.0%} x realistic loss "
+        f"${totals.realistic_loss:,.0f}"
+    )
+    return YieldEstimate(
+        gross_yield=gross,
+        stress_adjusted_yield=stress,
+        cash_rate=cash_rate,
+        capital_used=capital,
+        cash_reserve=cash,
+        realistic_loss=totals.realistic_loss,
+        assignment_frequency=assignment_frequency,
+        detail=detail,
+    )
+
+
+# ------------------------------------------------------------------------------- FIRE
+def expense_target(variant: FireVariant, goal: Goal, cfg: GoalsConfig) -> float:
+    """The annual expenses the portfolio must cover under a FIRE variant."""
+    if goal.annual_expenses is None:
+        raise ValueError("a FIRE goal needs annual_expenses")
+    expenses = goal.annual_expenses
+    if variant == "lean":
+        return goal.minimum_expenses if goal.minimum_expenses is not None else expenses
+    if variant == "fat":
+        return goal.fat_expenses if goal.fat_expenses is not None else expenses * cfg.fat_multiple
+    if variant == "barista":
+        return max(expenses - goal.part_time_income, 0.0)
+    return expenses  # regular, coast
+
+
+def fire_number(expense_target_value: float, withdrawal_rate: float) -> float:
+    if withdrawal_rate <= 0:
+        raise ValueError("withdrawal rate must be positive")
+    return expense_target_value / withdrawal_rate
+
+
+def coast_balance(fire_number_value: float, years: float, annual_return: float) -> float:
+    """Balance needed today to reach the FIRE number by ``years`` with no more contributions:
+    the present value of the FIRE number at the assumed return."""
+    if years < 0:
+        raise ValueError("years must be non-negative")
+    return float(fire_number_value / (1.0 + annual_return) ** years)
+
+
+def savings_rate(annual_income: float, annual_expenses: float) -> float:
+    if annual_income <= 0:
+        raise ValueError("income must be positive")
+    return max(annual_income - annual_expenses, 0.0) / annual_income
+
+
+def years_to_fi_by_savings_rate(
+    rates: Sequence[float], real_return: float, withdrawal_rate: float, max_years: float = 100.0
+) -> dict[float, float | None]:
+    """The classic table: saving a share ``s`` of income from zero, spending the rest, the years
+    until the FIRE number for those expenses is reached. Income cancels, so it is computed on one
+    unit of income: contributions ``s / 12`` a month toward ``(1 - s) / withdrawal_rate``."""
+    out: dict[float, float | None] = {}
+    for s in rates:
+        if not 0.0 < s < 1.0:
+            raise ValueError("savings rates must be strictly between 0 and 1")
+        target = (1.0 - s) / withdrawal_rate
+        out[s] = years_to_target(0.0, target, real_return, s / 12.0, max_years)
+    return out
+
+
+def income_coverage(
+    stress_adjusted_yield: float, buying_power: float, expense_target_value: float
+) -> tuple[float | None, float | None]:
+    """(share of the expense target the stress-adjusted premium yield covers, buying power needed
+    for full coverage at that yield). Both ``None`` when the yield is not positive."""
+    if stress_adjusted_yield <= 0 or expense_target_value <= 0:
+        return None, None
+    coverage = stress_adjusted_yield * buying_power / expense_target_value
+    return coverage, expense_target_value / stress_adjusted_yield
+
+
+# ------------------------------------------------------------------------- feasibility
+def goal_horizon(goal: Goal) -> float | None:
+    if goal.horizon_years is not None:
+        return goal.horizon_years
+    if goal.target_age is not None and goal.current_age is not None:
+        return max(goal.target_age - goal.current_age, 0.0) or None
+    return None
+
+
+def goal_target(goal: Goal, cfg: GoalsConfig) -> float | None:
+    """Dollar target the goal reaches for (None for an income goal, which has a rate target)."""
+    if goal.kind == "fire":
+        variant: FireVariant = goal.variant or "regular"
+        rate = goal.withdrawal_rate or cfg.withdrawal_rate
+        return fire_number(expense_target(variant, goal, cfg), rate)
+    return goal.target_balance
+
+
+def required_return(goal: Goal, cfg: GoalsConfig) -> float | None:
+    """The annual return the goal needs from the start balance (and contributions)."""
+    if goal.kind == "income":
+        if goal.target_monthly_income is None or goal.start_balance <= 0:
+            return None
+        return 12.0 * goal.target_monthly_income / goal.start_balance
+    target = goal_target(goal, cfg)
+    horizon = goal_horizon(goal)
+    if target is None or horizon is None:
+        return None
+    contribution = 0.0 if goal.variant == "coast" else goal.monthly_contribution
+    return required_annual_return(goal.start_balance, target, horizon, contribution)
+
+
+def _needed_start(target: float, available: float, years: float, contribution: float) -> float:
+    """Start balance that reaches ``target`` at ``available`` return with ``contribution``."""
+    growth = project_balance(1.0, available, years, 0.0)
+    from_contributions = project_balance(0.0, available, years, contribution)
+    return max(target - from_contributions, 0.0) / growth
+
+
+def _capital_lever(
+    goal: Goal, target: float | None, horizon: float | None, available: float, contribution: float
+) -> GoalLever:
+    if available <= 0:
+        return GoalLever(
+            name="more_capital", value=None, detail="the stress-adjusted yield is not positive"
+        )
+    if goal.kind == "income" and goal.target_monthly_income is not None:
+        needed = 12.0 * goal.target_monthly_income / available
+        return GoalLever(
+            name="more_capital",
+            value=needed,
+            detail=(
+                f"${needed:,.0f} would earn ${goal.target_monthly_income:,.0f} a month "
+                f"at {available:.1%}"
+            ),
+        )
+    if target is not None and horizon is not None:
+        needed = _needed_start(target, available, horizon, contribution)
+        return GoalLever(
+            name="more_capital",
+            value=needed,
+            detail=(
+                f"${needed:,.0f} today reaches ${target:,.0f} in {horizon:.1f} years "
+                f"at {available:.1%}"
+            ),
+        )
+    return GoalLever(name="more_capital", value=None, detail="no dollar target or horizon")
+
+
+def _horizon_lever(
+    goal: Goal, target: float, available: float, contribution: float, max_years: int
+) -> GoalLever:
+    rate = max(available, 0.0)
+    years = years_to_target(goal.start_balance, target, rate, contribution, max_years)
+    if years is None:
+        detail = f"${target:,.0f} is not reached within {max_years} years at {available:.1%}"
+    else:
+        detail = f"${target:,.0f} is reached in {years:.1f} years at {available:.1%}"
+    return GoalLever(name="longer_horizon", value=years, detail=detail)
+
+
+def _profile_lever(required: float, cfg: GoalsConfig) -> GoalLever:
+    admitting = next((p for p in _PROFILES if cfg.max_assumed_return[p] >= required), None)
+    if admitting is None:
+        return GoalLever(
+            name="different_profile", value=None, detail=f"no profile cap admits {required:.1%}"
+        )
+    cap = cfg.max_assumed_return[admitting]
+    return GoalLever(
+        name="different_profile",
+        value=cap,
+        detail=f"the {admitting} profile's cap of {cap:.0%} admits {required:.1%}",
+    )
+
+
+def feasibility(
+    goal: Goal, profile: UserProfile, yields: YieldEstimate, cfg: GoalsConfig
+) -> FeasibilityVerdict:
+    """fits / stretch / does_not_fit against the stress-adjusted yield and the profile's cap, plus
+    the three levers the user could pull: more capital, a longer horizon, a different profile.
+    The function lists all three with numbers and never picks one."""
+    cap = cfg.max_assumed_return[profile.risk_profile]
+    available = yields.stress_adjusted_yield
+    required = required_return(goal, cfg)
+    notes: list[str] = []
+    horizon = goal_horizon(goal)
+    target = goal_target(goal, cfg)
+    contribution = 0.0 if goal.variant == "coast" else goal.monthly_contribution
+
+    status: FeasibilityStatus
+    if required is None:
+        status = "does_not_fit"
+        gap = MAX_RETURN - available
+        if goal.kind == "income" and goal.start_balance <= 0:
+            notes.append("no starting balance: an income goal needs capital to earn on")
+        elif target is not None and horizon is None:
+            notes.append("no horizon: give a number of years or a target age")
+        else:
+            notes.append(
+                f"the target needs more than {MAX_RETURN:.0%} a year; no assumption reaches it"
+            )
+    else:
+        gap = required - available
+        if required <= min(available, cap):
+            status = "fits"
+        elif required <= min(available + cfg.stretch_band, cap):
+            status = "stretch"
+        else:
+            status = "does_not_fit"  # above the yield band, or above the profile's cap
+        if required > cap:
+            notes.append(
+                f"required {required:.1%} exceeds the {profile.risk_profile} profile's cap "
+                f"of {cap:.0%}"
+            )
+
+    levers = [_capital_lever(goal, target, horizon, available, contribution)]
+    if target is not None:
+        levers.append(_horizon_lever(goal, target, available, contribution, cfg.max_horizon_years))
+    if required is not None:
+        levers.append(_profile_lever(required, cfg))
+    return FeasibilityVerdict(
+        status=status,
+        required_return=required,
+        available_return=available,
+        profile_cap=cap,
+        gap=gap,
+        levers=levers,
+        notes=notes,
+    )
+
+
+# -------------------------------------------------------------------------- projection
+def _points(start: float, rate: float, years: float, contribution: float) -> list[ProjectionPoint]:
+    steps = [float(y) for y in range(math.floor(years) + 1)]
+    if years > steps[-1] + 1e-9:
+        steps.append(years)
+    return [
+        ProjectionPoint(year=t, balance=project_balance(start, rate, t, contribution))
+        for t in steps
+    ]
+
+
+def projection(
+    goal: Goal, profile: UserProfile, yields: YieldEstimate, cfg: GoalsConfig
+) -> list[ProjectionPath]:
+    """Stress, base and best paths at the options yields, plus the conventional diversified
+    projection at the profile's assumed return. The stress path takes the -30% scenario's
+    realistic loss in year one and forgoes its growth afterwards."""
+    years = goal_horizon(goal) or DEFAULT_HORIZON_YEARS
+    contribution = 0.0 if goal.variant == "coast" else goal.monthly_contribution
+    start = goal.start_balance
+    cap = cfg.max_assumed_return[profile.risk_profile]
+    base_rate = max(yields.stress_adjusted_yield, MIN_RETURN)
+    best_rate = min(yields.gross_yield, cap)
+    assumed = cfg.assumed_return[profile.risk_profile]
+    total = yields.total_capital
+    loss = yields.realistic_loss * (start / total) if total > 0 else 0.0
+
+    base = _points(start, base_rate, years, contribution)
+    stress = [
+        ProjectionPoint(
+            year=p.year,
+            balance=p.balance
+            - (project_balance(loss, base_rate, p.year - 1.0, 0.0) if p.year >= 1.0 else 0.0),
+        )
+        for p in base
+    ]
+    return [
+        ProjectionPath(
+            label="stress",
+            annual_return=base_rate,
+            points=stress,
+            note="the -30% scenario's realistic loss hits in year one",
+        ),
+        ProjectionPath(
+            label="base",
+            annual_return=base_rate,
+            points=base,
+            note="stress-adjusted yield of the current screen",
+        ),
+        ProjectionPath(
+            label="best",
+            annual_return=best_rate,
+            points=_points(start, best_rate, years, contribution),
+            note="gross yield, capped at the profile's maximum",
+        ),
+        ProjectionPath(
+            label="assumed",
+            annual_return=assumed,
+            points=_points(start, assumed, years, contribution),
+            note="diversified-portfolio assumption, not options income",
+        ),
+    ]
+
+
+def fire_plan(
+    goal: Goal, profile: UserProfile, yields: YieldEstimate, cfg: GoalsConfig
+) -> FirePlan:
+    variant: FireVariant = goal.variant or "regular"
+    rate = goal.withdrawal_rate or cfg.withdrawal_rate
+    target_expenses = expense_target(variant, goal, cfg)
+    number = fire_number(target_expenses, rate)
+    assumed = cfg.assumed_return[profile.risk_profile]
+    contribution = 0.0 if variant == "coast" else goal.monthly_contribution
+    years = years_to_target(
+        goal.start_balance, number, assumed, contribution, cfg.max_horizon_years
+    )
+    horizon = goal_horizon(goal)
+    coast = coast_balance(number, horizon, assumed) if horizon is not None else None
+    expenses = goal.annual_expenses or 0.0
+    annual_income = expenses + 12.0 * goal.monthly_contribution if expenses else None
+    rate_saved = savings_rate(annual_income, expenses) if annual_income else None
+    coverage, bp_full = income_coverage(
+        yields.stress_adjusted_yield, yields.total_capital, target_expenses
+    )
+    targets = {v: fire_number(expense_target(v, goal, cfg), rate) for v in _FIRE_TARGETS}
+    notes = [
+        f"withdrawal rate {rate:.1%} comes from diversified stock/bond portfolio research, "
+        "not from options income",
+        f"the projection assumes {assumed:.0%} a year, the {profile.risk_profile} profile's "
+        "diversified-portfolio assumption",
+    ]
+    if coverage is not None:
+        notes.append(
+            f"the current screen's stress-adjusted yield of {yields.stress_adjusted_yield:.1%} "
+            f"would cover {coverage:.0%} of ${target_expenses:,.0f} a year; a short-put yield "
+            "is not a safe withdrawal rate"
+        )
+    return FirePlan(
+        variant=variant,
+        expense_target=target_expenses,
+        withdrawal_rate=rate,
+        fire_number=number,
+        assumed_return=assumed,
+        years_to_fi=years,
+        coast_balance=coast,
+        savings_rate=rate_saved,
+        income_coverage=coverage,
+        buying_power_for_full_coverage=bp_full,
+        targets=dict(targets),
+        notes=notes,
+    )
+
+
+def plan_goal(
+    goal: Goal,
+    profile: UserProfile,
+    portfolio: SizedPortfolio,
+    candidates: Mapping[str, OptionCandidate],
+    cash_rate: float,
+    cfg: GoalsConfig,
+) -> GoalPlan:
+    """Everything the Goal Planning agent hands to its explainer, computed here and nowhere else."""
+    frequency = cfg.assignment_frequency[profile.risk_profile]
+    yields = portfolio_yield(portfolio, candidates, cash_rate, frequency)
+    verdict = feasibility(goal, profile, yields, cfg)
+    paths = projection(goal, profile, yields, cfg)
+    fire = fire_plan(goal, profile, yields, cfg) if goal.kind == "fire" else None
+    cap = cfg.max_assumed_return[profile.risk_profile]
+    assumptions = [
+        f"start balance ${goal.start_balance:,.0f}, contributions "
+        f"${goal.monthly_contribution:,.0f} a month",
+        f"cash reserve earns the T-bill rate of {cash_rate:.2%}",
+        f"{profile.risk_profile} profile: return cap {cap:.0%}, stress every "
+        f"{1 / frequency:.0f} years on average",
+        "returns are assumptions for illustration, not forecasts; the stress path is always shown",
+    ]
+    return GoalPlan(
+        goal=goal,
+        yield_estimate=yields,
+        feasibility=verdict,
+        projection=paths,
+        fire=fire,
+        assumptions=assumptions,
+    )

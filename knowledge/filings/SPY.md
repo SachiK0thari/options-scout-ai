@@ -4,6 +4,7 @@ title: 'SPDR S&P 500 ETF TRUST 485BPOS: Principal Risks (2026)'
 source: SEC EDGAR 485BPOS filed 2026-01-26
 url: https://www.sec.gov/Archives/edgar/data/884394/000119312526022316/d77353d485bpos.htm
 kind: filings
+level: advanced
 as_of: '2026-01-26'
 ---
 

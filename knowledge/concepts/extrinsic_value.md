@@ -4,6 +4,7 @@ title: "Intrinsic and extrinsic value: what a LEAPS buyer actually pays for"
 source: "OCC disclosure document chapter II (Options Nomenclature); PRD.md section 3.6"
 url: https://www.theocc.com/company-information/documents-and-archives/options-disclosure-document
 kind: concepts
+level: advanced
 as_of: 2026-11-03
 ---
 

@@ -185,7 +185,11 @@ def test_qa_graph_retries_then_falls_back_when_the_answer_fails_compliance(
     calls = {"n": 0}
 
     def bad_answer(
-        question: str, sources: str, disclaimer: str, intent: str = "concept"
+        question: str,
+        sources: str,
+        disclaimer: str,
+        intent: str = "concept",
+        audience: str = "",
     ) -> Narrative:
         calls["n"] += 1
         return Narrative(

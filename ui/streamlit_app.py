@@ -1,4 +1,4 @@
-"""OptionsScout multi-tab app: chat on Scout, a form on Setup, results and education in six tabs.
+"""OptionsScout multi-tab app: chat on Scout, a form on Setup, results, goals and education in seven tabs.
 
 Run: make ui  (or: streamlit run ui/streamlit_app.py)
 
@@ -23,6 +23,7 @@ st.set_page_config(page_title="OptionsScout", page_icon="🔭", layout="wide")
 from ui import session  # noqa: E402
 from ui.tabs import (  # noqa: E402
     candidates,
+    goals,
     learn,
     portfolio,
     quality,
@@ -38,6 +39,7 @@ RENDERERS = (
     quality.render,
     candidates.render,
     portfolio.render,
+    goals.render,
     learn.render,
     trends.render,
     under_the_hood.render,

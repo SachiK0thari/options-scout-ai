@@ -6,6 +6,7 @@ import pandas as pd
 import streamlit as st
 
 from ui import charts, session, theme
+from ui.components import market_strip
 from ui.session import CFG, pct
 
 
@@ -22,6 +23,7 @@ def render(view: session.View) -> None:
     if report is None:
         st.info("Run a screen on the Scout or Setup tab to see which stocks passed the gate.")
         return
+    market_strip.render(view)
     kept = [q for q in report.quality if q.passed]
     dropped = [q for q in report.quality if not q.passed]
     c1, c2 = st.columns([3, 2])

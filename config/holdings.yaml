@@ -1,0 +1,24 @@
+# Holdings analysis in the Portfolio agent (Phase 12, docs/capstone-plan.md section 12.6).
+
+covered_call_lot: 100        # shares per lot a covered call needs
+beta_lookback_days: 90       # daily closes used for beta vs SPY (the history the quality gate already fetches)
+beta_index: SPY
+
+# Annual expense ratios (percent) for ETFs a user may hold; stocks have none. Sources: fund
+# prospectuses as of 2026; the Learn tab says "about" and cites investor.gov on fees.
+expense_ratios_pct:
+  SPY: 0.0945
+  QQQ: 0.20
+  VOO: 0.03
+  IVV: 0.03
+  VTI: 0.03
+  DIA: 0.16
+  IWM: 0.19
+
+# Sector for tickers outside config/quality_universe.yaml; anything else is reported as "Unknown".
+sectors:
+  VOO: ETF
+  IVV: ETF
+  VTI: ETF
+  DIA: ETF
+  IWM: ETF

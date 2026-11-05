@@ -4,6 +4,7 @@ title: "Delta: price sensitivity to the underlying, and a rough probability prox
 source: "OCC disclosure document chapter X; Cboe Options Institute (the Greeks); PRD.md section 3.6"
 url: https://www.cboe.com/education/
 kind: concepts
+level: intermediate
 as_of: 2026-11-03
 ---
 

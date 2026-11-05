@@ -52,8 +52,9 @@ TABS: tuple[str, ...] = (
     "Quality Screen",
     "Candidates",
     "Portfolio & Risk",
+    "Goals",
     "Learn",
-    "Trends",
+    "Trends & News",
     "Under the hood",
 )
 
@@ -69,6 +70,13 @@ def _resources() -> tuple[Any, Deps, Any]:
 def concepts() -> list[Document]:
     """The authored knowledge base, for the Learn tab's glossary (sorted by title)."""
     docs = load_corpus(CFG.rag.knowledge_dir, ("concepts",))
+    return sorted(docs, key=lambda d: d.title.lower())
+
+
+@st.cache_resource(show_spinner=False)
+def documents(kind: str) -> list[Document]:
+    """One collection of the knowledge base (``basics``, ``tax`` …), sorted by title (Phase 12)."""
+    docs = load_corpus(CFG.rag.knowledge_dir, (kind,))
     return sorted(docs, key=lambda d: d.title.lower())
 
 

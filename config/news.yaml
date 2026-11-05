@@ -1,0 +1,24 @@
+# News Desk agent (Phase 12, docs/capstone-plan.md section 12.3): deterministic parameters and
+# the live sources. Headlines are data, never a ranking input; they become flags on candidates
+# and per-ticker briefs.
+
+half_life_days: 3.0          # recency weight = 0.5 ** (age_days / half_life_days)
+stale_days: 7                # older than this is shown with a "stale" marker
+capture_window_days: 5       # ex-dividend date within this many days before a short call's expiry
+max_items_per_ticker: 8      # headlines kept per ticker after dedupe, newest and heaviest first
+cache_ttl_minutes: 30        # live adapters cache responses this long (the brief's FAQ recommendation)
+lookback_days: 14            # headlines older than this are not fetched
+
+sources:
+  # Alpha Vantage NEWS_SENTIMENT (the brief's named API): free tier 25 requests/day. The key comes
+  # from the environment; fixture mode reads tests/fixtures/social/ticker_news.jsonl instead.
+  alphavantage:
+    enabled: true
+    api_key_env: ALPHAVANTAGE_API_KEY
+    fixture_file: ticker_news.jsonl
+    limit: 50                 # items per request
+    max_attempts: 3           # exponential backoff on 429 / 5xx: 1 s, 2 s, 4 s
+  # Google News / Yahoo RSS (the trend engine's adapter) as the live fallback when Alpha Vantage
+  # is unavailable or rate limited; fixture mode has no per-ticker RSS corpus.
+  rss:
+    enabled: true

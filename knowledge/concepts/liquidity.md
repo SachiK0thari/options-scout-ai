@@ -4,6 +4,7 @@ title: "Liquidity: bid-ask spread, open interest and volume, and why they are fi
 source: "OCC disclosure document chapter X (risks of illiquid markets); FINRA options investor page; PRD.md sections 3.3–3.4"
 url: https://www.finra.org/investors/investing/investment-products/options
 kind: concepts
+level: intermediate
 as_of: 2026-11-03
 ---
 

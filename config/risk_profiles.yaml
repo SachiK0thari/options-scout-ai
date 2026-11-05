@@ -19,6 +19,7 @@ constraints:
     max_exposure_per_ticker: 0.05     # realistic loss per ticker / account value
     max_per_sector: 0.25              # realistic loss per sector / account value
     max_dollar_delta_x: 0.8           # total dollar delta / account value
+    max_ticker_concentration_after_assignment: 0.25  # (holdings + assigned shares) / (holdings + buying power); only with holdings
   balanced:
     max_short_put_notional_x: 1.0
     max_margin_usage: 0.40
@@ -26,6 +27,7 @@ constraints:
     max_exposure_per_ticker: 0.08
     max_per_sector: 0.30
     max_dollar_delta_x: 1.0
+    max_ticker_concentration_after_assignment: 0.30
   aggressive:
     max_short_put_notional_x: 1.5
     max_margin_usage: 0.50
@@ -33,5 +35,6 @@ constraints:
     max_exposure_per_ticker: 0.10
     max_per_sector: 0.35
     max_dollar_delta_x: 1.5
+    max_ticker_concentration_after_assignment: 0.40
 
 realistic_loss_drop: 0.30   # CSP realistic loss = loss if the stock drops 30% at expiry

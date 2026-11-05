@@ -11,12 +11,16 @@ from pydantic import BaseModel, ConfigDict, Field
 
 from options_scout.core.models import Citation
 
-Kind = Literal["concepts", "rules", "filings", "evidence"]
+Kind = Literal["concepts", "basics", "tax", "rules", "filings", "evidence"]
+Level = Literal["beginner", "intermediate", "advanced"]
+LEVELS: tuple[Level, ...] = ("beginner", "intermediate", "advanced")
+DEFAULT_LEVEL: Level = "intermediate"
 QUOTE_CHARS = 240  # a citation quote is the first sentence(s) of the chunk, up to this many chars
 
 
 class Document(BaseModel):
-    """One Markdown file of the corpus (front-matter ``id, title, source, url, kind, as_of``)."""
+    """One Markdown file of the corpus (front-matter ``id, title, source, url, kind, level, as_of``;
+    ``level`` defaults to intermediate when absent)."""
 
     model_config = ConfigDict(extra="forbid", frozen=True)
 
@@ -25,6 +29,7 @@ class Document(BaseModel):
     source: str = Field(min_length=1)
     url: str = Field(min_length=1)
     kind: Kind
+    level: Level = DEFAULT_LEVEL  # reading level; the retriever can cap it (max_level)
     as_of: date
     body: str
     path: str = ""  # repo-relative path, informational
@@ -44,6 +49,7 @@ class Chunk(BaseModel):
     doc_id: str
     n: int = Field(ge=0)
     kind: Kind
+    level: Level = DEFAULT_LEVEL
     title: str
     url: str
     source: str
@@ -81,6 +87,7 @@ class RetrievalResult(BaseModel):
     query: str
     hits: list[ScoredChunk] = Field(default_factory=list)
     kind: Kind | None = None
+    max_level: Level | None = None
     embedder: str = ""
     floor: float = 0.0
 
@@ -102,6 +109,11 @@ class RetrievalResult(BaseModel):
             c = h.chunk
             lines.append(f"[S{h.rank}] {c.title} — {c.source} ({c.url})\n{c.text.strip()}")
         return "\n\n".join(lines)
+
+
+def level_rank(level: Level) -> int:
+    """0 for beginner, 1 for intermediate, 2 for advanced (used by the ``max_level`` filter)."""
+    return LEVELS.index(level)
 
 
 def citation_of(chunk: Chunk, tag: str = "") -> Citation:

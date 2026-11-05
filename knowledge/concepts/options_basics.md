@@ -4,6 +4,7 @@ title: "Options basics: calls, puts, strike, expiry and exercise style"
 source: "OCC, Characteristics and Risks of Standardized Options (the options disclosure document), chapters II and III"
 url: https://www.theocc.com/company-information/documents-and-archives/options-disclosure-document
 kind: concepts
+level: beginner
 as_of: 2026-11-03
 ---
 

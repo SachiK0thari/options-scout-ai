@@ -53,6 +53,16 @@ def _form() -> tuple[dict[str, object] | None, str, str, bool]:
                 "Risk appetite", ["conservative", "balanced", "aggressive"], index=0, key="risk"
             )
             max_positions = a3.number_input("Max positions", 1, 20, 6, key="maxpos")
+            level = st.selectbox(
+                "Your options experience",
+                ["beginner", "intermediate", "advanced"],
+                index=1,
+                key="level",
+                help=(
+                    "Beginner: explanations define every term and retrieval prefers beginner and "
+                    "intermediate documents; the Candidates table shows the plain-language columns."
+                ),
+            )
             b1, b2 = st.columns(2)
             watch = b1.text_input(
                 "Also consider these tickers (comma separated)",
@@ -130,6 +140,7 @@ def _form() -> tuple[dict[str, object] | None, str, str, bool]:
         "watchlist": [t.strip().upper() for t in watch.split(",") if t.strip()],
         "exclude": [t.strip().upper() for t in excl.split(",") if t.strip()],
         "max_positions": int(max_positions),
+        "knowledge_level": level,
     }
     return profile, source_choice, api_key, sandbox
 

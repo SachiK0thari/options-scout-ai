@@ -4,6 +4,7 @@ title: "Probability of expiring out of the money: what N(d2) does and does not t
 source: "OCC disclosure document chapter X; PRD.md section 3.6 (Black-Scholes-Merton formulas)"
 url: https://www.theocc.com/company-information/documents-and-archives/options-disclosure-document
 kind: concepts
+level: advanced
 as_of: 2026-11-03
 ---
 

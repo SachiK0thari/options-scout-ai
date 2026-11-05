@@ -1,7 +1,7 @@
 """Streamlit tests for the multi-tab app (PRD step 10.6): fixture mode, no network, ``AppTest``.
 
 Each test drives the real script: the Setup form or the Scout chat runs the LangGraph pipeline
-in-process on bundled fixtures, then the eight tabs render from the checkpointed state.
+in-process on bundled fixtures, then the nine tabs render from the checkpointed state.
 """
 
 from __future__ import annotations
@@ -19,8 +19,9 @@ TABS = [
     "Quality Screen",
     "Candidates",
     "Portfolio & Risk",
+    "Goals",
     "Learn",
-    "Trends",
+    "Trends & News",
     "Under the hood",
 ]
 DISCLAIMER_START = "Educational screening tool"
@@ -62,7 +63,7 @@ def _chat(at: AppTest, text: str) -> AppTest:
 
 
 # ------------------------------------------------------------------------------- no report
-def test_eight_tabs_render_with_no_report() -> None:
+def test_nine_tabs_render_with_no_report() -> None:
     at = _app(120)
     assert [t.label for t in at.tabs] == TABS
     assert len(at.chat_input) == 1
@@ -74,8 +75,9 @@ def test_eight_tabs_render_with_no_report() -> None:
     assert at.radio(key="strategy").options == ["Cash-secured puts", "LEAPS calls", "Both"]
     assert "Bundled sample data (offline)" in at.radio(key="ds_choice").options
     assert "Tradier (paste your API key)" in at.radio(key="ds_choice").options
-    # the Learn glossary works offline, before any run
-    assert any(c.value.startswith("Citation:") for c in at.caption)
+    # Learn opens on the learning path, offline, before any run
+    assert at.radio(key="learn_page").value == "Learning path"
+    assert any(c.value.startswith("Path progress: 0/") for c in at.caption)
 
 
 def test_disclaimer_on_every_tab() -> None:
@@ -146,7 +148,7 @@ def test_both_strategies_fill_every_tab() -> None:
     # Candidates: strike ladder selector; Trends: component selector; Under the hood: trace
     assert any(s.label == "Strike ladder for" for s in at.selectbox)
     assert any(s.label == "Score components for" for s in at.selectbox)
-    assert any(m.label == "Specialists run" and m.value == "8" for m in at.metric)
+    assert any(m.label == "Specialists run" and m.value == "9" for m in at.metric)  # + News Desk
     nodes = next(df for df in at.dataframe if "node" in df.value.columns)
     assert "compliance_node" in nodes.value["node"].tolist()
     assert any(e.label.startswith("Evidence posts") for e in at.expander)
@@ -202,6 +204,7 @@ def test_chat_describe_confirm_what_if_and_off_topic() -> None:
 # ------------------------------------------------------------------------------------ learn
 def test_learn_concept_page_shows_a_citation_and_the_education_label() -> None:
     at = _app(120)
+    at.radio(key="learn_page").set_value("Concepts").run()
     at.radio(key="concept").set_value("cash-secured-put").run()
     assert not at.exception
     assert any("Cash-secured put" in h for h in _h3(at))
@@ -242,3 +245,121 @@ def test_learn_pages_bind_to_a_screened_candidate() -> None:
     assert any("The screener recorded margin" in c.value for c in at.caption)
     at.radio(key="learn_page").set_value("Hype and short puts").run()
     assert any("hype" in h.lower() for h in _h3(at))
+
+
+# ------------------------------------------------------------------------------- goals (12.3)
+def test_goals_tab_plans_a_goal_from_the_chat() -> None:
+    at = _app(120)
+    goals_tab = next(t for t in at.tabs if t.label == "Goals")
+    assert any("No goal yet" in i.value for i in goals_tab.info)
+    assert at.radio(key="goal_kind").options == ["Monthly income", "Grow to a balance", "FIRE"]
+    at = _chat(at, "I have 60k, can I make $400 a month from this account?")
+    goals_tab = next(t for t in at.tabs if t.label == "Goals")
+    metrics = {m.label: m.value for m in goals_tab.metric}
+    assert metrics["Verdict"] in ("fits", "stretch", "does not fit")
+    assert metrics["Required return"] == "8.0%"
+    assert any("Levers" in m.value for m in goals_tab.markdown)
+    assert any(b.startswith("Compliance ✓") for b in _badges(at))
+
+
+# ---------------------------------------------------------------------------- holdings (12.4)
+def test_portfolio_tab_analyses_holdings_from_the_form() -> None:
+    at = _app(120)
+    portfolio_tab = next(t for t in at.tabs if t.label == "Portfolio & Risk")
+    assert any("No holdings on this thread yet" in c.value for c in portfolio_tab.caption)
+    at.text_area(key="holdings_text").set_value("200 AAPL at 150, MSFT 100 @ 300, 40 SPY").run()
+    # the form button is the second form on the page; drive the chat path the form uses
+    at = _chat(at, "My holdings: 200 AAPL at 150, MSFT 100 @ 300, 40 SPY")
+    portfolio_tab = next(t for t in at.tabs if t.label == "Portfolio & Risk")
+    metrics = {m.label: m.value for m in portfolio_tab.metric}
+    assert "Holdings value" in metrics and metrics["Diversification"].endswith("/ 100")
+    assert any(b.startswith("Compliance ✓") for b in _badges(at))
+
+
+# ------------------------------------------------------------------------- learning (12.7)
+def _stage_open(at: AppTest) -> list[bool]:
+    """Which of the three learning-path stages is expanded, in order."""
+    return [e.proto.expanded for e in at.expander if e.label[:3] in ("1 ·", "2 ·", "3 ·")]
+
+
+def test_learning_path_tracks_progress_and_opens_a_page() -> None:
+    at = _app(120)
+    assert at.selectbox(key="level").value == "intermediate"
+    # no profile yet: the path starts at stage 1
+    assert any("Reading level: **beginner**" in c.value for c in at.caption)
+    assert _stage_open(at) == [True, False, False]
+    total = next(c.value for c in at.caption if c.value.startswith("Path progress:")).split("/")[1]
+    assert int(total.split()[0]) == 28 + 24 + 12 + 14  # basics, core concepts, advanced, tax
+    at.checkbox(key="read-what-is-a-stock").check().run()
+    assert any(c.value.startswith("Path progress: 1/") for c in at.caption)
+    assert any(e.label.startswith("1 · Basics · 1/28 read") for e in at.expander)
+    # "Read" opens the document on the Concepts page, in its own collection
+    at.button(key="open-assignment-cost-basis").click().run()
+    assert not at.exception, [e.message for e in at.exception]
+    assert at.radio(key="learn_page").value == "Concepts"
+    assert at.radio(key="glossary_kind").value == "tax"
+    assert any(c.value.startswith("Citation:") and "knowledge/tax/" in c.value for c in at.caption)
+    assert "all" in at.radio(key="glossary_level").options
+    # the tick survives leaving the path and coming back
+    at.button(key="back-to-path").click().run()
+    assert at.radio(key="learn_page").value == "Learning path"
+    assert at.checkbox(key="read-what-is-a-stock").value is True
+    assert any(c.value.startswith("Path progress: 1/") for c in at.caption)
+
+
+@pytest.mark.parametrize(
+    ("level", "stages", "shown", "hidden"),
+    [
+        ("beginner", [True, False, False], [], ["Delta", "Open interest", "Vega"]),
+        ("intermediate", [False, True, False], ["Delta", "Open interest"], ["Gamma", "Vega"]),
+        ("advanced", [False, False, True], ["Delta", "Gamma", "Vega", "Spread", "Implied vol"], []),
+    ],
+)
+def test_each_knowledge_level_shapes_the_tables_the_path_and_the_strip(
+    level: str, stages: list[bool], shown: list[str], hidden: list[str]
+) -> None:
+    at = _run_form(_app(), strategy="Cash-secured puts", **{"selectbox:level": level})
+    # Candidates: the level's columns, every header with a glossary tooltip
+    assert any(c.value.startswith(f"{level.capitalize()} view:") for c in at.caption)
+    table = next(d.value for d in at.dataframe if "Cash to secure" in d.value.columns)
+    assert "Chance it expires worthless" in table.columns
+    assert all(c in table.columns for c in shown) and not any(c in table.columns for c in hidden)
+    terms = [e for e in at.expander if e.label == "What do these columns mean?"]
+    assert terms and any("**Cash to secure**" in m.value for m in terms[0].markdown)
+    # Learn: the stage for this level is the open one
+    assert any(f"Reading level: **{level}** (your profile)" in c.value for c in at.caption)
+    assert _stage_open(at) == stages
+    # the market overview strip, on both tabs that carry it, with the data age
+    for name in ("Quality Screen", "Candidates"):
+        tab = next(t for t in at.tabs if t.label == name)
+        metrics = {m.label: m for m in tab.metric}
+        assert {"SPY", "QQQ", "VIX", "13-week T-bill", "Data"} <= set(metrics), name
+        assert metrics["SPY"].value.startswith("$") and "vs prev close" in metrics["SPY"].delta
+        assert metrics["Data"].value == "fixture"
+        assert metrics["Data"].delta.startswith("fixture, recorded 20")
+        assert any("data age: fixture, recorded 20" in c.value for c in tab.caption)
+
+
+def test_glossary_button_opens_the_document_on_the_learn_tab() -> None:
+    at = _run_form(_app(), strategy="Cash-secured puts")
+    at.button(key="csp_terms-Delta").click().run()
+    assert not at.exception, [e.message for e in at.exception]
+    assert at.radio(key="learn_page").value == "Concepts"
+    assert at.radio(key="concept").value == "delta"
+    assert any("Delta" in h for h in _h3(at))
+    assert any("is open on the **Learn** tab" in c.value for c in at.caption)
+
+
+def test_chat_states_a_level_and_the_review_form_can_change_it() -> None:
+    # no risk appetite stated, so the Orchestrator pauses for review
+    at = _chat(
+        _app(), "I have never traded options. I have $40,000 in a cash account. Show me CSPs."
+    )
+    assert at.session_state.get("interrupted") is True
+    assert at.selectbox(key="rv_level").value == "beginner"
+    assert any("Reading level: **beginner** (your request)" in c.value for c in at.caption)
+    at.selectbox(key="rv_level").set_value("advanced")
+    at.button(key="FormSubmitter:review-Confirm and run").click().run()
+    assert not at.exception, [e.message for e in at.exception]
+    assert any("Reading level: **advanced** (your profile)" in c.value for c in at.caption)
+    assert any(c.value.startswith("Advanced view:") for c in at.caption)

@@ -64,9 +64,9 @@ def retriever(tmp_path_factory: pytest.TempPathFactory) -> KnowledgeRetriever:
 # ------------------------------------------------------------------------------------ corpus
 
 
-def test_corpus_has_the_three_committed_collections(corpus: list[Document]) -> None:
+def test_corpus_has_the_five_committed_collections(corpus: list[Document]) -> None:
     kinds = {d.kind for d in corpus}
-    assert kinds == {"concepts", "rules", "filings"}
+    assert kinds == {"concepts", "basics", "tax", "rules", "filings"}
     ids = [d.id for d in corpus]
     assert len(ids) == len(set(ids))
 
@@ -90,13 +90,15 @@ def test_concept_docs_meet_the_prd_contract(corpus: list[Document]) -> None:
     assert required <= {d.id for d in concepts}
 
 
-def test_filings_are_demo_tickers_under_the_word_cap(corpus: list[Document]) -> None:
+def test_filings_cover_the_demo_tickers_under_the_word_cap(corpus: list[Document]) -> None:
     from options_scout.data.fixtures import DEMO_TICKERS
 
     found = {d.id for d in corpus if d.kind == "filings"}
-    assert found == {f"filing-{t.lower()}" for t in DEMO_TICKERS}
+    assert found >= {f"filing-{t.lower()}" for t in DEMO_TICKERS}
     for d in corpus:
         if d.kind == "filings":
+            assert re.fullmatch(r"filing-[a-z]+", d.id), d.id
+            assert d.level == "advanced", d.id
             assert d.word_count <= filings.MAX_WORDS, (d.id, d.word_count)
             assert d.url.startswith("https://www.sec.gov/Archives/edgar/data/")
 
@@ -289,11 +291,97 @@ def test_lexical_embedder_needs_a_shared_content_word(retriever: KnowledgeRetrie
 
 
 def test_kind_filter_is_respected(retriever: KnowledgeRetriever) -> None:
-    for kind in ("concepts", "rules", "filings"):
-        result = retriever.retrieve("volatility risk", kind=kind)  # type: ignore[arg-type]
-        assert not result.empty and all(h.chunk.kind == kind for h in result.hits)
+    queries = {
+        "concepts": "volatility risk",
+        "basics": "what is a stock",
+        "tax": "wash sale after assignment",
+        "rules": "volatility risk",
+        "filings": "volatility risk",
+    }
+    for kind, query in queries.items():
+        result = retriever.retrieve(query, kind=kind)  # type: ignore[arg-type]
+        assert not result.empty and all(h.chunk.kind == kind for h in result.hits), kind
         assert result.kind == kind
     assert retriever.retrieve("volatility", kind="evidence").empty  # nothing indexed yet
+
+
+def test_title_head_match_scores_the_subject_not_the_body() -> None:
+    from options_scout.rag.retriever import title_head, title_head_match
+
+    assert title_head("Cash-secured put (CSP): selling a put while holding the cash") == (
+        "Cash-secured put"
+    )
+    assert (
+        title_head("The wheel: cash-secured put, assignment, covered call, repeat") == "The wheel"
+    )
+    q = frozenset(tokenize("what is a cash-secured put"))
+    assert title_head_match("Cash-secured put (CSP): selling a put", q) == 1.0
+    assert title_head_match("The wheel: cash-secured put, assignment", q) == 0.0
+    assert title_head_match(
+        "Early assignment and dividends: when …", frozenset({"assignment"})
+    ) == (pytest.approx(1 / 3))
+    assert title_head_match("", q) == 0.0
+
+
+def test_definitional_questions_cite_the_named_document_first(
+    retriever: KnowledgeRetriever,
+) -> None:
+    """The Education agent quotes [S1]; a question that names a concept must get that concept's
+    own document first, not another document that discusses it (the title-head boost)."""
+    ambiguous = {  # these name two concepts; either document may lead
+        "what is extrinsic value of a LEAPS",
+        "how is the Reg T margin requirement for a naked put computed",
+    }
+    for question, doc_id in SAMPLE_QUESTIONS:
+        if doc_id.startswith(("rules-", "filing-")) or question in ambiguous:
+            continue
+        hits = retriever.retrieve(question).hits
+        assert hits and hits[0].chunk.doc_id == doc_id, (question, [h.chunk.id for h in hits])
+
+
+def test_max_level_filter_caps_the_reading_level(retriever: KnowledgeRetriever) -> None:
+    """A beginner cap never returns an advanced chunk; the result records the cap."""
+    for cap, allowed in (
+        ("beginner", {"beginner"}),
+        ("intermediate", {"beginner", "intermediate"}),
+    ):
+        result = retriever.retrieve("what is a cash-secured put", max_level=cap)  # type: ignore[arg-type]
+        assert result.max_level == cap
+        assert all(h.chunk.level in allowed for h in result.hits), [h.chunk.id for h in result.hits]
+    uncapped = retriever.retrieve("Reg T margin requirement for a naked put")
+    assert any(h.chunk.level == "advanced" for h in uncapped.hits)
+    capped = retriever.retrieve("Reg T margin requirement for a naked put", max_level="beginner")
+    assert all(h.chunk.level == "beginner" for h in capped.hits)
+
+
+def test_basics_and_tax_docs_meet_the_phase_12_contract(corpus: list[Document]) -> None:
+    """Phase 12 step 12.1: beginner basics and tax/account documents, each cited and levelled."""
+    basics = [d for d in corpus if d.kind == "basics"]
+    tax = [d for d in corpus if d.kind == "tax"]
+    assert len(basics) >= 25 and len(tax) >= 12, (len(basics), len(tax))
+    disclaimer = "This is education, not tax advice"
+    for d in basics + tax:
+        assert 300 <= d.word_count <= 800, (d.id, d.word_count)
+        assert d.url.startswith("http"), d.id
+        assert d.level in ("beginner", "intermediate", "advanced"), d.id
+        assert "Where this shows up in OptionsScout" in d.body, d.id
+        if d.kind == "tax":
+            assert disclaimer in d.body, d.id
+    assert (
+        sum(d.level == "beginner" for d in basics) >= len(basics) // 2
+    )  # basics are for beginners
+    required = {
+        "compound-growth",
+        "diversification",
+        "concentration-risk",
+        "risk-profiles",
+        "fire-and-safe-withdrawal",
+        "savings-rate",
+        "account-types-for-options",
+        "wash-sales-and-options",
+        "section-1256-contracts",
+    }
+    assert required <= {d.id for d in basics + tax}
 
 
 def test_top_k_and_citations(retriever: KnowledgeRetriever) -> None:
@@ -337,6 +425,26 @@ def test_item_1a_extraction_prefers_the_long_section() -> None:
         filings.extract_item_1a("Item 1A. Risk Factors\nshort\nItem 1B. Unresolved Staff Comments")
         is None
     )
+
+
+def test_item_1a_extraction_falls_back_to_a_bare_risk_factors_heading() -> None:
+    """McDonald's and Honeywell keep "Item 1A" only in a cross-reference index."""
+    body = " ".join(["Demand for our products may fall if consumer spending weakens."] * 40)
+    text = (
+        "Part I\n\nItem 1 Business\n\nPage 3\n\nItem 1A Risk Factors\n\nPage 27\n\n"
+        "Item 1B Unresolved Staff Comments Not applicable\n\nItem 1C Cybersecurity\n\nPage 40\n\n"
+        "Risk Factors\n\nCybersecurity\n\nLegal Proceedings\n\n"  # a second index, as MCD prints
+        "RISK FACTORS\n\nCautionary Statement\n\n"
+        f"Risk Factors\n\nOur business results are subject to a variety of risks. {body}\n\n"
+        "Unresolved Staff Comments\n\nNone.\n\nProperties\n\nWe own restaurants."
+    )
+    section = filings.extract_item_1a(text)
+    assert section is not None
+    # the last heading wins: not the index line, not the page banner above the cautionary note
+    assert section.startswith("Risk Factors\n\nOur business results")
+    assert "Unresolved Staff Comments" not in section and "Cautionary" not in section
+    # the same text with only the index line (no real section) still returns nothing
+    assert filings.extract_item_1a("Item 1A Risk Factors\n\nPage 27\n\nItem 1B") is None
 
 
 def test_truncate_words_keeps_the_budget_and_notes_it() -> None:

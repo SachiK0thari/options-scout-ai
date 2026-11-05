@@ -4,6 +4,7 @@ title: "Assignment: what happens when a short option is exercised against you"
 source: "OCC, Characteristics and Risks of Standardized Options, chapter VIII (Exercise and Assignment)"
 url: https://www.theocc.com/company-information/documents-and-archives/options-disclosure-document
 kind: concepts
+level: intermediate
 as_of: 2026-11-03
 ---
 

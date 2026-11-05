@@ -4,6 +4,7 @@ title: 'MICROSOFT CORP 10-K: Item 1A, Risk Factors (2026)'
 source: SEC EDGAR 10-K filed 2026-07-29
 url: https://www.sec.gov/Archives/edgar/data/789019/000119312526323660/msft-20260630.htm
 kind: filings
+level: advanced
 as_of: '2026-07-29'
 ---
 

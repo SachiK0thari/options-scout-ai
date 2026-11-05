@@ -4,6 +4,7 @@ title: "Earnings risk: why a scheduled announcement inside the option's life cha
 source: "OCC disclosure document chapter X; SEC EDGAR (Form 10-Q and 8-K filings announce results); PRD.md section 3.3"
 url: https://www.sec.gov/edgar/search/
 kind: concepts
+level: intermediate
 as_of: 2026-11-03
 ---
 

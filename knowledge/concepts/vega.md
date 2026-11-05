@@ -4,6 +4,7 @@ title: "Vega and implied volatility: why option prices move when the stock does 
 source: "Cboe Options Institute (the Greeks and implied volatility); OCC disclosure document chapter X"
 url: https://www.cboe.com/education/
 kind: concepts
+level: advanced
 as_of: 2026-11-03
 ---
 

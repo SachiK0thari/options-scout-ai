@@ -22,6 +22,7 @@ from options_scout.observability import timed_node
 NAME = "compliance_agent"
 
 _NEXT = {"explainer_node": "education_agent", "report_node": "report_node"}
+GOAL_WRITER = "goal_planning_agent"  # Phase 12: a goal turn's text is rewritten by its own agent
 
 
 def build_compliance_agent(deps: Deps) -> CompiledGraph:
@@ -40,6 +41,14 @@ def make_router(deps: Deps) -> Callable[[AgentState], str]:
 
     def route_after_compliance_agent(state: AgentState) -> str:
         nxt = _NEXT[node_router(state)]
+        if nxt == "education_agent" and state.get("intent") == "goal":
+            return GOAL_WRITER
+        if nxt == "education_agent" and state.get("intent") == "holdings":
+            return "portfolio_agent"  # its reply is deterministic; the retry budget still bounds it
+        if nxt == "education_agent" and state.get("intent") == "news":
+            return "news_desk_agent"
+        if nxt == "education_agent" and state.get("intent") == "tax":
+            return "tax_agent"
         if nxt == "report_node" and compliance.text_kind(state) == "answer":
             return END  # chat replies and concept answers have no report to assemble
         return nxt

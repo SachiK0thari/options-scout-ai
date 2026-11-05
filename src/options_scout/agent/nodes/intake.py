@@ -29,6 +29,8 @@ def profile_from_parse(
         data["strategies"] = set(parsed.strategies)
     if parsed.max_positions:
         data["max_positions"] = parsed.max_positions
+    if parsed.knowledge_level:
+        data["knowledge_level"] = parsed.knowledge_level
     for k, v in (override or {}).items():
         if v is not None:
             data[k] = v

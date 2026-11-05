@@ -21,10 +21,18 @@ from options_scout.core.models import (
     AllocationPlan,
     ChatTurn,
     Citation,
+    ClassifiedNews,
     ComplianceReport,
+    Goal,
+    GoalPlan,
+    Holding,
+    HoldingsAnalysis,
     Intent,
     MarketRegime,
     Narrative,
+    NewsBrief,
+    NewsFlag,
+    NewsItem,
     OptionCandidate,
     PMCCCandidate,
     ProfileParse,
@@ -34,6 +42,7 @@ from options_scout.core.models import (
     ScreeningReport,
     SizedPortfolio,
     SuitabilityFacts,
+    TaxFacts,
     TickerSnapshot,
     TokenUsage,
     TrendSignal,
@@ -60,6 +69,10 @@ class AgentState(TypedDict, total=False):
     handoff: dict[str, Any] | None  # a new/refined screen to start on a fresh thread
     what_if_profile: dict[str, Any] | None
     what_if_diff: list[str]
+    goal_text: str | None  # Phase 12 (12.3): the chat turn that states a goal
+    holdings_text: str | None  # Phase 12 (12.4): the chat turn that lists holdings
+    news_text: str | None  # Phase 12 (12.5): the chat turn that asks about news
+    tax_text: str | None  # Phase 12 (12.6): the chat turn that asks about tax or accounts
     # intake
     parsed: ProfileParse | None
     profile: UserProfile | None
@@ -76,9 +89,22 @@ class AgentState(TypedDict, total=False):
     candidates: Annotated[list[OptionCandidate], operator.add]
     pmcc_pairs: Annotated[list[PMCCCandidate], operator.add]
     ranked: list[RankedCandidate]
+    # News Desk (Phase 12, 12.5)
+    news_items: list[NewsItem]
+    news_classified: list[ClassifiedNews]
+    news_briefs: list[NewsBrief]
+    news_flags: list[NewsFlag]
     portfolio: SizedPortfolio | None
+    holdings: list[Holding]  # Phase 12 (12.4): what the user already owns
+    holdings_analysis: HoldingsAnalysis | None
     risk: RiskReport | None
     suitability_facts: SuitabilityFacts | None  # Phase 10: computed by Risk for Compliance
+    # Goal Planning (Phase 12, 12.3)
+    goal: Goal | None
+    goal_plan: GoalPlan | None
+    goal_clarification: str | None  # what the goal text did not state
+    # Tax & Accounts (Phase 12, 12.6)
+    tax_facts: TaxFacts | None
     # Education (Phase 10: retrieval + tagged narrative + concept answers)
     explain_payload: dict[str, Any] | None
     sources: list[Chunk]  # the [S1]…[Sn] chunks the narrative/answer may cite
@@ -124,6 +150,10 @@ class OrchestratorSlice(BaseModel):
     handoff: dict[str, Any] | None = None
     what_if_profile: dict[str, Any] | None = None
     what_if_diff: list[str] = Field(default_factory=list)
+    goal_text: str | None = None
+    holdings_text: str | None = None
+    news_text: str | None = None
+    tax_text: str | None = None
     parsed: ProfileParse | None = None
     profile: UserProfile | None = None
     profile_complete: bool = False
@@ -154,11 +184,22 @@ class StrategySlice(BaseModel):
     ranked: list[RankedCandidate] = Field(default_factory=list)
 
 
+class NewsDeskSlice(BaseModel):
+    """Owned by News Desk (Phase 12, #8): headlines, their labels, briefs and candidate flags."""
+
+    news_items: list[NewsItem] = Field(default_factory=list)
+    news_classified: list[ClassifiedNews] = Field(default_factory=list)
+    news_briefs: list[NewsBrief] = Field(default_factory=list)
+    news_flags: list[NewsFlag] = Field(default_factory=list)
+
+
 class PortfolioSlice(BaseModel):
     """Owned by Portfolio (#4): allocation and the sized portfolio."""
 
     allocation: AllocationPlan | None = None
     portfolio: SizedPortfolio | None = None
+    holdings: list[Holding] = Field(default_factory=list)
+    holdings_analysis: HoldingsAnalysis | None = None
 
 
 class RiskSlice(BaseModel):
@@ -166,6 +207,20 @@ class RiskSlice(BaseModel):
 
     risk: RiskReport | None = None
     suitability_facts: SuitabilityFacts | None = None
+
+
+class GoalPlanningSlice(BaseModel):
+    """Owned by Goal Planning (Phase 12, #7): the parsed goal and its deterministic plan."""
+
+    goal: Goal | None = None
+    goal_plan: GoalPlan | None = None
+    goal_clarification: str | None = None
+
+
+class TaxSlice(BaseModel):
+    """Owned by Tax & Accounts (Phase 12, #9): the illustrative facts a tax reply may quote."""
+
+    tax_facts: TaxFacts | None = None
 
 
 class EducationSlice(BaseModel):
@@ -212,8 +267,11 @@ SLICES: dict[str, type[BaseModel]] = {
     "market_intelligence_agent": MarketIntelligenceSlice,
     "market_data_agent": MarketDataSlice,
     "strategy_agent": StrategySlice,
+    "news_desk_agent": NewsDeskSlice,
     "portfolio_agent": PortfolioSlice,
     "risk_agent": RiskSlice,
+    "goal_planning_agent": GoalPlanningSlice,
+    "tax_agent": TaxSlice,
     "education_agent": EducationSlice,
     "compliance_agent": ComplianceSlice,
 }

@@ -4,6 +4,7 @@ title: "Gamma: how fast delta changes, and why short options get riskier near ex
 source: "Cboe Options Institute (the Greeks); OCC disclosure document chapter X"
 url: https://www.cboe.com/education/
 kind: concepts
+level: advanced
 as_of: 2026-11-03
 ---
 

@@ -139,12 +139,15 @@ class RunRegistry:
         profile: UserProfile | None = None,
         thread_id: str | None = None,
         market_data: MarketDataAuth | None = None,
+        holdings: list[Any] | None = None,
     ) -> str:
         thread_id = thread_id or uuid.uuid4().hex[:16]
         if thread_id in self.threads and self.threads[thread_id].is_alive():
             raise HTTPException(409, "thread is already running")
         graph = self.graph_for(market_data)
         state = initial_state(request_text, profile.model_dump(mode="json") if profile else None)
+        if holdings:
+            state["holdings"] = list(holdings)  # Phase 12: the seventh constraint applies
         self.events[thread_id] = []
         self.status[thread_id] = "running"
         t = threading.Thread(
@@ -285,6 +288,7 @@ def screen(req: ScreenRequest) -> ScreenResponse:
         profile=req.profile,
         thread_id=req.thread_id,
         market_data=req.market_data,
+        holdings=req.holdings,
     )
     return ScreenResponse(thread_id=thread_id, status="running")
 
@@ -293,7 +297,9 @@ def screen(req: ScreenRequest) -> ScreenResponse:
 def recommend(req: RecommendRequest) -> ScreenResponse:
     """Simple front door: buying power + strategy (+ optional market-data key) → run."""
     reg = registry()
-    thread_id = reg.start(profile=req.to_profile(), market_data=req.market_data)
+    thread_id = reg.start(
+        profile=req.to_profile(), market_data=req.market_data, holdings=req.holdings
+    )
     return ScreenResponse(thread_id=thread_id, status="running")
 
 
@@ -420,6 +426,7 @@ def thread_status(thread_id: str) -> ThreadStatus:
         has_report=values.get("report") is not None,
         interrupt=pending_interrupt(reg.graph, thread_id) if status == "interrupted" else None,
         related_threads=reg.session.related_threads(thread_id),
+        goal_plan=values.get("goal_plan"),
     )
 
 

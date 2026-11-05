@@ -30,7 +30,11 @@ from pydantic import BaseModel
 from options_scout.config import AppConfig, LLMMode, LLMProviderName, LLMProviderSettings
 from options_scout.core.models import (
     ExtractionBatch,
+    GoalParse,
+    HoldingsParse,
     Narrative,
+    NewsClassificationBatch,
+    NewsItem,
     ProfileParse,
     RouteDecision,
     SocialPost,
@@ -429,8 +433,14 @@ class LLMClient:
             posts=rendered,
         )
 
-    def explain(self, payload: dict[str, Any], sources: str = "") -> Narrative:
-        """Tagged paragraphs explaining a report; ``sources`` is the rendered ``[Sn]`` block."""
+    def explain(
+        self,
+        payload: dict[str, Any],
+        sources: str = "",
+        audience: str = "intermediate: define unusual terms on first use",
+    ) -> Narrative:
+        """Tagged paragraphs explaining a report; ``sources`` is the rendered ``[Sn]`` block and
+        ``audience`` the reader's level (Phase 12)."""
         return self._run(
             "explain_report",
             self.models.explanation_model,
@@ -438,10 +448,16 @@ class LLMClient:
             Narrative,
             payload=json.dumps(payload, indent=1, sort_keys=True, default=str),
             sources=sources or "(no sources retrieved)",
+            audience=audience,
         )
 
     def answer_concept(
-        self, question: str, sources: str, disclaimer: str, intent: str = "concept"
+        self,
+        question: str,
+        sources: str,
+        disclaimer: str,
+        intent: str = "concept",
+        audience: str = "intermediate: define unusual terms on first use",
     ) -> Narrative:
         """Cited answer to an education (``concept``) or run (``why``) question from sources."""
         return self._run(
@@ -453,6 +469,7 @@ class LLMClient:
             sources=sources or "(no sources retrieved)",
             disclaimer=disclaimer,
             intent=intent,
+            audience=audience,
         )
 
     def route_message(
@@ -467,6 +484,76 @@ class LLMClient:
             message=message,
             has_report="exists" if has_report else "does not exist yet",
             profile=profile,
+        )
+
+    def parse_goal(self, message: str, profile: str = "none") -> GoalParse:
+        """Goal Planning intake (Phase 12 step 12.3); the rule-based parser has the same schema."""
+        return self._run(
+            "parse_goal",
+            self.models.extraction_model,
+            self._prompt("parse_goal"),
+            GoalParse,
+            message=message,
+            profile=profile,
+        )
+
+    def explain_goal(self, payload: dict[str, Any], sources: str, disclaimer: str) -> Narrative:
+        """Tagged paragraphs explaining a computed ``GoalPlan`` (Phase 12 step 12.3)."""
+        return self._run(
+            "explain_goal",
+            self.models.explanation_model,
+            self._prompt("explain_goal"),
+            Narrative,
+            payload=json.dumps(payload, indent=1, sort_keys=True, default=str),
+            sources=sources or "(no sources retrieved)",
+            disclaimer=disclaimer,
+        )
+
+    def parse_holdings(self, message: str) -> HoldingsParse:
+        """Holdings intake (Phase 12 step 12.4); the rule-based parser has the same schema."""
+        return self._run(
+            "parse_holdings",
+            self.models.extraction_model,
+            self._prompt("parse_holdings"),
+            HoldingsParse,
+            message=message,
+        )
+
+    def classify_news(self, ticker: str, items: Sequence[NewsItem]) -> NewsClassificationBatch:
+        """News Desk labels (Phase 12 step 12.5); headlines are rendered as data."""
+        rendered = "\n".join(
+            f'<headline id="{n.id}" source="{n.source}" published="{n.published_at:%Y-%m-%d}">'
+            f"\n{n.title}\n</headline>"
+            for n in items
+        )
+        return self._run(
+            "classify_news",
+            self.models.extraction_model,
+            self._prompt("classify_news"),
+            NewsClassificationBatch,
+            ticker=ticker,
+            headlines=rendered,
+        )
+
+    def answer_tax(
+        self,
+        question: str,
+        sources: str,
+        facts: dict[str, Any],
+        disclaimer: str,
+        tax_disclaimer: str,
+    ) -> Narrative:
+        """Cited tax / account-type answer (Phase 12 step 12.6); illustrative facts are data."""
+        return self._run(
+            "answer_tax",
+            self.models.explanation_model,
+            self._prompt("answer_tax"),
+            Narrative,
+            question=question,
+            sources=sources or "(no sources retrieved)",
+            facts=json.dumps(facts, indent=1, sort_keys=True, default=str),
+            disclaimer=disclaimer,
+            tax_disclaimer=tax_disclaimer,
         )
 
     def judge(self, payload: dict[str, Any], narrative: str) -> JudgeScore:

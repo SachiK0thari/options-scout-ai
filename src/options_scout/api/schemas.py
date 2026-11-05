@@ -4,7 +4,15 @@ from typing import Any, Literal
 
 from pydantic import BaseModel, Field, PositiveFloat, SecretStr
 
-from options_scout.core.models import AccountType, ChatTurn, RiskProfile, UserProfile
+from options_scout.core.models import (
+    AccountType,
+    ChatTurn,
+    GoalPlan,
+    Holding,
+    KnowledgeLevel,
+    RiskProfile,
+    UserProfile,
+)
 
 
 class MarketDataAuth(BaseModel):
@@ -20,6 +28,7 @@ class ScreenRequest(BaseModel):
     profile: UserProfile | None = None
     thread_id: str | None = Field(default=None, max_length=64, pattern=r"^[A-Za-z0-9_\-]*$")
     market_data: MarketDataAuth | None = None  # omit → server default (fixture or configured)
+    holdings: list[Holding] = Field(default_factory=list, max_length=200)  # Phase 12 (12.4)
 
 
 class RecommendRequest(BaseModel):
@@ -34,6 +43,8 @@ class RecommendRequest(BaseModel):
     max_positions: int = Field(default=6, ge=1, le=20)
     pmcc: bool = False
     market_data: MarketDataAuth | None = None
+    holdings: list[Holding] = Field(default_factory=list, max_length=200)  # Phase 12 (12.4)
+    knowledge_level: KnowledgeLevel | None = None  # Phase 12 (12.7): beginner … advanced
 
     def to_profile(self) -> UserProfile:
         strategies = {"csp": {"csp"}, "leaps": {"leaps"}, "both": {"csp", "leaps"}}[self.strategy]
@@ -48,6 +59,7 @@ class RecommendRequest(BaseModel):
             watchlist=self.watchlist,
             exclude=self.exclude,
             max_positions=self.max_positions,
+            knowledge_level=self.knowledge_level,
         )
 
 
@@ -105,3 +117,4 @@ class ThreadStatus(BaseModel):
     has_report: bool
     interrupt: dict[str, Any] | None
     related_threads: list[str]
+    goal_plan: GoalPlan | None = None  # Phase 12: the thread's latest computed goal plan

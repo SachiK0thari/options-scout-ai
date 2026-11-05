@@ -35,6 +35,9 @@ CHECKS = [
     "check_disclaimer",
     "check_sources_fresh",
     "check_no_pii",
+    "goal_narrative",  # Phase 12 check 9 (trivially passing on a report)
+    "news_grounding",  # Phase 12 check 10 (trivially passing without headlines)
+    "tax_reply",  # Phase 12 check 11 (trivially passing without a tax reply)
 ]
 
 
@@ -93,7 +96,7 @@ def test_report_retries_then_falls_back_and_rechecks(
 ) -> None:
     calls = {"n": 0}
 
-    def advice(payload: dict[str, Any], sources: str = "") -> Narrative:
+    def advice(payload: dict[str, Any], sources: str = "", audience: str = "") -> Narrative:
         calls["n"] += 1
         return Narrative(
             paragraphs=[

@@ -4,6 +4,7 @@ title: "Regulation T and the margin requirement for an uncovered short put"
 source: "Federal Reserve Regulation T, 12 CFR Part 220; FINRA Rule 4210(f)(2)(D)"
 url: https://www.ecfr.gov/current/title-12/chapter-II/subchapter-A/part-220
 kind: concepts
+level: advanced
 as_of: 2026-11-03
 ---
 

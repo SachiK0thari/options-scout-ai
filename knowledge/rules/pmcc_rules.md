@@ -4,6 +4,7 @@ title: 'Rule 3.5: PMCC short call rules'
 source: PRD.md section 3.5 and config/screener_rules.yaml
 url: PRD.md#35-pmcc-short-call-rules
 kind: rules
+level: intermediate
 as_of: '2026-11-03'
 ---
 

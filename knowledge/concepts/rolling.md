@@ -4,6 +4,7 @@ title: "Rolling and closing: the management rules this app flags for short puts 
 source: "OCC disclosure document chapter X; Cboe Options Institute; PRD.md section 3.4 and stretch goals"
 url: https://www.cboe.com/education/
 kind: concepts
+level: intermediate
 as_of: 2026-11-03
 ---
 

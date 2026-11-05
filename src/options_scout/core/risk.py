@@ -9,6 +9,7 @@ from options_scout.config import Constraints
 from options_scout.core import pricing
 from options_scout.core.models import (
     ConstraintCheck,
+    HoldingsAnalysis,
     OptionCandidate,
     RiskReport,
     SizedPortfolio,
@@ -20,7 +21,10 @@ from options_scout.core.models import (
 
 
 def check_constraints(
-    portfolio: SizedPortfolio, profile: UserProfile, limits: Constraints
+    portfolio: SizedPortfolio,
+    profile: UserProfile,
+    limits: Constraints,
+    holdings: HoldingsAnalysis | None = None,
 ) -> list[ConstraintCheck]:
     av = profile.account_value
     t = portfolio.totals
@@ -73,6 +77,30 @@ def check_constraints(
         limits.max_dollar_delta_x,
         f"net dollar delta ${t.dollar_delta:,.0f}",
     )
+    if holdings is not None and holdings.positions:  # seventh constraint (Phase 12)
+        # judged on the tickers the sizer put a cash-secured put on: a concentration the user
+        # already holds is reported as a warning by build_risk_report, not failed here
+        base = holdings.total_value + profile.buying_power
+        held = {p.ticker: p.market_value for p in holdings.positions}
+        after: dict[str, float] = {}
+        for p in portfolio.positions:
+            if p.strategy == "csp":
+                after[p.ticker] = after.get(p.ticker, held.get(p.ticker, 0.0)) + p.notional
+        if after:
+            worst_c = max(after.items(), key=lambda kv: kv[1])
+            detail = (
+                f"{worst_c[0]} would be ${worst_c[1]:,.0f} of ${base:,.0f} (holdings + buying "
+                "power) if every put on it were assigned"
+            )
+            value = worst_c[1] / base if base > 0 else 0.0
+        else:
+            detail, value = "no cash-secured put on a ticker; nothing to assign", 0.0
+        add(
+            "ticker_concentration_after_assignment",
+            value,
+            limits.max_ticker_concentration_after_assignment,
+            detail,
+        )
     return checks
 
 
@@ -127,9 +155,19 @@ def build_risk_report(
     limits: Constraints,
     stress: Sequence[StressResult],
     candidates: Mapping[str, OptionCandidate],
+    holdings: HoldingsAnalysis | None = None,
 ) -> RiskReport:
-    checks = check_constraints(portfolio, profile, limits)
+    checks = check_constraints(portfolio, profile, limits, holdings)
     warnings: list[str] = []
+    if holdings is not None and holdings.positions:
+        base = holdings.total_value + profile.buying_power
+        cap = limits.max_ticker_concentration_after_assignment
+        for hp in holdings.positions:
+            if base > 0 and hp.market_value / base > cap:
+                warnings.append(
+                    f"{hp.ticker} is already {hp.market_value / base:.0%} of holdings plus buying "
+                    f"power, above the {cap:.0%} concentration cap; no put on it was sized"
+                )
     if profile.account_type != "cash" and portfolio.totals.margin_used > 0:
         warnings.append(
             f"Margin account: Reg T requirement is ${portfolio.totals.margin_used:,.0f} but the "

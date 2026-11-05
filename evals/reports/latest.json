@@ -2,7 +2,7 @@
  {
   "section": "11.1 Deterministic",
   "name": "Golden-value + property tests (tests/unit)",
-  "value": "263 passed",
+  "value": "268 passed",
   "target": "all pass",
   "status": "PASS",
   "detail": ""
@@ -10,18 +10,18 @@
  {
   "section": "Quality",
   "name": "Offline test suite (unit + agent + API + UI + MCP)",
-  "value": "346 passed",
+  "value": "351 passed",
   "target": "all pass",
   "status": "PASS",
-  "detail": "135s"
+  "detail": "151s"
  },
  {
   "section": "Quality",
   "name": "Line coverage on core/, rag/, agent/ (pytest --cov, same run)",
-  "value": "94.7%",
+  "value": "88.6%",
   "target": "\u2265 85%",
   "status": "PASS",
-  "detail": "whole package 89.8%"
+  "detail": "whole package 85.8%"
  },
  {
   "section": "11.2 Entity extraction",
@@ -42,15 +42,15 @@
  {
   "section": "11.2 Entity extraction",
   "name": "F1 on 150 labeled posts (LLM deepseek/deepseek-v4.1-flash)",
-  "value": "P 0.71 / R 0.95 / F1 0.81",
+  "value": "P 0.72 / R 0.95 / F1 0.82",
   "target": "F1 \u2265 0.80",
   "status": "PASS",
-  "detail": "tp=170 fp=70 fn=9"
+  "detail": "tp=170 fp=66 fn=9"
  },
  {
   "section": "11.2 Entity extraction",
   "name": "is_stock_talk accuracy (LLM deepseek/deepseek-v4.1-flash)",
-  "value": "0.96",
+  "value": "0.97",
   "target": "report",
   "status": "INFO",
   "detail": "n=170"
@@ -170,7 +170,7 @@
  {
   "section": "11.3 Agent",
   "name": "Latency per run (fixture mode)",
-  "value": "mean 0.97s \u00b7 p95 2.66s",
+  "value": "mean 1.08s \u00b7 p95 3.07s",
   "target": "report",
   "status": "INFO",
   "detail": ""
@@ -225,11 +225,11 @@
  },
  {
   "section": "11.3a Retrieval",
-  "name": "Retrieval quality: recall@6 on 40 labelled questions (hash embedder, CI default)",
-  "value": "0.82 (33/40) \u00b7 MRR 0.69",
+  "name": "Retrieval quality: recall@6 on 60 labelled questions (hash embedder, CI default)",
+  "value": "0.83 (50/60) \u00b7 MRR 0.60",
   "target": "recall@6 \u2265 0.70",
   "status": "PASS",
-  "detail": "document-level recall 37/40; chunk misses: rag-07, rag-08, rag-16, rag-25, rag-26, rag-27, rag-30"
+  "detail": "document-level recall 53/60; chunk misses: rag-05, rag-07, rag-11, rag-16, rag-23, rag-25, rag-26, rag-27, rag-30, rag-58"
  },
  {
   "section": "11.3a Retrieval",
@@ -242,23 +242,23 @@
  {
   "section": "11.3a Citations",
   "name": "Citation faithfulness: cited [Sn] tags that exist in the retrieved set (rule-based answerer)",
-  "value": "73/73",
+  "value": "103/103",
   "target": "100%",
   "status": "PASS",
-  "detail": "over 40 answers"
+  "detail": "over 60 answers"
  },
  {
   "section": "11.3a Citations",
   "name": "Citation faithfulness: education paragraphs carrying a citation (rule-based answerer)",
-  "value": "73/73",
+  "value": "103/103",
   "target": "100%",
   "status": "PASS",
   "detail": ""
  },
  {
   "section": "11.3a Citations",
-  "name": "Answers to the 40 questions passing Compliance",
-  "value": "40/40",
+  "name": "Answers to the 60 questions passing Compliance",
+  "value": "60/60",
   "target": "100%",
   "status": "PASS",
   "detail": "0 answered with the no-source sentence"
@@ -274,10 +274,10 @@
  {
   "section": "11.3a Refusal",
   "name": "Unsupported-question refusal: fixed no-source sentence, no speculation (hash embedder, rule-based answerer)",
-  "value": "13/15",
+  "value": "12/15",
   "target": "100% (LLM answerer); report (rule-based)",
   "status": "INFO",
-  "detail": "uns-04 (which stock should I buy right now) quoted liquidity, vega; uns-14 (how are option gains taxed) quoted rolling, theta"
+  "detail": "uns-04 (which stock should I buy right now) quoted collar, liquidity, vega; uns-09 (write me a poem about puts) quoted diversification, options-approval-levels, vertical-spreads; uns-11 (what is a mortgage rate lock) quoted filing-hon, savings-rate"
  },
  {
   "section": "11.3a Refusal",

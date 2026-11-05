@@ -33,6 +33,7 @@ PROFILE_KEYS = (
     "watchlist",
     "exclude",
     "max_positions",
+    "knowledge_level",  # Phase 12
 )
 
 
@@ -115,6 +116,14 @@ def make(deps: Deps) -> Callable[[AgentState], dict[str, Any]]:
         }
         if intent in ("concept", "why"):
             out["question"] = decision.question or message
+        elif intent == "goal":
+            out["goal_text"] = message
+        elif intent == "holdings":
+            out["holdings_text"] = message
+        elif intent == "news":
+            out["news_text"] = message
+        elif intent == "tax":
+            out["tax_text"] = message
         elif intent == "what_if":
             proposed = apply_changes(profile, decision.profile_changes)
             try:
@@ -152,4 +161,4 @@ def route_after_route(state: AgentState) -> str:
         return "what_if_node"
     if intent == "off_topic":
         return "redirect_node"
-    return "__end__"  # concept / why: the Education agent takes over
+    return "__end__"  # concept / why / goal / holdings: another specialist takes over

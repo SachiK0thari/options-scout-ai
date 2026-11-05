@@ -15,8 +15,8 @@ from typing import Any
 
 from options_scout.agent.deps import Deps
 from options_scout.agent.state import AgentState
-from options_scout.core.models import ScreeningReport
-from options_scout.rag.models import Chunk, Kind, RetrievalResult
+from options_scout.core.models import ScreeningReport, UserProfile
+from options_scout.rag.models import Chunk, Kind, Level, RetrievalResult, level_rank
 from options_scout.rag.retriever import KnowledgeRetriever
 
 RUN_FACTS_TITLE = "This run's screen"
@@ -83,6 +83,59 @@ def report_queries(payload: dict[str, Any]) -> list[str]:
     return _dedupe(queries)
 
 
+AUDIENCE = {
+    "beginner": (
+        "beginner: define every options term on first use, give each Greek's plain meaning before "
+        "its name, and keep sentences short"
+    ),
+    "intermediate": "intermediate: define unusual terms on first use",
+    "advanced": "advanced: be concise; standard options vocabulary needs no definition",
+}
+
+
+def level_cap(profile: UserProfile | None) -> Level | None:
+    """Reading-level cap for retrieval (Phase 12): a beginner is never shown an advanced document
+    first; others see everything. The cap is a preference (see ``retrieve_capped``)."""
+    if profile is not None and profile.knowledge_level == "beginner":
+        return "intermediate"
+    return None
+
+
+def audience_for(profile: UserProfile | None) -> str:
+    level = (profile.knowledge_level if profile is not None else None) or "intermediate"
+    return AUDIENCE[level]
+
+
+def retrieve_capped(
+    retriever: KnowledgeRetriever,
+    query: str,
+    *,
+    kind: Kind | None = None,
+    top_k: int | None = None,
+    max_level: Level | None = None,
+) -> RetrievalResult:
+    """``retrieve`` under a reading-level cap that is a preference, not a wall.
+
+    Documents at or under the cap lead. When the best match in the whole corpus is written above
+    the cap (the question is about an advanced topic: "what is gamma" from a beginner), the
+    above-cap hits follow them in up to half of the slots, so a beginner is never shown an advanced
+    document first and is never answered from the wrong document, or refused, when the right one
+    exists.
+    """
+    if max_level is None:
+        return retriever.retrieve(query, kind=kind, top_k=top_k)
+    capped = retriever.retrieve(query, kind=kind, top_k=top_k, max_level=max_level)
+    full = retriever.retrieve(query, kind=kind, top_k=top_k)
+    cap = level_rank(max_level)
+    if full.empty or level_rank(full.hits[0].chunk.level) <= cap:
+        return capped  # the best match is already within the reader's level
+    k = top_k or retriever.cfg.top_k
+    above = [h for h in full.hits if level_rank(h.chunk.level) > cap][: max((k + 1) // 2, 1)]
+    merged = [*capped.hits[: k - len(above)], *above]
+    hits = [h.model_copy(update={"rank": rank}) for rank, h in enumerate(merged, start=1)]
+    return capped.model_copy(update={"hits": hits})
+
+
 def select_sources(
     retriever: KnowledgeRetriever,
     queries: list[str],
@@ -90,6 +143,7 @@ def select_sources(
     limit: int,
     kinds: tuple[Kind | None, ...] = (None,),
     lead_chunk: bool = True,
+    max_level: Level | None = None,
 ) -> tuple[list[Chunk], list[RetrievalResult]]:
     """One source per query, one per document, in query order, up to ``limit``.
 
@@ -101,7 +155,7 @@ def select_sources(
     log: list[RetrievalResult] = []
     for query in queries:
         for kind in kinds:
-            result = retriever.retrieve(query, kind=kind, top_k=3)
+            result = retrieve_capped(retriever, query, kind=kind, top_k=3, max_level=max_level)
             log.append(result)
             for hit in result.hits:
                 if hit.chunk.doc_id in seen_docs:
@@ -182,15 +236,16 @@ def make(deps: Deps) -> Callable[[AgentState], dict[str, Any]]:
         retriever = deps.knowledge()
         question = (state.get("question") or "").strip()
         errors: list[str] = []
+        cap = level_cap(state.get("profile"))
         if question:
-            result = retriever.retrieve(question)
+            result = retrieve_capped(retriever, question, max_level=cap)
             log = [result]
             chunks = [h.chunk for h in result.hits]
             rep = state.get("report")
             if state.get("intent") == "why" and rep is not None:
                 chunks.insert(0, run_facts_chunk(rep))  # S1: the facts the question is about
                 rules, rule_log = select_sources(
-                    retriever, why_rule_queries(question, rep), limit=2
+                    retriever, why_rule_queries(question, rep), limit=2, max_level=cap
                 )
                 log.extend(rule_log)
                 chunks.extend(c for c in rules if c.doc_id not in {x.doc_id for x in chunks})
@@ -211,7 +266,7 @@ def make(deps: Deps) -> Callable[[AgentState], dict[str, Any]]:
                 state, deps.cfg.settings.disclaimer, loss_drop=deps.cfg.risk.realistic_loss_drop
             )
         chunks, log = select_sources(
-            retriever, report_queries(payload), limit=deps.cfg.rag.report_sources
+            retriever, report_queries(payload), limit=deps.cfg.rag.report_sources, max_level=cap
         )
         if not chunks:
             errors.append("knowledge_retrieval: no sources retrieved; narrative will be uncited")

@@ -4,6 +4,7 @@ title: "LEAPS: long-dated call options as a leveraged stand-in for owning shares
 source: "Cboe Options Institute; OCC disclosure document chapter III; PRD.md section 3.4"
 url: https://www.cboe.com/education/
 kind: concepts
+level: intermediate
 as_of: 2026-11-03
 ---
 
