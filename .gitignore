@@ -23,9 +23,9 @@ data/knowledge.sqlite
 .idea/
 .vscode/
 
-# private planning material (not part of the repo)
+# private planning material (not part of the repo): the brief and the phase plan written against it
 miscellaneous/
 docs/capstone-plan.md
-docs/architecture.md
-docs/compliance.md
-docs/rag.md
+
+# the exported pin list is tracked even if a global ignore excludes *.txt
+!requirements.txt

@@ -3,7 +3,7 @@ name = "options-scout-ai"
 version = "0.1.0"
 description = "Multi-agent LangGraph screener for cash-secured puts, LEAPS and PMCCs with a consumer-trend signal. Educational tool, not investment advice."
 readme = "README.md"
-requires-python = ">=3.11"
+requires-python = ">=3.12"
 license = { text = "MIT" }
 dependencies = [
     "langgraph==1.2.18",
@@ -71,7 +71,7 @@ packages = ["src/options_scout"]
 
 [tool.ruff]
 line-length = 100
-target-version = "py311"
+target-version = "py311"  # lint style only; py312 would rewrite TypeAlias/TypeVar code to PEP 695 syntax
 src = ["src", "tests"]
 
 [tool.ruff.lint]
@@ -88,7 +88,7 @@ ignore = ["RUF012", "B008", "RUF001", "RUF002", "RUF003", "SIM108", "N803", "N80
 "notebooks/**" = ["E501"]
 
 [tool.mypy]
-python_version = "3.11"
+python_version = "3.12"
 strict = true
 warn_unreachable = true
 mypy_path = "src"

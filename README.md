@@ -1,16 +1,16 @@
 # OptionsScout AI
 
 [![CI](https://github.com/SachiK0thari/options-scout-ai/actions/workflows/ci.yml/badge.svg)](https://github.com/SachiK0thari/options-scout-ai/actions/workflows/ci.yml)
-[![coverage](https://img.shields.io/badge/coverage-94.7%25_on_core%2C_rag%2C_agent-brightgreen)](evals/reports/latest.md)
+[![coverage](https://img.shields.io/badge/coverage-94.6%25_on_core%2C_rag%2C_agent-brightgreen)](evals/reports/latest.md)
 [![licence](https://img.shields.io/badge/licence-MIT-blue)](LICENSE)
 
-**Nine specialist agents and a Compliance agent, composed as LangGraph subgraphs, screen cash-secured puts and LEAPS on good-to-own stocks, size them to your buying power under explicit risk limits, and explain the result in a chat where every sentence is cited from a knowledge base and checked before you see it.** Market Data, Market Intelligence, Strategy, Portfolio and Risk compute every number in tested Python; the Education agent writes only from those numbers and from retrieved, cited sources; the Compliance agent runs eight deterministic checks (grounded numbers, resolving citations, no advice language, suitability for the account, disclaimer) on every LLM-written string and is the only path to the user. You can describe your situation in plain English, confirm the parsed profile, ask *why was Nike excluded*, *what is assignment* or *what if I only had 30k*, and get a compliance-checked, cited answer each time. The same engine is exposed as an MCP server for Claude Desktop.
+**Nine specialist agents and a Compliance agent, composed as LangGraph subgraphs, screen cash-secured puts and LEAPS on good-to-own stocks, size them to your buying power under explicit risk limits, and explain the result in a chat where every sentence is cited from a knowledge base and checked before you see it.** Market Data, Market Intelligence, Strategy, Portfolio and Risk compute every number in tested Python; the Education agent writes only from those numbers and from retrieved, cited sources; the Compliance agent runs eleven deterministic checks (grounded numbers, resolving citations, no advice language, suitability for the account, disclaimer, and the goal, news and tax rules) on every LLM-written string and is the only path to the user. You can describe your situation in plain English, confirm the parsed profile, ask *why was Nike excluded*, *what is assignment*, *could this account make $400 a month*, *what happens to my taxes if I get assigned*, *any news on COST* or *what if I only had 30k*, and get a compliance-checked, cited answer each time. The same engine is exposed as an MCP server for Claude Desktop.
 
 > Educational screening tool. Not investment, tax or legal advice. Options involve significant risk, including loss exceeding the premium received on margin. Data may be delayed or inaccurate. The app never places trades and never connects to a brokerage.
 
-Data handling (market data, Reddit, X, keys, logs): [PRIVACY.md](PRIVACY.md). Licence: [MIT](LICENSE). How the rubric lines map to features and tests: [PRD.md section 18](PRD.md#18-rubric-map-read-side-by-side-with-the-brief).
+Data handling (market data, Reddit, X, keys, logs): [PRIVACY.md](PRIVACY.md). Licence: [MIT](LICENSE). How the capstone brief's six agents, prescribed layout and technology list map onto this repository: [docs/brief-mapping.md](docs/brief-mapping.md); how each rubric line maps to a feature and a test: [PRD.md section 18](PRD.md#18-rubric-map-read-side-by-side-with-the-brief).
 
-_Demo GIF: not recorded yet ([script](docs/demo-video-script.md)). `make demo` prints the full report in about a second; `make ui` opens the nine-tab app (screenshots below)._
+_Demo video and GIF: not recorded yet (step 12.10; the scene-by-scene [script](docs/demo-video-script.md) covers the conversation, holdings, live data, goals, news, tax and the compliance proof). `make demo` prints the full report in about a second; `make ui` opens the nine-tab app (screenshots below)._
 
 ## The screen in one paragraph
 
@@ -22,7 +22,7 @@ The universe is a **curated list of ~30 good-to-own names** (large, profitable c
 
 ```bash
 git clone https://github.com/SachiK0thari/options-scout-ai.git && cd options-scout-ai
-make install          # uv venv + pinned deps (Python 3.11+), installs the [dev,mcp] extras
+make install          # uv venv + pinned deps (Python 3.12), installs the [dev,mcp] extras
 make index            # build the cited knowledge base (data/knowledge.sqlite) offline, < 1 s
 make demo             # full agent run on bundled market + social fixtures, prints a Markdown report
 make demo ARGS="--strategy csp --account cash --risk conservative --buying-power 50000"
@@ -34,7 +34,10 @@ make api              # FastAPI on :8000  (POST /v1/recommend → GET /v1/runs/{
 make mcp              # MCP server over stdio: the ten tools + knowledge:// resources for Claude Desktop
 make test lint eval   # offline tests, ruff + mypy --strict, evaluation suite → evals/reports/latest.md
 make test-cov         # the tests with coverage; fails below 85% on core/, rag/, agent/
+make bench            # performance benchmarks (latency per agent, cache hits, retrieval) → evals/reports/bench.md
 ```
+
+Without `uv`: `python3.12 -m venv .venv && .venv/bin/pip install -r requirements.txt && .venv/bin/pip install -e .` installs the same pinned set ([`requirements.txt`](requirements.txt) is exported from `pyproject.toml` by `make requirements`; the pins need Python 3.12).
 
 Everything above runs offline: market data comes from fixtures recorded live on 2026-10-27 for ten tickers, the social corpus is a deterministic synthetic Reddit/X/Wikipedia/Google Trends/news bundle, the knowledge base is indexed with a deterministic hash embedder, and LLM calls are replayed or replaced by rule-based stand-ins. Set `OPTIONS_SCOUT_DATA_MODE=live` and `OPTIONS_SCOUT_LLM_MODE=live` in `.env` to use real sources; the LLM provider is `llm.provider` in `config/settings.yaml` (default `openrouter` → DeepSeek V4.1 Flash with `OPENROUTER_API_KEY`; `anthropic` → Claude with `ANTHROPIC_API_KEY`). `pip install -e ".[rag]"` and `OPTIONS_SCOUT_RAG_EMBEDDER=fastembed` switch the knowledge base to semantic embeddings.
 
@@ -61,7 +64,7 @@ The second signal follows the ten-step method in [bottleneck-arbitrage.md](bottl
 
 | Tab | What it shows | Screenshot |
 |---|---|---|
-| **Scout** | The conversation. Describe your situation; the Orchestrator parses it and renders the profile-confirmation interrupt as an editable form; progress streams per node; follow-ups (*what is …*, *why was … excluded*, *what if …*) are routed by intent. Every assistant turn carries a **Compliance ✓** badge listing the eight checks it passed. | [scout.png](docs/screenshots/scout.png) |
+| **Scout** | The conversation. Describe your situation; the Orchestrator parses it and renders the profile-confirmation interrupt as an editable form; progress streams per node; follow-ups (*what is …*, *why was … excluded*, *what if …*) are routed by intent. Every assistant turn carries a **Compliance ✓** badge listing the eleven checks it passed. | [scout.png](docs/screenshots/scout.png) |
 | **Setup** | The form for users who prefer not to chat: buying power, strategy, more options (including **your options experience**: beginner, intermediate or advanced; Phase 12), data source / API key (used for the run only, never stored). | [setup.png](docs/screenshots/setup.png) |
 | **Quality Screen** | The **market overview strip** (Phase 12: SPY and QQQ with the change against the previous close, the VIX with its percentile and regime label, the 13-week T-bill rate, the data provider and the **data age**: "fixture, recorded 2026-10-27" offline, "delayed quotes, fetched 14:02 UTC (12 min ago)" live). Then the stocks that passed the good-to-own gate with their quality score, the excluded list with reasons, the gate thresholds, and a pass/fail quality bar chart. | [quality.png](docs/screenshots/quality.png) |
 | **Candidates** | The market overview strip again, then CSP and/or LEAPS tables (only the requested strategies) that follow the profile's knowledge level (Phase 12): a beginner sees the plain-language columns, an intermediate reader adds delta, open interest and the screener flags, an advanced reader adds implied volatility, gamma, theta, vega and the spread. Every header has a **glossary tooltip** (a one-sentence definition tied to its knowledge document) and *What do these columns mean?* opens that document on the Learn tab. Plus a "show the full math" expander, a delta-vs-annualized-return scatter and a per-ticker strike ladder. | [candidates.png](docs/screenshots/candidates.png) |
@@ -103,9 +106,19 @@ flowchart TD
     CP -->|pass, answer| A[chat reply / concept answer]
 ```
 
-How the capstone brief's six agents map onto these specialists (full table in `docs/brief-mapping.md`, step 12.9): Finance Q&A → **Education**; Portfolio Analysis → **Portfolio** + **Risk**; Market Analysis → **Market Data** + **Market Intelligence**; Goal Planning → **Goal Planning** (Phase 12); News Synthesizer → **News Desk** (Phase 12); Tax Education → **Tax & Accounts** (Phase 12).
+How the capstone brief's six agents map onto these specialists (the full crosswalk, including the prescribed layout and technology choices, is [docs/brief-mapping.md](docs/brief-mapping.md)):
 
-Market Intelligence runs before Market Data because the universe node orders the curated list by trend score. Inside the specialists the nodes are the Phase 9 nodes, unchanged: `route_node → intake_node (→ human_review) → trend_scout_node → evidence_retrieval_node → regime_node → universe_node → market_data_node×N → screener_node → ranker_node → allocator_node → sizing_node → risk_node → knowledge_retrieval_node → explainer_node → compliance_node → audit_node → report_node`.
+| Brief agent | OptionsScout specialist(s) | File | Reached by |
+|---|---|---|---|
+| Finance Q&A Agent | **Education**: cited concept answers, report narratives, the learning path | `agent/agents/education.py` | `concept` / `why`, Learn tab, MCP `explain_term` |
+| Portfolio Analysis Agent | **Portfolio** (holdings analysis, allocation, sizing) + **Risk** (constraints, stress, suitability facts) | `agent/agents/portfolio.py`, `risk.py` | `holdings`, Portfolio & Risk tab, MCP `analyze_holdings` |
+| Market Analysis Agent | **Market Data** (quotes, chains, quality gate, regime, market strip) + **Market Intelligence** (consumer-trend board; Phase 11 bottleneck board) | `agent/agents/market_data.py`, `market_intelligence.py` | every screen, Quality Screen and Trends & News tabs |
+| Goal Planning Agent | **Goal Planning** (income, growth and FIRE goals against the screened yield under the risk profile's cap) | `agent/agents/goal_planning.py` | `goal`, Goals tab, MCP `plan_goal` |
+| News Synthesizer Agent | **News Desk** (Alpha Vantage headlines labelled for a short-option holder, calendar flags) | `agent/agents/news_desk.py` | `news`, every screen, Trends & News tab, MCP `news_brief` |
+| Tax Education Agent | **Tax & Accounts** (cited tax mechanics and account types, illustrated with a screened put) | `agent/agents/tax.py` | `tax`, Learn tab, MCP `explain_tax_term` |
+| (not in the brief) | **Orchestrator**, **Strategy**, **Compliance** | `orchestrator.py`, `strategy.py`, `compliance.py` | every turn |
+
+Market Intelligence runs before Market Data because the universe node orders the curated list by trend score; News Desk runs after Strategy because its calendar flags attach to candidates; Goal Planning runs after Risk because it needs the sized portfolio's yield. A screen visits the nodes in this order: `route_node → intake_node (→ human_review) → trend_scout_node → evidence_retrieval_node → regime_node → universe_node → market_data_node×N → screener_node → ranker_node → news_fetch_node → news_classify_node → news_brief_node → allocator_node (→ holdings_analysis_node) → sizing_node → risk_node (→ goal_intake_node → goal_math_node → goal_explainer_node) → knowledge_retrieval_node → explainer_node → compliance_node → audit_node → report_node`. The chat-only nodes (`what_if_node`, `redirect_node`, `concept_answer_node`, the holdings, tax and goal intake and reply nodes) run on their intents.
 
 LangGraph features used: typed `StateGraph` with reducers, **subgraphs** (one compiled graph per specialist, each testable standalone; the parent applies each subgraph's state delta so reducers run once), **conditional routing by intent** after the Orchestrator, `Send` map-reduce over tickers inside the Market Data agent, `interrupt()` + `Command(resume=…)` for human-in-the-loop profile confirmation, SQLite checkpointing on the parent (resumable threads, one per conversation), two bounded retry loops between agents (Portfolio ↔ Risk, Education ↔ Compliance), node- and agent-level streamed updates to the UI/API, per-agent timing in every report, and graceful degradation when a source fails.
 
@@ -120,9 +133,9 @@ Educational claims must be traceable to a source the user can read, so the Educa
 | `tax/` | 14 docs on tax mechanics and account types for a CSP, LEAPS or PMCC writer: premium taxation, assignment basis, wash sales, LEAPS holding period, exercise vs sale, qualified covered calls, Section 1256 (and why SPY/QQQ options are not), 1099-B and 8949, short vs long term, cash/margin/IRA accounts, options in an IRA, early withdrawal, Reg T vs portfolio margin, pattern day trading | written here; each cites IRS Pub 550, Tax Topics, the statute or FINRA, and carries the *education, not tax advice* sentence |
 | `rules/` | ten rule documents with the exact thresholds in force: the seven screening rules (PRD §3.1–3.7) and the goal feasibility, news flag and holdings concentration rules (§3.8–3.10) | generated from `PRD.md` + `config/*.yaml` by `scripts/build_rules_docs.py` (`make index`); a test fails if the committed copy is stale |
 | `filings/` | SEC 10-K *Item 1A Risk Factors* excerpts (≤ 3,000 words) for 33 names of the good-to-own universe; prospectus *Principal Risks* for SPY/QQQ | `scripts/fetch_filings.py` via EDGAR (public domain); a bare *Risk Factors* heading (MCD, HON) and a predecessor registrant (XOM) are handled |
+| run evidence | the trend scout's evidence posts for the current run | indexed in memory per thread by Market Intelligence, so *why* answers cite the actual posts |
 
 Every document carries a reading `level` (beginner, intermediate, advanced) in its front-matter; the retriever's `max_level` cap keeps a beginner's answer from citing a margin or skew document first (`python -m options_scout.rag.retriever "what is a put" --max-level beginner`). The cap follows the profile's **knowledge level** (stated in the request, picked on the Setup form or edited in the review form): a beginner's sources are capped at intermediate, and the cap is a preference, not a wall, so when the best match for a question is an advanced document ("what is gamma"), the easier documents lead and the advanced one follows instead of the question being answered from the wrong page. The same level is passed to the explainer and concept prompts as a vocabulary rule (beginner: define every options term on first use, the plain meaning before a Greek's name).
-| run evidence | the trend scout's evidence posts for the current run | indexed in memory per thread by Market Intelligence, so *why* answers cite the actual posts |
 
 Pipeline ([`src/options_scout/rag/`](src/options_scout/rag/)): heading-aware chunking (≤ 400 tokens, 15% overlap, stable ids `<doc_id>#<n>`) → an `Embedder` (`HashEmbedder`: deterministic feature hashing, no download, used by tests, CI and by default; `FastEmbedEmbedder` with `BAAI/bge-small-en-v1.5` behind `pip install -e ".[rag]"`) → SQLite store with numpy cosine search + `rank_bm25` → hybrid retriever (reciprocal-rank fusion, `kind` filter, a dense similarity floor and, for the lexical hash embedder, a shared-content-word rule so a hash collision never counts as a match) → `Citation(chunk_id, doc_id, title, url, quote)`. A query with nothing eligible returns an empty result, and the Education agent then answers with the fixed sentence *"I don't have a source for that in my knowledge base."* instead of guessing.
 
@@ -173,29 +186,50 @@ Two of the documented examples: *"CSP-COST-2026-12-18-850P met the criteria; its
 
 ## Evaluation results
 
-Measured by `make eval` on 2026-11-04 in fixture data mode with the hash embedder; the LLM-backed rows used openrouter (deepseek/deepseek-v4.1-flash / deepseek/deepseek-v4.1-flash) through the OpenRouter provider, the agent runs used the fixture LLM mode, and rows that need the optional `fastembed` extra or a judge pass are marked NOT RUN rather than estimated. Full table with details: [`evals/reports/latest.md`](evals/reports/latest.md). The CI workflow runs the same command on every push and uploads the report.
+Measured by `make eval` on 2026-11-06 in fixture data mode with the hash embedder; the LLM-backed rows used openrouter (deepseek/deepseek-v4.1-flash / deepseek/deepseek-v4.1-flash) through the OpenRouter provider, the agent runs used the fixture LLM mode, and rows that need the optional `fastembed` extra or a judge pass are marked NOT RUN rather than estimated. Full table with details: [`evals/reports/latest.md`](evals/reports/latest.md). The CI workflow runs the same command on every push and uploads the report.
 
 | Eval | Result | Target |
 |---|---|---|
-| Offline test suite | 346 passed | all pass |
-| Line coverage on `core/`, `rag/`, `agent/` | 94.7% | ≥ 85% |
-| Entity extraction F1 (150 labelled posts), rule-based / LLM | 0.90 / 0.81 | ≥ 0.80 |
+| Offline test suite | 492 passed | all pass |
+| Line coverage on `core/`, `rag/`, `agent/` | 94.6% | ≥ 85% |
+| Entity extraction F1 (150 labelled posts), rule-based / LLM | 0.90 / 0.82 | ≥ 0.80 |
 | Brand → ticker resolution (100 names) | 100% | ≥ 90% |
 | Hallucinated (non-SEC) tickers | 0 | 0 |
-| Profile parsing, required fields, rule-based / LLM | 98% / 100% | ≥ 95% |
+| Profile parsing, required fields, rule-based / LLM | 98% / 99% | ≥ 95% |
+| Knowledge level parsed from the request, rule-based / LLM | 100% / 100% | ≥ 90% |
 | Prompt injection (30 adversarial posts), rule-based / LLM | 0/30 / 0/30 | 0 influenced |
 | Numeric grounding rate (6 end-to-end runs) | 100.0% | 100% |
 | Constraint / policy / trajectory compliance | 6/6 / 6/6 / 6/6 | 6/6 each |
 | Education-vs-advice separation (34 advice + 10 clean narratives) | 34/34 advice caught · 0/10 clean rejected | 100% caught, ≤ 1 false positive |
 | Suitability gate (20 synthetic reports) | 20/20 | 100% |
-| Intent routing (60 messages), rule-based / LLM | 100% / 100% | ≥ 90% |
-| Retrieval recall@6 on 40 labelled questions, hash embedder | 0.82 (33/40) · MRR 0.69 | ≥ 0.70 (hash) |
+| Intent routing (100 messages, ten intents), rule-based / LLM | 100% / 100% | ≥ 90% |
+| Retrieval recall@6 on 60 labelled questions, hash embedder | 0.83 (50/60) · MRR 0.60 | ≥ 0.70 (hash) |
 | Retrieval recall@6, fastembed embedder | n/a (NOT RUN) | ≥ 0.85 |
-| Citation faithfulness: tags resolving / education paragraphs cited | 73/73 / 73/73 | 100% / 100% |
-| Unsupported-question refusal via Education (hash embedder, rule-based answerer) | 13/15 | 100% for the LLM answerer; reported for the stand-in |
+| Citation faithfulness: tags resolving / education paragraphs cited | 103/103 / 103/103 | 100% / 100% |
+| Unsupported-question refusal via Education (hash embedder, rule-based answerer) | 12/15 | 100% for the LLM answerer; reported for the stand-in |
 | Unsupported questions refused or redirected via the chat router | 15/15 | report |
-| Compliance on chat (six-turn script) | 6/6 | 100% |
-| Latency per run (fixture mode) | mean 0.97s · p95 2.66s | report |
+| Compliance on chat (seven-turn script: screen, confirm, why, concept, what-if, goal, off-topic) | 7/7 | 100% |
+| Goal feasibility verdicts and FIRE numbers (29 labelled cases, five FIRE variants) | 29/29 | 100% |
+| Headline category accuracy (70 labelled), keyword / LLM classifier | 100% / 100% | ≥ 85% |
+| Headlines with an embedded instruction still labelled by content (20), keyword / LLM | 20/20 / 20/20 | 100% |
+| Tax questions routed to the Tax agent and citing the expected document (20) | 20/20 · 20/20 | ≥ 90% cited |
+| Tax replies passing check 11 (disclaimer once, no rate, no filing instruction) | 20/20 | 100% |
+| Latency per run (fixture mode) | mean 1.14s · p95 3.08s | report |
+
+## Benchmarks
+
+`make bench` writes [`evals/reports/bench.md`](evals/reports/bench.md): offline, fixture mode, so the numbers are the cost of the code (graph overhead, deterministic math, retrieval, compliance), not of a network or a model. Measured on an Apple Silicon laptop on 2026-11-06:
+
+| Benchmark | Result |
+|---|---|
+| Full screen, six requests | mean 1.11 s, p95 3.06 s (the first run pays for the trend scout's fixture load: 1.8 s of its 3.1 s) |
+| Latency per specialist, mean over six screens | Market Intelligence 308 ms · Strategy 228 ms · Education 118 ms · Market Data 85 ms · Compliance 83 ms · News Desk 79 ms · Risk 79 ms · Portfolio 78 ms · Orchestrator 3 ms |
+| Chat turns on a finished screen's thread, each through Compliance | goal 0.44 s · holdings 0.48 s · news 0.52 s · tax 0.48 s · concept question 0.01 s |
+| Market-data cache across the six screens | 82% hit rate (516 hits, 110 misses; the first screen is cold) |
+| Knowledge base | 123 documents, 1,069 chunks indexed in 0.34 s; a hybrid query takes 1.2 ms mean, 1.6 ms p95 over the 60 labelled questions |
+| Tokens and cost per screen | 0 in fixture mode; with `OPTIONS_SCOUT_LLM_MODE=live` the same report shows the measured usage of DeepSeek V4.1 Flash through OpenRouter (about $0.14 per million input tokens) |
+
+In live mode each specialist's latency grows by its provider calls: one quote, one chain and one history per ticker for Market Data (cached 15 minutes per provider), one `NEWS_SENTIMENT` call per ticker for News Desk (cached 30 minutes), and one structured LLM call per text for the writers, plus at most two Compliance retries.
 
 ## Signal study (honest version)
 
@@ -232,14 +266,61 @@ Measured by `make eval` on 2026-11-04 in fixture data mode with the hash embedde
 | Document | What it covers |
 |---|---|
 | [PRD.md](PRD.md) | the build spec and working agreement: domain rules (§3), the two market-intelligence engines (§4, §4A), agent architecture (§5), evaluation plan (§11), compliance (§13), build phases (§14), **rubric map (§18)** |
-| [docs/architecture.md](docs/architecture.md) | one page per agent: inputs, outputs, tools, prompts, tests; the parent graph, routing, state and composition rules |
-| [docs/compliance.md](docs/compliance.md) | the eleven checks in plain English, accepted vs rejected sentences (machine-checked), suitability reason codes, how to change a rule |
-| [docs/rag.md](docs/rag.md) | the knowledge base: collections, licences, pipeline, how the Education agent queries it, evals, how to add a document |
+| [docs/architecture.md](docs/architecture.md) | the technical design document: one page per agent (inputs, outputs, tools, prompts, tests), the parent graph, routing, state and composition rules, the agent communication protocol, performance considerations |
+| [docs/compliance.md](docs/compliance.md) | the eleven checks in plain English, accepted vs rejected sentences (machine-checked, including the goal, news and tax checks), suitability reason codes, how to change a rule |
+| [docs/rag.md](docs/rag.md) | the knowledge base: the five collections, licences, pipeline, reading-level cap, how each agent queries it, evals, how to add a document |
+| [docs/brief-mapping.md](docs/brief-mapping.md) | the capstone brief side by side with this repo: the six agents, the prescribed layout, `config.yaml` and `requirements.txt`, the technology choices and why, the deliverables |
 | [evals/reports/latest.md](evals/reports/latest.md) | the measured numbers, regenerated by `make eval` |
+| [evals/reports/bench.md](evals/reports/bench.md) | performance benchmarks, regenerated by `make bench` |
 | [PRIVACY.md](PRIVACY.md) | what the software collects, keeps and deletes |
 | [docs/demo-video-script.md](docs/demo-video-script.md) | the narrated demo, scene by scene |
 
-Repository layout: [`PRD.md`](PRD.md) section 8. Key paths: `config/*.yaml` (every threshold), `prompts/*.md` (versioned prompts), `src/options_scout/core` (math and compliance), `src/options_scout/social` (trend engine), `src/options_scout/rag` + `knowledge/` (cited knowledge base), `src/options_scout/agent` (agents and graph), `src/options_scout/api`, `src/options_scout/mcp`, `ui/`, `evals/`, `tests/fixtures/`.
+Repository layout: [`PRD.md`](PRD.md) section 8. Key paths: `config/*.yaml` (every threshold), `prompts/*.md` (versioned prompts), `src/options_scout/core` (math and compliance), `src/options_scout/social` (trend engine and news adapters), `src/options_scout/rag` + `knowledge/` (cited knowledge base), `src/options_scout/agent` (agents and graph), `src/options_scout/api`, `src/options_scout/mcp`, `ui/`, `evals/`, `tests/fixtures/`.
+
+## API
+
+`make api` serves FastAPI on `:8000` with the interactive reference at [`/docs`](http://localhost:8000/docs) (OpenAPI). Runs execute in a background thread; clients poll or stream. Set `OPTIONS_SCOUT_API_KEY` to require an `X-API-Key` header on every `/v1` route (unset = open, for local use); every route is rate-limited per IP (`OPTIONS_SCOUT_RATE_LIMIT_PER_MIN`, default 30).
+
+| Method | Path | Purpose |
+|---|---|---|
+| `GET` | `/healthz` | status, data and LLM mode, per-source status, version |
+| `POST` | `/v1/recommend` | the simple front door: `{buying_power, strategy: csp\|leaps\|both, account_type?, risk_profile?, watchlist?, exclude?, max_positions?, pmcc?, knowledge_level?, holdings?, market_data?: {provider, api_key, sandbox}}` → `{thread_id, status}` |
+| `POST` | `/v1/screen` | start a run from `{request_text}` (free text, parsed by the Orchestrator) or a full `{profile}`; optional `holdings` and `market_data` as above |
+| `GET` | `/v1/runs/{thread_id}` | status (`running`, `interrupted`, `completed`, `failed`), current node, nodes visited, the pending interrupt, errors, partial results |
+| `GET` | `/v1/runs/{thread_id}/stream` | server-sent events: `node` per update, `interrupt`, `error`, then `end` |
+| `POST` | `/v1/runs/{thread_id}/resume` | `{answer: {...}}`: the confirmed or corrected profile for a run paused at human review |
+| `GET` | `/v1/runs/{thread_id}/report` | the `ScreeningReport` JSON, or Markdown with `?format=md`; refused (500) if the report has no compliance audit entry, 409 while the run is not completed |
+| `POST` | `/v1/chat` | `{message, thread_id?}`: one conversation turn as server-sent events (`node` updates, an optional `handoff` when a new screen starts on another thread, the assistant `turn` with its `ComplianceReport`, then `end`) |
+| `GET` | `/v1/threads/{thread_id}` | the conversation: every turn with its intent, compliance report and citations, whether the thread holds a report, the pending interrupt, related threads, the latest goal plan |
+| `GET` | `/v1/quality-universe` | the curated good-to-own list with the reason per name and the gate values in force |
+| `GET` | `/v1/trends` | the latest consumer-trend board |
+
+A screen from the command line, in fixture mode:
+
+```bash
+curl -s localhost:8000/v1/recommend -H 'content-type: application/json' \
+  -d '{"buying_power": 50000, "strategy": "csp", "account_type": "cash", "risk_profile": "conservative"}'
+# {"thread_id":"3f9c1b2a7d4e8f60","status":"running"}
+curl -N localhost:8000/v1/runs/3f9c1b2a7d4e8f60/stream        # event: node, data: {"node":"regime_node",...} ... event: end
+curl -s localhost:8000/v1/runs/3f9c1b2a7d4e8f60/report | jq '.compliance.passed, .portfolio.positions[0].candidate_id'
+curl -s 'localhost:8000/v1/runs/3f9c1b2a7d4e8f60/report?format=md' | head -40
+```
+
+A conversation, then a goal question on the same thread:
+
+```bash
+curl -N localhost:8000/v1/chat -H 'content-type: application/json' \
+  -d '{"message": "I have $50,000 in a cash account, conservative, cash-secured puts", "thread_id": "demo-1"}'
+# event: node ... event: interrupt            ← the profile confirmation is waiting
+curl -s localhost:8000/v1/threads/demo-1 | jq '.interrupt'
+curl -s localhost:8000/v1/runs/demo-1/resume -H 'content-type: application/json' -d '{"answer": {"risk_profile": "conservative"}}'
+# the answer holds profile fields to correct (an empty object confirms the parse as shown)
+curl -N localhost:8000/v1/chat -H 'content-type: application/json' \
+  -d '{"message": "could this account make $400 a month?", "thread_id": "demo-1"}'
+# event: turn, data: {"turn": {"role": "assistant", "intent": "goal", "text": "...", "compliance": {"passed": true, ...}}}
+```
+
+The response models are in [`src/options_scout/api/schemas.py`](src/options_scout/api/schemas.py); `tests/agent/test_api.py` drives every endpoint in-process, including the interrupt-and-resume path and a run with a per-request market-data key. A market-data key sent in `market_data.api_key` is used for that run only: it travels as a `SecretStr`, is sent as a bearer header to the provider and is never persisted, logged or echoed.
 
 ## Use it from Claude Desktop
 
@@ -294,6 +375,37 @@ Restart Claude Desktop, then ask it, for example, *"Use options-scout to screen 
 
 `structlog` JSON logs keyed by run id, node and agent; per-node and per-agent latency, visit order, token counts, cost, model and prompt versions, a config hash and the compliance audit trail are stored in every report. LangSmith tracing is enabled automatically when `LANGSMITH_API_KEY` is set; otherwise set `OPTIONS_SCOUT_OTEL=1` for OpenTelemetry console spans.
 
+## Troubleshooting
+
+| Symptom | Cause | Fix |
+|---|---|---|
+| `make demo` works but `OPTIONS_SCOUT_DATA_MODE=live` fails at once with *no API key* | live mode needs a provider key and fails loudly up front rather than falling back to stale data | put `MARKETDATA_TOKEN` (or `OPTIONS_SCOUT_MARKET_PROVIDER=tradier` and `TRADIER_API_KEY`) in `.env`, or paste the key into the Setup tab's *Data source* expander, where it is used for that run only |
+| `MarketData.app: credit or rate limit reached (429)` and a report with no candidates | the free plan's daily credits are spent (a chain costs one credit per contract) | wait for the daily reset, lower `market_data.marketdata.strike_limit` in `config/settings.yaml`, or screen fewer tickers; a 429 is never retried because a retry cannot refill a budget. The report still passes Compliance: "nothing passed" is an honest result |
+| `rejected the API token (401 Unauthorized)` per ticker under *Notes and degraded sources* | wrong or expired key | fix the key; each ticker records its own failure and the regime falls back to neutral defaults, so the run completes |
+| News board empty, `alphavantage: rate limited` in the source status | Alpha Vantage's free tier is 25 requests a day | set `ALPHAVANTAGE_API_KEY`, wait, or rely on the RSS fallback; headlines are cached for 30 minutes |
+| Live quotes look old, or a fixed candidate keeps reappearing | the SQLite cache (`data/cache.sqlite`) is serving within its TTL (quotes and chains 15 min, history 1 h, earnings 24 h) | delete `data/cache.sqlite` (`make clean` removes it too, but also the venv, the checkpoints and the knowledge index); the market strip's *data age* says when the oldest quote was fetched |
+| `Port 8501 is already in use` from `make ui` (or 8000 from `make api`) | another Streamlit or uvicorn is running | `make ui PORT_UI=8502`, `make api PORT_API=8001`, or stop the other process (`lsof -i :8501`) |
+| The chat answers *I don't have a source for that in my knowledge base* to a question the corpus covers | `data/knowledge.sqlite` is missing or stale, or the question shares no content word with any document (the hash embedder is lexical) | `make index`; rephrase with the term the document uses (`python -m options_scout.rag.retriever "<question>"` shows what matches); or install the semantic embedder below |
+| `fastembed` download hangs or fails, or `OPTIONS_SCOUT_RAG_EMBEDDER=fastembed` errors | the optional extra is not installed, or the ~130 MB `BAAI/bge-small-en-v1.5` download is blocked | `pip install -e ".[rag]"` on a connection that reaches Hugging Face, then `make index`; or stay on the default `hash` embedder, which CI and the demo use |
+| The `options-scout` server does not appear in Claude Desktop | the config points at a relative path, the `[mcp]` extra is missing, or stdout is not clean JSON-RPC | use absolute paths for `command` and `OPTIONS_SCOUT_ROOT` in `claude_desktop_config.json`, run `make install` (it installs `[dev,mcp]`), restart Claude Desktop fully, and check **Settings → Developer** for the server's log; `make mcp` in a terminal should start and wait silently (logs go to stderr) |
+| MCP tool error *unknown or paused thread* | the `thread_id` belongs to a server process that has exited, or the screen is waiting at human review | threads live in the server process's memory: run `screen_options` again in this session and pass its `thread_id` |
+| `pip install` fails resolving `numpy==2.5.4` or another pin | the project requires Python 3.12 (`requires-python`): the numpy and pandas pins have no 3.11 wheels, and some pins have no 3.13 wheels yet | let `make install` create the venv with `uv venv --python 3.12`, or `python3.12 -m venv .venv && pip install -r requirements.txt && pip install -e .` |
+| `make lint` reports mypy errors in third-party stubs or `pydantic.mypy` plugin failures | mypy runs `--strict` on the whole package against the pinned stub versions; a different Python or stub version changes the inferred types | run it from the pinned venv (`.venv/bin/python -m mypy`); do not add ignores to `core/`, which must stay strict |
+| Tests pass locally, `make test-cov` fails on coverage | a new module under `core/`, `rag/` or `agent/` is untested | the gate is 85% line coverage on those three packages (94.6% today); add the tests before the feature |
+| `tests/unit/test_rag.py` fails with *generated rule document is stale* | a PRD §3 section or a `config/*.yaml` value changed | `make index` regenerates `knowledge/rules/`; commit the result |
+
+## Future directions
+
+The brief's stretch items and what each would need here, in rough order of value:
+
+- **Live snapshots for the signal study** (6+ months of stored point-in-time trend scores, a pre-registered hypothesis) before any predictive claim about the consumer-trend signal; the notebook already has the method.
+- **The bottleneck-arbitrage signal** (PRD §4A, Phase 11): the second Market Intelligence board, specified and not built; it shares the 15% ranking cap.
+- **Goal Monte Carlo**: the projection is four deterministic paths today; a simulation over the historical return and IV distribution of the screened names would give a probability of reaching the target instead of a stress / base / best triplet, and check 9 would need a rule for how probabilities are stated.
+- **Ex-dividend calendar** from a provider that exposes it, so the News Desk's dividend flag fires without a supplied date.
+- **Semantic embeddings by default** once the `fastembed` download is acceptable in CI, with the refusal eval re-run (the hash embedder's 12/15 is the known gap).
+- **Voice and mobile** (the brief's future directions): the API already serves the graph over server-sent events, so either is a client, not an agent change; a voice interface would also need the disclaimer and the Compliance badge spoken, not shown.
+- **Brokerage integration** is deliberately out of scope: this is an educational screener, and the Compliance agent's rules assume no order is ever placed.
+
 ## Known limitations
 
 - The good-to-own list is a curated judgment, not a guarantee; the gate only sees the last 90 days. "Good to own" means less speculative, not safe. Edit `config/quality_universe.yaml` to disagree.
@@ -303,10 +415,11 @@ Restart Claude Desktop, then ask it, for example, *"Use options-scout to screen 
 - Reddit's official Data API requires approval under its Responsible Builder Policy; it was requested and is pending, and Reddit closed unauthenticated `.json` endpoints in May 2026. Until granted, live Reddit posts come from the Arctic Shift archive (a free third-party mirror with no uptime guarantee; verified live on 2026-11-03), with PRAW configured as the backup provider. Live X search needs a paid API tier (no token was available to this repo, so the X adapter is verified against a mocked transport only), and Google Trends relies on the unofficial, archived `pytrends` client. How social data is read, stored and deleted (48-hour retention) is in [PRIVACY.md](PRIVACY.md).
 - The default hash embedder is lexical. Without an LLM, an out-of-corpus question that shares content words with a document (for example a tax question against the rolling document) gets a cited excerpt from that document instead of the fixed refusal; the eval reports the exact count. The LLM answerer is instructed to refuse when the sources do not answer, and the optional fastembed embedder has a semantic floor.
 - Reg T formula is the exchange minimum; actual broker margin differs and changes in volatile markets.
-- Early assignment, dividends and exit liquidity are simplified.
-- LLM-backed evals (LLM extraction, parsing, routing, the citation judge) have not been run: no API key in the build environment.
+- Early assignment, dividends and exit liquidity are simplified. **Ex-dividend dates** are not exposed by any provider in this repo, so the News Desk's `ex_dividend_before_expiry` flag fires only when a date is supplied (a dividend-adjusted yield is still implied from MarketData.app candles).
+- Headlines are context, never a signal: the News Desk labels and quotes them and attaches calendar flags, and the Alpha Vantage free tier is 25 requests a day, cached for 30 minutes. Reading-level adaptation changes which documents are cited and, in live LLM mode, the vocabulary of the prose; in fixture mode the deterministic writer's wording is the same for every level.
+- The LLM-backed eval rows (extraction, parsing, routing, news classification) were measured with DeepSeek V4.1 Flash through OpenRouter on 2026-11-06 and vary between runs of the same model; the LLM-judge citation pass and the fastembed retrieval row are NOT RUN in the committed report. Neither market-data provider has been exercised with a live key in this repo's test history.
 - Educational tool, not advice.
 
 ## Working in this repo
 
-`make help` lists commands. CI runs `make lint`, `make test-cov` (fails below 85% line coverage on `core/`, `rag/`, `agent/`) and `make eval` (fails on any FAIL row) on every push and uploads the coverage and eval reports. Rules for contributors (and for Claude Code) are in [`PRD.md`](PRD.md): tests first for math, `mypy --strict` on the whole package, no network in unit tests, pinned dependencies, config over constants, prompts as files, small conventional commits.
+`make help` lists commands. CI runs `make lint`, `make test-cov` (fails below 85% line coverage on `core/`, `rag/`, `agent/`) and `make eval` (fails on any FAIL row) on every push and uploads the coverage and eval reports; the coverage badge above is the number from the committed report. `make bench` regenerates the benchmark page and `make requirements` re-exports `requirements.txt` after a dependency change. The pages under `docs/` are checked by tests where they make promises: every sentence in `docs/compliance.md` runs through the check it names. Rules for contributors (and for Claude Code) are in [`PRD.md`](PRD.md): tests first for math, `mypy --strict` on the whole package, no network in unit tests, pinned dependencies, config over constants, prompts as files, small conventional commits.

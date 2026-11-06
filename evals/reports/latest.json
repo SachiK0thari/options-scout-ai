@@ -2,7 +2,7 @@
  {
   "section": "11.1 Deterministic",
   "name": "Golden-value + property tests (tests/unit)",
-  "value": "310 passed",
+  "value": "326 passed",
   "target": "all pass",
   "status": "PASS",
   "detail": ""
@@ -10,18 +10,18 @@
  {
   "section": "Quality",
   "name": "Offline test suite (unit + agent + API + UI + MCP)",
-  "value": "464 passed",
+  "value": "492 passed",
   "target": "all pass",
   "status": "PASS",
-  "detail": "247s"
+  "detail": "956s"
  },
  {
   "section": "Quality",
   "name": "Line coverage on core/, rag/, agent/ (pytest --cov, same run)",
-  "value": "94.5%",
+  "value": "94.6%",
   "target": "\u2265 85%",
   "status": "PASS",
-  "detail": "whole package 90.8%"
+  "detail": "whole package 90.9%"
  },
  {
   "section": "11.2 Entity extraction",
@@ -42,10 +42,10 @@
  {
   "section": "11.2 Entity extraction",
   "name": "F1 on 150 labeled posts (LLM deepseek/deepseek-v4.1-flash)",
-  "value": "P 0.72 / R 0.93 / F1 0.81",
+  "value": "P 0.74 / R 0.92 / F1 0.82",
   "target": "F1 \u2265 0.80",
   "status": "PASS",
-  "detail": "tp=167 fp=64 fn=12"
+  "detail": "tp=164 fp=59 fn=15"
  },
  {
   "section": "11.2 Entity extraction",
@@ -53,7 +53,7 @@
   "value": "0.96",
   "target": "report",
   "status": "INFO",
-  "detail": "n=167"
+  "detail": "n=164"
  },
  {
   "section": "11.2 Resolution",
@@ -98,26 +98,26 @@
  {
   "section": "11.2 Profile parsing",
   "name": "Required-field accuracy (LLM deepseek/deepseek-v4.1-flash)",
-  "value": "100%",
+  "value": "99%",
   "target": "\u2265 95%",
   "status": "PASS",
-  "detail": "180/180"
+  "detail": "179/180"
  },
  {
   "section": "11.2 Profile parsing",
   "name": "Clarification routing accuracy (LLM deepseek/deepseek-v4.1-flash)",
-  "value": "100%",
+  "value": "98%",
   "target": "\u2265 95%",
   "status": "PASS",
-  "detail": "60/60"
+  "detail": "59/60"
  },
  {
   "section": "11.2 Profile parsing",
   "name": "Knowledge-level accuracy (LLM deepseek/deepseek-v4.1-flash)",
-  "value": "98%",
+  "value": "100%",
   "target": "\u2265 90%",
   "status": "PASS",
-  "detail": "59/60 (11 requests state a level, the rest must parse to none)"
+  "detail": "60/60 (11 requests state a level, the rest must parse to none)"
  },
  {
   "section": "11.2 Prompt injection",
@@ -186,7 +186,7 @@
  {
   "section": "11.3 Agent",
   "name": "Latency per run (fixture mode)",
-  "value": "mean 1.13s \u00b7 p95 3.02s",
+  "value": "mean 1.14s \u00b7 p95 3.08s",
   "target": "report",
   "status": "INFO",
   "detail": ""

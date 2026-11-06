@@ -2,18 +2,18 @@
 
 > Build spec and working agreement for Claude Code.
 > Read this whole file before writing any code. Work through the **Build Phases** (section 14) in order, and do not start a phase until the previous phase's acceptance criteria pass.
-> **Current phase: 12, step 12.9** (capstone alignment, [docs/capstone-plan.md](docs/capstone-plan.md); Phase 11, the bottleneck-arbitrage signal of section 4A, follows it). **Phase 10 is complete** (steps 10.1–10.8 done 2026-11-04): six specialists + Compliance as subgraphs, the cited knowledge base, the routed chat, the eight-tab UI, the MCP server, the 11.3a evals and coverage in CI (`docs/architecture.md`, `docs/compliance.md` and `docs/rag.md` are written in step 12.9). **Steps 12.1–12.8 are done** (12.1–12.6 on 2026-11-04, 12.7 on 2026-11-05, its three rule documents and 12.8 on 2026-11-06): 123 knowledge documents in five collections with reading levels; the deterministic goals / news / tax / holdings math; the Goal Planning agent with the `goal` intent, the Goals tab and compliance check 9; holdings input with the `holdings` intent, the holdings section of the Portfolio tab and the seventh sizing constraint; the News Desk agent with the Alpha Vantage adapter, the `news` intent, calendar flags, the News board and compliance check 10; the Tax & Accounts agent with the `tax` intent, the Learn tab's Tax & Accounts page and compliance check 11; the knowledge level on the profile (retrieval cap, prompt vocabulary rule, level-aware Candidates tables), the three-stage learning path, glossary tooltips and the market overview strip with its data age; the MCP server with ten tools (`plan_goal`, `analyze_holdings`, `news_brief` and `explain_tax_term` added) and the `basics` and `tax` resource collections. Phases 0–10 must not regress. Section 18 maps every rubric line to the feature and test that earns it. Nothing in Phase 11 is built yet, and the three-term ranking in section 3.7 stays in force until it ships.
+> **Current phase: 12, step 12.10** (capstone alignment, [docs/capstone-plan.md](docs/capstone-plan.md); Phase 11, the bottleneck-arbitrage signal of section 4A, follows it). **Phase 10 is complete** (steps 10.1–10.8 done 2026-11-04): six specialists + Compliance as subgraphs, the cited knowledge base, the routed chat, the eight-tab UI, the MCP server, the 11.3a evals and coverage in CI (`docs/architecture.md`, `docs/compliance.md`, `docs/rag.md` and `docs/brief-mapping.md` were written and committed in step 12.9). **Steps 12.1–12.9 are done** (12.1–12.6 on 2026-11-04, 12.7 on 2026-11-05, its three rule documents, 12.8 and 12.9 on 2026-11-06): 123 knowledge documents in five collections with reading levels; the deterministic goals / news / tax / holdings math; the Goal Planning agent with the `goal` intent, the Goals tab and compliance check 9; holdings input with the `holdings` intent, the holdings section of the Portfolio tab and the seventh sizing constraint; the News Desk agent with the Alpha Vantage adapter, the `news` intent, calendar flags, the News board and compliance check 10; the Tax & Accounts agent with the `tax` intent, the Learn tab's Tax & Accounts page and compliance check 11; the knowledge level on the profile (retrieval cap, prompt vocabulary rule, level-aware Candidates tables), the three-stage learning path, glossary tooltips and the market overview strip with its data age; the MCP server with ten tools (`plan_goal`, `analyze_holdings`, `news_brief` and `explain_tax_term` added) and the `basics` and `tax` resource collections; the documentation and packaging of step 12.9 (the four `docs/` pages, the README's agent table, API, Troubleshooting, Benchmarks and Future directions sections, `requirements.txt` exported by `make requirements`, `evals/reports/bench.md` written by `make bench`, the demo script's Goals, News, Tax and Holdings scenes). Only step 12.10 (the demo video and screenshots) remains in Phase 12. Phases 0–10 must not regress. Section 18 maps every rubric line to the feature and test that earns it. Nothing in Phase 11 is built yet, and the three-term ranking in section 3.7 stays in force until it ships.
 
 ---
 
 ## 0. TL;DR for Claude Code
 
 - **What:** A multi-agent LangGraph application behind a **multi-tab Streamlit app with a chat tab**: the user describes their situation in plain English (or fills the form), picks **cash-secured puts (CSPs)**, **LEAPS calls** or both, optionally pastes a **market-data API key**, and gets option candidates on **good-to-own stocks only** (a curated list of large, profitable, dividend-paying companies and broad ETFs, each re-checked by a deterministic quality gate on the day of the run). Positions are sized to buying power under risk limits; a **consumer-trend** signal (rising product and brand discussion on Reddit, X and other public platforms) only re-orders stocks that already passed the gate, and a second **bottleneck** signal (section 4A, Phase 11: shortages in the supply chain behind a large theme, read from customer and supplier filings, industry price series and trade news) does the same and never adds a stock either. An **Education** agent answers "what is a cash-secured put / why was Nike excluded / what happens at −30%" with answers **retrieved from a cited knowledge base**, and every LLM output passes a **Compliance** agent before a user sees it.
-- **Architecture (section 5):** one orchestrator + **six specialist agents** (Market Data, Market Intelligence, Strategy, Portfolio, Risk, Education) + a **Compliance** agent, each a LangGraph subgraph with its own state slice, tools and prompts, composed by a parent graph. The options domain lives *inside* that structure; it does not replace it.
+- **Architecture (section 5):** one orchestrator + **nine specialist agents** (Market Data, Market Intelligence, Strategy, Portfolio, Risk, Education, and from Phase 12 Goal Planning, News Desk, Tax & Accounts) + a **Compliance** agent, each a LangGraph subgraph with its own state slice, tools and prompts, composed by a parent graph. The options domain lives *inside* that structure; it does not replace it.
 - **Why:** A portfolio project to showcase AI Engineer skills: multi-agent orchestration, tool use, structured outputs, **retrieval-augmented explanation with citations**, evaluation, observability, guardrails, and clean production engineering.
 - **Golden rule:** **The LLM never does math.** Every number (Greeks, margin, returns, sizing) is computed by deterministic, unit-tested Python. The LLM extracts, classifies, reasons over computed results, and explains. The Compliance agent rejects any narrative that contains a number not present in the computed results, a claim without a citation to a retrieved source, a suitability violation, or banned language.
 - **Not financial advice:** This is an educational **screener**. It never places trades, never connects to a brokerage, and every output carries a disclaimer.
-- **Stack:** Python 3.11+, LangGraph (1.2.x), Pydantic v2, FastAPI, Streamlit, SQLite/DuckDB, MarketData.app REST (httpx), PRAW, X API v2 (httpx), Wikimedia Pageviews API, pytrends (optional), pytest.
+- **Stack:** Python 3.12 (`requires-python`; the numpy and pandas pins have no 3.11 wheels), LangGraph (1.2.x), Pydantic v2, FastAPI, Streamlit, SQLite/DuckDB, MarketData.app REST (httpx), PRAW, X API v2 (httpx), Wikimedia Pageviews API, pytrends (optional), pytest.
 - **Data budget:** Free sources by default. Every external source must also have a **fixture (mock) mode** so the demo and CI run offline. Sources that need a paid tier (X search) or an unofficial client (Google Trends) are fully implemented but switchable in `config/social_sources.yaml`.
 
 ---
@@ -490,16 +490,25 @@ The brief grades a **six-specialist + compliance** structure. The nodes in 5.1/5
 
 ```mermaid
 flowchart TD
-    U[User · chat or form] --> O[Orchestrator<br/>intake · route · human_review]
-    O -->|new screen / what-if| MI[2 · Market Intelligence Agent<br/>trend_scout · bottleneck_scout · evidence retrieval]
+    U[User · chat, form, API or MCP] --> O[Orchestrator<br/>route · intake · human_review]
+    O -->|new_screen / refine_profile| MI[2 · Market Intelligence Agent<br/>trend_scout · evidence retrieval<br/>bottleneck_scout in Phase 11]
     MI --> MD[1 · Market Data Agent<br/>regime · universe · market_data + quality gate]
     MD --> ST[3 · Strategy Agent<br/>screener · ranker]
-    ST --> PF[4 · Portfolio Agent<br/>allocator · sizing]
+    ST --> ND[8 · News Desk Agent<br/>news_fetch · news_classify · news_brief]
+    ND --> PF[4 · Portfolio Agent<br/>allocator · holdings_analysis · sizing]
     PF --> RK[5 · Risk Agent<br/>constraints · stress · suitability facts]
     RK -->|retries ≤ 3| PF
+    RK -->|goal on the thread| GP[7 · Goal Planning Agent<br/>goal_intake · goal_math · goal_explainer]
+    GP --> ED
     RK --> ED[6 · Education Agent<br/>explainer · concept Q&A · payoff narratives<br/>RAG over knowledge base + evidence]
     O -->|concept / why question| ED
-    ED --> CP[Compliance Agent<br/>numeric grounding · citations · suitability<br/>banned language · disclaimer · audit log]
+    O -->|goal| GP
+    O -->|holdings| PF
+    O -->|news| ND
+    O -->|tax| TX[9 · Tax & Accounts Agent<br/>tax_retrieval · tax_math · tax_answer]
+    TX --> CP
+    O -->|what_if / off_topic| CP
+    ED --> CP[Compliance Agent<br/>numeric grounding · citations · suitability<br/>banned language · disclaimer · goal, news, tax rules · audit log]
     CP -->|fail, retries ≤ 2| ED
     CP -->|pass| R[Report / chat reply]
 ```
@@ -518,13 +527,14 @@ flowchart TD
 | 8 | **News Desk** (Phase 12, 12.5) | `news_fetch_node`, `news_classify_node`, `news_brief_node` | Alpha Vantage NEWS_SENTIMENT adapter (fixture + live, cache, backoff) with RSS fallback; `core/news.py` (dedupe, recency, calendar flags) | label headlines (`classify_news`), data only | `news_items`, `news_classified`, `news_briefs`, `news_flags` (+ `answer` on a news turn) |
 | 9 | **Tax & Accounts** (Phase 12, 12.6) | `tax_retrieval_node`, `tax_math_node`, `tax_answer_node` | `core/tax.py` (assignment basis, holding period, wash-sale window, Section 1256) on the thread's candidates; retrieval over `knowledge/tax/` | cited tax answer (`answer_tax`), **must cite**, check 11 | `tax_facts` (+ `answer` on a tax turn) |
 | 7 | **Goal Planning** (Phase 12, 12.3) | `goal_intake_node`, `goal_math_node`, `goal_explainer_node` | `core/goals.py`: `plan_goal` (required return, portfolio yield, feasibility + levers, projection, FIRE variants) | parse the goal; narrate the plan, **must cite**, check 9 | `goal`, `goal_plan`, `goal_clarification` (+ `answer` on a goal turn) |
-| C | **Compliance** | `verifier_node` → renamed `compliance_node`, plus `audit_node` | `check_numbers`, `check_citations`, `check_suitability`, `check_language`, `check_disclaimer` | optional judge | `compliance` |
+| C | **Compliance** | `verifier_node` → renamed `compliance_node`, plus `audit_node` | the eleven checks of 13.1: `check_numbers`, `check_citations`, `check_education_only`, `check_suitability`, `check_language`, `check_disclaimer`, `check_sources_fresh`, `check_no_pii`, `goal_narrative`, `news_grounding`, `tax_reply` | optional judge | `compliance`, `audit_log` |
 
 Rules:
 - **Every LLM-written string reaches the user only through the Compliance agent.** That includes the report narrative, chat answers, and concept explanations. There is no edge from Education to the UI.
 - Specialists communicate only through typed state. No specialist imports another specialist's module; shared logic lives in `core/`, `social/`, `rag/`.
 - Each specialist can run standalone for tests: `build_risk_agent().invoke({...})` with a fixture state must produce its slice.
-- If the brief names the six agents differently, **rename the files and headings, not the structure.** The mapping to keep: data acquisition → 1; research/news/sentiment → 2; strategy/screening → 3; portfolio/allocation → 4; risk → 5; education/advisor → 6; compliance → C.
+- If the brief names the six agents differently, **rename the files and headings, not the structure.** The mapping to keep: data acquisition → 1; research/news/sentiment → 2; strategy/screening → 3; portfolio/allocation → 4; risk → 5; education/advisor → 6; compliance → C. The brief's actual six (Finance Q&A, Portfolio Analysis, Market Analysis, Goal Planning, News Synthesizer, Tax Education) map to Education; Portfolio + Risk; Market Data + Market Intelligence; Goal Planning; News Desk; Tax & Accounts: the full crosswalk, with the prescribed layout and the technology choices, is `docs/brief-mapping.md` (step 12.9).
+- The per-agent reference (inputs, outputs, tools, prompts, tests), the agent communication protocol and the performance considerations are `docs/architecture.md`; the retrieval layer is `docs/rag.md`; the checks with machine-checked examples are `docs/compliance.md`.
 
 ### 5.1 Node-level graph (inside the specialists)
 
@@ -751,6 +761,7 @@ options-scout-ai/
 ├── PRD.md
 ├── README.md
 ├── pyproject.toml
+├── requirements.txt           # exported from pyproject.toml by `make requirements` (step 12.9); pyproject is the source of truth
 ├── Makefile
 ├── .env.example
 ├── docker-compose.yml
@@ -763,16 +774,29 @@ options-scout-ai/
 │   ├── quality_universe.yaml  # section 3.7: curated good-to-own list + numeric gates + score weights
 │   ├── social_sources.yaml    # section 4.3: which post/attention sources run, weights, X queries
 │   ├── subreddits.yaml        # consumer + stock subs; Phase 11 adds an `industry:` list
+│   ├── rag.yaml               # section 5.6: embedder, floors, chunking, collections and weights
+│   ├── compliance.yaml        # section 13.1: banned patterns, allow-list, suitability, goal and tax rules
+│   ├── goals.yaml             # Phase 12, section 3.8: profile caps, projection paths, FIRE variants
+│   ├── news.yaml              # Phase 12, section 3.9: sources, cache, categories, flag windows
+│   ├── tax.yaml               # Phase 12: holding-period threshold, wash-sale window, Section 1256 list
+│   ├── holdings.yaml          # Phase 12, section 3.10: sector map, expense ratios, betas
 │   ├── themes.yaml            # Phase 11, section 4A.4: theme → layers → companies, thesis, falsifiers
 │   ├── bottleneck_score.yaml  # Phase 11: signal weights, curated-field maps, flag thresholds
 │   └── bottleneck_sources.yaml # Phase 11: which filing/series/text sources run
 ├── data/
 │   ├── brand_map.yaml
 │   └── cache.sqlite           # gitignored
-├── prompts/
+├── prompts/                   # versioned (front-matter `version`), one file per LLM job
+│   ├── route_message.md       # intent classification over the ten intents
 │   ├── parse_profile.md
 │   ├── extract_entities.md
 │   ├── explain_report.md
+│   ├── answer_concept.md
+│   ├── parse_goal.md          # Phase 12
+│   ├── explain_goal.md        # Phase 12
+│   ├── parse_holdings.md      # Phase 12
+│   ├── classify_news.md       # Phase 12
+│   ├── answer_tax.md          # Phase 12
 │   ├── judge_explanation.md
 │   └── classify_bottleneck.md # Phase 11
 ├── src/options_scout/
@@ -786,9 +810,14 @@ options-scout-ai/
 │   │   ├── ranking.py
 │   │   ├── sizing.py
 │   │   ├── risk.py            # constraints, stress tests
-│   │   └── allocation.py
+│   │   ├── allocation.py
+│   │   ├── goals.py           # Phase 12: required return, yield, feasibility, projection, FIRE
+│   │   ├── news.py            # Phase 12: dedupe, recency, keyword classifier, calendar flags
+│   │   ├── tax.py             # Phase 12: assignment basis, holding period, wash-sale window, Section 1256
+│   │   └── holdings.py        # Phase 12: valuation, HHI, beta, concentration after assignment
 │   ├── social/
-│   │   ├── adapters/          # base.py (protocols), reddit.py, x.py, wikipedia.py, google_trends.py, news.py, sec.py
+│   │   ├── adapters/          # base.py (protocols), reddit.py, x.py, wikipedia.py, google_trends.py, news.py, sec.py, alphavantage_news.py (Phase 12)
+│   │   ├── news_desk.py       # Phase 12: Alpha Vantage first, RSS fallback, per-ticker fetch
 │   │   ├── sources.py         # source name -> adapter; builds the enabled SourceSet
 │   │   ├── filters.py         # spam, dedupe, author caps
 │   │   ├── extraction.py      # LLM entity extraction
@@ -830,8 +859,12 @@ options-scout-ai/
 │   │   │   ├── portfolio.py
 │   │   │   ├── risk.py
 │   │   │   ├── education.py
+│   │   │   ├── goal_planning.py   # Phase 12 (#7)
+│   │   │   ├── news_desk.py       # Phase 12 (#8)
+│   │   │   ├── tax.py             # Phase 12 (#9)
 │   │   │   └── compliance.py
-│   │   └── graph.py           # parent graph composing the subgraphs
+│   │   ├── chat.py            # ChatSession: multi-turn conversations over the graph
+│   │   └── graph.py           # parent graph composing the subgraphs; ask_specialist for pinned turns
 │   ├── core/compliance.py     # Phase 10, section 13.1 (replaces agent/verifier.py)
 │   ├── core/payoff.py         # Phase 10: payoff-at-expiry curves
 │   ├── mcp/
@@ -844,21 +877,28 @@ options-scout-ai/
 │   │   ├── refresh_trends.py
 │   │   └── refresh_bottlenecks.py   # Phase 11: daily snapshot + thesis monitor
 │   └── observability.py
-├── knowledge/                 # Phase 10 RAG corpus (Markdown + front-matter)
-│   ├── concepts/              # authored here, cite primary sources by URL
+├── knowledge/                 # RAG corpus (Markdown + front-matter with id, title, source, url, kind, level, as_of)
+│   ├── concepts/              # authored here, cite primary sources by URL (36)
+│   ├── basics/                # Phase 12: investing for beginners (28)
+│   ├── tax/                   # Phase 12: tax mechanics and account types (14)
 │   ├── rules/                 # generated from PRD §3 + config/*.yaml by scripts/build_rules_docs.py
 │   └── filings/               # SEC 10-K Item 1A excerpts (public domain) via scripts/fetch_filings.py
 ├── docs/
-│   ├── architecture.md        # one page per agent
-│   ├── compliance.md          # rules with accepted / rejected examples
-│   ├── rag.md                 # corpus, licences, how to add a doc
+│   ├── architecture.md        # technical design document: one page per agent, protocol, performance
+│   ├── compliance.md          # the eleven checks with machine-checked accepted / rejected examples
+│   ├── rag.md                 # corpus, licences, pipeline, how to add a doc
+│   ├── brief-mapping.md       # the capstone brief side by side with this repo (step 12.9)
+│   ├── demo-video-script.md   # the narrated demo, scene by scene
 │   └── screenshots/           # one per tab
 ├── ui/
 │   ├── streamlit_app.py       # shell: st.tabs
 │   ├── session.py
 │   ├── theme.py
-│   ├── charts.py
-│   └── tabs/                  # scout, setup, quality, candidates, portfolio, learn, trends, under_the_hood
+│   ├── charts.py              # 17 Plotly figures, one theme
+│   ├── compute.py             # View snapshot of a thread; market strip numbers
+│   ├── glossary.py            # tooltip definitions tied to knowledge documents (Phase 12)
+│   ├── components/market_strip.py   # Phase 12: market overview strip with data age
+│   └── tabs/                  # scout, setup, quality, candidates, portfolio, goals (Phase 12), learn, trends, under_the_hood
 ├── evals/
 │   ├── datasets/
 │   │   ├── entity_extraction_labeled.jsonl
@@ -868,8 +908,13 @@ options-scout-ai/
 │   │   ├── chat_routing.jsonl           # Phase 10
 │   │   ├── advice_narratives.jsonl      # Phase 10
 │   │   ├── suitability_cases.jsonl      # Phase 10
+│   │   ├── unsupported_questions.jsonl  # Phase 10
+│   │   ├── goal_cases.jsonl             # Phase 12
+│   │   ├── news_labeled.jsonl           # Phase 12
+│   │   ├── tax_questions.jsonl          # Phase 12
 │   │   └── bottleneck_snippets_labeled.jsonl   # Phase 11: 100 labelled filing/news snippets
-│   ├── run_evals.py
+│   ├── run_evals.py           # make eval → reports/latest.md
+│   ├── bench.py               # make bench → reports/bench.md (step 12.9)
 │   └── reports/
 ├── notebooks/
 │   └── signal_study.ipynb     # section 11.4
@@ -892,12 +937,14 @@ options-scout-ai/
 | GET | `/v1/runs/{thread_id}` | Status, current node, partial results. |
 | GET | `/v1/runs/{thread_id}/stream` | Server-sent events of node updates. |
 | POST | `/v1/runs/{thread_id}/resume` | Resume after human review with corrected profile. |
-| GET | `/v1/runs/{thread_id}/report` | Final `ScreeningReport` (JSON) or `?format=md`. |
+| GET | `/v1/runs/{thread_id}/report` | Final `ScreeningReport` (JSON) or `?format=md`; refused without a compliance audit entry. |
+| POST | `/v1/chat` | One conversation turn as server-sent events (`node`, optional `handoff`, the assistant `turn` with its `ComplianceReport`, `end`). |
+| GET | `/v1/threads/{thread_id}` | The conversation: turns, intents, compliance reports, citations, pending interrupt, related threads, latest goal plan. |
 | GET | `/v1/trends` | Latest trend board. |
 | GET | `/v1/bottlenecks` | Latest bottleneck board with thesis-monitor status (Phase 11). |
 | GET | `/healthz` | Health check including data-source status. |
 
-Add simple API-key auth via header for the hosted demo, and per-IP rate limiting.
+API-key auth (`X-API-Key`, enforced when `OPTIONS_SCOUT_API_KEY` is set) and per-IP rate limiting (`OPTIONS_SCOUT_RATE_LIMIT_PER_MIN`, default 30) are in place. Request and response examples are in the README's "API" section; the OpenAPI reference is at `/docs`.
 
 ---
 
@@ -908,13 +955,13 @@ Add simple API-key auth via header for the hosted demo, and per-IP rate limiting
 | Tab | Module | Content | Rubric line |
 |---|---|---|---|
 | **Scout** | `tabs/scout.py` | Chat (`st.chat_message` / `st.chat_input`). The user describes their situation; the Orchestrator parses it, the profile-confirmation `interrupt()` renders as an assistant turn with an inline editable profile form and a *Confirm* button; node progress streams as status lines; the finished run posts a short compliance-checked summary and says "see the Candidates and Portfolio tabs". Follow-ups: concept questions → Education agent only; "why was X excluded / ranked there" → Education + evidence retrieval over the current report; "what if I had 30k / cash account" → re-run on a new thread with the modified profile and a one-line diff of what changed. Every assistant message shows a small **Compliance ✓** badge with an expander listing the checks that ran. | conversational flow 8% |
-| **Setup** | `tabs/setup.py` | The current form (buying power, strategy, more options, data source / API key) for users who prefer not to chat; *Find candidates* button runs the same graph. | – |
-| **Quality Screen** | `tabs/quality.py` | Stocks that passed the gate with quality score, excluded list with reasons, gate thresholds caption, **chart:** quality score bar by ticker coloured by pass/fail. | market intelligence, viz |
-| **Candidates** | `tabs/candidates.py` | CSP and/or LEAPS tables (only requested strategies), "show the full math" expander, **charts:** delta vs annualised-return scatter (size = liquidity), premium-vs-strike ladder per ticker. | portfolio analysis, viz |
+| **Setup** | `tabs/setup.py` | The form for users who prefer not to chat: buying power, strategy, more options including **your options experience** (beginner / intermediate / advanced, Phase 12: the profile's knowledge level), data source / API key (used for the run only); *Find candidates* runs the same graph. | beginner UX |
+| **Quality Screen** | `tabs/quality.py` | The **market overview strip** (Phase 12: SPY and QQQ with the day change, VIX with percentile and regime label, 13-week T-bill, provider and **data age**), then the stocks that passed the gate with quality score, excluded list with reasons, gate thresholds caption, **chart:** quality score bar by ticker coloured by pass/fail. | market intelligence, real-time data with freshness, viz |
+| **Candidates** | `tabs/candidates.py` | The market strip again, then CSP and/or LEAPS tables (only requested strategies) whose columns follow the knowledge level (Phase 12: beginner = plain-language columns; intermediate adds delta, open interest, flags; advanced adds IV, gamma, theta, vega, spread), **glossary tooltips** on every header tied to a knowledge document, *What do these columns mean?* opening the document on the Learn tab, the 📰 news-flag marker, "show the full math" expander, **charts:** delta vs annualised-return scatter (size = liquidity), premium-vs-strike ladder per ticker. | portfolio analysis, beginner UX, viz |
 | **Portfolio & Risk** | `tabs/portfolio.py` | *Your holdings* (Phase 12): editor → `holdings` chat turn; metrics, allocation donut by ticker, sector bar, positions table, before/after-assignment bar against the seventh constraint's cap. Then the allocation donut, sized positions, totals, constraint checks, **charts:** stress-test P&L bars per position at −10/−20/−30%, portfolio payoff-at-expiry curve (sum of position payoffs from `core/payoff.py`), realistic-loss vs account % gauge. Margin accounts always show the −30% loss beside the margin requirement. | portfolio analysis 7%, viz 7% |
 | **Goals** (Phase 12) | `tabs/goals.py` | Goal Planning agent surface. A form (income / growth / FIRE with the five variants) composes a chat turn, so the reply follows Orchestrator → Goal Planning → Compliance. Verdict metrics (required return vs stress-adjusted yield vs profile cap), the three levers, **chart:** four-path projection (stress, base, best, diversified assumption) with target lines and the coast marker, the FIRE card (FIRE number, years to FI, coast balance, premium coverage), Scout's cited explanation with its Compliance badge (check 9). | goal planning (required feature), conversational flow, data visualization |
-| **Learn** | `tabs/learn.py` | Education agent surface. Left: glossary list (from `knowledge/concepts`). Right: selected concept rendered with citations, **interactive payoff diagram** (strike, premium, spot sliders → `core/payoff.py`), Greeks explainer that reads the currently selected candidate, Reg T margin walkthrough step by step with the candidate's numbers, "Why hype is a risk for short puts" page tying the trend signal to options risk. Every page is labelled *Education, not advice*. | educational content 8% |
-| **Trends** | `tabs/trends.py` | Two boards behind a segmented control, so the app keeps nine tabs. *Consumer trends:* trend board, evidence posts, **charts:** mention velocity per source over time, z-score components bar, sentiment vs purchase-intent scatter. *Bottlenecks (Phase 11):* theme → layer tree with layer scores, the companies per layer with materiality and curated/not-curated flag, evidence (filing excerpts, price points, supply-response items), the thesis monitor, **charts:** tightening-vs-easing mentions over time per layer, price series with the deceleration marker, company score vs priced-in scatter. Each board's caption states its ranking weight and the "re-orders, never adds" rule. | market intelligence 5%, real-time data |
+| **Learn** | `tabs/learn.py` | Education agent surface. Opens on the **learning path** (Phase 12: Basics → Your first cash-secured put → Managing positions and taxes, the stage for the reader's level open first, *Next up*, a tick per page, progress for the session). Then the glossary of cited documents filtered by collection and level, the **Tax & Accounts** page (Phase 12: account chooser, assignment-basis calculator bound to a screened put, LEAPS holding-period countdown, wash-sale window, Section 1256 status, the tax documents, *Ask the Tax agent*), the **interactive payoff diagram** (strike, premium, spot sliders → `core/payoff.py`), Greeks explainer that reads the currently selected candidate, Reg T margin walkthrough with the candidate's numbers, "Why hype is a risk for short puts". Every page is labelled *Education, not advice*. | educational content 8%, personalised learning paths |
+| **Trends & News** | `tabs/trends.py` | Boards behind a segmented control, so the app keeps nine tabs. *News desk (Phase 12):* per-ticker headlines labelled by category and relevance, the provider's sentiment, stale markers, the calendar flags on screened candidates; headlines never change the ranking. *Consumer trends:* trend board, evidence posts, **charts:** mention velocity per source over time, z-score components bar, sentiment vs purchase-intent scatter. *Bottlenecks (Phase 11):* theme → layer tree with layer scores, the companies per layer with materiality and curated/not-curated flag, evidence (filing excerpts, price points, supply-response items), the thesis monitor, **charts:** tightening-vs-easing mentions over time per layer, price series with the deceleration marker, company score vs priced-in scatter. Each board's caption states its ranking weight and the "re-orders, never adds" rule. | market intelligence 5%, real-time data |
 | **Under the hood** | `tabs/under_the_hood.py` | Agent trace: per-specialist latency and status, tokens and cost, compliance audit log for the run, retrieval log (query → chunks → similarity), config hash, data-source status, JSON/Markdown downloads. | architecture evidence, docs |
 
 Charts use Plotly with one shared colour scheme in `ui/theme.py`; every chart has a title, axis labels, units and a one-line caption saying what it shows. No sidebar.
@@ -928,7 +975,7 @@ Charts use Plotly with one shared colour scheme in `ui/theme.py`; every chart ha
 
 **Results (below the form, in this order):** metrics row (stocks passing the gate, CSP count, LEAPS count, positions sized, cash kept in reserve) → **1 · Stocks that passed the good-to-own screen** (ticker, name, sector, quality 0–100, 30-day vol, below 90-day high, curated/user-added, why) with an *Excluded* expander listing reasons and a caption stating the gate values → **2 · Cash-secured put candidates** and/or **LEAPS call candidates** (only the chosen ones; plain-language column names such as "Cash to secure" and "Chance it expires worthless"; "Show the full math" expander per table) → **How it fits your buying power** (allocation donut, sized positions, totals, risk-limit checks, stress-test chart, warnings) → **Plain-English summary** with verifier status and JSON/Markdown downloads → collapsed *Consumer-trend signal (secondary)* and *Under the hood* (latency per node, cost, pipeline description, notes).
 
-The results list above now maps onto the Quality Screen, Candidates, Portfolio & Risk, Trends and Under-the-hood tabs; the Setup tab shows only the metrics row and a pointer to those tabs.
+The results list above now maps onto the Quality Screen, Candidates, Portfolio & Risk, Goals, Trends & News and Under-the-hood tabs; the Setup tab shows only the metrics row and a pointer to those tabs. The nine tabs as built, with a screenshot each, are the README's "The app: nine tabs" table (step 12.9).
 
 ### 10.1 MCP server (bonus): `src/options_scout/mcp/server.py`
 
@@ -1011,7 +1058,7 @@ Does the Consumer-Trend Score have any predictive value? From Phase 11 the same 
 
 ### 13.1 The Compliance agent (`agent/agents/compliance.py`, `core/compliance.py`)
 
-Options are higher-risk than equities, so the Compliance agent is the **most important agent in the graph, not a formality**. Its stance: **everything this app produces is education and a screen, never advice.** It is the only path from any LLM output (report narrative, chat reply, concept answer, MCP `explain_term`) to the user. It is deterministic first; an optional LLM judge can only add warnings, never approve.
+Options are higher-risk than equities, so the Compliance agent is the **most important agent in the graph, not a formality**. Its stance: **everything this app produces is education and a screen, never advice.** It is the only path from any LLM output (report narrative, every chat reply including the goal, holdings, news and tax turns, concept answer, and the MCP tools `explain_term`, `plan_goal`, `analyze_holdings`, `news_brief`, `explain_tax_term` and the `screen_options` narrative) to the user. It is deterministic first; an optional LLM judge can only add warnings, never approve.
 
 **Education vs. advice separation (the core rule).** Every paragraph the Education agent writes is tagged by the LLM with a `mode`: `education` ("here is how a cash-secured put works and what assignment means") or `screen_result` ("the screen found candidate CSP-COST-1 with these computed numbers"). The Compliance agent enforces:
 - `education` paragraphs may contain **no candidate ids, tickers from the current run, or run numbers**; they must carry citations.
@@ -1033,8 +1080,10 @@ Options are higher-risk than equities, so the Compliance agent is the **most imp
 | `check_sources_fresh` | Any cited filing or rule doc has `as_of` within `max_age_days`; otherwise append "(source may be out of date)". | warn |
 | `check_no_pii` | No handles, usernames or emails from social posts in the text. | block |
 | `goal_narrative` (Phase 12, check 9) | Goal replies only: the verdict (fits / stretch / does not fit) is stated, the stress path is named whenever a projection is, no projected figure is promised ("would", never "will"), and a FIRE reply names its variant and sources the withdrawal rate to diversified-portfolio research (`config/compliance.yaml` → `goal`). | block |
+| `news_grounding` (Phase 12, check 10) | News replies only: every quoted span (≥ 12 characters) in a non-education paragraph is a headline the News Desk fetched, compared after normalisation; a brief may paraphrase but may not put words in a publisher's mouth. Cited education paragraphs are covered by `check_citations`. | block |
+| `tax_reply` (Phase 12, check 11) | Tax replies only: the tax disclaimer sentence appears exactly once, no rate a reader will pay is stated, no filing instruction is given in the imperative (`config/compliance.yaml` → `tax`); account-type claims are cited education paragraphs. | block |
 
-**Outcome:** `ComplianceReport(passed, checks, retry_feedback, audit_id)`. On `block` failures the Education agent is retried with the failing check details (≤ 2); after that the report falls back to the template narrative (numbers only, education paragraphs replaced by cited glossary snippets) and the chat replies with the fixed sentence *"I can show the computed results but could not produce an explanation that passes compliance."* Every evaluation, pass or fail, is appended to the run's audit log (`structlog` event `compliance.check`) and shown on the Under-the-hood tab and the Compliance ✓ badge.
+**Outcome:** `ComplianceReport(passed, checks, retry_feedback, audit_id)`. On `block` failures the Education agent is retried with the failing check details (≤ 2); after that the report falls back to the template narrative (numbers only, education paragraphs replaced by cited glossary snippets) and the chat replies with the fixed sentence *"I can show the computed results but could not produce an explanation that passes compliance."* Every evaluation, pass or fail, is appended to the run's audit log (`structlog` event `compliance.check`) and shown on the Under-the-hood tab and the Compliance ✓ badge. A failing goal, news, tax or holdings reply is retried by the writer that produced it, not by Education. `docs/compliance.md` states every check in plain English with accepted and rejected sentences, and `tests/unit/test_docs_examples.py` runs each sentence through the check it names.
 
 ### 13.2 General guardrails
 - Disclaimer on every report and UI page: *"Educational screening tool. Not investment, tax or legal advice. Options involve significant risk, including loss exceeding the premium received on margin. Data may be delayed or inaccurate."*
@@ -1260,7 +1309,8 @@ The step list, acceptance criteria and rubric mapping live in [docs/capstone-pla
 - [x] Goals tab (`ui/tabs/goals.py`, ninth tab): form → chat message, verdict metrics, four-path projection chart with target lines and the coast marker, levers, FIRE card, Scout's explanation with the badge.
 - [x] Tests and evals: `tests/agent/test_goal_planning.py` (parser, router rows, check 9, standalone agent, clarification, chat turns incl. lean FIRE, a screen seeded with a goal), the scripted conversation is now seven turns, `chat_routing.jsonl` 60 → 70 rows, `goal_cases.jsonl` (29 cases, 15 FIRE across the five variants) scored by `eval_goals`.
 - [x] MCP `plan_goal` tool (step 12.8, done 2026-11-06).
-- [ ] PRD §10 tab table and README screenshot `docs/screenshots/goals.png` (step 12.9 / 12.10).
+- [x] PRD §10 tab table (step 12.9, done 2026-11-06).
+- [ ] README screenshot `docs/screenshots/goals.png` (step 12.10).
 
 **Step 12.4 — Holdings input and the seventh constraint** — done 2026-11-04
 - [x] `holdings` intent (router prompt + regex router; CSV rows, "200 AAPL at 150", "AAPL 200 @ 300", "300 shares of NKE"; lots merged, unknown symbols dropped against the SEC list); `prompts/parse_holdings.md` + `rule_parse_holdings`; Portfolio agent nodes `holdings_intake` → `holdings_analysis` → `holdings_reply` (deterministic, cited); parent graph `holdings` → Portfolio → Compliance; holdings persist on the thread and follow refined / what-if screens.
@@ -1274,7 +1324,7 @@ The step list, acceptance criteria and rubric mapping live in [docs/capstone-pla
 - [x] Compliance check 10 `news_grounding`: every quoted span in a news reply is a fetched headline, verbatim; short options in flags are named by ticker and strike (check 3 keeps ids out of text without their realistic loss).
 - [x] Tests and evals: `tests/unit/test_news_adapter.py` (fixture, feed parsing, cache, backoff, error recording), `tests/agent/test_news_desk.py` (agent order, briefs and flags against the calendar, chat turn, clarification, check 10), `chat_routing.jsonl` 80 → 90 rows, `news_labeled.jsonl` (100 headlines + 20 with embedded instructions) scored by `eval_news` (keyword classifier on its own labelled set; LLM row with a key).
 - [x] Fixed after the first full eval (2026-11-05): `prompts/classify_news.md` 1.1.0 labels a headline that carries an instruction by the news it reports (1.0.0 told the model to label it `other` / `low`, which is what the injected text asks for and what the eval's 0/20 measured). One live call on the 20 adversarial headlines: 20/20 by content, relevance unchanged, the instruction absent from every summary. The set is four templates over five companies. Two full evals on 2026-11-05 scored 1.1.0 at 20/20 on the adversarial headlines both times and 68/70, then 70/70, on the clean ones (70/70 under 1.0.0).
-- [ ] Ex-dividend dates: no provider in this repo exposes them, so `ex_dividend_before_expiry` fires only when a date is supplied; documented in the README limitations (step 12.9).
+- [x] Ex-dividend dates: no provider in this repo exposes them, so `ex_dividend_before_expiry` fires only when a date is supplied; documented in the README limitations and §16 (step 12.9, done 2026-11-06).
 
 **Step 12.6 — Tax & Accounts agent** — done 2026-11-04
 - [x] Agent #9 `tax_agent`: `tax_retrieval` (the `tax` collection first with question expansion into the documents' vocabulary, concepts as the fallback, one chunk per document) → `tax_math` (`core/tax.py` on the thread's screened put and LEAPS: assignment basis, premium if expired, long-term threshold, wash-sale window around today, Section 1256 status of the run's tickers; mechanics only without a screen) → `tax_answer` (`prompts/answer_tax.md` or the deterministic stand-in). `tax` intent in the router prompt and the regex router (bare "Reg T" stays an Education concept; "portfolio margin", IRA / Roth / account-type questions go to tax). Parent graph: `tax` → Tax & Accounts → Compliance; inside a screen the agent is facts-only.
@@ -1295,7 +1345,8 @@ The step list, acceptance criteria and rubric mapping live in [docs/capstone-pla
 - [x] Router prompt repaired (`prompts/route_message.md` 1.3.0): the `holdings`, `news` and `tax` intents of steps 12.4–12.6 were in the schema and the regex router but had no description in the LLM prompt; they are now described with their boundaries against `new_screen`, `why` and `concept`, and the tie-break order matches the regex router (off-topic, goal, holdings, news, tax). The full eval of 2026-11-05 18:51 UTC is the LLM router's first measurement on all 100 rows (the earlier 60/60 predates the 40 goal, holdings, news and tax rows): 100/100, the same as the regex router. That is one run of a model whose output varies between runs.
 - [x] Extraction prompt hardened (`prompts/extract_entities.md` 1.1.0) after the second full eval of 2026-11-05 scored the LLM extractor at 1/30 on the adversarial posts (0/30 an hour earlier with the same prompt, so the model varies between runs): the prompt now defines an embedded instruction by shape (text addressed to an assistant or pipeline, requests to add or replace output in any language or script, JSON / tool-call / metadata look-alikes, URL and link-title content), says a name found only there is never an entity, keeps tickers the author discusses in their own words, and repeats the rule after the posts. Two live passes over the 30 posts under 1.1.0 (a targeted one and the full eval of 2026-11-05 18:51 UTC): 0/30 influenced both times, the legitimate brands still extracted; F1 on the 150 clean posts is 0.81 (P 0.72 / R 0.93), against 0.80 and 0.81 in the two runs under 1.0.0. Two clean passes are still weak evidence given the run-to-run variance; `eval_injection` now names the steered post in its detail if it recurs. That full eval is the first with every row passing (exit 0).
 - [x] The three generated rule documents of the plan's §12.7 table (done 2026-11-06): `knowledge/rules/goal_feasibility.md`, `news_flags.md` and `holdings_concentration.md`, generated like the seven screening rules from a PRD section (the new §3.8, §3.9 and §3.10, written from `core/goals.py`, `core/news.py`, `core/holdings.py`, `core/sizing.py` and `core/risk.py`) plus the values in force from `config/goals.yaml`, `news.yaml`, `risk_profiles.yaml` and `holdings.yaml`; `rag/rules_docs.py` reads `### 3.N` headings of any width, and the staleness test covers all ten. _(`rules/` 7 → 10; 123 documents, 1,069 chunks, `make index` 0.34 s. Re-scored offline with the larger corpus: recall@6 50/60 and MRR 0.60, citations 103/103, 60/60 answers passing Compliance, tax routed and cited 20/20, all unchanged. `evals/reports/latest.md` is the 2026-11-05 run and was not regenerated.)_
-- [ ] Screenshots of the strip, the path and the beginner table (step 12.10); PRD §10 tab table (step 12.9).
+- [x] PRD §10 tab table (step 12.9, done 2026-11-06).
+- [ ] Screenshots of the strip, the path and the beginner table (step 12.10).
 
 **Step 12.8 — MCP: four specialist tools and two resource collections** — done 2026-11-06
 - [x] `mcp/server.py`: `plan_goal(goal, balance?, risk?, account?, thread_id?)`, `analyze_holdings(holdings, thread_id?)`, `news_brief(tickers?, thread_id?)` and `explain_tax_term(term, thread_id?)`; ten tools in all. Each returns the specialist's typed output (`Goal` + `GoalPlan` or the clarification; `Holding` list + `HoldingsAnalysis`; `NewsBrief` list, `NewsFlag` list and source status; `TaxFacts`) with the reply, its citations, its `ComplianceReport` and the errors of that turn only.
@@ -1304,9 +1355,18 @@ The step list, acceptance criteria and rubric mapping live in [docs/capstone-pla
 - [x] `news_brief` covers the curated list plus a screen's names; a ticker outside that set is listed under `errors` and a request with none inside it is a tool error (the chat path falls back to the thread's names, which a tool call must not do without saying so).
 - [x] Resources `knowledge://basics` (28) and `knowledge://tax` (14) with `knowledge://basics/{doc_id}` and `knowledge://tax/{doc_id}`, registered from one `COLLECTIONS` table with `concepts`; the index entries gain `kind` and `level`.
 - [x] Tests: `tests/agent/test_mcp.py` (27: ten tools and three resource collections listed, each specialist tool alone, the four on one screen's thread, argument and thread errors, both new collections) and two pinned-turn tests in `tests/agent/test_chat.py`.
-- [ ] Claude Desktop screenshot showing a Phase 12 tool (`docs/screenshots/claude-desktop-screen-options.png` still shows the six-tool server); PRD §13.1 wording and the README agent table (step 12.9).
+- [x] PRD §13.1 wording and the README agent table (step 12.9, done 2026-11-06).
+- [ ] Claude Desktop screenshot showing a Phase 12 tool (`docs/screenshots/claude-desktop-screen-options.png` still shows the six-tool server; step 12.10).
 
-**Steps 12.9–12.10** — see the plan.
+**Step 12.9 — Documentation, packaging, benchmarks** — done 2026-11-06
+- [x] `docs/architecture.md` rewritten for the eleven subgraphs: the parent graph with News Desk, Goal Planning and Tax & Accounts, routing over ten intents and pinned turns, the agent communication protocol as six tested rules, pages for agents 7–9 and the holdings path of Portfolio, the eleven-check Compliance page, entry points, performance considerations. `docs/rag.md`: the five collections (123 documents, 1,069 chunks), the seven-field front-matter with `level`, title boost, the reading-level cap, how four agents retrieve, the 2026-11-06 eval numbers, how to add a document per collection. `docs/compliance.md`: checks 9–11 in plain English, a second machine-checked table of 14 goal / news / tax sentences (rows 22–35) run as chat replies by `tests/unit/test_docs_examples.py`, the retry path per writer. _(The three pages had existed as gitignored planning drafts written for Phase 10; they are now tracked. `docs/capstone-plan.md` and `miscellaneous/` stay private.)_
+- [x] `docs/brief-mapping.md`: the six brief agents → specialists with files and entry points, the required prototype features, the prescribed layout folder by folder, `config.yaml` → `config/*.yaml`, `requirements.txt` → exported from `pyproject.toml`, the technology table (LangGraph, OpenRouter + Anthropic and why no native Gemini, SQLite + numpy instead of FAISS, MarketData.app / Tradier + Alpha Vantage news instead of yFinance, Streamlit + FastAPI), the deliverables checklist, what is not built.
+- [x] README: eleven checks and the ten-intent examples in the pitch; the brief → specialist table under Architecture with the updated node chain; **API** section (every endpoint, SSE event names, `curl` examples for a screen and a conversation, auth and rate limit); **Benchmarks** section; **Troubleshooting** (no key, 429, 401, Alpha Vantage limit, stale cache, ports in use, missing index / no-source answers, fastembed download, MCP server not appearing, MCP thread errors, the Python 3.12 requirement, mypy, coverage gate, stale rule docs); **Future directions**; the evaluation table refreshed from the 2026-11-06 report with the knowledge-level, goal, news and tax rows; limitations (ex-dividend dates, headlines as context, LLM rows measured and variable); the documentation table with `brief-mapping.md` and `bench.md`; the `requirements.txt` install path.
+- [x] Packaging: `make requirements` (`scripts/export_requirements.py`: `uv pip compile --extra dev --extra mcp --python-version 3.12 --universal` with a header naming pyproject as the source of truth; 124 pins committed). `make bench` (`evals/bench.py`): six screens with wall latency, latency per specialist and per node, tokens and cost, five chat turns on a screen's thread, market-data cache hit rate, index build and query latency; writes `evals/reports/bench.md` and `bench.json`. _(2026-11-06, fixture mode: mean 1.11 s / p95 3.06 s per screen; Market Intelligence 308 ms, Strategy 228 ms, Education 118 ms; specialist turns 0.44–0.52 s; cache hit rate 82%; index 0.34 s; query 1.2 ms mean.)_
+- [x] PRD: header, §5.0 diagram and Compliance row, §8 layout, §9 (chat and thread endpoints, auth and rate limit as built), §10 tab table (Setup, Quality Screen, Candidates, Learn, Trends & News), §13.1 (checks 10 and 11, the MCP tools, per-writer retries), §15.2 resume bullets from the 2026-11-06 report, §16, §18 (after Phase 12, with evidence).
+- [x] `docs/demo-video-script.md` revised for Phase 12: the architecture scene cut to twenty seconds, scenes for Goals ($400 a month on $60k, conservative → does-not-fit verdict with levers, then lean FIRE with the coverage caveat), News (a candidate flagged by an earnings date), Tax (what if I get assigned → basis illustration with the candidate's numbers) and Holdings (three positions → concentration overlay); the pre-flight list and the shot list updated; the Phase 0–9 fallback cut removed.
+
+**Step 12.10** — see the plan: record the demo video against the revised script, link it and the GIF in the README, retake `docs/screenshots/` for Goals, the strip, the learning path, the beginner table and a Claude Desktop specialist tool call.
 
 ## 15. Resume & Portfolio Packaging
 
@@ -1320,12 +1380,12 @@ The step list, acceptance criteria and rubric mapping live in [docs/capstone-pla
 7. Limitations and disclaimer.
 8. Tech decisions and trade-offs (MarketData.app vs. scraping, greedy vs. MILP, VADER vs. LLM sentiment).
 
-### 15.2 Resume bullets (numbers from `evals/reports/latest.md`, measured 2026-11-04)
-- Built a multi-agent **LangGraph** system (an Orchestrator, six specialist agents and a Compliance agent as composed subgraphs; 19 nodes, parallel map-reduce over tickers, human-in-the-loop interrupt, SQLite-checkpointed resumable threads, intent-routed chat) that screens options income strategies sized to user buying power under 6 portfolio risk constraints; **346 offline tests, 94.7% line coverage** on the math, retrieval and agent packages, lint and evals in CI.
-- Designed a **consumer-trend** pipeline over Reddit, X, Wikipedia pageviews, Google Trends and news RSS (pluggable, config-switchable sources) with LLM entity extraction (**F1 0.81** with DeepSeek V4.1 Flash, **0.90** for the rule-based fallback, on 150 labelled posts) and SEC-validated ticker resolution (**100% on 100 brand names, 0 hallucinated tickers**).
-- Built a **cited RAG layer** (hybrid dense + BM25 retrieval over 38 documents / 295 chunks of authored concepts, generated rule documents and SEC risk factors): **recall@6 0.82** on 40 labelled questions with a deterministic offline embedder, **100%** of cited tags resolving to retrieved sources and **100%** of education paragraphs cited across 40 answers.
-- Enforced **100% numeric grounding** (284/284 numbers over 6 end-to-end runs) with a deterministic **Compliance agent** (eight checks: grounded numbers, resolving citations, education-vs-advice separation, suitability, banned language, disclaimer, source freshness, no PII) that is the only path from any LLM output to the user; **34/34** advice-seeded narratives rejected with **0/10** clean ones blocked, **20/20** suitability cases caught, **6/6** chat turns audited; prompt-injection eval **0/30** successful attacks (rule-based and LLM).
-- Shipped a FastAPI + eight-tab Streamlit app with SSE streaming, an **MCP server** for Claude Desktop, LangSmith/OpenTelemetry tracing and per-run cost tracking (**mean 0.97 s, p95 2.66 s per run** in fixture mode), deployed via Docker with offline fixture mode and CI.
+### 15.2 Resume bullets (numbers from `evals/reports/latest.md`, measured 2026-11-06, and `evals/reports/bench.md`, 2026-11-06)
+- Built a multi-agent **LangGraph** system (an Orchestrator, nine specialist agents and a Compliance agent as eleven composed subgraphs; 33 nodes, parallel map-reduce over tickers, human-in-the-loop interrupt, SQLite-checkpointed resumable threads, chat routed over ten intents) that screens options income strategies sized to user buying power under 7 portfolio risk constraints, analyses the user's holdings, plans income, growth and FIRE goals against the computed yield, briefs the news and teaches the tax mechanics; **492 offline tests, 94.6% line coverage** on the math, retrieval and agent packages, lint and evals in CI.
+- Designed a **consumer-trend** pipeline over Reddit, X, Wikipedia pageviews, Google Trends and news RSS (pluggable, config-switchable sources) with LLM entity extraction (**F1 0.82** with DeepSeek V4.1 Flash, **0.90** for the rule-based fallback, on 150 labelled posts) and SEC-validated ticker resolution (**100% on 100 brand names, 0 hallucinated tickers**); integrated Alpha Vantage news with cache, backoff and a classifier that labels 100% of 70 headlines and is unmoved by 20 embedded instructions.
+- Built a **cited RAG layer** (hybrid dense + BM25 retrieval with reading-level caps over 123 documents / 1,069 chunks in five collections: options concepts, investing basics, tax mechanics, generated rule documents and SEC risk factors): **recall@6 0.83** on 60 labelled questions with a deterministic offline embedder, **100%** of cited tags resolving to retrieved sources and **100%** of education paragraphs cited across 60 answers, 20/20 tax questions citing the expected document.
+- Enforced **100% numeric grounding** (284/284 numbers over 6 end-to-end runs) with a deterministic **Compliance agent** (eleven checks: grounded numbers, resolving citations, education-vs-advice separation, suitability, banned language, disclaimer, source freshness, no PII, goal-narrative honesty, news-quote grounding, tax-reply rules) that is the only path from any LLM output to the user; **34/34** advice-seeded narratives rejected with **0/10** clean ones blocked, **20/20** suitability cases caught, **7/7** chat turns audited, **29/29** goal verdicts and **20/20** tax replies passing; prompt-injection eval **0/30** successful attacks (rule-based and LLM).
+- Shipped a FastAPI + nine-tab Streamlit app with SSE streaming, a beginner learning path and glossary tooltips, a market overview strip with data age, an **MCP server** with ten tools and three knowledge resources for Claude Desktop, LangSmith/OpenTelemetry tracing and per-run cost tracking (**mean 1.1 s, p95 3.1 s per screen** in fixture mode, 82% market-data cache hit rate, 1.2 ms retrieval queries), deployed via Docker with offline fixture mode, an exported `requirements.txt` and CI.
 - Designed a second, **bottleneck-arbitrage** market-intelligence signal (Phase 11, specified, not yet built): curated theme → supply-chain → company maps, EDGAR full-text and FRED adapters, LLM snippet classification, a deterministic thesis monitor with falsifiers, capped with the trend signal at 15% of ranking. _(Fill the classification accuracy once 11.5's eval runs.)_
 
 ### 15.3 Interview talking points
@@ -1344,7 +1404,8 @@ The step list, acceptance criteria and rubric mapping live in [docs/capstone-pla
 - IV rank needs accumulated history; early runs use an HV proxy.
 - Reddit and X are biased, noisy samples of consumer behavior; social signals can be manipulated. X's `search/recent` endpoint only covers 7 days, so X contributes to the recent week and to cross-source confirmation but has a thin baseline unless the Pro tier (`search/all`) is used or snapshots accumulate; `pytrends` is unofficial and may break.
 - Reg T formula is the exchange minimum; actual broker margin differs and changes in volatile markets.
-- Early assignment, dividends and liquidity at exit are simplified.
+- Early assignment, dividends and liquidity at exit are simplified. No provider in this repo exposes ex-dividend dates, so the News Desk's `ex_dividend_before_expiry` flag fires only when a date is supplied.
+- Headlines are context, never a ranking input; the Alpha Vantage free tier is 25 requests a day. Reading-level adaptation changes which documents are cited and, in live LLM mode, the vocabulary; the fixture-mode writer's wording does not change with the level.
 - The bottleneck signal (Phase 11) is damped by construction: the good-to-own universe is large caps for which a constrained layer is usually a side business, EDGAR carries no earnings-call transcripts, industry price trackers are paid and arrive only as operator-supplied CSVs, and the theme map is a curated judgment that can be wrong or stale.
 - Educational tool, not advice.
 
@@ -1379,22 +1440,22 @@ The step list, acceptance criteria and rubric mapping live in [docs/capstone-pla
 
 Total 100 points plus MCP bonus. "Evidence" is what a grader can open to verify the line.
 
-| Category | Line | Weight | Where it lives after Phase 10 | Evidence |
+| Category | Line | Weight | Where it lives after Phase 12 | Evidence |
 |---|---|---|---|---|
-| Technical 40% | Multi-agent architecture | 10 | Six specialists + Compliance + Orchestrator as subgraphs (§5.0, `agent/agents/`) | `docs/architecture.md`, Under-the-hood per-agent trace, `tests/agent/test_agents.py` |
-| | LangGraph workflow | 10 | Parent graph composing subgraphs; `Send` fan-out; `interrupt()`; SQLite checkpointing; two bounded retry loops; conditional intent routing; streaming (§5.1, 5.4) | `agent/graph.py`, scripted 6-turn conversation test, resumable-thread test |
-| | RAG implementation | 8 | Hybrid dense + BM25 retrieval over concepts, basics, tax, rules, filings and run evidence; `kind` and reading-level filters; citations enforced (§5.6) | `rag/`, `knowledge/`, retrieval and citation evals in `evals/reports/latest.md`, Sources footnotes in every report |
+| Technical 40% | Multi-agent architecture | 10 | Nine specialists + Compliance + Orchestrator as eleven subgraphs with their own state slices (§5.0, `agent/agents/`); the brief's six agents mapped one to one in `docs/brief-mapping.md` | `docs/architecture.md` (per-agent pages, communication protocol), Under-the-hood per-agent trace, `tests/agent/test_agents.py` |
+| | LangGraph workflow | 10 | Parent graph composing subgraphs; `Send` fan-out; `interrupt()`; SQLite checkpointing; two bounded retry loops that re-enter the writer that failed; conditional routing over ten intents; pinned specialist turns; streaming (§5.1, 5.4) | `agent/graph.py`, scripted seven-turn conversation test, resumable-thread test, `tests/agent/test_mcp.py` (turns on a screen's thread) |
+| | RAG implementation | 8 | Hybrid dense + BM25 retrieval over concepts, basics, tax, rules, filings and run evidence (123 documents, 1,069 chunks); `kind` and reading-level filters; citations enforced; four agents retrieve, each with its own query strategy (§5.6, `docs/rag.md`) | `rag/`, `knowledge/`, retrieval (recall@6 0.83 on 60 questions), citation (103/103) and tax (20/20 cited) evals in `evals/reports/latest.md`, Sources footnotes in every report |
 | | Real-time data integration | 7 | MarketData.app / Tradier live chains, Alpha Vantage news with cache and backoff (Phase 12), 5 social sources, SEC filings fetcher, caching, retries, fixture mode (§4.3, Phase 2, 4) | `data/market.py`, `social/adapters/`, data-source status on Under-the-hood tab |
-| | MCP / Claude Desktop (bonus) | + | FastMCP server with ten tools and three knowledge resource collections (§10.1) | `mcp/server.py`, README config snippet and screenshot, `tests/agent/test_mcp.py` |
-| UX 25% | Streamlit multi-tab app | 10 | Nine tabs (§10; Goals added in Phase 12) | `ui/tabs/`, `docs/screenshots/`, `tests/agent/test_ui.py` |
-| | Conversational flow | 8 | Scout chat with seven intents (why / concept / what-if / goal …), interrupt as a chat turn, Compliance badge (§10, 5.0 Orchestrator, Phase 12) | `tests/agent/test_chat.py` (seven-turn script), `tests/agent/test_goal_planning.py`, routing eval (70 rows) |
-| | Data visualization | 7 | 11 Plotly charts with shared theme and captions, interactive payoff diagram (§10) | `ui/charts.py`, screenshots |
+| | MCP / Claude Desktop (bonus) | + | FastMCP server with ten tools (six deterministic and graph tools, four pinned specialist turns that continue a screen's thread) and three knowledge resource collections (§10.1) | `mcp/server.py`, README config snippet and screenshot, `tests/agent/test_mcp.py` (27 tests) |
+| UX 25% | Streamlit multi-tab app | 10 | Nine tabs (§10; Goals added in Phase 12), the market overview strip with data age, level-aware tables, glossary tooltips, the learning path | `ui/tabs/`, `docs/screenshots/`, `tests/agent/test_ui.py`, `tests/agent/test_learning_path.py` |
+| | Conversational flow | 8 | Scout chat with ten intents (new screen, refine, why, concept, what-if, goal, holdings, news, tax, off-topic), context carried on the thread, interrupt as a chat turn, Compliance badge (§10, 5.0 Orchestrator, Phase 12) | `tests/agent/test_chat.py` (seven-turn script, pinned turns), the four specialist test modules, routing eval (100 rows, 100% rule-based and LLM) |
+| | Data visualization | 7 | 17 Plotly figures with shared theme and captions (`ui/charts.py`: quality bar, delta-return scatter, strike ladder, allocation donut, stress bars, per-position stress, portfolio payoff, loss meter, payoff diagram, trend velocity, per-source z, z components, sentiment-intent scatter, agent latency, goal projection, sector weights, concentration after assignment), the market overview strip (§10) | `ui/charts.py`, screenshots |
 | Domain 20% | Educational content | 8 | Learn tab, 123 cited documents (36 options concepts, 28 beginner basics, 14 tax and account docs, 10 rules, 35 filings) with reading levels, Greeks and Reg T walkthroughs bound to real candidates, "hype and short puts", the Tax & Accounts page and agent (§10 Learn, §5.6, Phase 12) | `knowledge/`, citation faithfulness, retrieval and tax evals |
 | | Portfolio analysis | 7 | Holdings analysis of what the user owns (allocation, sector weights, HHI diversification score, expense ratios, beta, covered-call lots, concentration after assignment; Phase 12), allocation, seven constraints, greedy sizing with skip reasons, −10/−20/−30% stress with IV shock, payoff curve, realistic-loss gauge (§3, Portfolio & Risk tab) | `core/holdings.py`, `core/sizing.py`, `core/risk.py`, `core/payoff.py`, golden and hypothesis tests, `tests/agent/test_holdings.py` |
 | | Market intelligence | 5 | Quality gate with reasons, VIX regime, consumer-trend board with evidence and cross-source confirmation, capped at 15% of ranking (§3.7, §4); News Desk briefs and calendar flags from Alpha Vantage news (Phase 12, never a ranking input); Phase 11 adds the bottleneck board with filing evidence and a thesis monitor inside the same 15% cap (§4A) | Trends and Quality Screen tabs, signal study notebook |
-| Quality 15% | Code organisation | 5 | `core/` pure math, `rag/`, `agent/agents/` one file per specialist, config over constants, prompts as files, mypy strict | `pyproject.toml`, `docs/architecture.md` |
-| | Documentation | 5 | README, this PRD, `docs/architecture.md`, `docs/compliance.md`, `docs/rag.md`, PRIVACY.md, eval report with dates | repo root |
-| | Testing | 5 | Unit (golden + hypothesis), agent, UI (`AppTest`), MCP, e2e regression, evals in CI; coverage badge | `tests/`, `evals/run_evals.py`, CI |
+| Quality 15% | Code organisation | 5 | `core/` pure math, `rag/`, `agent/agents/` one file per specialist, config over constants (13 typed YAML files), prompts as versioned files, mypy strict; the brief's prescribed layout mapped folder by folder | `pyproject.toml`, `requirements.txt` (exported), `docs/brief-mapping.md`, `docs/architecture.md` |
+| | Documentation | 5 | README (architecture, quickstart, API reference with examples, Claude Desktop setup, troubleshooting, future directions), this PRD, `docs/architecture.md` (the technical design document), `docs/compliance.md`, `docs/rag.md`, `docs/brief-mapping.md`, `docs/demo-video-script.md`, PRIVACY.md, eval and benchmark reports with dates | repo root, `docs/`, `evals/reports/` |
+| | Testing | 5 | 492 offline tests: unit (golden + hypothesis), agent, UI (`AppTest`), MCP, e2e regression, docs examples; 94.6% line coverage on `core/`, `rag/`, `agent/` (gate 85%); evals and benchmarks reproducible with `make eval` and `make bench`; CI on every push | `tests/`, `evals/run_evals.py`, `evals/bench.py`, CI |
 | Cross-cutting | Compliance and citation discipline | counts in Domain + Technical | Compliance agent is the only path to the user; education vs advice separation; suitability gate; audit log (§13.1) | `core/compliance.py`, advice and suitability evals at 100%, Compliance ✓ badge |
 
-**Known rubric risks after Phase 10:** the hash embedder used in CI is weaker than the fastembed one, so the retrieval eval reports both numbers honestly (hash recall@6 0.82; fastembed NOT RUN until the `rag` extra is installed), and the rule-based answerer cannot refuse an out-of-corpus question that shares content words with a document (13/15 refused through Education, 15/15 refused or redirected through the chat router; the LLM answerer is instructed to refuse and is the graded path). LLM-dependent rows run only when a key is present: the committed report was measured with DeepSeek V4.1 Flash through OpenRouter, CI without a key marks them NOT RUN. The LLM-judge citation pass and the fastembed row are the two rows still NOT RUN in the committed report.
+**Known rubric risks after Phase 12:** the hash embedder used in CI is weaker than the fastembed one, so the retrieval eval reports both numbers honestly (hash recall@6 0.83 on 60 questions; fastembed NOT RUN until the `rag` extra is installed), and the rule-based answerer cannot refuse an out-of-corpus question that shares content words with a document (12/15 refused through Education, 15/15 refused or redirected through the chat router; the LLM answerer is instructed to refuse and is the graded path). LLM-dependent rows run only when a key is present: the committed report was measured with DeepSeek V4.1 Flash through OpenRouter on 2026-11-06 and those rows vary between runs of the same model; CI without a key marks them NOT RUN. The LLM-judge citation pass and the fastembed row are the two rows still NOT RUN in the committed report. The demo video, the Goals-tab and Phase 12 screenshots and a Claude Desktop screenshot of a specialist tool are step 12.10 and not yet recorded.

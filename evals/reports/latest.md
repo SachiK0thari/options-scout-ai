@@ -1,26 +1,26 @@
 # OptionsScout AI: evaluation report
 
-_Generated 2026-11-05 18:51 UTC · data mode `fixture` · LLM: openrouter (deepseek/deepseek-v4.1-flash / deepseek/deepseek-v4.1-flash)_
+_Generated 2026-11-06 22:53 UTC · data mode `fixture` · LLM: openrouter (deepseek/deepseek-v4.1-flash / deepseek/deepseek-v4.1-flash)_
 
 Numbers below were measured by `make eval` on this machine. Rows marked **NOT RUN** need a live LLM key (or the optional `fastembed` extra) and are reported as such rather than estimated.
 
 | Section | Metric | Result | Target | Status | Detail |
 |---|---|---|---|---|---|
-| 11.1 Deterministic | Golden-value + property tests (tests/unit) | 310 passed | all pass | **PASS** |  |
-| Quality | Offline test suite (unit + agent + API + UI + MCP) | 464 passed | all pass | **PASS** | 247s |
-| Quality | Line coverage on core/, rag/, agent/ (pytest --cov, same run) | 94.5% | ≥ 85% | **PASS** | whole package 90.8% |
+| 11.1 Deterministic | Golden-value + property tests (tests/unit) | 326 passed | all pass | **PASS** |  |
+| Quality | Offline test suite (unit + agent + API + UI + MCP) | 492 passed | all pass | **PASS** | 956s |
+| Quality | Line coverage on core/, rag/, agent/ (pytest --cov, same run) | 94.6% | ≥ 85% | **PASS** | whole package 90.9% |
 | 11.2 Entity extraction | F1 on 150 labeled posts (rule-based, no LLM) | P 0.90 / R 0.89 / F1 0.90 | F1 ≥ 0.80 | **PASS** | tp=159 fp=17 fn=20 |
 | 11.2 Entity extraction | is_stock_talk accuracy (rule-based, no LLM) | 0.96 | report | **INFO** | n=159 |
-| 11.2 Entity extraction | F1 on 150 labeled posts (LLM deepseek/deepseek-v4.1-flash) | P 0.72 / R 0.93 / F1 0.81 | F1 ≥ 0.80 | **PASS** | tp=167 fp=64 fn=12 |
-| 11.2 Entity extraction | is_stock_talk accuracy (LLM deepseek/deepseek-v4.1-flash) | 0.96 | report | **INFO** | n=167 |
+| 11.2 Entity extraction | F1 on 150 labeled posts (LLM deepseek/deepseek-v4.1-flash) | P 0.74 / R 0.92 / F1 0.82 | F1 ≥ 0.80 | **PASS** | tp=164 fp=59 fn=15 |
+| 11.2 Entity extraction | is_stock_talk accuracy (LLM deepseek/deepseek-v4.1-flash) | 0.96 | report | **INFO** | n=164 |
 | 11.2 Resolution | Brand → ticker accuracy (100 names) | 100% | ≥ 90% | **PASS** | 0 misses |
 | 11.2 Resolution | Hallucinated (non-SEC) tickers | 0 | 0 | **PASS** |  |
 | 11.2 Profile parsing | Required-field accuracy (rule-based, no LLM) | 98% | ≥ 95% | **PASS** | 177/180 |
 | 11.2 Profile parsing | Clarification routing accuracy (rule-based, no LLM) | 98% | ≥ 95% | **PASS** | 59/60 |
 | 11.2 Profile parsing | Knowledge-level accuracy (rule-based, no LLM) | 100% | ≥ 90% | **PASS** | 60/60 (11 requests state a level, the rest must parse to none) |
-| 11.2 Profile parsing | Required-field accuracy (LLM deepseek/deepseek-v4.1-flash) | 100% | ≥ 95% | **PASS** | 180/180 |
-| 11.2 Profile parsing | Clarification routing accuracy (LLM deepseek/deepseek-v4.1-flash) | 100% | ≥ 95% | **PASS** | 60/60 |
-| 11.2 Profile parsing | Knowledge-level accuracy (LLM deepseek/deepseek-v4.1-flash) | 98% | ≥ 90% | **PASS** | 59/60 (11 requests state a level, the rest must parse to none) |
+| 11.2 Profile parsing | Required-field accuracy (LLM deepseek/deepseek-v4.1-flash) | 99% | ≥ 95% | **PASS** | 179/180 |
+| 11.2 Profile parsing | Clarification routing accuracy (LLM deepseek/deepseek-v4.1-flash) | 98% | ≥ 95% | **PASS** | 59/60 |
+| 11.2 Profile parsing | Knowledge-level accuracy (LLM deepseek/deepseek-v4.1-flash) | 100% | ≥ 90% | **PASS** | 60/60 (11 requests state a level, the rest must parse to none) |
 | 11.2 Prompt injection | Runs where injected ticker influenced output (rule-based) | 0/30 | 0% | **PASS** |  |
 | 11.2 Prompt injection | Runs where injected ticker influenced output (LLM) | 0/30 | 0% | **PASS** |  |
 | 11.3 Agent | Numeric grounding rate (final narrative) | 100.0% | 100% | **PASS** | 284/284 numbers over 6 runs |
@@ -29,7 +29,7 @@ Numbers below were measured by `make eval` on this machine. Rows marked **NOT RU
 | 11.3 Agent | Policy compliance (banned phrases absent, disclaimer present) | 6/6 | 100% | **PASS** |  |
 | 11.3 Agent | Trajectory checks (expected nodes visited, retries bounded) | 6/6 | 100% | **PASS** |  |
 | 11.3a Compliance | Compliance audit coverage (report text carries a passing ComplianceReport) | 6/6 | 100% | **PASS** |  |
-| 11.3 Agent | Latency per run (fixture mode) | mean 1.13s · p95 3.02s | report | **INFO** |  |
+| 11.3 Agent | Latency per run (fixture mode) | mean 1.14s · p95 3.08s | report | **INFO** |  |
 | 11.3 Agent | Cost per run | mean $0.0000 · input tokens mean 0 | report | **INFO** | llm_mode=fixture |
 | 11.3 Agent | Graceful degradation with social source disabled | ok | report | **PASS** |  |
 | 11.3a Compliance | Education-vs-advice separation (check_language / check_education_only / check_citations) | 34/34 advice caught · 0/10 clean rejected | 100% caught, ≤ 1 false positive | **PASS** |  |

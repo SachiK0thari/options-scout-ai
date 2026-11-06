@@ -1,0 +1,206 @@
+{
+ "generated": "2026-11-06T21:38:58.877581+00:00",
+ "env": {
+  "data_mode": "fixture",
+  "llm_mode": "fixture",
+  "platform": "Darwin arm64, Python 3.12.0"
+ },
+ "screens": [
+  {
+   "thread": "bench-0",
+   "request": "I have $50,000 of buying power in a margin account, balanced risk tolerance. CSPs and a few LEAPS/PMCC.",
+   "wall_s": 3.055,
+   "positions": 1,
+   "candidates": 15,
+   "tokens_in": 0,
+   "tokens_out": 0,
+   "cost_usd": 0.0,
+   "compliance_attempts": 1
+  },
+  {
+   "thread": "bench-1",
+   "request": "$100k cash account, conservative. Only cash-secured puts. I like COST and NKE, skip TSLA.",
+   "wall_s": 0.67,
+   "positions": 1,
+   "candidates": 5,
+   "tokens_in": 0,
+   "tokens_out": 0,
+   "cost_usd": 0.0,
+   "compliance_attempts": 1
+  },
+  {
+   "thread": "bench-2",
+   "request": "250k portfolio margin, aggressive, all strategies, watchlist AAPL MSFT SPY.",
+   "wall_s": 0.962,
+   "positions": 2,
+   "candidates": 15,
+   "tokens_in": 0,
+   "tokens_out": 0,
+   "cost_usd": 0.0,
+   "compliance_attempts": 1
+  },
+  {
+   "thread": "bench-3",
+   "request": "Roth IRA with 40k, cautious, CSPs and LEAPS please.",
+   "wall_s": 0.693,
+   "positions": 0,
+   "candidates": 15,
+   "tokens_in": 0,
+   "tokens_out": 0,
+   "cost_usd": 0.0,
+   "compliance_attempts": 1
+  },
+  {
+   "thread": "bench-4",
+   "request": "I've got about 75 grand in a margin account, moderate risk, PMCC ideas plus CSPs.",
+   "wall_s": 0.946,
+   "positions": 2,
+   "candidates": 15,
+   "tokens_in": 0,
+   "tokens_out": 0,
+   "cost_usd": 0.0,
+   "compliance_attempts": 1
+  },
+  {
+   "thread": "bench-5",
+   "request": "$1.2M margin account, balanced. Exclude QQQ and SPY.",
+   "wall_s": 0.342,
+   "positions": 5,
+   "candidates": 7,
+   "tokens_in": 0,
+   "tokens_out": 0,
+   "cost_usd": 0.0,
+   "compliance_attempts": 1
+  }
+ ],
+ "agent_ms": {
+  "orchestrator_agent": [
+   3.9,
+   3.0,
+   2.7,
+   2.8,
+   2.6,
+   2.9
+  ],
+  "market_intelligence_agent": [
+   1826.2,
+   4.5,
+   4.4,
+   4.5,
+   4.5,
+   4.5
+  ],
+  "market_data_agent": [
+   166.3,
+   76.6,
+   76.2,
+   78.9,
+   75.8,
+   34.5
+  ],
+  "strategy_agent": [
+   355.9,
+   94.7,
+   353.9,
+   123.4,
+   372.9,
+   66.6
+  ],
+  "news_desk_agent": [
+   87.6,
+   88.5,
+   87.2,
+   86.7,
+   86.8,
+   38.0
+  ],
+  "portfolio_agent": [
+   88.3,
+   82.4,
+   84.3,
+   91.4,
+   82.9,
+   36.5
+  ],
+  "risk_agent": [
+   88.0,
+   83.4,
+   95.8,
+   86.1,
+   84.5,
+   33.9
+  ],
+  "education_agent": [
+   276.4,
+   91.3,
+   102.1,
+   90.6,
+   97.3,
+   49.9
+  ],
+  "compliance_agent": [
+   95.0,
+   89.0,
+   92.2,
+   86.2,
+   91.4,
+   42.1
+  ]
+ },
+ "turns": [
+  {
+   "intent": "goal",
+   "text": "I want $400 a month from this account",
+   "wall_s": 0.437,
+   "passed": true,
+   "attempts": 1,
+   "citations": 2
+  },
+  {
+   "intent": "holdings",
+   "text": "200 AAPL at 150, 10 COST at 800, 40 SPY",
+   "wall_s": 0.48,
+   "passed": true,
+   "attempts": 1,
+   "citations": 1
+  },
+  {
+   "intent": "news",
+   "text": "any news on COST and NKE?",
+   "wall_s": 0.524,
+   "passed": true,
+   "attempts": 1,
+   "citations": 1
+  },
+  {
+   "intent": "tax",
+   "text": "what happens to my taxes if one of those puts is assigned?",
+   "wall_s": 0.476,
+   "passed": true,
+   "attempts": 1,
+   "citations": 1
+  },
+  {
+   "intent": "concept",
+   "text": "what is assignment",
+   "wall_s": 0.013,
+   "passed": true,
+   "attempts": 1,
+   "citations": 2
+  }
+ ],
+ "cache": {
+  "hits": 516,
+  "misses": 110,
+  "hit_rate": 0.8242811501597445
+ },
+ "retrieval": {
+  "embedder": "hash-2048",
+  "documents": 123,
+  "chunks": 1069,
+  "build_s": 0.34,
+  "queries": 60,
+  "query_mean_ms": 1.2,
+  "query_p95_ms": 1.65
+ }
+}

@@ -1,8 +1,10 @@
 # OptionsScout AI: demo video script
 
 **Format:** narrated live run, one take per scene, screen recording with voice-over.
-**Target length:** 9:30 to 10:30. The architecture gets 20 seconds. Everything else is inside the app.
-**Thesis the viewer should leave with:** every number is computed by tested Python, every sentence the model writes goes through a real compliance check before anyone sees it, and the conversation is routed between specialist agents rather than answered by one chatbot.
+**Target length:** 9:30 to 10:30. The architecture gets twenty seconds. Everything else is inside the app.
+**Thesis the viewer should leave with:** every number is computed by tested Python, every sentence the model writes goes through a real compliance check before anyone sees it, and the conversation is routed between nine specialist agents rather than answered by one chatbot.
+
+The brief asks the video to show multi-turn conversations with different agents, portfolio analysis, real-time market data and goal planning. Scenes 3, 11, 5 and 8 are those four; scenes 9 and 10 show the News Desk and the Tax & Accounts agents; scenes 6 and 7 show the compliance layer catching a draft.
 
 ---
 
@@ -10,30 +12,34 @@
 
 ### 0.1 What the script assumes exists
 
-This script is written against the **Phase 10** design in [PRD.md](../PRD.md) (sections 5.0, 5.6, 10, 13.1). The following must be built and working before the record button is pressed:
+This script is written against the **Phase 12** build ([PRD.md](../PRD.md) sections 5.0, 5.6, 10, 13.1 and the Phase 12 checklist; the per-agent reference is [architecture.md](architecture.md)). Everything below is built and tested as of 2026-11-06:
 
-| Scene | Depends on | PRD checklist item |
+| Scene | Depends on | Where it is |
 |---|---|---|
-| 3, 4, 6, 7 | Scout tab chat (`ui/tabs/scout.py`) with `st.chat_input` | Phase 10, UI block |
-| 3 | `route_node` with intents `new_screen / refine_profile / concept / why / what_if / off_topic` | Phase 10, conversation block |
-| 3, 7 | Education agent: `concept_answer_node`, `[Sn]` citations, `knowledge/concepts/*.md` | Phase 10, RAG + Education blocks |
-| 3, 7 | Compliance agent: eight checks, **Compliance ✓ badge with expander**, audit log on Under the hood | Phase 10, Compliance block |
-| 4, 6 | `what_if` re-run with profile diff on a new thread | Phase 10, conversation block |
-| 5 | Nothing new. Live MarketData.app path exists today in `data/market.py` | done (Phase 2, 9) |
+| 3, 4, 6, 8, 9, 10, 11 | Scout tab chat (`ui/tabs/scout.py`) with `st.chat_input`, the ten intents in `route_node`, the Compliance ✓ badge with its expander | `agent/nodes/route.py`, `ui/tabs/scout.py` |
+| 3, 6 | Education agent: `concept_answer_node`, `[Sn]` citations over the five knowledge collections | `agent/agents/education.py`, `knowledge/` |
+| 4 | `what_if` re-run with the profile diff on a new thread; Portfolio & Risk tab | `agent/nodes/what_if.py`, `ui/tabs/portfolio.py` |
+| 5 | the live MarketData.app path, the market overview strip with data age | `data/market.py`, `ui/components/market_strip.py` |
+| 6, 7 | Compliance agent: eleven checks, audit log on Under the hood | `core/compliance.py`, `ui/tabs/under_the_hood.py` |
+| 8 | Goal Planning agent, Goals tab, compliance check 9 | `agent/agents/goal_planning.py`, `ui/tabs/goals.py` |
+| 9 | News Desk agent, the 📰 marker on Candidates, the News board on Trends & News, check 10 | `agent/agents/news_desk.py`, `ui/tabs/trends.py` |
+| 10 | Tax & Accounts agent, the Learn tab's Tax & Accounts page, check 11 | `agent/agents/tax.py`, `ui/tabs/learn.py` |
+| 11 | holdings input on the Portfolio & Risk tab, the `holdings` intent, the seventh constraint | `agent/nodes/holdings_*.py`, `core/holdings.py` |
 
-If Phase 10 is not finished, use the **fallback cut** in section 9. Do not narrate features that are not on screen.
+Do not narrate features that are not on screen.
 
 ### 0.2 Pre-flight checklist (do all of these the day of recording)
 
-- [ ] `.env`: `OPTIONS_SCOUT_LLM_MODE=live` with a working provider key. `OPTIONS_SCOUT_DATA_MODE` stays `fixture` so the first scenes do not spend market-data credits. The Data source picker in the app switches to live for scene 5 only.
-- [ ] `make index` has been run so `data/knowledge.sqlite` exists. Use the `fastembed` embedder, not `hash`, so retrieval quality on camera matches the eval table.
-- [ ] A **dollar-cost averaging** concept doc exists in `knowledge/concepts/` with a primary-source URL. It is not in the PRD's list of ~20 docs. Without it, the question in scene 7 correctly returns *"I don't have a source for that in my knowledge base."*, which is a different (also true) demo. Add the doc, or change the question to one that is in the corpus (for example "what does assignment mean?").
-- [ ] Run the exact NVDA prompt from scene 7 **three times** in rehearsal. All three replies must reframe to education plus the licensed-advisor pointer, with the Compliance badge green. If any of the three gives advice-shaped text that passes compliance, fix `prompts/route_message.md` / `config/compliance.yaml` first. Never record around a flaky guardrail.
-- [ ] Save a rehearsal thread where the Compliance agent **failed attempt 1 and passed attempt 2**. Threads persist in `data/checkpoints.sqlite`, so write the thread id down. Scene 8 reopens it. If no rehearsal run retried, scene 8 has a deterministic terminal fallback (8.3).
+- [ ] `.env`: `OPTIONS_SCOUT_LLM_MODE=live` with a working `OPENROUTER_API_KEY`. `OPTIONS_SCOUT_DATA_MODE` stays `fixture` so the first scenes do not spend market-data credits. The Data source picker in the app switches to live for scene 5 only.
+- [ ] `make index` has been run so `data/knowledge.sqlite` exists. Use the `fastembed` embedder (`pip install -e ".[rag]"`, `OPTIONS_SCOUT_RAG_EMBEDDER=fastembed`), not `hash`, so retrieval quality on camera matches the better eval row.
+- [ ] `ALPHAVANTAGE_API_KEY` set if you want live headlines in scene 9; the fixture headlines for the ten demo tickers are fine too and never rate-limit. Decide before recording and say which on camera.
+- [ ] Run the exact NVDA prompt from scene 6 **three times** in rehearsal. All three replies must reframe to education plus the licensed-advisor pointer, with the Compliance badge green. If any of the three gives advice-shaped text that passes compliance, fix `prompts/route_message.md` / `config/compliance.yaml` first. Never record around a flaky guardrail.
+- [ ] Run the scene 8 goal turn in rehearsal and confirm the verdict is **does not fit** on $60,000 conservative (the required return is 8% a year, above the conservative cap of 6% in `config/goals.yaml`, so the verdict does not depend on the screened yield). If a fixture change has moved the yield, change the target to a figure that still does not fit and update the narration.
+- [ ] Save a rehearsal thread where the Compliance agent **failed attempt 1 and passed attempt 2**. Threads persist in `data/checkpoints.sqlite`, so write the thread id down. Scene 7 reopens it. If no rehearsal run retried, scene 7 has a deterministic terminal fallback (7.3).
 - [ ] MarketData.app free token with credits left. The free plan is roughly 100 credits a day and a chain costs one credit per contract, so **record scene 5 first in the day** or you will hit the 429 before you want to.
 - [ ] A second, deliberately wrong token (any string) for the 401 shot.
 - [ ] Browser window 1440 × 900, zoom 110%. Close every other tab. Light theme. Hide bookmarks bar.
-- [ ] Have the §5.0 mermaid diagram rendered and open in a separate window (or a drawing tablet ready) for scene 2.
+- [ ] Have the README's mermaid diagram rendered and open in a separate window for scene 2.
 - [ ] Clear the chat so the Scout tab opens empty. Keep the rehearsal threads in the checkpointer; only the UI session state resets.
 
 ### 0.3 Rules for the voice-over
@@ -45,7 +51,7 @@ If Phase 10 is not finished, use the **fallback cut** in section 9. Do not narra
 
 ---
 
-## 1. Cold open: the problem (0:00 – 0:40)
+## 1. Cold open: the problem (0:00 – 0:30)
 
 **On screen:** black slate, then a slow fade to a plain-text slide with three lines.
 
@@ -63,23 +69,19 @@ If Phase 10 is not finished, use the **fallback cut** in section 9. Do not narra
 
 ---
 
-## 2. Architecture in twenty seconds (0:40 – 1:05)
+## 2. Architecture in twenty seconds (0:30 – 0:50)
 
-**On screen:** the §5.0 diagram (Orchestrator → six specialists → Compliance → user). Trace the path with the cursor or a pen as you talk. Do not read the boxes.
+**On screen:** the README diagram (Orchestrator → nine specialists → Compliance → user). Trace the path with the cursor as you talk. Do not read the boxes.
 
 **Narration (keep it to this, timed to the pointer):**
 
-> One LangGraph parent graph. An orchestrator parses what you typed and classifies the intent. A new screen flows down the left: Market Data pulls quotes and runs a quality gate, Market Intelligence adds the consumer-trend signal, Strategy screens the chains, Portfolio sizes positions, Risk stress-tests them and can send sizing back up to three times.
->
-> A concept question skips all of that and goes straight to the Education agent, which answers from a cited knowledge base.
->
-> Every path ends at the same place: the Compliance agent. There is no edge from any writer to the UI. That is the design, and in a minute you will see the audit log that proves it ran.
+> One LangGraph parent graph, eleven subgraphs. An orchestrator classifies what you typed into one of ten intents. A screen flows down the left: Market Data, Strategy, News Desk, Portfolio, Risk, with Risk able to send sizing back. A question goes straight to its specialist: Education, Goal Planning, Tax. Every path ends at the Compliance agent. There is no edge from any writer to the screen.
 
 **Cut on:** the cursor resting on the Compliance box.
 
 ---
 
-## 3. One continuous conversation (1:05 – 3:40)
+## 3. One continuous conversation (0:50 – 2:50)
 
 **On screen:** switch to the browser. Scout tab, empty chat, disclaimer banner visible at the top. Keep the Under the hood tab one click away.
 
@@ -91,17 +93,17 @@ If Phase 10 is not finished, use the **fallback cut** in section 9. Do not narra
 What is a cash-secured put, and what actually happens if I get assigned?
 ```
 
-**What must appear:** an assistant turn with two or three short paragraphs, each sentence with a `[S1]`-style tag, a *Sources* list underneath (expect the OCC *Characteristics and Risks of Standardized Options* and the repo's own `cash_secured_put` concept doc), the one-line "Education, not advice" label, and a green **Compliance ✓** badge.
+**What must appear:** an assistant turn with two or three short paragraphs, each definitional sentence with a `[S1]`-style tag, a *Sources* list underneath (expect the repo's own *Cash-secured put* and *Assignment* documents with the OCC link), the one-line "Education, not advice" label, and a green **Compliance ✓** badge.
 
 **Narration (while the answer streams):**
 
-> The orchestrator classified that as a concept question, so only the Education agent ran. Watch the tags. Every definitional sentence carries a source marker, and the sources are listed underneath with links. That is not decoration. In a moment the compliance step will fail an answer that drops a tag.
+> The orchestrator classified that as a concept question, so only the Education agent ran. Every definitional sentence carries a source marker, and the sources are listed underneath with links. In a minute the compliance step will fail an answer that drops a tag.
 
 **Action:** click the **Compliance ✓** badge to open the expander.
 
 **Narration:**
 
-> This is the compliance report for that one reply. Eight checks. Numbers, citations, education-only language, suitability, banned phrases, disclaimer, source freshness, no personal data. All passed, and this report is stored with the turn.
+> Eleven checks. Numbers, citations, education-only language, suitability, banned phrases, disclaimer, source freshness, no personal data, and three rules for goal, news and tax replies that pass trivially here because this is none of those. All passed, and this report is stored with the turn.
 
 Close the expander.
 
@@ -110,48 +112,50 @@ Close the expander.
 **Type live (use the word "that" on purpose):**
 
 ```
-OK, run that for me. $50,000, cash account, conservative.
+OK, run that for me. $50,000, cash account, conservative. I'm a beginner.
 ```
 
-**What must appear:** a different kind of assistant turn. The orchestrator classified it as `new_screen`. The profile-confirmation card renders **inside the chat** with editable fields: Buying power 50,000 · Account cash · Risk conservative · **Strategies: csp**. That last field is the proof of context: the message never said "cash-secured put", the agent carried it from turn 1.
+**What must appear:** the orchestrator classified it as `new_screen`. The profile-confirmation card renders **inside the chat** with editable fields: Buying power 50,000 · Account cash · Risk conservative · **Strategies: csp** · **Experience: beginner**. The strategies field is the proof of context: the message never said "cash-secured put", the agent carried it from turn 1.
 
 **Narration:**
 
-> Different intent, different route. This went to the orchestrator's intake, not to Education. And look at Strategies. I did not type "cash-secured put" in this message. The thread remembered what "that" referred to. The run pauses here on a LangGraph interrupt so I can correct anything before money-shaped numbers are computed.
+> Different intent, different route. This went to the orchestrator's intake, not to Education. Look at Strategies: I did not type "cash-secured put" in this message, the thread remembered what "that" referred to. And "beginner" became the profile's knowledge level, which changes which documents get cited and how the tables read. The run pauses here on a LangGraph interrupt so I can correct anything before money-shaped numbers are computed.
 
-**Action:** click **Confirm**. Node progress streams as status lines in the chat (regime, allocation, trend scout, universe, per-ticker market data, screener, ranker, sizing, risk, explainer, compliance, report). Let it run; fixture mode finishes in about a second, so slow your narration rather than the app.
-
-**Narration:**
-
-> Each line is a specialist finishing. Sizing and Risk can loop. Explainer and Compliance can loop. The summary that appears at the end is the compliance-checked version, and it points me to the Candidates and Portfolio tabs rather than trying to be the whole report.
+**Action:** click **Confirm**. Node progress streams as status lines in the chat (regime, trend scout, universe, per-ticker market data, screener, ranker, news desk, sizing, risk, explainer, compliance, report). Fixture mode finishes in about a second, so slow your narration rather than the app.
 
 **What must appear:** a short summary turn, Compliance ✓ badge, and a line like "7 of 7 names passed the quality gate; see Candidates and Portfolio & Risk."
 
+**Action:** click **Candidates**. Point at the market strip (SPY, QQQ, VIX with its regime, T-bill, "fixture, recorded 2026-10-27") and at the plain-language column headers. Hover one header to show its glossary tooltip.
+
+**Narration:**
+
+> Beginner profile, so the table shows "cash to secure" and "chance it expires worthless" instead of delta and probability OTM, and every header has a one-sentence definition tied to a Learn page. The strip at the top says where the data came from and how old it is.
+
 ### 3.3 Turn 3: a "why" question over the report just produced
 
-**Type live:**
+**Back on Scout. Type live:**
 
 ```
 Why is Nike ranked at the bottom?
 ```
 
-**What must appear:** a `why`-routed answer that mixes two paragraph modes. One `education` paragraph explaining the quality gate with a `[Sn]` tag pointing at the generated rules doc (`knowledge/rules/quality_gate.md`). One `screen_result` paragraph quoting the run's own numbers for NKE (on fixtures: quality 46, 30-day vol 28%, 15% below its 90-day high). Compliance ✓.
+**What must appear:** a `why`-routed answer that mixes two paragraph modes. One `education` paragraph explaining the quality gate with a `[Sn]` tag pointing at the generated rules document (`knowledge/rules/quality_gate.md`). One `screen_result` paragraph quoting the run's own numbers for NKE (on fixtures: quality 46, 30-day vol 28%, 15% below its 90-day high). Compliance ✓.
 
 **Narration:**
 
-> Third intent in one conversation. This is a "why" question about the report we just produced, so the orchestrator sent it to Education with evidence retrieval over the current run. Notice the two kinds of sentence. The rule is cited from the knowledge base. The numbers are the run's own numbers, and the compliance step checked that every one of them exists in the computed payload. The model was not allowed to invent a 28 percent.
+> Third intent in one conversation. The rule is cited from the knowledge base. The numbers are the run's own numbers, and the compliance step checked that every one of them exists in the computed payload. The model was not allowed to invent a 28 percent.
 
 **Action:** click **Under the hood**. Scroll to the agent trace for this thread.
 
 **Narration:**
 
-> Three turns, three routes. Concept went to Education only. The screen walked every specialist. The why question went to Market Intelligence and Education. Same thread id throughout, so the context never left the checkpointer.
+> Three turns, three routes, one thread id. The context never left the checkpointer.
 
 **Cut on:** the three intents visible in the trace.
 
 ---
 
-## 4. Portfolio analysis with input typed live (3:40 – 5:00)
+## 4. What-if, and a portfolio sized under constraints (2:50 – 3:40)
 
 **On screen:** Scout tab still open.
 
@@ -165,109 +169,67 @@ What if I had 30k in a margin account instead?
 
 **Narration:**
 
-> A what-if is a fourth intent. The orchestrator diffs the profile, shows me exactly what changed, and runs the whole pipeline again on a new thread so the first result is not overwritten.
+> A what-if diffs the profile, shows me exactly what changed, and runs the whole pipeline again on a new thread so the first result is not overwritten.
 
-**Action:** click **Portfolio & Risk**. Walk the tab top to bottom. Point, do not read.
+**Action:** click **Portfolio & Risk**. Walk the lower half top to bottom. Point, do not read.
 
-1. **Allocation donut.** Conservative baseline is 50% put collateral, 15% LEAPS, 35% cash. LEAPS was not requested, so that bucket is held as cash on screen.
-2. **Sized positions table.** Contracts per candidate, capital used, margin used, and the **realistic loss at −30%** column.
-3. **Constraint checks.** Six rows with value, limit, pass. Conservative on margin: margin usage limit 30%, loss per position 2% of account, per ticker 5%.
-4. **Stress bars** at −10/−20/−30% with the IV shock.
-5. **Candidates that did not fit** expander: each skipped candidate has a reason (per-ticker cap, sector cap, margin cap).
+1. **Allocation donut.** Conservative baseline is 50% put collateral, 15% LEAPS, 35% cash. LEAPS was not requested, so that bucket is held as cash.
+2. **Sized positions table** with the **realistic loss at −30%** column beside the margin used.
+3. **Constraint checks**: six rows with value, limit, pass.
+4. **Candidates that did not fit** expander: each skipped candidate has the constraint that stopped it.
 
 **Narration (over the walk):**
 
-> This is what portfolio analysis means here. Buying power is split by the stated risk profile and the volatility regime. Candidates are sized greedily under six constraints, and anything that does not fit is listed with the constraint that stopped it, not silently dropped. Because this is a margin account now, the Reg T requirement sits right next to the loss at a 30 percent drop. The app never shows margin without showing that loss. That pairing is a compliance rule, not a layout choice.
+> Buying power is split by the stated risk profile and the volatility regime. Candidates are sized greedily under the constraints, and anything that does not fit is listed with the reason, not silently dropped. Because this is a margin account now, the Reg T requirement sits next to the loss at a 30 percent drop. The app never shows margin without showing that loss. That pairing is a compliance rule, not a layout choice.
 
 **Cut on:** the skipped-candidates expander open.
 
 ---
 
-## 5. Live market data, and what happens when it fails (5:00 – 6:30)
+## 5. Live market data, and what happens when it fails (3:40 – 4:50)
 
 Record this scene **first in the day** (see pre-flight). Edit it into this position.
 
 ### 5.1 A real quote comes back
 
-**Action:** open **Setup** tab → *Data source* expander → choose **MarketData.app (paste your API token)** → paste the working token into the password field. Read the caption aloud, it is short and it matters.
+**Action:** open **Setup** → *Data source* expander → choose **MarketData.app (paste your API token)** → paste the working token. Read the caption aloud.
 
 **Narration:**
 
 > "Your token is used for this run only. It is never written to disk, logged, cached or shown in the report." That sentence is tested.
 
-**Action:** set buying power 50,000, *Cash-secured puts*, click **Find candidates**. Progress bar runs noticeably slower than fixture mode. Let the viewer feel the difference.
+**Action:** set buying power 50,000, *Cash-secured puts*, click **Find candidates**. The progress bar runs noticeably slower than fixture mode.
 
 **What must appear when it finishes:**
-- Caption line: `data: live` and today's as-of timestamp.
-- **Quality Screen** tab: prices and 30-day vol that differ from the fixture numbers you showed earlier. Point at SPY's price and compare it aloud to the fixture value from scene 3.
+- **Quality Screen** tab: the strip now reads `delayed quotes, fetched 14:02 UTC (12 min ago)` or similar, with `marketdata` as the provider, and prices that differ from the fixture numbers. Point at SPY and compare it aloud to the fixture value from scene 3.
 - **Under the hood** → data-source status: `market_data: marketdata`, per-ticker `ok`.
 - The banner still says **delayed, for education only**.
 
 **Narration:**
 
-> Those are live quotes and live chains from MarketData.app, fetched with my own token. Compare SPY to the bundled snapshot from a minute ago, it moved. Greeks are recomputed from the live implied vol by the same pricing code the tests cover. And it is still labelled delayed, because the free tier is delayed, and the compliance disclaimer check requires that label whenever the provider is not real-time.
+> Live quotes and live chains from MarketData.app, fetched with my own token, and the strip says exactly how old they are. Greeks are recomputed from the live implied vol by the same pricing code the tests cover. It is still labelled delayed, because the free tier is delayed, and the disclaimer check requires that label whenever the provider is not real-time.
 
 ### 5.2 The failure path, on purpose
 
 **Action:** *Data source* expander → replace the token with the wrong one → **Find candidates**.
 
-**What must appear:** the run completes rather than crashing. Progress reaches the end. Then:
-- Metrics row: `Stocks passing quality gate 0 / 7` (or similar), `Positions sized 0`.
-- **Under the hood** → *Notes and degraded sources*: one line per ticker reading
-  `market_data SPY: MarketDataError: MarketData.app rejected the API token (401 Unauthorized)`
-  and one line `regime: VIX unavailable (...); using neutral defaults`.
-- The plain-English summary says no candidate met the criteria and lists the data problem in the limitations paragraph. Compliance still passed, because an honest "nothing passed" is a valid report.
+**What must appear:** the run completes rather than crashing. Metrics row: `Stocks passing quality gate 0 / 7`, `Positions sized 0`. **Under the hood** → *Notes and degraded sources*: one line per ticker reading `market_data SPY: MarketDataError: MarketData.app rejected the API token (401 Unauthorized)` and one line `regime: VIX unavailable (...); using neutral defaults`. The summary says no candidate met the criteria and names the data problem. Compliance still passed, because an honest "nothing passed" is a valid report.
 
 **Narration:**
 
-> Wrong token. The run does not crash and it does not fall back to stale numbers and pretend. Each ticker records its own failure, the regime step falls back to neutral defaults and says so, and the report explains why there are no candidates. A rate limit is handled the same way: a 429 from the provider raises immediately with the message "credit or rate limit reached" instead of retrying into the wall, because a retry will not fix a spent budget. Only transport errors and 5xx responses get exponential backoff.
+> Wrong token. The run does not crash and it does not fall back to stale numbers and pretend. Each ticker records its own failure, the regime step falls back to neutral defaults and says so, and the report explains why there are no candidates. A rate limit is handled the same way: a 429 raises immediately with "credit or rate limit reached" instead of retrying into the wall, because a retry will not fix a spent budget.
 
-If you **actually hit the 429** during the day, record that instead. It is better footage. The message on screen will read `MarketData.app: credit or rate limit reached (429)`.
+If you **actually hit the 429** during the day, record that instead. It is better footage.
 
-**Cut on:** the degraded-sources list.
-
----
-
-## 6. Goal planning driven by a stated risk appetite (6:30 – 7:30)
-
-Be precise about what "goal planning" means in this app: it turns a stated risk appetite, buying power and strategy choice into an allocation plan and risk limits. It does not do retirement-date math. Say that.
-
-**On screen:** back to **Scout**. Switch the data source back to bundled sample data first (Setup tab) so the chat runs are fast.
-
-**Type live:**
-
-```
-I'm aggressive, I have $100,000 in a margin account, and I want both puts and LEAPS. Plan it out.
-```
-
-**What must appear:** confirmation card with Risk **aggressive**, Strategies **csp, leaps**. Confirm. Then open **Portfolio & Risk** and put it beside what you saw in scene 4.
-
-Point at these differences only:
-
-| | conservative (scene 4) | aggressive (now) |
-|---|---|---|
-| CSP / LEAPS / cash split | 50 / 15 / 35 | 45 / 35 / 20 |
-| Max margin usage | 30% | 50% |
-| Max loss per position | 2% | 5% |
-| Per-ticker cap | 5% | 10% |
-
-Then the regime line: `VIX 17.51, 57th percentile, normal, no tilt` on fixtures. Explain the tilt rule in one sentence.
-
-**Narration:**
-
-> Same pipeline, different stated appetite. The plan changes in two places. The allocation moves twenty points from cash and puts into LEAPS. And every risk limit loosens, which you can see in the constraint table. One thing never changes: the cash reserve is never reduced by the volatility tilt. If the VIX were above its 70th percentile the plan would move ten points from LEAPS into put collateral, because buying expensive long calls in a high-vol regime is the thing this tool is built to discourage.
->
-> To be clear about scope: this is planning in the sense of allocation and sizing under limits. It is not telling anyone what their retirement number is.
-
-**Cut on:** the constraint table.
+**Cut on:** the degraded-sources list. Switch the data source back to bundled sample data before the next scene.
 
 ---
 
-## 7. The compliance layer, two beats (7:30 – 9:00)
+## 6. The compliance layer, two beats (4:50 – 5:50)
 
-Still in **Scout**, same thread.
+**On screen:** back to **Scout**, the original thread.
 
-### 7.1 Beat one: compliance on normal traffic
+### 6.1 Beat one: compliance on normal traffic
 
 **Type live:**
 
@@ -275,15 +237,13 @@ Still in **Scout**, same thread.
 What's dollar-cost averaging?
 ```
 
-**What must appear:** a short cited answer, `[S1]`, `[S2]` tags, *Sources* list with a real URL, the "Education, not advice" label, the disclaimer line at the end, Compliance ✓.
+**What must appear:** a short cited answer with `[S1]`, `[S2]` tags (the *basics* collection's dollar-cost averaging document, with its SEC investor.gov link), the "Education, not advice" label, the disclaimer line, Compliance ✓.
 
 **Narration:**
 
-> A boring question on purpose. There is nothing to refuse here, and that is the point: compliance is not a refusal filter that wakes up for dangerous prompts. It ran the same eight checks on this answer as on anything else. The disclaimer is attached. The sources are attached. Nothing in the answer tells me to do anything.
+> A boring question on purpose. There is nothing to refuse here, and that is the point: compliance is not a refusal filter that wakes up for dangerous prompts. It ran the same eleven checks on this answer as on anything else.
 
-**Action:** open the badge expander, point at `check_citations: passed` and `check_disclaimer: passed`. Close it.
-
-### 7.2 Beat two: a request that crosses the line
+### 6.2 Beat two: a request that crosses the line
 
 **Type live, exactly:**
 
@@ -293,134 +253,230 @@ Should I put my savings into NVDA right now?
 
 **What must appear (this is what rehearsal verified three times):**
 - The reply does **not** answer yes or no.
-- It reframes: what the question actually involves (single-stock concentration, implied volatility, why "right now" is the part no tool can answer), each claim tagged to a source.
+- It reframes: what the question involves (single-stock concentration, implied volatility, why "right now" is the part no tool can answer), each claim tagged to a source.
 - It states, with the rule cited, that NVDA is not on the good-to-own list and would be evaluated against the same numeric gate if added.
 - It closes with the licensed-advisor sentence and the one-line disclaimer.
 - Compliance ✓.
 
 **Narration:**
 
-> This is the request most demos skip. The honest answer to "should I" is that this is not the kind of system that gets to say so, and the design makes that structural rather than polite. The reply explains what the question involves, points out that NVDA is deliberately not on the good-to-own list, cites the rule, and hands the decision to a licensed professional. Nothing here is a mood of the model. The compliance check would block a different answer, and that is the next thing I want to show you.
+> The honest answer to "should I" is that this is not the kind of system that gets to say so, and the design makes that structural rather than polite. Nothing here is a mood of the model. The compliance check would block a different answer, and that is the next thing I want to show you.
 
 **Cut on:** the licensed-advisor sentence.
 
 ---
 
-## 8. Proof it is a check, not a prompt (9:00 – 10:00)
+## 7. Proof it is a check, not a prompt (5:50 – 6:30)
 
-This is the scene that separates the video from a recording of a chatbot being polite. Show the mechanism, not the manners.
-
-### 8.1 The actual output of the compliance step
+### 7.1 The actual output of the compliance step
 
 **Action:** open the **Compliance ✓** badge on the NVDA reply.
 
-**What must appear:** the `ComplianceReport`: `passed: true`, then eight rows of `name · passed · severity · detail`. `check_education_only` and `check_language` should show detail like "0 directive phrases, 0 run identifiers in education paragraphs".
+**What must appear:** the `ComplianceReport`: `passed: true`, then eleven rows of `name · passed · severity · detail`.
 
 **Narration:**
 
-> This is the object the agent produced, not a summary of it. Eight named checks with a pass flag and a severity. Six of them block. Two warn. It is deterministic code first, and the optional model judge is only allowed to add warnings, never to approve.
+> This is the object the agent produced, not a summary of it. Eleven named checks with a pass flag and a severity. Ten of them block, one warns. It is deterministic code; the optional model judge is only allowed to add warnings, never to approve.
 
-### 8.2 One that got caught
+### 7.2 One that got caught
 
-**Action:** click **Under the hood** → *Compliance audit log*. Select the rehearsal thread you saved in pre-flight (or scroll to it if the log shows every thread).
+**Action:** click **Under the hood** → *Compliance audit log*. Select the rehearsal thread you saved in pre-flight.
 
-**What must appear:** two `compliance.check` events for the same turn.
-- Attempt 1: `passed: false`, `check_language: FAIL — banned pattern "you should" at paragraph 2` (or whatever the real failing check was), and the `retry_feedback` string that was sent back to the Education agent.
-- Attempt 2: `passed: true`.
+**What must appear:** two `compliance.check` events for the same turn. Attempt 1: `passed: false`, `check_language: FAIL — banned pattern "you should" at paragraph 2` (or whatever the real failing check was), and the `retry_feedback` string that was sent back to the writer. Attempt 2: `passed: true`.
 
 **Narration:**
 
-> Here is one from rehearsal. First draft, the model wrote "you should" about a specific candidate. Compliance blocked it, wrote the failure back to the Education agent as feedback, and the second draft passed. The user only ever saw the second draft. After two failures the system does not keep trying its luck; it falls back to a template that only echoes computed numbers and says it could not produce an explanation that passes compliance.
+> First draft, the model wrote "you should" about a specific candidate. Compliance blocked it, wrote the failure back to the Education agent as feedback, and the second draft passed. The user only ever saw the second draft. After two failures the system falls back to a template that only echoes computed numbers and says it could not produce an explanation that passes compliance.
 
-### 8.3 Deterministic fallback for 8.2 (use only if no rehearsal run retried)
+### 7.3 Deterministic fallback for 7.2 (use only if no rehearsal run retried)
 
-Open a terminal beside the browser and run the check the graph calls, on a draft of the kind that fails. Say on camera that this is the same function, fed a draft that failed in rehearsal. Today's code (phases 0–9) exposes it as `verify_narrative`; after Phase 10 it is `core/compliance.py`. Both produce a structured result:
-
-```
-$ .venv/bin/python - <<'EOF'
-from options_scout.agent.verifier import verify_narrative
-disc = ("Educational screening tool. Not investment, tax or legal advice. Options involve "
-        "significant risk, including loss exceeding the premium received on margin. Data may be "
-        "delayed or inaccurate.")
-payload = {"positions": [{"candidate_id": "CSP-COST-2026-12-18-850P",
-                          "strike": 850, "mid": 9.4, "annualized_return": 0.1547}]}
-draft = ("You should buy CSP-COST-2026-12-18-850P now. It is a great setup: the 850 strike pays "
-         "about 12% annualized and is basically risk-free. " + disc)
-print(verify_narrative(draft, payload, disclaimer=disc).model_dump())
-EOF
-```
-
-Real output from the current code (recorded 2026-10-29):
+Open a terminal beside the browser and run the check the graph calls, on a draft of the kind that fails. Say on camera that this is the same function, fed a draft that failed in rehearsal.
 
 ```
-{'passed': False, 'numbers_checked': 2, 'ungrounded_numbers': [],
- 'banned_phrases_found': ['risk-free', 'you should buy'],
- 'disclaimer_present': True,
- 'cited_candidate_ids': ['CSP-COST-2026-12-18-850P'], 'attempts': 1}
+$ .venv/bin/python - <<'PY'
+from options_scout.config import load_config
+from options_scout.core.compliance import run_compliance
+from options_scout.core.models import Narrative, Paragraph
+cfg = load_config()
+disc = cfg.settings.disclaimer
+payload = {"positions": [{"candidate_id": "CSP-COST-2026-12-18-850P", "strike": 850,
+                          "premium": 940, "realistic_loss": 12345}],
+           "risk": {"stress_drop_pct": 30}}
+def check(text):
+    n = Narrative(paragraphs=[Paragraph(mode="screen_result", text=text),
+                              Paragraph(mode="notice", text=disc)])
+    r = run_compliance(n, payload=payload, sources=[], facts=None, cfg=cfg.compliance,
+                       disclaimer=disc, text_kind="answer", run_tickers=["COST"], delayed_data=False)
+    print(r.passed, [c.name + ": " + c.detail for c in r.checks if not c.passed])
+check("You should buy CSP-COST-2026-12-18-850P now. It is a great setup: the 850 strike pays "
+      "about 9% annualized and is basically risk-free.")
+check("The screen found CSP-COST-2026-12-18-850P, a cash-secured put at the 850 strike collecting "
+      "940 of premium; its realistic loss after a 30% drop is 12345. Education, not advice.")
+PY
 ```
 
-Note for narration: the current banned-phrase list catches `you should buy` and `risk-free`. The invented `12%` is **not** flagged here because `0.12` happens to fall inside the number-matching tolerance after the payload's `0.1547` is expanded into display variants; the Phase 10 `check_numbers` with the stricter tolerance in `config/compliance.yaml` should catch it. Do not claim on camera that this snippet caught the 12 percent unless the output on your screen lists it under `ungrounded_numbers`.
-
-Then run the rewritten sentence and show `passed: True`:
+Output from the current code (recorded 2026-11-06):
 
 ```
-draft = ("The screen found CSP-COST-2026-12-18-850P, a cash-secured put at the 850 strike with a "
-         "mid of 9.4 and an annualized return on collateral of 15.47%. " + disc)
+False ['check_numbers: 2 numbers checked, not in payload: 9%', 'check_education_only: paragraph 1: short option CSP-COST-2026-12-18-850P described without its realistic loss', "check_language: paragraph 1: certainty ('risk-free'); paragraph 1: directive ('You should'); paragraph 1: superlative ('great setup')"]
+True []
 ```
+
+Note for narration: the invented 9% is caught by `check_numbers` because no payload number is within 1% of it. A number that happens to appear inside a candidate id (the `12` of `2026-12-18`) would pass the numeric check, which is why the education-only and language checks exist beside it. Run the snippet once in rehearsal and keep the terminal output; do not claim on camera anything the output on your screen does not show.
 
 **Narration (fallback version):**
 
-> This is the same function the graph calls between the writer and the user. Fed a draft with "you should buy" and "risk-free", it fails and names the phrases. Fed the same facts written as what the screen found, it passes. The graph does this on every reply, and a fail sends the draft back with these exact strings as feedback.
+> This is the same function the graph calls between the writer and the user. Fed a draft with "you should buy", "great setup", "risk-free", an invented 9 percent and a short option named without its loss, it fails and names each problem. Fed the same facts written as what the screen found, it passes. A fail sends the draft back with these exact strings as feedback.
 
 ---
 
-## 9. Close (10:00 – 10:30)
+## 8. Goal planning against a stated risk appetite (6:30 – 7:30)
 
-**On screen:** return to the §5.0 diagram, cursor on the Compliance box, then fade to the repo README.
+Be precise about what goal planning means here: a stated income or growth target is checked against the yield the screened portfolio can produce under the risk profile's cap, and the reply says what has to change. It is not a retirement calculator that promises a number.
+
+**On screen:** **Scout**. Start a fresh thread with `$60,000 cash account, conservative, cash-secured puts` and confirm (the rehearsal fixed the figures).
+
+**Type live:**
+
+```
+I want $400 a month from this account.
+```
+
+**What must appear:** a goal turn that states the verdict in words, **does not fit**, with the required return (8% a year on $60,000) against the stress-adjusted yield of the sized puts and the conservative cap of 6%; three levers (a lower target, a larger balance, a longer horizon or a different profile) with numbers; a cited education paragraph on compound growth or the app's risk profiles from the *basics* collection; Compliance ✓ with check 9 listed as `goal_narrative`.
+
+**Action:** click **Goals**. Point at the verdict metrics, the four-path projection (stress, base, best, diversified assumption) with the target line, and the levers.
 
 **Narration:**
 
-> Four intents in one conversation, routed to different specialists with context carried across turns. Live quotes, and a run that stays honest when the data source fails. A plan that changes with the stated risk appetite. And a compliance agent that is the only path from the model to the screen, with a log that shows it catching a draft.
+> Goal planning here means one honest question: does this goal fit this account under this risk profile? Four hundred a month on sixty thousand needs eight percent a year. The conservative profile caps what a plan may assume at six, and the screened puts, after the stress adjustment, give less than that. So the verdict is "does not fit", and the three levers say what would change it. Every figure on this chart was computed; the model wrote the sentences, and compliance check nine made sure it said "would", never "will", and named the stress path next to the base path.
+
+**Type live:**
+
+```
+I spend 48k a year, have 220k and add 2k a month. When could I lean FIRE?
+```
+
+**What must appear:** the FIRE card: variant **lean**, the expense target, the FIRE number at a 4% withdrawal rate, years to FI, the coast balance, and the **income coverage** line saying what share of the expenses the options income could cover and how much buying power full coverage would need; the reply names the variant and says the 4% figure comes from diversified-portfolio research; Compliance ✓.
+
+**Narration:**
+
+> Lean FIRE on these numbers is a date, not a promise, and the card says what the four percent rule rests on: research on diversified portfolios, which an options-income account is not. That caveat is a compliance rule, not a footnote.
+
+**Cut on:** the FIRE card.
+
+---
+
+## 9. News as context, never as a signal (7:30 – 8:00)
+
+**On screen:** **Candidates** tab of the current thread. Find a row with the 📰 marker (on fixtures, a name with earnings inside the option's life).
+
+**Narration:**
+
+> This candidate carries a news flag: an earnings date falls inside the option's life. The flag comes from calendar arithmetic, not from a headline.
+
+**Action:** click **Trends & News** → *News desk*. Point at the ticker's headlines with their category, relevance and sentiment labels.
+
+**Type live on Scout:**
+
+```
+Any news on COST and NKE?
+```
+
+**What must appear:** a brief per ticker quoting one or two headlines verbatim with publisher and date, the calendar flags on the screened puts, Compliance ✓ with check 10 as `news_grounding`.
+
+**Narration:**
+
+> The News Desk labels headlines for a put writer: earnings, guidance, corporate action, macro. It quotes them verbatim, and compliance check ten verifies every quoted span against the fetched items, so the brief cannot put words in a publisher's mouth. Headlines never change the ranking. They are context for a human, not a signal for the screen.
+
+**Cut on:** the news brief with its badge.
+
+---
+
+## 10. Tax education with the candidate's own numbers (8:00 – 8:40)
+
+**On screen:** **Scout**, same thread.
+
+**Type live:**
+
+```
+What happens to my taxes if one of those puts is assigned?
+```
+
+**What must appear:** a cited answer from the *tax* collection (assignment cost basis, premium taxation) with the screened put's numbers: the strike, the premium, and the resulting cost basis per share; the long-term threshold date for the shares; the wash-sale window; the tax disclaimer sentence exactly once; Compliance ✓ with check 11 as `tax_reply`.
+
+**Action:** click **Learn** → *Tax & Accounts*. Point at the assignment-basis calculator bound to the same put and the account chooser table.
+
+**Narration:**
+
+> The Tax and Accounts agent explains mechanics and illustrates them with this screen's own put: strike, premium, cost basis if assigned, the date the shares would turn long-term. It never states the rate you would pay, it never tells you to file anything, and the disclaimer appears exactly once. Those three are compliance check eleven. The account chooser is the other half of the brief's tax agent: which account type allows which strategy, cited to FINRA and the IRS.
+
+**Cut on:** the calculator.
+
+---
+
+## 11. Portfolio analysis of what you already own (8:40 – 9:30)
+
+**On screen:** **Portfolio & Risk** → *Your holdings* editor at the top.
+
+**Type live into the editor (or into Scout):**
+
+```
+200 AAPL at 150, 10 COST at 800, 40 SPY
+```
+
+**What must appear:** the positions valued at the run's prices; metrics for total value, the diversification score (100 × (1 − HHI)), the blended expense ratio and beta-weighted exposure; the allocation donut by ticker and the sector bar; the **before / after assignment** bar showing what each screened put would do to a ticker's share of holdings plus buying power against the profile's cap; Scout's reply with its badge.
+
+**Narration:**
+
+> Portfolio analysis of what I already own. Three positions typed in plain text, valued at the run's prices: allocation, sector weights, a diversification score, expense ratios, beta. The bar that matters is this one: if the screened Costco put were assigned, Costco would go from here to here as a share of everything I hold plus my buying power. The conservative cap is twenty-five percent, so the sizing step caps the contracts. That is the seventh constraint, and it only exists because I told the app what I own.
+
+**Action:** scroll to the constraint checks and point at the seventh row.
+
+**Cut on:** the before / after bar.
+
+---
+
+## 12. Close (9:30 – 10:00)
+
+**On screen:** return to the README diagram, cursor on the Compliance box, then fade to the repo README.
+
+**Narration:**
+
+> Ten intents in one conversation, routed to nine specialists with context carried across turns. Live quotes, and a run that stays honest when the data source fails. A goal checked against a computed yield, news quoted verbatim, tax mechanics illustrated with your own candidate, and a portfolio analysis that changes how the screen sizes. And one compliance agent that is the only path from the model to the screen, with a log that shows it catching a draft.
 >
-> This is an educational screener. It never places a trade, never connects to a brokerage, and never tells you what to do. The code, the evals and the knowledge base are in the repo.
+> This is an educational screener. It never places a trade, never connects to a brokerage, and never tells you what to do. The code, the evals, the benchmarks and the knowledge base are in the repo.
 
 **End slate:** repo URL, "Educational screening tool. Not investment, tax or legal advice."
 
 ---
 
-## 10. Fallback cut for the current build (phases 0 to 9 only)
-
-If Phase 10 is not done, the honest video is shorter and the compliance beat is narrower. Keep scenes 1, 2, 5 and 9 as written. Replace 3, 4, 6, 7 and 8 with:
-
-- **Form run instead of chat.** Setup form: buying power 50,000, *Cash-secured puts*, conservative, cash. *Find candidates*. Walk the five result sections in order. Say clearly that the chat tab is the next phase; do not imply routing exists.
-- **Portfolio analysis** from "How it fits your buying power": allocation donut, sized positions, constraint checks, stress chart, skipped candidates. Same narration as scene 4.
-- **Risk appetite** by changing *Risk appetite* in *More options* to aggressive and re-running. Same table as scene 6.
-- **Compliance** is the verifier caption above the plain-English summary: `Verifier: PASS · N numbers checked, 0 ungrounded · every number above was computed, not written by the model.` Then *Under the hood* → *Notes and degraded sources*, which lists `verifier: attempt 1 failed (banned phrases: ...)` whenever a retry happened. Then the terminal proof in 8.3, which works today exactly as printed.
-- Do **not** attempt the "should I buy NVDA" beat on the current build. There is no chat surface, and typing it into the Setup form's ticker field only adds NVDA to the watchlist (where it fails the quality gate, which is a decent but different shot: show the *Excluded by the quality gate* expander with the reason).
-
----
-
-## 11. Shot list and timing
+## 13. Shot list and timing
 
 | # | Scene | Start | Length | Surface | Must-have frame |
 |---|---|---|---|---|---|
-| 1 | Problem | 0:00 | 0:40 | slide | three questions |
-| 2 | Architecture | 0:40 | 0:25 | diagram | cursor on Compliance box |
-| 3 | Conversation, 3 turns | 1:05 | 2:35 | Scout, Under the hood | confirmation card showing `Strategies: csp`; three intents in trace |
-| 4 | Portfolio what-if | 3:40 | 1:20 | Scout, Portfolio & Risk | diff line; skipped-candidates expander |
-| 5 | Live data + failure | 5:00 | 1:30 | Setup, Quality, Under the hood | `data: live`; 401 lines in degraded sources |
-| 6 | Risk appetite | 6:30 | 1:00 | Scout, Portfolio & Risk | constraint table 45/35/20 |
-| 7 | Compliance two beats | 7:30 | 1:30 | Scout | tagged DCA answer; NVDA reframed with advisor line |
-| 8 | Proof | 9:00 | 1:00 | badge expander, audit log or terminal | attempt 1 FAIL, attempt 2 PASS |
-| 9 | Close | 10:00 | 0:30 | diagram, README | end slate |
+| 1 | Problem | 0:00 | 0:30 | slide | three questions |
+| 2 | Architecture | 0:30 | 0:20 | diagram | cursor on Compliance box |
+| 3 | Conversation, 3 turns | 0:50 | 2:00 | Scout, Candidates, Under the hood | confirmation card showing `Strategies: csp` and `Experience: beginner`; glossary tooltip; three intents in trace |
+| 4 | What-if, constraints | 2:50 | 0:50 | Scout, Portfolio & Risk | diff line; skipped-candidates expander |
+| 5 | Live data + failure | 3:40 | 1:10 | Setup, Quality Screen, Under the hood | strip with `delayed quotes, fetched …`; 401 lines in degraded sources |
+| 6 | Compliance two beats | 4:50 | 1:00 | Scout | tagged DCA answer; NVDA reframed with advisor line |
+| 7 | Proof | 5:50 | 0:40 | badge expander, audit log or terminal | attempt 1 FAIL, attempt 2 PASS |
+| 8 | Goals | 6:30 | 1:00 | Scout, Goals | "does not fit" verdict with levers; FIRE card with coverage line |
+| 9 | News | 7:30 | 0:30 | Candidates, Trends & News, Scout | 📰 marker; brief quoting a headline with check 10 in the badge |
+| 10 | Tax | 8:00 | 0:40 | Scout, Learn | basis illustration with the put's numbers; calculator |
+| 11 | Holdings | 8:40 | 0:50 | Portfolio & Risk | before / after assignment bar against the cap; seventh constraint row |
+| 12 | Close | 9:30 | 0:30 | diagram, README | end slate |
 
-## 12. Things that can go wrong on camera, and what to do
+## 14. Things that can go wrong on camera, and what to do
 
 | Symptom | Cause | On-camera response |
 |---|---|---|
 | Turn 2 confirmation card shows `Strategies: csp, leaps` or empty | intake did not carry "that" from turn 1 | Edit the field in the card, say "I'll correct it here, that is what the interrupt is for", continue. Cut the context-carry narration line in edit. |
-| DCA question returns "I don't have a source for that in my knowledge base." | concept doc missing | Keep it. Say: "and when the knowledge base has nothing, it says so rather than improvising." Then ask "what does assignment mean?" for the tagged-answer shot. |
+| A question returns "I don't have a source for that in my knowledge base." | the question shares no content word with any document | Keep it. Say: "and when the knowledge base has nothing, it says so rather than improvising." Then rephrase with the document's own term. |
 | NVDA reply passes compliance but reads like advice | guardrail gap | Stop. Do not publish. Fix prompt/config, re-run the three-times check. |
 | Live run hits 429 | daily credits spent | Better footage than the 401. Record it, narrate the 429 line in 5.2. |
-| Compliance retried on a normal turn | model drifted | Great. Open the badge, show attempt count, skip to 8.2 using this thread. |
+| Compliance retried on a normal turn | model drifted | Great. Open the badge, show the attempt count, skip to 7.2 using this thread. |
+| The goal verdict is "stretch" or "fits" instead of "does not fit" | the fixture yield or the target moved | Narrate the verdict that is on screen; the point is that the verdict is computed. Fix the target in the script afterwards. |
+| The news brief says "No headlines in the last N days" | Alpha Vantage rate-limited and the RSS fallback found nothing for the ticker | Say so: "the source is rate-limited and the brief says so rather than inventing a headline." Switch to fixture headlines for the take. |
+| The holdings editor drops a symbol | the symbol is not in the SEC company list | Say: "ZZZZ is not a listed company, so it was dropped rather than guessed." |
 | Streamlit rerun flickers the chat | normal | Pause narration a beat; cut in edit. |

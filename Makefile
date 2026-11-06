@@ -4,7 +4,7 @@ UV        ?= uv
 PORT_API  ?= 8000
 PORT_UI   ?= 8501
 
-.PHONY: help install test test-cov test-live lint fmt eval api ui mcp demo demo-core index clean check
+.PHONY: help install test test-cov test-live lint fmt eval bench requirements api ui mcp demo demo-core index clean check
 
 help:
 	@grep -E '^[a-zA-Z_-]+:.*?## ' $(MAKEFILE_LIST) | awk 'BEGIN {FS = ":.*?## "}; {printf "  %-12s %s\n", $$1, $$2}'
@@ -38,6 +38,12 @@ check: lint test ## lint + test
 
 eval: ## run the eval suite (incl. the full test suite with coverage), write evals/reports/latest.md
 	$(PY) evals/run_evals.py
+
+bench: ## performance benchmarks in fixture mode (latency per agent, tokens, cost, cache hits, retrieval) → evals/reports/bench.md
+	$(PY) evals/bench.py
+
+requirements: ## export requirements.txt from pyproject.toml (pinned, universal); pyproject stays the source of truth
+	$(PY) scripts/export_requirements.py --uv $(UV)
 
 api: ## FastAPI on :8000
 	$(PY) -m uvicorn options_scout.api.main:app --host 0.0.0.0 --port $(PORT_API) --reload
