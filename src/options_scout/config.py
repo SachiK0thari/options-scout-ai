@@ -14,6 +14,8 @@ from typing import Any, Literal
 import yaml
 from pydantic import BaseModel, ConfigDict, Field, field_validator, model_validator
 
+from options_scout.bottleneck.themes import ThemeMap, load_theme_map, sec_ticker_validator
+
 RiskProfileName = Literal["conservative", "balanced", "aggressive"]
 DataMode = Literal["fixture", "live"]
 LLMProviderName = Literal["anthropic", "openrouter"]
@@ -128,18 +130,33 @@ class OptionQualityWeights(_Strict):
         return self
 
 
+# Section 3.7: the two Market Intelligence signals together never carry more than this share.
+MAX_SIGNAL_WEIGHT = 0.15
+
+
 class RankingWeights(_Strict):
-    """final = option_quality·w1 + stock_quality·w2 + social/100·w3 (weights sum to 1)."""
+    """final = option_quality·w1 + stock_quality·w2 + social/100·w3 + bottleneck/100·w4.
+
+    The four weights sum to 1 and ``social + bottleneck`` is capped at :data:`MAX_SIGNAL_WEIGHT`
+    (PRD section 3.7 / 4A: the signals re-order, they never dominate).
+    """
 
     option_quality: float = Field(ge=0.0, le=1.0)
     stock_quality: float = Field(ge=0.0, le=1.0)
     social: float = Field(ge=0.0, le=1.0)
+    bottleneck: float = Field(default=0.05, ge=0.0, le=1.0)  # Phase 11, section 4A
 
     @model_validator(mode="after")
-    def _sums_to_one(self) -> RankingWeights:
-        total = self.option_quality + self.stock_quality + self.social
+    def _sums_to_one_and_signals_capped(self) -> RankingWeights:
+        total = self.option_quality + self.stock_quality + self.social + self.bottleneck
         if abs(total - 1.0) > 1e-6:
             raise ValueError(f"ranking.weights must sum to 1.0, got {total}")
+        signals = self.social + self.bottleneck
+        if signals > MAX_SIGNAL_WEIGHT + 1e-9:
+            raise ValueError(
+                f"ranking.weights: social + bottleneck = {signals:g} exceeds the "
+                f"{MAX_SIGNAL_WEIGHT:g} cap on Market Intelligence signals (PRD section 3.7)"
+            )
         return self
 
 
@@ -571,6 +588,235 @@ def _apply_source_overrides(raw: dict[str, Any]) -> dict[str, Any]:
     return out
 
 
+# ------------------------------------------------------------------- bottleneck_score.yaml
+class BottleneckWeights(_Strict):
+    """Section 4A.7 layer-score weights; ``price_deceleration`` and ``supply_response_z`` are
+    penalties (subtracted) and ``priced_in`` multiplies exposure as ``1 - w9·priced_in``."""
+
+    tightness_z: float = Field(ge=0.0)
+    customer_confirmation: float = Field(ge=0.0)
+    price_trend: float = Field(ge=0.0)
+    cross_source_norm: float = Field(ge=0.0)
+    supplier_scarcity: float = Field(ge=0.0)
+    capacity_lead: float = Field(ge=0.0)
+    price_deceleration: float = Field(ge=0.0)  # penalty
+    supply_response_z: float = Field(ge=0.0)  # penalty
+    priced_in: float = Field(ge=0.0, le=1.0)  # exposure multiplier weight
+
+
+class BottleneckNormalization(_Strict):
+    tightness_z_clip: float = Field(gt=0.0)
+    supply_response_z_clip: float = Field(gt=0.0)
+    cross_source_z_threshold: float
+    price_trend_days: int = Field(ge=7)
+    capacity_lead_years_cap: float = Field(gt=0.0)
+    recent_days: int = Field(ge=1)
+    baseline_weeks: int = Field(ge=1)
+
+
+class BottleneckFlags(_Strict):
+    """Section 4A.8 thresholds: flags on candidates, never filters."""
+
+    support_min: float = Field(ge=0.0, le=100.0)
+    price_deceleration_max: float
+    supply_response_z_max: float
+
+
+PricingPowerName = Literal["high", "medium", "low"]
+CapacityName = Literal["constrained", "ample"]
+SupplierCountName = Literal["few", "several", "many"]
+
+
+class BottleneckScoreConfig(_Strict):
+    """``config/bottleneck_score.yaml``: weights, curated-field maps, flags, thesis monitor."""
+
+    weights: BottleneckWeights
+    bias: float
+    normalization: BottleneckNormalization
+    materiality: dict[Literal["high", "medium", "low"], float]
+    pricing_power: dict[PricingPowerName, float]
+    capacity: dict[CapacityName, float]
+    supplier_count: dict[SupplierCountName, float]
+    flags: BottleneckFlags
+    easing_decay: float = Field(gt=0.0, le=1.0)
+    retention_days: int = Field(ge=1)
+    snapshot_max_age_hours: int = Field(ge=1)
+
+    @model_validator(mode="after")
+    def _maps_complete(self) -> BottleneckScoreConfig:
+        expected: dict[str, tuple[str, ...]] = {
+            "materiality": ("high", "medium", "low"),
+            "pricing_power": ("high", "medium", "low"),
+            "capacity": ("constrained", "ample"),
+            "supplier_count": ("few", "several", "many"),
+        }
+        for name, keys in expected.items():
+            table: dict[str, float] = getattr(self, name)
+            missing = set(keys) - set(table)
+            if missing:
+                raise ValueError(f"bottleneck_score.{name} is missing {sorted(missing)}")
+            bad = {k: v for k, v in table.items() if not 0.0 <= v <= 1.0}
+            if bad:
+                raise ValueError(f"bottleneck_score.{name} values must be in [0, 1]: {bad}")
+        return self
+
+
+# ----------------------------------------------------------------- bottleneck_sources.yaml
+BottleneckSourceName = Literal[
+    "edgar", "fred", "csv_series", "transcripts", "news", "reddit", "google_trends"
+]
+BOTTLENECK_SOURCE_NAMES: tuple[str, ...] = (
+    "edgar",
+    "fred",
+    "csv_series",
+    "transcripts",
+    "news",
+    "reddit",
+    "google_trends",
+)
+BOTTLENECK_TEXT_SOURCES: tuple[str, ...] = ("edgar", "transcripts", "news", "reddit")
+BOTTLENECK_SERIES_SOURCES: tuple[str, ...] = ("fred", "csv_series", "google_trends")
+
+
+class EdgarSourceConfig(_Strict):
+    """SEC EDGAR full-text search: free, official; descriptive User-Agent, under 10 req/s."""
+
+    enabled: bool = True
+    weight: float = Field(default=1.0, ge=0.0)
+    fixture_file: str = "edgar_snippets.jsonl"
+    base_url: str = "https://efts.sec.gov/LATEST/search-index"
+    forms: list[str] = Field(default=["10-K", "10-Q", "8-K"], min_length=1)
+    lookback_days: int = Field(default=120, ge=1)
+    max_requests_per_second: float = Field(default=8.0, gt=0.0, le=10.0)
+    cache_ttl_hours: int = Field(default=24, ge=1)
+    contact_email_env: str = "OPTIONS_SCOUT_CONTACT_EMAIL"
+    timeout_seconds: float = Field(default=30.0, gt=0.0)
+
+
+class FredSourceConfig(_Strict):
+    enabled: bool = True
+    weight: float = Field(default=1.0, ge=0.0)
+    fixture_file: str = "fred_series.json"
+    api_key_env: str = "FRED_API_KEY"
+    base_url: str = "https://api.stlouisfed.org/fred/series/observations"
+    lookback_days: int = Field(default=400, ge=30)
+    timeout_seconds: float = Field(default=30.0, gt=0.0)
+
+
+class CsvSeriesSourceConfig(_Strict):
+    """Dated CSVs the operator drops under ``directory`` (licence is theirs; never committed)."""
+
+    enabled: bool = True
+    weight: float = Field(default=1.0, ge=0.0)
+    directory: Path = Path("data/bottleneck_series")
+
+
+class TranscriptsSourceConfig(_Strict):
+    """Earnings-call transcripts are not on EDGAR and are paid elsewhere: fixture mode only."""
+
+    enabled: bool = False
+    weight: float = Field(default=1.0, ge=0.0)
+    fixture_file: str = "transcripts.jsonl"
+
+
+class BottleneckNewsSourceConfig(_Strict):
+    enabled: bool = True
+    weight: float = Field(default=1.0, ge=0.0)
+    fixture_file: str = "news.jsonl"
+    max_items_per_layer: int = Field(default=50, ge=1)
+
+
+class BottleneckRedditSourceConfig(_Strict):
+    """Industry subreddits (``industry:`` list in ``config/subreddits.yaml``, step 11.2)."""
+
+    enabled: bool = True
+    weight: float = Field(default=0.5, ge=0.0)
+    fixture_file: str = "reddit_posts.jsonl"
+
+
+class BottleneckTrendsSourceConfig(_Strict):
+    enabled: bool = True
+    weight: float = Field(default=1.0, ge=0.0)
+    fixture_file: str = "google_trends.json"
+
+
+class BottleneckSources(_Strict):
+    """Which bottleneck sources run (``config/bottleneck_sources.yaml``). Every adapter exists
+    (from step 11.2); this only switches them on and off and weights them."""
+
+    edgar: EdgarSourceConfig = Field(default_factory=EdgarSourceConfig)
+    fred: FredSourceConfig = Field(default_factory=FredSourceConfig)
+    csv_series: CsvSeriesSourceConfig = Field(default_factory=CsvSeriesSourceConfig)
+    transcripts: TranscriptsSourceConfig = Field(default_factory=TranscriptsSourceConfig)
+    news: BottleneckNewsSourceConfig = Field(default_factory=BottleneckNewsSourceConfig)
+    reddit: BottleneckRedditSourceConfig = Field(default_factory=BottleneckRedditSourceConfig)
+    google_trends: BottleneckTrendsSourceConfig = Field(
+        default_factory=BottleneckTrendsSourceConfig
+    )
+
+    def _block(self, name: str) -> Any:
+        if name not in BOTTLENECK_SOURCE_NAMES:
+            raise KeyError(f"unknown bottleneck source {name!r}")
+        return getattr(self, name)
+
+    def is_enabled(self, name: str) -> bool:
+        return bool(self._block(name).enabled)
+
+    def weight(self, name: str) -> float:
+        return float(self._block(name).weight)
+
+    @property
+    def enabled(self) -> list[str]:
+        return [n for n in BOTTLENECK_SOURCE_NAMES if self.is_enabled(n)]
+
+    @property
+    def text_sources(self) -> list[str]:
+        """Sources that yield snippets for classification (tightening / easing mentions)."""
+        return [n for n in BOTTLENECK_TEXT_SOURCES if self.is_enabled(n)]
+
+    @property
+    def series_sources(self) -> list[str]:
+        return [n for n in BOTTLENECK_SERIES_SOURCES if self.is_enabled(n)]
+
+    @property
+    def source_count(self) -> int:
+        """Sources that can confirm a tightening: denominator of ``cross_source_norm``."""
+        return len(self.enabled)
+
+    def resolved(self, root: Path) -> BottleneckSources:
+        csv = self.csv_series.model_copy(update={"directory": root / self.csv_series.directory})
+        return self.model_copy(update={"csv_series": csv})
+
+    @model_validator(mode="after")
+    def _at_least_one_text_source(self) -> BottleneckSources:
+        if not self.text_sources:
+            raise ValueError(
+                "bottleneck_sources: enable at least one text source "
+                f"({', '.join(BOTTLENECK_TEXT_SOURCES)}); series sources only confirm a "
+                "tightening found in filings and headlines"
+            )
+        return self
+
+
+def _apply_bottleneck_source_overrides(raw: dict[str, Any]) -> dict[str, Any]:
+    """``OPTIONS_SCOUT_BOTTLENECK_SOURCES=edgar,fred,news`` enables exactly the listed sources."""
+    env_val = os.environ.get("OPTIONS_SCOUT_BOTTLENECK_SOURCES")
+    if not env_val:
+        return raw
+    wanted = {s.strip().lower() for s in env_val.split(",") if s.strip()}
+    unknown = wanted - set(BOTTLENECK_SOURCE_NAMES)
+    if unknown:
+        raise ValueError(
+            f"OPTIONS_SCOUT_BOTTLENECK_SOURCES: unknown source(s) {sorted(unknown)}; "
+            f"choose from {list(BOTTLENECK_SOURCE_NAMES)}"
+        )
+    out = dict(raw)
+    for name in BOTTLENECK_SOURCE_NAMES:
+        block = out.get(name)
+        out[name] = {**(block if isinstance(block, dict) else {}), "enabled": name in wanted}
+    return out
+
+
 # ------------------------------------------------------------------------- goals.yaml
 class SavingsRateTable(_Strict):
     rates: list[float] = Field(min_length=1)
@@ -841,6 +1087,9 @@ class AppConfig(_Strict):
     news: NewsConfig
     tax: TaxConfig
     holdings: HoldingsConfig
+    bottleneck: BottleneckScoreConfig  # Phase 11, section 4A
+    bottleneck_sources: BottleneckSources
+    themes: ThemeMap  # validated theme map; `curated` derived from `quality`
 
     @property
     def paths(self) -> Paths:
@@ -871,6 +1120,12 @@ def load_config(root: Path | None = None) -> AppConfig:
     settings_raw = _apply_env_overrides(_load_yaml(cfg_dir / "settings.yaml"))
     settings = Settings(**settings_raw)
     settings = settings.model_copy(update={"paths": settings.paths.resolved(root)})
+    quality = QualityUniverse(**_load_yaml(cfg_dir / "quality_universe.yaml"))
+    themes = load_theme_map(
+        cfg_dir / "themes.yaml",
+        curated=quality.symbols,
+        is_valid_ticker=sec_ticker_validator(settings.paths.fixtures_dir),
+    )
     return AppConfig(
         root=root,
         settings=settings,
@@ -881,13 +1136,18 @@ def load_config(root: Path | None = None) -> AppConfig:
         sources=SocialSources(
             **_apply_source_overrides(_load_yaml(cfg_dir / "social_sources.yaml"))
         ),
-        quality=QualityUniverse(**_load_yaml(cfg_dir / "quality_universe.yaml")),
+        quality=quality,
         rag=RagConfig(**_apply_rag_overrides(_load_yaml(cfg_dir / "rag.yaml"))).resolved(root),
         compliance=ComplianceConfig(**_load_yaml(cfg_dir / "compliance.yaml")),
         goals=GoalsConfig(**_load_yaml(cfg_dir / "goals.yaml")),
         news=NewsConfig(**_load_yaml(cfg_dir / "news.yaml")),
         tax=TaxConfig(**_load_yaml(cfg_dir / "tax.yaml")),
         holdings=HoldingsConfig(**_load_yaml(cfg_dir / "holdings.yaml")),
+        bottleneck=BottleneckScoreConfig(**_load_yaml(cfg_dir / "bottleneck_score.yaml")),
+        bottleneck_sources=BottleneckSources(
+            **_apply_bottleneck_source_overrides(_load_yaml(cfg_dir / "bottleneck_sources.yaml"))
+        ).resolved(root),
+        themes=themes,
     )
 
 

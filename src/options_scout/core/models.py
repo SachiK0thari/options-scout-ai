@@ -19,6 +19,16 @@ EntityType = Literal["product", "brand", "company", "store"]
 Materiality = Literal["high", "medium", "low"]
 PostSourceName = Literal["reddit", "x"]
 SourceName = Literal["reddit", "x", "wikipedia", "google_trends", "news"]
+# Phase 11, section 4A: the bottleneck signal's vocabulary
+BottleneckSourceName = Literal[
+    "edgar", "fred", "csv_series", "transcripts", "news", "reddit", "google_trends"
+]
+SupplyRole = Literal["supplier", "customer"]
+ConstraintSide = Literal["customer", "supplier", "neutral"]
+ConstraintDirection = Literal["tightening", "easing", "neutral"]
+ConstraintKind = Literal["lead_time", "price", "capacity", "deal", "coverage", "other"]
+FalsifierOperator = Literal[">", ">=", "<", "<="]
+BottleneckEvidenceKind = Literal["filing", "price", "headline", "post"]
 
 
 def utcnow() -> datetime:
@@ -401,6 +411,110 @@ class TrendSignal(Model):
     evidence: list[EvidenceItem]
     as_of: datetime
     flags: list[str] = Field(default_factory=list)
+
+
+# ------------------------------------------------------------- bottleneck (Phase 11, 4A)
+class FilingSnippet(Model):
+    """One ≤ 400-character window of a filing, headline, transcript or post, ready to classify.
+
+    Snippets are data, never instructions: the classifier wraps ``text`` in delimiters and nothing
+    in it can add a ticker or influence a tool call (section 4A.5).
+    """
+
+    id: str  # content hash; the classification cache key
+    source: BottleneckSourceName
+    text: str = Field(min_length=1, max_length=400)
+    date: date
+    url: str | None = None
+    filer_ticker: str | None = None  # SEC-validated; gives `side` through the theme map
+    form: str | None = None  # 10-K | 10-Q | 8-K for EDGAR; None elsewhere
+    theme_id: str | None = None  # the theme whose layer keywords found the snippet
+    layer_hint: str | None = None  # the layer whose keywords matched (the query, not the label)
+
+    @field_validator("filer_ticker", mode="before")
+    @classmethod
+    def _upper_ticker(cls, v: object) -> str | None:
+        if v is None:
+            return None
+        t = str(v).strip().upper()
+        return t or None
+
+
+class ConstraintLabel(Model):
+    """The only LLM output in the bottleneck engine (section 4A.6): a label per snippet.
+
+    Any ticker a label mentions is validated against the SEC list or the label is discarded.
+    """
+
+    snippet_id: str
+    layer_id: str | None
+    side: ConstraintSide
+    direction: ConstraintDirection
+    kind: ConstraintKind
+    confidence: float = Field(ge=0.0, le=1.0)
+    tickers: list[str] = Field(default_factory=list)  # SEC-validated mentions, upper-case
+
+
+class ConstraintLabelBatch(Model):
+    labels: list[ConstraintLabel]
+
+
+class FalsifierStatus(Model):
+    """One falsifier of a layer's thesis and whether it has tripped (section 4A.9)."""
+
+    signal: str
+    op: FalsifierOperator
+    value: float
+    snapshots: int = Field(ge=1)  # consecutive daily snapshots the predicate must hold
+    tripped: bool = False
+    since: date | None = None  # first snapshot date of the current run of hits
+    observed: float | None = None  # the signal's latest value, for the board
+
+    @property
+    def state(self) -> str:
+        if not self.tripped:
+            return "holding"
+        return f"tripped since {self.since.isoformat()}" if self.since else "tripped"
+
+
+class BottleneckEvidence(Model):
+    """One item of the evidence pack (section 4A.10): a filing excerpt, a price point or a
+    supply-response headline. Links and short excerpts only, never full text."""
+
+    kind: BottleneckEvidenceKind
+    source: BottleneckSourceName
+    date: date
+    excerpt: str = Field(max_length=200)
+    url: str | None = None
+    filer_ticker: str | None = None
+    label: str | None = None  # e.g. "tightening · lead_time" or the series label
+    series_id: str | None = None
+    value: float | None = None  # the price point for a `price` item
+
+
+class BottleneckSignal(Model):
+    """A layer row (``ticker is None``) or a company row of the bottleneck board (section 7)."""
+
+    theme_id: str
+    layer_id: str
+    layer_name: str
+    ticker: str | None  # None for the layer row itself
+    role: SupplyRole | None
+    curated: bool  # on the good-to-own list?
+    investable: bool  # curated and role == supplier
+    layer_score: float = Field(ge=0, le=100)
+    score: float = Field(ge=0, le=100)  # company score (== layer_score for the layer row)
+    components: dict[str, float]  # every signal in 4A.7 plus exposure and priced_in
+    thesis: str
+    falsifiers: list[FalsifierStatus] = Field(default_factory=list)
+    catalyst_days: int | None = None
+    flags: list[str] = Field(default_factory=list)  # bottleneck_support, bottleneck_easing, ...
+    evidence: list[BottleneckEvidence] = Field(default_factory=list)
+    as_of: datetime
+
+    @property
+    def thesis_weakening(self) -> bool:
+        return any(f.tripped for f in self.falsifiers)
 
 
 # -------------------------------------------------------------------- narrative (Phase 10)
@@ -895,6 +1009,7 @@ class ScreeningReport(Model):
     goal_plan: GoalPlan | None = None  # Phase 12: present when the run carried a goal
     news_briefs: list[NewsBrief] = Field(default_factory=list)  # Phase 12: News Desk
     news_flags: list[NewsFlag] = Field(default_factory=list)
+    bottlenecks: list[BottleneckSignal] = Field(default_factory=list)  # Phase 11: the board
     errors: list[str]
     metadata: RunMetadata
     disclaimer: str

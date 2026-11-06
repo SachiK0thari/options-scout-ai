@@ -55,14 +55,18 @@ market_data:
     api_key_env: TRADIER_API_KEY   # the UI/API can also pass a key per run (never persisted)
 
 ranking:
-  # final = option_quality·w1 + stock_quality·w2 + social/100·w3. "Good to own" first, then the
-  # option's own economics, then consumer-trend buzz as a tiebreaker.
-  # Phase 11 (PRD section 4A) adds a fourth term, bottleneck/100·w4, by splitting the signal share:
-  # social 0.10 + bottleneck 0.05. The two signal weights together may never exceed 0.15.
+  # final = option_quality·w1 + stock_quality·w2 + social/100·w3 + bottleneck/100·w4.
+  # "Good to own" first, then the option's own economics, then the two Market Intelligence
+  # signals as tiebreakers. Phase 11 (PRD section 4A) split the former 0.15 signal share into
+  # social 0.10 + bottleneck 0.05 rather than taking weight from the stock or the option; the
+  # loader rejects a file where social + bottleneck exceeds 0.15 or the four weights do not sum
+  # to 1.0. A ticker with no signal scores the neutral 50 on each term, so a run with both
+  # engines off ranks as the three-term formula did.
   weights:
     option_quality: 0.50
     stock_quality: 0.35
-    social: 0.15
+    social: 0.10
+    bottleneck: 0.05
   option_quality_weights:
     annualized_return: 0.35
     prob_otm: 0.30

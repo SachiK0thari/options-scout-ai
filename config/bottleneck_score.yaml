@@ -1,0 +1,48 @@
+# Bottleneck Arbitrage score (PRD section 4A.7). Every number is computed in Python from these
+# weights; the LLM only classifies snippets. Penalties are listed with their own weights and are
+# SUBTRACTED inside the sigmoid.
+#
+#   layer   = 100 * sigmoid( w1*tightness_z + w2*customer_confirmation + w3*price_trend
+#                          + w4*cross_source_norm + w5*supplier_scarcity + w6*capacity_lead
+#                          - w7*price_deceleration - w8*supply_response_z + bias )
+#   exposure = materiality * (0.5 + 0.25*pricing_power + 0.25*capacity_to_deliver) * (1 - w9*priced_in)
+#   company  = clip(layer * exposure, 0, 100); a company in several layers takes the maximum;
+#              a ticker with no entry gets the neutral 50 in the ranker.
+weights:
+  tightness_z: 0.9              # w1  (tightening - easing) mentions vs the 8-week baseline
+  customer_confirmation: 0.6    # w2  share of tightening snippets filed by a customer
+  price_trend: 0.8              # w3  normalised 90-day slope of the layer's price series
+  cross_source_norm: 0.6        # w4  enabled sources whose own tightening z > threshold, / enabled
+  supplier_scarcity: 0.5        # w5  curated supplier_count mapped below
+  capacity_lead: 0.4            # w6  curated capacity_lead_years / capacity_lead_years_cap
+  price_deceleration: 1.0       # w7  PENALTY: prices still rising but more slowly (step 10)
+  supply_response_z: 1.2        # w8  PENALTY: new fabs, expansions, new entrants, easing deals
+  priced_in: 0.6                # w9  exposure multiplier (1 - w9*priced_in); 0..1
+bias: -1.5                      # centres a "nothing special" layer near score 18, like the social score
+
+normalization:
+  tightness_z_clip: 4.0         # z-scores clipped to [-clip, clip]
+  supply_response_z_clip: 4.0
+  cross_source_z_threshold: 1.5 # a source "confirms" when its own tightening z exceeds this
+  price_trend_days: 90          # slope window for price_trend
+  capacity_lead_years_cap: 5.0  # capacity_lead = min(capacity_lead_years / cap, 1)
+  recent_days: 7                # tightness window (the analogue of the social recent_days)
+  baseline_weeks: 8             # weekly mean/std baseline for the z-scores
+
+# Curated fields in config/themes.yaml -> numbers (4A.4). materiality uses the social map.
+materiality:     {high: 1.0, medium: 0.5, low: 0.2}
+pricing_power:   {high: 1.0, medium: 0.5, low: 0.2}
+capacity:        {constrained: 1.0, ample: 0.5}
+supplier_count:  {few: 1.0, several: 0.5, many: 0.0}
+
+# Strategy-fit flags on candidates (4A.8): informational, never filters.
+flags:
+  support_min: 70.0             # company score >= this -> bottleneck_support
+  price_deceleration_max: 0.5   # above -> bottleneck_easing
+  supply_response_z_max: 1.5    # above -> bottleneck_easing
+
+# Thesis monitor (4A.9): when any falsifier trips, company scores in that layer are multiplied by
+# easing_decay and bottleneck_easing is set. The report says "thesis weakening", never "exit".
+easing_decay: 0.5
+retention_days: 180             # dated snapshots kept for the signal study (no personal data)
+snapshot_max_age_hours: 24      # the agent reuses a stored snapshot younger than this

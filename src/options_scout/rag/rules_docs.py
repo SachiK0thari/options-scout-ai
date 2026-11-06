@@ -15,7 +15,7 @@ from collections.abc import Iterable
 from datetime import date
 from pathlib import Path
 
-from options_scout.config import AppConfig
+from options_scout.config import MAX_SIGNAL_WEIGHT, AppConfig
 from options_scout.rag.corpus import parse_document, render_document
 from options_scout.rag.models import Document
 
@@ -209,7 +209,8 @@ def _values_3_7(cfg: AppConfig) -> str:
     )
     ranking = (
         f"Final ranking = {rw.option_quality:g}·option quality + {rw.stock_quality:g}·quality "
-        f"score + {rw.social:g}·consumer-trend score/100."
+        f"score + {rw.social:g}·consumer-trend score/100 + {rw.bottleneck:g}·bottleneck score/100 "
+        f"(the two signals together are capped at {MAX_SIGNAL_WEIGHT:g})."
     )
     curated = _table(
         ["Ticker", "Name", "Sector", "Why it is on the list"],

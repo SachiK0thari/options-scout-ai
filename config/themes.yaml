@@ -1,0 +1,206 @@
+# Bottleneck Arbitrage theme map (PRD section 4A.4; method in bottleneck-arbitrage.md).
+#
+# This file is the curated half of the ten-step method: step 1 (is real money flowing into the
+# theme?), step 2 (which supply-chain layers does it depend on?), step 3's two slow-moving inputs
+# (`supplier_count`, `capacity_lead_years`), step 5 (who sells into each layer, how much it matters
+# to them) and step 8's written thesis with the falsifiers the thesis monitor evaluates (step 9).
+# Everything else (tightness, price trend, supply response, priced-in, catalyst) is computed in
+# Python from filings, price series and headlines; the LLM only classifies text snippets.
+#
+# Rules enforced by src/options_scout/bottleneck/themes.py when the config loads:
+#   * every ticker must exist in the SEC company list (tests/fixtures/sec_company_tickers.json offline)
+#   * `curated` is NEVER written here: it is derived from config/quality_universe.yaml at load, so the
+#     comments below marking "not curated" are for the reviewer; the code does not read them
+#   * a `customer` confirms demand (customer_confirmation) and is never scored, so it may not carry
+#     `materiality`, `pricing_power` or `capacity`; a `supplier` must carry all three
+#   * a bottleneck signal re-orders stocks that passed the quality gate; it never adds one. Suppliers
+#     that are not on the good-to-own list appear on the board as context, flagged "not on the
+#     good-to-own list", exactly as a private brand appears on the trend board
+#
+# Curated-field vocabulary (mapped to numbers in config/bottleneck_score.yaml):
+#   materiality    high | medium | low     share of the company's revenue tied to the layer
+#   pricing_power  high | medium | low     can it raise prices when the layer tightens?
+#   capacity       constrained | ample     can it deliver more volume this year?
+#   supplier_count few | several | many    how concentrated the layer's supply is (step 3)
+#   capacity_lead_years                    years to add meaningful new supply (step 3)
+#
+# Honest constraint (PRD 4A.1): the good-to-own list is large, profitable, dividend-paying companies,
+# so for most curated names the constrained layer is a side business and `materiality` is low or
+# medium. The pure plays are listed with "not curated" so the gap is visible to a reviewer.
+#
+# Price series ids were checked against fred.stlouisfed.org on 2026-11-06 (PPI = producer price index).
+# A new series must be verified the same way when a theme or layer is added (PRD 4A.5).
+
+themes:
+  # =====================================================================================
+  - id: ai_datacenter
+    name: AI data-center build-out
+    spend_evidence:                      # step 1: is real money flowing in?
+      - {label: "Hyperscaler capital-expenditure disclosures (10-K / 10-Q full-text search)", url: "https://efts.sec.gov/LATEST/search-index?q=%22capital%20expenditures%22%20%22data%20center%22&forms=10-K,10-Q"}
+      - {label: "EIA: electricity demand from data centers (Annual Energy Outlook)", url: "https://www.eia.gov/outlooks/aeo/"}
+    layers:                              # step 2: the tree
+      # ---- power ------------------------------------------------------------------------
+      - id: power
+        name: Power generation and grid equipment
+        keywords: ["power constraint", "power availability", "grid interconnection", "interconnection queue", "transformer lead time", "gas turbine backlog", "turbine lead time", "megawatts contracted"]
+        price_series:
+          - {source: fred, id: "WPU0543",         label: "PPI: industrial electric power"}
+          - {source: fred, id: "PCU333611333611", label: "PPI: turbine and turbine generator set units"}
+        supplier_count: few
+        capacity_lead_years: 3
+        thesis: "Data-center power demand is outrunning grid interconnection and gas-turbine supply; equipment makers and fuel suppliers see backlog growth and pricing power."
+        falsifiers:                      # step 8/9: what would prove it wrong, as predicates on signals
+          - {signal: price_deceleration, op: ">", value: 0.5, snapshots: 2}
+          - {signal: supply_response_z,  op: ">", value: 1.5, snapshots: 1}
+          - {signal: tightness_z,        op: "<", value: -1.0, snapshots: 3}
+        companies:                       # step 5: who sells into it
+          - {ticker: XOM,  role: supplier, materiality: low,    pricing_power: medium, capacity: ample,       note: "natural gas for turbine fleets; a small share of an integrated major"}
+          - {ticker: CVX,  role: supplier, materiality: low,    pricing_power: medium, capacity: ample,       note: "natural gas for turbine fleets; a small share of an integrated major"}
+          - {ticker: HON,  role: supplier, materiality: medium, pricing_power: high,   capacity: constrained, note: "building and energy controls, UPS and power electronics for data halls"}
+          - {ticker: GEV,  role: supplier, materiality: high,   pricing_power: high,   capacity: constrained, note: "gas turbines and grid equipment"}   # not curated: shown as context only
+          - {ticker: VST,  role: supplier, materiality: high,   pricing_power: high,   capacity: constrained, note: "merchant generation contracted to data centers"}   # not curated: shown as context only
+          - {ticker: MSFT, role: customer}  # customers confirm demand; they are never scored as suppliers
+          - {ticker: AMZN, role: customer}
+          - {ticker: GOOGL, role: customer}
+          - {ticker: META, role: customer}  # not curated; a customer needs no curated status
+      # ---- memory -----------------------------------------------------------------------
+      - id: memory
+        name: DRAM and high-bandwidth memory (HBM)
+        keywords: ["DRAM contract price", "HBM sold out", "HBM capacity", "memory allocation", "memory supply tight", "wafer capacity"]
+        price_series:
+          - {source: fred, id: "PCU334413334413", label: "PPI: semiconductor and related device manufacturing"}
+        supplier_count: few
+        capacity_lead_years: 2
+        thesis: "Accelerator demand has sold out HBM and tightened commodity DRAM; the three memory makers and their tool suppliers gain volume and price together."
+        falsifiers:
+          - {signal: price_deceleration, op: ">", value: 0.5, snapshots: 2}
+          - {signal: supply_response_z,  op: ">", value: 1.5, snapshots: 1}
+        companies:
+          # No good-to-own name sells memory; the layer is shown entirely as context (see 4A.1).
+          - {ticker: MU,   role: supplier, materiality: high,   pricing_power: high,   capacity: constrained, note: "DRAM and HBM"}   # not curated
+          - {ticker: AMAT, role: supplier, materiality: medium, pricing_power: medium, capacity: ample,       note: "deposition and etch tools for memory fabs"}   # not curated
+          - {ticker: LRCX, role: supplier, materiality: medium, pricing_power: medium, capacity: ample,       note: "etch tools; memory is roughly half of system revenue"}   # not curated
+          - {ticker: NVDA, role: customer}   # not curated
+          - {ticker: MSFT, role: customer}
+          - {ticker: AMZN, role: customer}
+      # ---- cooling ----------------------------------------------------------------------
+      - id: cooling
+        name: Liquid cooling and thermal management
+        keywords: ["liquid cooling", "direct-to-chip", "cooling capacity", "thermal management backlog", "coolant distribution unit", "rack density"]
+        price_series:
+          - {source: fred, id: "PCU333415333415", label: "PPI: air-conditioning, refrigeration and forced-air heating equipment"}
+        supplier_count: several
+        capacity_lead_years: 2
+        thesis: "Rack power density is moving data halls from air to liquid cooling faster than thermal-equipment capacity is being added; specialists see backlog and pricing power."
+        falsifiers:
+          - {signal: supply_response_z,  op: ">", value: 1.5, snapshots: 1}
+          - {signal: tightness_z,        op: "<", value: -1.0, snapshots: 3}
+        companies:
+          - {ticker: HON,  role: supplier, materiality: low,    pricing_power: medium, capacity: ample,       note: "building-management and HVAC controls"}
+          - {ticker: VRT,  role: supplier, materiality: high,   pricing_power: high,   capacity: constrained, note: "thermal and power infrastructure for data centers"}   # not curated
+          - {ticker: MSFT, role: customer}
+          - {ticker: META, role: customer}   # not curated
+      # ---- networking -------------------------------------------------------------------
+      - id: networking
+        name: Networking, optics and fiber
+        keywords: ["optical transceiver", "fiber optic cable", "800G", "switch lead time", "networking backlog", "fiber shortage", "co-packaged optics"]
+        price_series:
+          - {source: fred, id: "PCU335921335921", label: "PPI: fiber optic cable manufacturing"}
+        supplier_count: several
+        capacity_lead_years: 2
+        thesis: "AI clusters need far more optical and switching capacity per server than classic data centers; fiber and switch makers see demand outrun lead times."
+        falsifiers:
+          - {signal: price_deceleration, op: ">", value: 0.5, snapshots: 2}
+          - {signal: supply_response_z,  op: ">", value: 1.5, snapshots: 1}
+        companies:
+          - {ticker: CSCO, role: supplier, materiality: medium, pricing_power: medium, capacity: ample,       note: "data-center switching and optics; a growing but minority share"}
+          - {ticker: ANET, role: supplier, materiality: high,   pricing_power: high,   capacity: constrained, note: "cloud and AI switching"}   # not curated
+          - {ticker: GLW,  role: supplier, materiality: medium, pricing_power: medium, capacity: constrained, note: "optical fiber and cable"}   # not curated
+          - {ticker: CIEN, role: supplier, materiality: high,   pricing_power: medium, capacity: constrained, note: "optical transport"}   # not curated
+          - {ticker: META, role: customer}   # not curated
+          - {ticker: MSFT, role: customer}
+          - {ticker: GOOGL, role: customer}
+      # ---- materials --------------------------------------------------------------------
+      - id: materials
+        name: Copper and specialty gases
+        keywords: ["copper shortage", "copper deficit", "copper price", "specialty gas supply", "helium shortage", "neon supply", "cathode premium"]
+        price_series:
+          - {source: fred, id: "WPU1022",         label: "PPI: primary nonferrous metals"}
+          - {source: fred, id: "PCU325120325120", label: "PPI: industrial gas manufacturing"}
+        supplier_count: several
+        capacity_lead_years: 5
+        thesis: "Data centers, grids and electrification all draw on copper and fab gases whose new supply takes the better part of a decade; miners and gas majors see sustained pricing."
+        falsifiers:
+          - {signal: price_deceleration, op: ">", value: 0.5, snapshots: 2}
+          - {signal: supply_response_z,  op: ">", value: 1.5, snapshots: 1}
+        companies:
+          - {ticker: UNP,  role: supplier, materiality: low,    pricing_power: medium, capacity: ample,       note: "hauls industrial materials and metals; a small share of carloads"}
+          - {ticker: FCX,  role: supplier, materiality: high,   pricing_power: medium, capacity: constrained, note: "copper mining"}   # not curated
+          - {ticker: SCCO, role: supplier, materiality: high,   pricing_power: medium, capacity: constrained, note: "copper mining"}   # not curated
+          - {ticker: APD,  role: supplier, materiality: medium, pricing_power: high,   capacity: ample,       note: "industrial and electronics gases"}   # not curated
+          - {ticker: LIN,  role: supplier, materiality: medium, pricing_power: high,   capacity: ample,       note: "industrial and electronics gases"}   # not curated
+  # =====================================================================================
+  - id: electrification
+    name: Electrification
+    spend_evidence:
+      - {label: "Utility capital-expenditure plans (10-K full-text search)", url: "https://efts.sec.gov/LATEST/search-index?q=%22capital%20expenditures%22%20%22transmission%22%20%22distribution%22&forms=10-K"}
+      - {label: "DOE Grid Deployment Office programs", url: "https://www.energy.gov/gdo/grid-deployment-office"}
+    layers:
+      # ---- grid -------------------------------------------------------------------------
+      - id: grid
+        name: Grid equipment and transformers
+        keywords: ["transformer shortage", "transformer lead time", "switchgear lead time", "grid equipment backlog", "distribution transformer", "substation backlog"]
+        price_series:
+          - {source: fred, id: "PCU335311335311", label: "PPI: electric power and specialty transformer manufacturing"}
+          - {source: fred, id: "PCU335313335313", label: "PPI: switchgear and switchboard apparatus manufacturing"}
+        supplier_count: few
+        capacity_lead_years: 3
+        thesis: "Load growth, renewables interconnection and grid hardening have stretched transformer and switchgear lead times to years; the few domestic makers hold pricing power."
+        falsifiers:
+          - {signal: price_deceleration, op: ">", value: 0.5, snapshots: 2}
+          - {signal: supply_response_z,  op: ">", value: 1.5, snapshots: 1}
+          - {signal: tightness_z,        op: "<", value: -1.0, snapshots: 3}
+        companies:
+          - {ticker: HON,  role: supplier, materiality: low,    pricing_power: high,   capacity: ample,       note: "grid metering and controls"}
+          - {ticker: GEV,  role: supplier, materiality: high,   pricing_power: high,   capacity: constrained, note: "transformers, switchgear and grid software"}   # not curated
+          - {ticker: ETN,  role: supplier, materiality: high,   pricing_power: high,   capacity: constrained, note: "electrical equipment"}   # not curated
+          - {ticker: HUBB, role: supplier, materiality: high,   pricing_power: high,   capacity: constrained, note: "utility transmission and distribution components"}   # not curated
+          - {ticker: PWR,  role: supplier, materiality: medium, pricing_power: medium, capacity: constrained, note: "grid construction services"}   # not curated
+          - {ticker: NEE,  role: customer}   # not curated: a utility buying the equipment
+      # ---- battery ----------------------------------------------------------------------
+      - id: battery
+        name: Battery materials
+        keywords: ["lithium price", "lithium carbonate", "battery materials shortage", "cathode supply", "graphite anode supply", "cell oversupply"]
+        price_series:
+          - {source: fred, id: "PCU3359133591",   label: "PPI: storage battery manufacturing"}
+        supplier_count: several
+        capacity_lead_years: 4
+        thesis: "Storage and vehicle batteries need lithium, nickel and graphite whose mines and refineries take years to permit and build; a renewed tightening would lift the miners first."
+        falsifiers:
+          - {signal: price_trend,        op: "<", value: 0.0, snapshots: 2}
+          - {signal: supply_response_z,  op: ">", value: 1.5, snapshots: 1}
+        companies:
+          # No good-to-own name produces battery materials; shown as context only (see 4A.1).
+          - {ticker: ALB,  role: supplier, materiality: high,   pricing_power: low,    capacity: ample,       note: "lithium; pricing power is low while the market is oversupplied"}   # not curated
+          - {ticker: SQM,  role: supplier, materiality: high,   pricing_power: low,    capacity: ample,       note: "lithium"}   # not curated
+          - {ticker: TSLA, role: customer}   # not curated
+          - {ticker: GM,   role: customer}   # not curated
+      # ---- industrial -------------------------------------------------------------------
+      - id: industrial
+        name: Industrial electrification and automation
+        keywords: ["electrification of industrial", "motor drives backlog", "automation backlog", "plant electrification", "electric locomotive", "industrial electrical demand"]
+        price_series:
+          - {source: fred, id: "PCU335312335312", label: "PPI: motor and generator manufacturing"}
+        supplier_count: several
+        capacity_lead_years: 2
+        thesis: "Factories, mines and freight are replacing combustion and manual processes with electric drives and automation; controls makers see multi-year backlogs."
+        falsifiers:
+          - {signal: supply_response_z,  op: ">", value: 1.5, snapshots: 1}
+          - {signal: tightness_z,        op: "<", value: -1.0, snapshots: 3}
+        companies:
+          - {ticker: HON,  role: supplier, materiality: medium, pricing_power: high,   capacity: ample,       note: "process automation and industrial controls"}
+          - {ticker: UNP,  role: supplier, materiality: low,    pricing_power: medium, capacity: ample,       note: "freight electrification pilots; small today"}
+          - {ticker: EMR,  role: supplier, materiality: high,   pricing_power: high,   capacity: ample,       note: "automation and drives"}   # not curated
+          - {ticker: ROK,  role: supplier, materiality: high,   pricing_power: medium, capacity: ample,       note: "factory automation"}   # not curated
+          - {ticker: GM,   role: customer}   # not curated
+          - {ticker: TSLA, role: customer}   # not curated

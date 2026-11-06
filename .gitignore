@@ -29,3 +29,7 @@ docs/capstone-plan.md
 
 # the exported pin list is tracked even if a global ignore excludes *.txt
 !requirements.txt
+
+# Phase 11: operator-licensed price-tracker CSVs (PRD 4A.5), never committed
+data/bottleneck_series/
+data/bottleneck_snapshots.sqlite

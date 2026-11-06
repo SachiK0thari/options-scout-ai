@@ -15,6 +15,7 @@ from options_scout.core.models import OptionCandidate, PMCCCandidate, RankedCand
 ANNUALIZED_RETURN_CAP = 0.40  # a 40%+ annualised CSP return scores 1.0
 OI_SATURATION = 5000  # open interest at which the liquidity sub-score saturates
 NEUTRAL_SOCIAL_SCORE = 50.0  # used when a ticker has no trend signal
+NEUTRAL_BOTTLENECK_SCORE = 50.0  # used when a ticker has no bottleneck signal (Phase 11)
 NEUTRAL_QUALITY_SCORE = 0.5  # used when a ticker has no quality check (e.g. demo-core CLI)
 
 
@@ -48,10 +49,23 @@ def option_quality(c: OptionCandidate, w: OptionQualityWeights, rules: ScreenerR
     )
 
 
-def blend(option_q: float, stock_q: float, social: float, w: RankingWeights) -> float:
-    """final = w1·option_quality + w2·stock_quality + w3·social/100, clipped to [0, 1]."""
+def blend(
+    option_q: float,
+    stock_q: float,
+    social: float,
+    w: RankingWeights,
+    bottleneck: float = NEUTRAL_BOTTLENECK_SCORE,
+) -> float:
+    """final = w1·option_quality + w2·stock_quality + w3·social/100 + w4·bottleneck/100, in [0, 1].
+
+    ``bottleneck`` defaults to the neutral 50 until the ranker node passes real company scores
+    (Phase 11 step 11.4), so with the engine absent the formula ranks as the three-term one did.
+    """
     return _clip01(
-        w.option_quality * option_q + w.stock_quality * stock_q + w.social * social / 100.0
+        w.option_quality * option_q
+        + w.stock_quality * stock_q
+        + w.social * social / 100.0
+        + w.bottleneck * bottleneck / 100.0
     )
 
 

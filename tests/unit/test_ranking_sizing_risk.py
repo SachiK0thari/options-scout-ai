@@ -83,9 +83,14 @@ def test_ranking_orders_and_blends(world: dict[str, object]) -> None:
 def test_blend_golden_and_quality_moves_rank(world: dict[str, object]) -> None:
     cfg: AppConfig = world["cfg"]  # type: ignore[assignment]
     w = cfg.settings.ranking.weights
-    # 0.5*0.8 + 0.35*0.6 + 0.15*50/100 = 0.40 + 0.21 + 0.075 = 0.685
+    # 0.5*0.8 + 0.35*0.6 + 0.10*50/100 + 0.05*50/100 = 0.40 + 0.21 + 0.05 + 0.025 = 0.685
     assert ranking.blend(0.8, 0.6, 50.0, w) == pytest.approx(0.685)
-    assert ranking.blend(1.0, 1.0, 100.0, w) == 1.0 and ranking.blend(0.0, 0.0, 0.0, w) == 0.0
+    # neutral bottleneck (the default) equals the old three-term 0.15 share at social 50;
+    # a real bottleneck score moves the blend by at most 0.05
+    assert ranking.blend(0.8, 0.6, 50.0, w, bottleneck=100.0) == pytest.approx(0.71)
+    assert ranking.blend(0.8, 0.6, 50.0, w, bottleneck=0.0) == pytest.approx(0.66)
+    assert ranking.blend(1.0, 1.0, 100.0, w, bottleneck=100.0) == pytest.approx(1.0)
+    assert ranking.blend(0.0, 0.0, 0.0, w, bottleneck=0.0) == 0.0
     cands: list[OptionCandidate] = world["cands"]  # type: ignore[assignment]
     tk = cands[0].ticker  # any ticker that actually has candidates in the fixture
     hi = ranking.rank_candidates(
