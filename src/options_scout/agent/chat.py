@@ -31,6 +31,7 @@ from options_scout.agent.deps import Deps
 from options_scout.agent.graph import (
     build_graph,
     initial_state,
+    next_turn_state,
     pending_interrupt,
     stream_resume,
     stream_run,
@@ -86,24 +87,13 @@ class ChatSession:
         carried = [*self._pending.pop(thread_id, []), user]
         existing = self._values(thread_id)
         if existing:
+            # the previous turn's intent, texts and answer are cleared; the compliance retry
+            # counter is per text, so a fresh turn starts at zero
             payload: dict[str, Any] = {
+                **next_turn_state(existing),
                 "message": message,
-                "question": None,
-                "answer": None,
-                "intent": None,
-                "handoff": None,
-                "what_if_profile": None,
-                "what_if_diff": [],
-                "goal_text": None,
-                "goal_clarification": None,
-                "holdings_text": None,
-                "news_text": None,
-                "tax_text": None,
-                "verifier_feedback": None,
                 "chat_history": carried,
             }
-            # the compliance retry counter is per text; a fresh turn starts at zero
-            payload["retries"] = {**(existing.get("retries") or {}), "explainer": 0}
         else:
             payload = dict(initial_state())
             payload["message"] = message

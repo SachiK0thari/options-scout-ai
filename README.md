@@ -31,7 +31,7 @@ make demo ARGS="--ask 'what is a cash-secured put'"   # cited answer from the kn
 make demo-core        # screeners + sizing + risk for every risk profile × account type
 make ui               # nine-tab Streamlit app on :8501: chat on Scout, form on Setup, results, Goals, Learn, Trends, trace
 make api              # FastAPI on :8000  (POST /v1/recommend → GET /v1/runs/{id}/stream → /report; POST /v1/chat)
-make mcp              # MCP server over stdio: the six tools + knowledge:// resources for Claude Desktop
+make mcp              # MCP server over stdio: the ten tools + knowledge:// resources for Claude Desktop
 make test lint eval   # offline tests, ruff + mypy --strict, evaluation suite → evals/reports/latest.md
 make test-cov         # the tests with coverage; fails below 85% on core/, rag/, agent/
 ```
@@ -166,7 +166,7 @@ Options are higher-risk than equities, so the separation between *teaching* and 
 
 - **Two kinds of paragraph.** The Education agent tags every paragraph it writes. An `education` paragraph explains a concept, must cite a retrieved source, and may not mention this run's candidate ids, tickers or numbers. A `screen_result` paragraph reports what the screen found, may use only numbers from the computed payload, must state the realistic loss whenever it names a short option, and may never tell the reader what to do.
 - **Eleven deterministic checks** from [`config/compliance.yaml`](config/compliance.yaml) and PRD section 13.1: numbers grounded in the payload; every `[Sn]` resolving to a retrieved source; the mode rules above; a suitability gate on facts the Risk agent computed (no margin on a cash account, loss within the profile limit, PMCC only with LEAPS requested, earnings flags stated for conservative profiles, buying-power minimums); a language policy with directive, certainty, superlative and urgency patterns and an allow-list for quoted terminology inside cited education paragraphs; the disclaimer exactly once plus a delayed-data statement; freshness of cited rules and filings (warning only); and no handles or emails from social posts.
-- **One path to the user.** The report narrative, every chat reply, every Learn-tab answer and the MCP `explain_term` result reach the user only through the Compliance agent. Each evaluation is logged as a `compliance.check` event and appended to the run's audit log (Under the hood tab, Compliance ✓ badge on every chat turn); a blocking failure sends the Education agent specific feedback, and after two retries the text falls back to a deterministic narrative or the fixed sentence *"I can show the computed results but could not produce an explanation that passes compliance."*, which is checked again.
+- **One path to the user.** The report narrative, every chat reply, every Learn-tab answer and every MCP tool that returns text (`explain_term`, `plan_goal`, `analyze_holdings`, `news_brief`, `explain_tax_term`, the `screen_options` narrative) reach the user only through the Compliance agent. Each evaluation is logged as a `compliance.check` event and appended to the run's audit log (Under the hood tab, Compliance ✓ badge on every chat turn); a blocking failure sends the Education agent specific feedback, and after two retries the text falls back to a deterministic narrative or the fixed sentence *"I can show the computed results but could not produce an explanation that passes compliance."*, which is checked again.
 - **Measured, not asserted.** `make eval` runs 34 advice-seeded and 10 clean narratives through the separation checks, 20 synthetic reports through the suitability gate, and every report and chat reply through the audit-coverage check (table below).
 
 Two of the documented examples: *"CSP-COST-2026-12-18-850P met the criteria; its realistic loss is 12345."* passes. *"You should sell CSP-COST-2026-12-18-850P here; realistic loss 12345."* is rejected by `check_language` (a directive addressed to the reader), and *"A cash-secured put on COST obliges the writer to buy the shares at the strike [S1]."* is rejected by `check_education_only` (a run ticker inside an education paragraph).
@@ -243,7 +243,7 @@ Repository layout: [`PRD.md`](PRD.md) section 8. Key paths: `config/*.yaml` (eve
 
 ## Use it from Claude Desktop
 
-The same engine is exposed as an [MCP](https://modelcontextprotocol.io) server (`src/options_scout/mcp/server.py`, `mcp` SDK 2.x, stdio). Six tools wrap the deterministic layer and the graph, and the knowledge base is served as resources:
+The same engine is exposed as an [MCP](https://modelcontextprotocol.io) server (`src/options_scout/mcp/server.py`, `mcp` SDK 2.x, stdio). Ten tools wrap the deterministic layer and the graph, and the knowledge base is served as resources:
 
 | Tool | Wraps | Returns |
 |---|---|---|
@@ -253,8 +253,14 @@ The same engine is exposed as an [MCP](https://modelcontextprotocol.io) server (
 | `compute_margin(strike, premium, spot, account, contracts, dte?)` | `core/margin.py` | cash-secured collateral, Reg T minimum, what the account must hold |
 | `payoff_curve(legs, spot?, points)` | `core/payoff.py` | spot grid, P&L, breakevens, max loss / gain |
 | `explain_term(term)` | Education agent → Compliance | cited answer with its `ComplianceReport` |
+| `plan_goal(goal, balance?, risk?, account?, thread_id?)` | Goal Planning agent (`core/goals.py`) → Compliance | the parsed goal, the fits / stretch / does-not-fit verdict with its gap and three levers, the projection paths, the FIRE plan for the five variants, or a clarification |
+| `analyze_holdings(holdings, thread_id?)` | Portfolio agent's holdings path (`core/holdings.py`) → Compliance | positions as read, weights, sector weights, diversification score, expense ratio, beta, covered-call lots; concentration after assignment on a screen's thread |
+| `news_brief(tickers?, thread_id?)` | News Desk agent (`core/news.py`) → Compliance | one brief per ticker (headline, publisher, date, link, category, relevance, sentiment), calendar flags on a screen's short options, source status |
+| `explain_tax_term(term, thread_id?)` | Tax & Accounts agent (`core/tax.py`) → Compliance | answer cited to the `tax` collection with the tax disclaimer, plus the illustrative facts (assignment basis of a screened put, long-term threshold, wash-sale window, Section 1256 status) |
 
-Resources: `knowledge://concepts` (index) and `knowledge://concepts/<id>` (one cited concept document, e.g. `knowledge://concepts/cash-secured-put`). The server never accepts a market-data key as a tool argument; it reads `MARKETDATA_API_KEY` / `TRADIER_API_KEY` and the `OPTIONS_SCOUT_*` modes from the environment it is started with, and every narrative passes the same Compliance agent as the chat and the API before it is returned. Logs go to stderr, so stdout stays a clean JSON-RPC channel.
+The last four address one specialist each (Phase 12, step 12.8). Their intent is pinned, not classified, so `explain_tax_term("wash sale")` always reaches the Tax & Accounts agent. Each accepts the `thread_id` that a `screen_options` result carries: the specialist then works on that screen's profile, candidates and sized portfolio, as a chat turn after a screen does (`plan_goal` uses the sized portfolio's yield instead of cash at the T-bill rate, `explain_tax_term` illustrates with a screened put). Threads are kept in the server process's memory and end with it. `news_brief` covers the curated good-to-own list and the names of a screen; a ticker outside that set is named under `errors`, never replaced.
+
+Resources: `knowledge://concepts`, `knowledge://basics` and `knowledge://tax` (the index of one collection each: id, title, reading level, source, URL, `as_of`) and `knowledge://<collection>/<id>` (one cited document, e.g. `knowledge://concepts/cash-secured-put`, `knowledge://basics/compound-growth`, `knowledge://tax/wash-sales-and-options`). The server never accepts a market-data key as a tool argument; it reads `MARKETDATA_API_KEY` / `TRADIER_API_KEY` and the `OPTIONS_SCOUT_*` modes from the environment it is started with, and every narrative passes the same Compliance agent as the chat and the API before it is returned. Logs go to stderr, so stdout stays a clean JSON-RPC channel.
 
 Add this to `claude_desktop_config.json` (**Settings → Developer → Edit Config**), with the two absolute paths replaced; `make install` already installed the `[mcp]` extra into `.venv`:
 
@@ -274,11 +280,11 @@ Add this to `claude_desktop_config.json` (**Settings → Developer → Edit Conf
 }
 ```
 
-Restart Claude Desktop, then ask it, for example, *"Use options-scout to screen cash-secured puts for $40,000 in a cash account, conservative"* (it calls `screen_options`) or *"What does options-scout say a cash-secured put is?"* (it calls `explain_term`, and the reply carries the `[S1]` citation and the compliance audit id). Switch the two mode variables to `live` and add your market-data key to that `env` block for delayed live quotes.
+Restart Claude Desktop, then ask it, for example, *"Use options-scout to screen cash-secured puts for $40,000 in a cash account, conservative"* (it calls `screen_options`) or *"What does options-scout say a cash-secured put is?"* (it calls `explain_term`, and the reply carries the `[S1]` citation and the compliance audit id). After a screen, *"Could that account make $400 a month?"* calls `plan_goal` with the screen's `thread_id`, *"What happens to my taxes if one of those puts is assigned?"* calls `explain_tax_term`, *"I already own 200 AAPL and 10 COST"* calls `analyze_holdings`, and *"Any news on COST and NKE?"* calls `news_brief`. Switch the two mode variables to `live` and add your market-data key to that `env` block for delayed live quotes.
 
 ![Claude Desktop calling screen_options](docs/screenshots/claude-desktop-screen-options.png)
 
-`tests/agent/test_mcp.py` drives the server through the SDK's in-process client (tool listing, `price_option` against the pricing goldens, `explain_term` carrying a passing `ComplianceReport`, a fixture `screen_options` run, the resources) and once more over real stdio as a subprocess.
+`tests/agent/test_mcp.py` drives the server through the SDK's in-process client (the ten tools, `price_option` against the pricing goldens, `explain_term` carrying a passing `ComplianceReport`, a fixture `screen_options` run, the four specialist tools alone and on that screen's thread, the three resource collections) and once more over real stdio as a subprocess.
 
 ## Deploy
 

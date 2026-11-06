@@ -5,6 +5,9 @@
   reads like one and a report exists.
 * A chat ``message`` goes through the ``route_message`` prompt (or the regex fallback) with the
   thread's context: whether a report exists and the current profile.
+* A turn with no ``message`` and exactly one specialist text (``goal_text``, ``holdings_text``,
+  ``news_text``, ``tax_text``) is **pinned** to that specialist (Phase 12, 12.8): the caller, an
+  MCP tool, already knows which agent it is addressing, so nothing is classified.
 
 The node writes ``intent`` and, per intent: ``question`` (concept/why), ``what_if_profile``
 (what_if), or a ``handoff`` describing the new thread the session must start (a new or refined
@@ -35,6 +38,21 @@ PROFILE_KEYS = (
     "max_positions",
     "knowledge_level",  # Phase 12
 )
+
+
+# the text key each Phase 12 specialist reads; a turn that sets exactly one of them is pinned
+SPECIALIST_TEXT: dict[Intent, str] = {
+    "goal": "goal_text",
+    "holdings": "holdings_text",
+    "news": "news_text",
+    "tax": "tax_text",
+}
+
+
+def pinned_intent(state: AgentState) -> Intent | None:
+    """The specialist a message-less turn is addressed to, when exactly one text names it."""
+    found = [intent for intent, key in SPECIALIST_TEXT.items() if str(state.get(key) or "").strip()]
+    return found[0] if len(found) == 1 else None
 
 
 def profile_summary(profile: UserProfile | None) -> str:
@@ -87,6 +105,9 @@ def make(deps: Deps) -> Callable[[AgentState], dict[str, Any]]:
         usage_before = len(deps.llm.usage)
 
         if not message:
+            pinned = pinned_intent(state)
+            if pinned is not None:
+                return {"intent": pinned, "handoff": None}
             if question:
                 decision = rule_route(f"<message>\n{question}\n</message>")
                 intent: Intent = "why" if (decision.intent == "why" and has_report) else "concept"

@@ -11,7 +11,13 @@ from fastapi.testclient import TestClient
 
 from options_scout.agent.chat import ChatSession
 from options_scout.agent.deps import Deps
-from options_scout.agent.nodes.route import apply_changes, profile_diff
+from options_scout.agent.graph import ask_specialist, next_turn_state
+from options_scout.agent.nodes.route import (
+    SPECIALIST_TEXT,
+    apply_changes,
+    pinned_intent,
+    profile_diff,
+)
 from options_scout.config import AppConfig, load_config
 from options_scout.core.models import OFF_TOPIC_REPLY, ChatTurn, UserProfile
 from options_scout.llm.rules import rule_route
@@ -184,6 +190,39 @@ def test_what_if_without_a_report_is_a_new_screen(session: ChatSession) -> None:
 
 
 # ------------------------------------------------------------------------------- helpers
+# ------------------------------------------------------- pinned specialist turns (12.8)
+def test_pinned_intent_needs_exactly_one_specialist_text() -> None:
+    assert pinned_intent({}) is None
+    assert pinned_intent({"tax_text": "wash sale"}) == "tax"
+    assert pinned_intent({"goal_text": "  ", "news_text": "COST"}) == "news"
+    assert pinned_intent({"goal_text": "400 a month", "tax_text": "wash sale"}) is None
+    assert set(SPECIALIST_TEXT) == {"goal", "holdings", "news", "tax"}
+    # every text a pin reads is cleared for the next turn, so a pin never outlives its turn
+    cleared = next_turn_state({"retries": {"explainer": 2, "sizing": 1}})
+    assert all(cleared[key] is None for key in SPECIALIST_TEXT.values())
+    assert cleared["message"] is None and cleared["retries"] == {"explainer": 0, "sizing": 1}
+
+
+def test_ask_specialist_pins_the_agent_whatever_the_text_says(session: ChatSession) -> None:
+    """A text the router would send to Education reaches the pinned specialist instead, and a
+    chat turn on the same thread afterwards is routed normally."""
+    text = "What is a cash-secured put?"
+    assert rule_route(f"<message>\n{text}\n</message>").intent == "concept"
+    values = ask_specialist(session.graph, "tax", text, "t-pin")
+    assert values["intent"] == "tax" and values["tax_text"] == text
+    assert "tax_agent" in values["agents_visited"]
+    assert "education_agent" not in values["agents_visited"]
+    assert values["compliance"].passed and len(values["audit_log"]) == 1
+    follow = session.send("t-pin", "What is theta?")
+    assert follow.turn.intent == "concept"
+    _assert_reply(follow.turn)
+    again = ask_specialist(session.graph, "tax", "wash sale", "t-pin")
+    assert again["intent"] == "tax" and again["message"] is None
+    assert len(again["audit_log"]) == len(values["audit_log"]) + 2  # one entry per turn
+    with pytest.raises(ValueError, match="not a specialist intent"):
+        ask_specialist(session.graph, "concept", text)
+
+
 def test_apply_changes_and_diff() -> None:
     before = UserProfile(
         buying_power=100_000, account_value=100_000, account_type="margin", risk_profile="balanced"

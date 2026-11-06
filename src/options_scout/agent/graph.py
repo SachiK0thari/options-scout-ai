@@ -18,13 +18,14 @@ Phase 9 wired the fourteen nodes directly; Phase 10 groups them into eight speci
 * ``what_if`` / ``off_topic`` → the Orchestrator's own reply → Compliance → END.
 
 Compliance retries Education (bounded) and otherwise releases a report to ``report_node`` or an
-answer to END. ``agent/chat.py`` drives multi-turn conversations over this graph.
+answer to END. ``agent/chat.py`` drives multi-turn conversations over this graph;
+``ask_specialist`` runs one turn pinned to a Phase 12 specialist (the MCP tools of step 12.8).
 """
 
 from __future__ import annotations
 
 import uuid
-from collections.abc import Iterator
+from collections.abc import Iterator, Mapping
 from pathlib import Path
 from typing import Any
 
@@ -50,8 +51,9 @@ from options_scout.agent.agents import (
 from options_scout.agent.agents.base import compose
 from options_scout.agent.deps import Deps
 from options_scout.agent.nodes import report
+from options_scout.agent.nodes.route import SPECIALIST_TEXT
 from options_scout.agent.state import AgentState
-from options_scout.core.models import utcnow
+from options_scout.core.models import Intent, UserProfile, utcnow
 from options_scout.observability import timed_node
 
 # Specialists in execution order (parent-graph node names).
@@ -307,6 +309,70 @@ def answer_question(deps: Deps, question: str, thread_id: str | None = None) -> 
     if values.get("compliance") is None or not values.get("audit_log"):
         # 13.1: a reply without a compliance audit entry must be impossible
         raise RuntimeError("answer produced without a ComplianceReport; refusing to return it")
+    return values
+
+
+def next_turn_state(existing: Mapping[str, Any]) -> dict[str, Any]:
+    """The per-turn keys of a thread that already ran, cleared for its next turn.
+
+    Everything a turn's router and writers set is reset, so a new turn never inherits the
+    previous one's intent, texts or answer; the compliance retry counter is per text and starts
+    at zero. The caller adds the turn's own input (``message``, or one specialist text).
+    """
+    return {
+        "message": None,
+        "question": None,
+        "answer": None,
+        "intent": None,
+        "handoff": None,
+        "what_if_profile": None,
+        "what_if_diff": [],
+        "goal_text": None,
+        "goal_clarification": None,
+        "holdings_text": None,
+        "news_text": None,
+        "tax_text": None,
+        "verifier_feedback": None,
+        "retries": {**(existing.get("retries") or {}), "explainer": 0},
+    }
+
+
+def ask_specialist(
+    graph: Any,
+    intent: Intent,
+    text: str,
+    thread_id: str | None = None,
+    *,
+    profile: UserProfile | None = None,
+) -> dict[str, Any]:
+    """One turn addressed to a Phase 12 specialist (``goal``, ``holdings``, ``news``, ``tax``).
+
+    The intent is pinned, not classified (``route_node``). On a thread that already holds state
+    (a finished screen, say) the turn runs there, so the specialist sees the thread's profile,
+    candidates and sized portfolio exactly as a chat turn would; on a new thread it starts from
+    an empty state plus the optional ``profile``. The final state holds ``answer``, ``citations``
+    and ``compliance``; like ``answer_question`` this refuses to return text that Compliance did
+    not evaluate in this turn.
+    """
+    key = SPECIALIST_TEXT.get(intent)
+    if key is None:
+        raise ValueError(f"{intent!r} is not a specialist intent ({', '.join(SPECIALIST_TEXT)})")
+    thread = thread_id or f"{intent}-{uuid.uuid4().hex[:8]}"
+    existing: dict[str, Any] = dict(graph.get_state(thread_config(thread)).values or {})
+    if existing:
+        payload: dict[str, Any] = next_turn_state(existing)
+    else:
+        payload = dict(initial_state())
+        if profile is not None:
+            payload["profile"] = profile
+    payload[key] = text
+    audited = len(existing.get("audit_log") or [])
+    for _ in stream_run(graph, payload, thread):  # type: ignore[arg-type]
+        pass
+    values: dict[str, Any] = dict(graph.get_state(thread_config(thread)).values)
+    if values.get("compliance") is None or len(values.get("audit_log") or []) <= audited:
+        # 13.1: a reply without a compliance audit entry of its own must be impossible
+        raise RuntimeError(f"{intent} reply produced without a ComplianceReport; refusing it")
     return values
 
 
