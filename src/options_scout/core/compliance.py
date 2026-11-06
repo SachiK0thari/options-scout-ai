@@ -266,9 +266,26 @@ def check_citations(narrative: Narrative, sources: Sequence[Citation]) -> Compli
 
 
 # ------------------------------------------------------------------ 3 check_education_only
+_NOT_RUN_DATA = frozenset({"sources", "disclaimer", "tax_disclaimer", "question"})
+
+
+def _without_keys(value: Any, keys: frozenset[str]) -> Any:
+    """``value`` with the named dict keys removed at every depth."""
+    if isinstance(value, dict):
+        return {k: _without_keys(v, keys) for k, v in value.items() if k not in keys}
+    if isinstance(value, list | tuple):
+        return [_without_keys(v, keys) for v in value]
+    return value
+
+
 def _run_numbers(payload: dict[str, Any]) -> set[float]:
-    """Numbers that identify this run (positions, portfolio, allocation…), not quoted sources."""
-    core = {k: v for k, v in payload.items() if k not in ("sources", "disclaimer", "question")}
+    """Numbers that identify this run (positions, portfolio, allocation…), not quoted sources.
+
+    The user's own question is not run data wherever it sits in the payload: a tax reply nests it
+    under ``tax``, and "Section 1256" or "Form 1099-B" in a question must not make the education
+    paragraph that explains them look like it leaks a run number.
+    """
+    core = _without_keys(payload, _NOT_RUN_DATA)
     return {v for v in collect_payload_numbers(core) if abs(v) >= 1000}
 
 

@@ -1,8 +1,9 @@
-"""Generate ``knowledge/rules/*.md`` from PRD.md sections 3.1–3.7 and ``config/*.yaml``.
+"""Generate ``knowledge/rules/*.md`` from PRD.md sections 3.1–3.10 and ``config/*.yaml``.
 
 Each rule document carries the PRD section verbatim (the specification) followed by the values
 currently in force, read from the typed config, so an Education answer to "why was X excluded"
-can cite the exact threshold. ``make index`` regenerates the files; ``tests/unit/test_rag.py``
+can cite the exact threshold. Sections 3.1–3.7 are the screening rules; 3.8–3.10 are the goal
+feasibility, news flag and holdings concentration rules of Phase 12. ``make index`` regenerates the files; ``tests/unit/test_rag.py``
 fails when the committed copies are stale. ``as_of`` is kept from the committed file while the
 body is unchanged, so regeneration is idempotent day to day.
 """
@@ -19,7 +20,7 @@ from options_scout.rag.corpus import parse_document, render_document
 from options_scout.rag.models import Document
 
 PRD_FILE = "PRD.md"
-_SECTION = re.compile(r"^### (3\.\d) (.+?)\s*$", re.MULTILINE)
+_SECTION = re.compile(r"^### (3\.\d+) (.+?)\s*$", re.MULTILINE)
 _NEXT_HEADING = re.compile(r"^#{2,3} ", re.MULTILINE)
 
 # section number → (file stem, config files the values come from)
@@ -31,6 +32,9 @@ RULE_FILES: dict[str, tuple[str, tuple[str, ...]]] = {
     "3.5": ("pmcc_rules", ("config/screener_rules.yaml",)),
     "3.6": ("formulas", ("config/settings.yaml",)),
     "3.7": ("quality_gate", ("config/quality_universe.yaml", "config/settings.yaml")),
+    "3.8": ("goal_feasibility", ("config/goals.yaml",)),
+    "3.9": ("news_flags", ("config/news.yaml",)),
+    "3.10": ("holdings_concentration", ("config/risk_profiles.yaml", "config/holdings.yaml")),
 }
 
 
@@ -220,6 +224,89 @@ def _values_3_7(cfg: AppConfig) -> str:
     )
 
 
+def _values_3_8(cfg: AppConfig) -> str:
+    g = cfg.goals
+    profiles = list(g.max_assumed_return)
+    per_profile = _table(
+        ["Assumption", *profiles],
+        [
+            (
+                "Return cap a goal may assume (above it the verdict is `does_not_fit`)",
+                *(_pct(g.max_assumed_return[p]) for p in profiles),
+            ),
+            (
+                "Diversified-portfolio return assumed for the conventional and FIRE projections",
+                *(_pct(g.assumed_return[p]) for p in profiles),
+            ),
+            (
+                "Share of years in which the −30% stress scenario is assumed to hit",
+                *(_pct(g.assignment_frequency[p]) for p in profiles),
+            ),
+        ],
+    )
+    table = g.savings_rate_table
+    rates = ", ".join(_pct(r) for r in table.rates)
+    return (
+        f"{per_profile}\n\n"
+        f"Stretch band: a required return up to {g.stretch_band * 100:g} percentage points above "
+        "the stress-adjusted yield, and still within the profile's cap, is a `stretch`.\n\n"
+        f"Withdrawal rate: {_pct(g.withdrawal_rate)} unless the user states one (FIRE number = "
+        f"expense target / withdrawal rate). Fat FIRE expense target when none is entered: "
+        f"{g.fat_multiple:g} × current expenses. A target is reported as not reached beyond "
+        f"{g.max_horizon_years} years.\n\n"
+        f"Savings-rate illustration on the Goals tab: savings rates of {rates} at a real return "
+        f"of {_pct(table.real_return)}."
+    )
+
+
+def _values_3_9(cfg: AppConfig) -> str:
+    n = cfg.news
+    sources = [
+        ("Alpha Vantage NEWS_SENTIMENT", n.sources.alphavantage.enabled),
+        ("RSS (live fallback)", n.sources.rss.enabled),
+    ]
+    rows = [
+        ("Recency half-life", f"{n.half_life_days:g} days (weight = 0.5 ^ (age / half-life))"),
+        ("Stale marker", f"older than {n.stale_days} days"),
+        ("Lookback window", f"headlines from the last {n.lookback_days} days"),
+        ("Headlines kept per ticker", f"{n.max_items_per_ticker}"),
+        (
+            "Ex-dividend capture window",
+            f"within {n.capture_window_days} days before a short call's expiry",
+        ),
+        ("Live response cache", f"{n.cache_ttl_minutes} minutes"),
+        *((name, "enabled" if on else "disabled") for name, on in sources),
+    ]
+    return _table(["Parameter", "Value in force"], rows)
+
+
+def _values_3_10(cfg: AppConfig) -> str:
+    cons = cfg.risk.constraints
+    h = cfg.holdings
+    cap = _table(
+        ["Constraint", *cons.keys()],
+        [
+            (
+                "Max ticker concentration after assignment",
+                *(_pct(c.max_ticker_concentration_after_assignment) for c in cons.values()),
+            )
+        ],
+    )
+    ratios = _table(
+        ["ETF", "Annual expense ratio"],
+        [(t, f"{pct:g}%") for t, pct in sorted(h.expense_ratios_pct.items())],
+    )
+    return (
+        f"{cap}\n\n"
+        "The cap is measured against holdings value plus buying power and applies only when "
+        "holdings were entered.\n\n"
+        f"Covered-call lot: {h.covered_call_lot} shares. Beta: daily closes over "
+        f"{h.beta_lookback_days} days against {h.beta_index}.\n\n"
+        f"### Expense ratios used for the weighted expense ratio\n\n{ratios}\n\n"
+        "A stock has no expense ratio; an ETF outside this table is reported without one."
+    )
+
+
 _VALUES = {
     "3.1": _values_3_1,
     "3.2": _values_3_2,
@@ -228,6 +315,9 @@ _VALUES = {
     "3.5": _values_3_5,
     "3.6": _values_3_6,
     "3.7": _values_3_7,
+    "3.8": _values_3_8,
+    "3.9": _values_3_9,
+    "3.10": _values_3_10,
 }
 
 

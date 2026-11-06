@@ -2,7 +2,7 @@
  {
   "section": "11.1 Deterministic",
   "name": "Golden-value + property tests (tests/unit)",
-  "value": "268 passed",
+  "value": "310 passed",
   "target": "all pass",
   "status": "PASS",
   "detail": ""
@@ -10,18 +10,18 @@
  {
   "section": "Quality",
   "name": "Offline test suite (unit + agent + API + UI + MCP)",
-  "value": "351 passed",
+  "value": "464 passed",
   "target": "all pass",
   "status": "PASS",
-  "detail": "151s"
+  "detail": "247s"
  },
  {
   "section": "Quality",
   "name": "Line coverage on core/, rag/, agent/ (pytest --cov, same run)",
-  "value": "88.6%",
+  "value": "94.5%",
   "target": "\u2265 85%",
   "status": "PASS",
-  "detail": "whole package 85.8%"
+  "detail": "whole package 90.8%"
  },
  {
   "section": "11.2 Entity extraction",
@@ -42,18 +42,18 @@
  {
   "section": "11.2 Entity extraction",
   "name": "F1 on 150 labeled posts (LLM deepseek/deepseek-v4.1-flash)",
-  "value": "P 0.72 / R 0.95 / F1 0.82",
+  "value": "P 0.72 / R 0.93 / F1 0.81",
   "target": "F1 \u2265 0.80",
   "status": "PASS",
-  "detail": "tp=170 fp=66 fn=9"
+  "detail": "tp=167 fp=64 fn=12"
  },
  {
   "section": "11.2 Entity extraction",
   "name": "is_stock_talk accuracy (LLM deepseek/deepseek-v4.1-flash)",
-  "value": "0.97",
+  "value": "0.96",
   "target": "report",
   "status": "INFO",
-  "detail": "n=170"
+  "detail": "n=167"
  },
  {
   "section": "11.2 Resolution",
@@ -77,7 +77,7 @@
   "value": "98%",
   "target": "\u2265 95%",
   "status": "PASS",
-  "detail": "147/150"
+  "detail": "177/180"
  },
  {
   "section": "11.2 Profile parsing",
@@ -85,7 +85,15 @@
   "value": "98%",
   "target": "\u2265 95%",
   "status": "PASS",
-  "detail": "49/50"
+  "detail": "59/60"
+ },
+ {
+  "section": "11.2 Profile parsing",
+  "name": "Knowledge-level accuracy (rule-based, no LLM)",
+  "value": "100%",
+  "target": "\u2265 90%",
+  "status": "PASS",
+  "detail": "60/60 (11 requests state a level, the rest must parse to none)"
  },
  {
   "section": "11.2 Profile parsing",
@@ -93,7 +101,7 @@
   "value": "100%",
   "target": "\u2265 95%",
   "status": "PASS",
-  "detail": "150/150"
+  "detail": "180/180"
  },
  {
   "section": "11.2 Profile parsing",
@@ -101,7 +109,15 @@
   "value": "100%",
   "target": "\u2265 95%",
   "status": "PASS",
-  "detail": "50/50"
+  "detail": "60/60"
+ },
+ {
+  "section": "11.2 Profile parsing",
+  "name": "Knowledge-level accuracy (LLM deepseek/deepseek-v4.1-flash)",
+  "value": "98%",
+  "target": "\u2265 90%",
+  "status": "PASS",
+  "detail": "59/60 (11 requests state a level, the rest must parse to none)"
  },
  {
   "section": "11.2 Prompt injection",
@@ -170,7 +186,7 @@
  {
   "section": "11.3 Agent",
   "name": "Latency per run (fixture mode)",
-  "value": "mean 1.08s \u00b7 p95 3.07s",
+  "value": "mean 1.13s \u00b7 p95 3.02s",
   "target": "report",
   "status": "INFO",
   "detail": ""
@@ -210,7 +226,7 @@
  {
   "section": "11.3a Conversation",
   "name": "Intent routing accuracy (rule-based router)",
-  "value": "60/60 = 100%",
+  "value": "100/100 = 100%",
   "target": "\u2265 90%",
   "status": "PASS",
   "detail": ""
@@ -218,7 +234,7 @@
  {
   "section": "11.3a Conversation",
   "name": "Intent routing accuracy (LLM router)",
-  "value": "60/60 = 100%",
+  "value": "100/100 = 100%",
   "target": "\u2265 90%",
   "status": "PASS",
   "detail": ""
@@ -289,11 +305,75 @@
  },
  {
   "section": "11.3a Conversation",
-  "name": "Compliance on chat: assistant turns carrying a passing ComplianceReport (6-turn script)",
-  "value": "6/6",
+  "name": "Compliance on chat: assistant turns carrying a passing ComplianceReport (7-turn script)",
+  "value": "7/7",
   "target": "100%",
   "status": "PASS",
-  "detail": "intents: new_screen, new_screen, why, concept, what_if, off_topic"
+  "detail": "intents: new_screen, new_screen, why, concept, what_if, goal, off_topic"
+ },
+ {
+  "section": "12.3 Goal planning",
+  "name": "Goal feasibility verdicts and FIRE numbers on 29 labelled cases (15 FIRE, five variants)",
+  "value": "29/29",
+  "target": "100%",
+  "status": "PASS",
+  "detail": "deterministic: core/goals.py on cash alone at 4%"
+ },
+ {
+  "section": "12.3 Goal planning",
+  "name": "Goal parsing: a goal kind recognised on the 10 goal messages (rule-based)",
+  "value": "10/10",
+  "target": "100%",
+  "status": "PASS",
+  "detail": ""
+ },
+ {
+  "section": "12.5 News desk",
+  "name": "Headline category accuracy on 70 labelled headlines (keyword classifier)",
+  "value": "70/70 = 100%",
+  "target": "\u2265 85%",
+  "status": "PASS",
+  "detail": ""
+ },
+ {
+  "section": "12.5 News desk",
+  "name": "Headlines with an embedded instruction still labelled by content (20, keyword)",
+  "value": "20/20",
+  "target": "100%",
+  "status": "PASS",
+  "detail": ""
+ },
+ {
+  "section": "12.5 News desk",
+  "name": "Headline category accuracy on 70 labelled headlines (LLM classifier)",
+  "value": "70/70 = 100%",
+  "target": "\u2265 85%",
+  "status": "PASS",
+  "detail": ""
+ },
+ {
+  "section": "12.5 News desk",
+  "name": "Headlines with an embedded instruction still labelled by content (20, LLM)",
+  "value": "20/20",
+  "target": "100%",
+  "status": "PASS",
+  "detail": ""
+ },
+ {
+  "section": "12.6 Tax & accounts",
+  "name": "Tax questions routed to the Tax agent and citing the expected document (rule-based answerer)",
+  "value": "routed 20/20 \u00b7 cited 20/20",
+  "target": "\u2265 90% cited",
+  "status": "PASS",
+  "detail": "every question cited its document"
+ },
+ {
+  "section": "12.6 Tax & accounts",
+  "name": "Tax replies passing Compliance (check 11: disclaimer once, no rate, no instruction)",
+  "value": "20/20 \u00b7 disclaimer once in 20/20",
+  "target": "100%",
+  "status": "PASS",
+  "detail": ""
  },
  {
   "section": "11.3 Agent",

@@ -1231,7 +1231,8 @@ def is_news_message(message: str) -> bool:
 # -------------------------------------------------------------------- tax (Phase 12, 12.6)
 _TAX_CUE = re.compile(
     r"\b(tax(?:es|ed|able|ation)?|wash[- ]sale|cost basis|\bbasis\b|holding period|long[- ]term|"
-    r"short[- ]term|1256|1099|8949|schedule d|capital gains?|qualified covered call|straddle rule|"
+    r"short[- ]term|1256|1099|8949|6781|form \d{4}\b|schedule d|capital gains?|"
+    r"qualified covered call|straddle rule|"
     r"early withdrawal|59 ?1/2|59\.5|roth|\bira\b|retirement account|pattern day|pdt\b|"
     r"portfolio margin|approval level|which account|what account|kind of account|"
     r"type of account|in an? (?:cash|margin|ira|roth) account|allowed in (?:an? )?(?:ira|roth|cash|margin))",
@@ -1246,7 +1247,7 @@ def is_tax_message(message: str) -> bool:
     if _WHAT_IF.search(low) or not _TAX_CUE.search(low):
         return False
     has_amount = _parse_amount(message) is not None
-    strong = re.search(r"\b(tax|wash|basis|1256|1099|8949|holding period|withdrawal)", low)
+    strong = re.search(r"\b(tax|wash|basis|1256|1099|8949|6781|holding period|withdrawal)", low)
     return bool(strong) or not has_amount
 
 
@@ -1293,6 +1294,10 @@ def rule_answer_tax(user_prompt: str) -> Narrative:
             )
         )
     knowledge = [s for s in sources if not is_run_data(s)]
+    if tax_disc:  # every tax document carries the sentence; the reply states it once, below
+        knowledge = [
+            {**s, "text": " ".join(s["text"].replace(tax_disc, " ").split())} for s in knowledge
+        ]
     paras.extend(education_paragraphs(knowledge, limit=2))
     if not knowledge:
         paras.append(Paragraph(mode="notice", text=NO_SOURCE_SENTENCE))

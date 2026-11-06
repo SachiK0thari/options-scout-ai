@@ -9,6 +9,7 @@ import pytest
 from options_scout.agent.chat import ChatSession
 from options_scout.agent.deps import Deps
 from options_scout.agent.graph import build_agents, initial_state, thread_config
+from options_scout.agent.nodes.tax_retrieval import MAX_SOURCES, expand, fuse_documents
 from options_scout.config import AppConfig, load_config
 from options_scout.core import compliance as cc
 from options_scout.core.models import Narrative, Paragraph
@@ -105,3 +106,54 @@ def test_tax_agent_without_a_screen_explains_mechanics_only(deps: Deps) -> None:
     assert out["answer"].paragraphs[-1].mode == "notice"
     assert any(deps.cfg.compliance.tax.disclaimer == p.text for p in out["answer"].paragraphs)
     assert "section-1256-contracts" in {c.doc_id for c in out["citations"]}
+
+
+# ----------------------------------------------- regressions found by the first full eval run
+def test_expanded_query_counts_even_when_the_plain_one_matches(deps: Deps) -> None:
+    """The question as asked finds a neighbouring document; the expansion into the documents'
+    vocabulary finds the right one. Both rankings are fused, one chunk per document."""
+    question = "When does the holding period of assigned shares start?"
+    retriever = deps.knowledge()
+    plain = retriever.retrieve(question, kind="tax", top_k=6)
+    expanded = retriever.retrieve(expand(question), kind="tax", top_k=6)
+    # the plain query leads with the neighbour; whether the right document also scrapes into
+    # its top six depends on corpus-wide BM25 weights, so only the lead is asserted
+    assert plain.hits[0].chunk.doc_id == "leaps-holding-period"
+    assert expanded.hits[0].chunk.doc_id == "assignment-cost-basis"
+    fused = fuse_documents([plain, expanded], MAX_SOURCES)
+    docs = [c.doc_id for c in fused]
+    assert "assignment-cost-basis" in docs[:2] and len(docs) == len(set(docs)) <= MAX_SOURCES
+    assert fuse_documents([], MAX_SOURCES) == []
+
+
+@pytest.mark.parametrize(
+    ("question", "doc_id"),
+    [
+        ("Are SPY and QQQ options Section 1256 contracts?", "section-1256-contracts"),
+        ("How do option trades appear on Form 1099-B and Form 8949?", "form-1099b-and-8949"),
+        ("What is Form 6781 used for?", "section-1256-contracts"),
+    ],
+)
+def test_questions_that_name_a_section_or_a_form_are_answered(
+    deps: Deps, config_module: AppConfig, question: str, doc_id: str
+) -> None:
+    """A section or form number in the question is not run data, the tax documents' own
+    disclaimer sentence is not repeated by an excerpt, and a form number is a tax cue."""
+    r = ChatSession(deps).send(f"t-tax-form-{doc_id}-{len(question)}", question)
+    assert r.turn.intent == "tax"
+    assert doc_id in {c.doc_id for c in r.turn.citations}
+    assert r.turn.compliance is not None and r.turn.compliance.passed
+    assert r.turn.compliance.attempts == 1, "the first answer passes; no fallback sentence"
+    assert r.turn.text.count(config_module.compliance.tax.disclaimer) == 1
+    assert "could not produce an explanation" not in r.turn.text
+
+
+def test_the_question_is_not_run_data_at_any_depth() -> None:
+    edu = Paragraph(
+        mode="education", text="Section 1256 contracts are marked to market [S1].", citations=["S1"]
+    )
+    nested = {"tax": {"question": "Are SPY options Section 1256 contracts?", "facts": {}}}
+    assert cc.check_education_only(Narrative(paragraphs=[edu]), nested, []).passed
+    # a number that does come from the run is still caught
+    leaked = {"tax": {"question": "q", "facts": {"cash_paid_at_assignment": 1256}}}
+    assert not cc.check_education_only(Narrative(paragraphs=[edu]), leaked, []).passed

@@ -130,6 +130,9 @@ def test_rules_docs_carry_prd_text_and_config_values(config: AppConfig) -> None:
         "pmcc_rules.md",
         "formulas.md",
         "quality_gate.md",
+        "goal_feasibility.md",
+        "news_flags.md",
+        "holdings_concentration.md",
     }
     csp = rendered["csp_screener.md"]
     assert "## Specification (PRD.md section 3.3)" in csp
@@ -137,8 +140,38 @@ def test_rules_docs_carry_prd_text_and_config_values(config: AppConfig) -> None:
     gate = rendered["quality_gate.md"]
     assert "| Price | ≥ $20 |" in gate and "| COST |" in gate
     sections = prd_sections((REPO_ROOT / "PRD.md").read_text(encoding="utf-8"))
-    assert {"3.1", "3.2", "3.3", "3.4", "3.5", "3.6", "3.7"} <= set(sections)
+    assert {f"3.{n}" for n in range(1, 11)} <= set(sections)
     assert "d1 = (ln(S/K)" in sections["3.6"][1]
+    # 3.7 ends where 3.8 starts: the quality gate document does not swallow the Phase 12 rules
+    assert "Goal feasibility" not in gate and "### 3.8" not in sections["3.7"][1]
+
+
+def test_phase_12_rules_docs_carry_the_values_in_force(config: AppConfig) -> None:
+    rendered = render_rules_docs(config, today=date(2026, 1, 1))
+    goal = rendered["goal_feasibility.md"]
+    assert "id: rules-3-8-goal-feasibility" in goal
+    assert "## Specification (PRD.md section 3.8)" in goal and "`does_not_fit`" in goal
+    caps = config.goals.max_assumed_return
+    row = " | ".join(f"{caps[p] * 100:g}%" for p in ("conservative", "balanced", "aggressive"))
+    assert f"is `does_not_fit`) | {row} |" in goal
+    assert f"Withdrawal rate: {config.goals.withdrawal_rate * 100:g}%" in goal
+
+    news = rendered["news_flags.md"]
+    assert "id: rules-3-9-news-flags" in news
+    for flag in ("earnings_within_dte", "ex_dividend_before_expiry", "ex_dividend_capture_window"):
+        assert f"`{flag}`" in news
+    assert f"| Stale marker | older than {config.news.stale_days} days |" in news
+    assert f"within {config.news.capture_window_days} days before a short call's expiry" in news
+
+    held = rendered["holdings_concentration.md"]
+    assert "id: rules-3-10-holdings-concentration" in held
+    assert "url: PRD.md#310-holdings-and-concentration-after-assignment" in held
+    cons = config.risk.constraints
+    row = " | ".join(
+        f"{c.max_ticker_concentration_after_assignment * 100:g}%" for c in cons.values()
+    )
+    assert f"| Max ticker concentration after assignment | {row} |" in held
+    assert f"| SPY | {config.holdings.expense_ratios_pct['SPY']:g}% |" in held
 
 
 # ---------------------------------------------------------------------------------- chunking

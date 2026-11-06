@@ -1,4 +1,4 @@
-"""Regenerate knowledge/rules/*.md from PRD.md sections 3.1–3.7 and config/*.yaml.
+"""Regenerate knowledge/rules/*.md from PRD.md sections 3.1–3.10 and config/*.yaml.
 
 Usage: .venv/bin/python scripts/build_rules_docs.py [--check]
 

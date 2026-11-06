@@ -1,8 +1,10 @@
 """tax_retrieval_node (Tax & Accounts, Phase 12 step 12.6): the ``[S1]…[Sn]`` tax sources.
 
-Searches the ``tax`` collection first (IRS Publication 550, the statutes, FINRA account rules as
-summarised in ``knowledge/tax/``), one chunk per document, and falls back to the options concepts
-when a question is really about mechanics (Reg T, assignment) rather than tax.
+Searches the ``tax`` collection (IRS Publication 550, the statutes, FINRA account rules as
+summarised in ``knowledge/tax/``) with the question as asked and with the question expanded into
+the documents' vocabulary, fuses the two rankings at document level, and keeps one chunk per
+document. The options concepts are the fallback when a question is really about mechanics (Reg T,
+assignment) rather than tax.
 """
 
 from __future__ import annotations
@@ -39,6 +41,7 @@ _EXPANSIONS: dict[str, str] = {
     "naked": "naked margin account",
     "withdrawal": "early distribution additional tax",
     "day": "pattern day trading",
+    "6781": "form 6781 section 1256 contracts",
 }
 
 
@@ -49,29 +52,46 @@ def expand(question: str) -> str:
     return f"{question} {extra}".strip()
 
 
+def fuse_documents(results: list[RetrievalResult], limit: int) -> list[Chunk]:
+    """One chunk per document, documents ordered by reciprocal-rank fusion over ``results``.
+
+    A document's rank in a result is the position of its best chunk among that result's
+    documents; its score is the sum of 1 / rank over the results that found it. The chunk kept is
+    the best one from the result that ranked the document highest (the earlier result on a tie).
+    """
+    score: dict[str, float] = {}
+    best: dict[str, tuple[int, Chunk]] = {}
+    for result in results:
+        rank = 0
+        seen: set[str] = set()
+        for hit in result.hits:
+            doc = hit.chunk.doc_id
+            if doc in seen:
+                continue
+            seen.add(doc)
+            rank += 1
+            score[doc] = score.get(doc, 0.0) + 1.0 / rank
+            if doc not in best or rank < best[doc][0]:
+                best[doc] = (rank, hit.chunk)
+    order = sorted(score, key=lambda d: (-score[d], best[d][0], d))
+    return [best[d][1] for d in order[:limit]]
+
+
 def make(deps: Deps) -> Callable[[AgentState], dict[str, Any]]:
     def tax_retrieval_node(state: AgentState) -> dict[str, Any]:
         question = (state.get("tax_text") or state.get("message") or "").strip()
         retriever = deps.knowledge()
-        log: list[RetrievalResult] = []
-        chosen: list[Chunk] = []
-        seen: set[str] = set()
-        for kind, query in (
-            ("tax", question),
-            ("tax", expand(question)),
-            ("concepts", expand(question)),
-        ):
-            result = retriever.retrieve(query, kind=kind, top_k=6)  # type: ignore[arg-type]
-            log.append(result)
-            for hit in result.hits:
-                if hit.chunk.doc_id in seen:
-                    continue
-                seen.add(hit.chunk.doc_id)
-                chosen.append(hit.chunk)
-                if len(chosen) >= MAX_SOURCES:
-                    break
-            if chosen:
-                break  # tax documents answer tax questions; concepts are only the fallback
+        expanded = expand(question)
+        # the question as asked, then in the documents' vocabulary; both rankings count
+        log: list[RetrievalResult] = [
+            retriever.retrieve(query, kind="tax", top_k=6)
+            for query in dict.fromkeys((question, expanded))
+        ]
+        chosen = fuse_documents(log, MAX_SOURCES)
+        if not chosen:  # tax documents answer tax questions; concepts are only the fallback
+            fallback = retriever.retrieve(expanded, kind="concepts", top_k=6)
+            log.append(fallback)
+            chosen = fuse_documents([fallback], MAX_SOURCES)
         return {"question": question, "sources": chosen, "retrievals": log}
 
     return tax_retrieval_node
