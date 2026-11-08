@@ -1465,4 +1465,21 @@ def handlers(cfg: AppConfig) -> dict[str, Callable[[str], BaseModel]]:
         "parse_holdings": rule_parse_holdings,
         "classify_news": rule_classify_news,
         "answer_tax": rule_answer_tax,
+        "classify_bottleneck": _bottleneck_handler(cfg),
     }
+
+
+def _bottleneck_handler(cfg: AppConfig) -> Callable[[str], BaseModel]:
+    """Phase 11 (4A.6): lexicon + keyword stand-in; built lazily so the import stays cheap."""
+    handler: Callable[[str], BaseModel] | None = None
+
+    def handle(user: str) -> BaseModel:
+        nonlocal handler
+        if handler is None:
+            from options_scout.bottleneck.classify import rule_handler
+            from options_scout.bottleneck.themes import sec_ticker_validator
+
+            handler = rule_handler(cfg.themes, sec_ticker_validator(cfg.paths.fixtures_dir))
+        return handler(user)
+
+    return handle

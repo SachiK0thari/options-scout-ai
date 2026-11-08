@@ -1,26 +1,26 @@
 # OptionsScout AI: evaluation report
 
-_Generated 2026-11-06 22:53 UTC · data mode `fixture` · LLM: openrouter (deepseek/deepseek-v4.1-flash / deepseek/deepseek-v4.1-flash)_
+_Generated 2026-11-07 19:33 UTC · data mode `fixture` · LLM: openrouter (deepseek/deepseek-v4.1-flash / deepseek/deepseek-v4.1-flash)_
 
 Numbers below were measured by `make eval` on this machine. Rows marked **NOT RUN** need a live LLM key (or the optional `fastembed` extra) and are reported as such rather than estimated.
 
 | Section | Metric | Result | Target | Status | Detail |
 |---|---|---|---|---|---|
-| 11.1 Deterministic | Golden-value + property tests (tests/unit) | 326 passed | all pass | **PASS** |  |
-| Quality | Offline test suite (unit + agent + API + UI + MCP) | 492 passed | all pass | **PASS** | 956s |
-| Quality | Line coverage on core/, rag/, agent/ (pytest --cov, same run) | 94.6% | ≥ 85% | **PASS** | whole package 90.9% |
+| 11.1 Deterministic | Golden-value + property tests (tests/unit) | 391 passed | all pass | **PASS** |  |
+| Quality | Offline test suite (unit + agent + API + UI + MCP) | 557 passed | all pass | **PASS** | 309s |
+| Quality | Line coverage on core/, rag/, agent/ (pytest --cov, same run) | 94.6% | ≥ 85% | **PASS** | whole package 92.0% |
 | 11.2 Entity extraction | F1 on 150 labeled posts (rule-based, no LLM) | P 0.90 / R 0.89 / F1 0.90 | F1 ≥ 0.80 | **PASS** | tp=159 fp=17 fn=20 |
 | 11.2 Entity extraction | is_stock_talk accuracy (rule-based, no LLM) | 0.96 | report | **INFO** | n=159 |
-| 11.2 Entity extraction | F1 on 150 labeled posts (LLM deepseek/deepseek-v4.1-flash) | P 0.74 / R 0.92 / F1 0.82 | F1 ≥ 0.80 | **PASS** | tp=164 fp=59 fn=15 |
-| 11.2 Entity extraction | is_stock_talk accuracy (LLM deepseek/deepseek-v4.1-flash) | 0.96 | report | **INFO** | n=164 |
+| 11.2 Entity extraction | F1 on 150 labeled posts (LLM deepseek/deepseek-v4.1-flash) | P 0.72 / R 0.91 / F1 0.80 | F1 ≥ 0.80 | **PASS** | tp=163 fp=64 fn=16 |
+| 11.2 Entity extraction | is_stock_talk accuracy (LLM deepseek/deepseek-v4.1-flash) | 0.98 | report | **INFO** | n=163 |
 | 11.2 Resolution | Brand → ticker accuracy (100 names) | 100% | ≥ 90% | **PASS** | 0 misses |
 | 11.2 Resolution | Hallucinated (non-SEC) tickers | 0 | 0 | **PASS** |  |
 | 11.2 Profile parsing | Required-field accuracy (rule-based, no LLM) | 98% | ≥ 95% | **PASS** | 177/180 |
 | 11.2 Profile parsing | Clarification routing accuracy (rule-based, no LLM) | 98% | ≥ 95% | **PASS** | 59/60 |
 | 11.2 Profile parsing | Knowledge-level accuracy (rule-based, no LLM) | 100% | ≥ 90% | **PASS** | 60/60 (11 requests state a level, the rest must parse to none) |
-| 11.2 Profile parsing | Required-field accuracy (LLM deepseek/deepseek-v4.1-flash) | 99% | ≥ 95% | **PASS** | 179/180 |
+| 11.2 Profile parsing | Required-field accuracy (LLM deepseek/deepseek-v4.1-flash) | 100% | ≥ 95% | **PASS** | 180/180 |
 | 11.2 Profile parsing | Clarification routing accuracy (LLM deepseek/deepseek-v4.1-flash) | 98% | ≥ 95% | **PASS** | 59/60 |
-| 11.2 Profile parsing | Knowledge-level accuracy (LLM deepseek/deepseek-v4.1-flash) | 100% | ≥ 90% | **PASS** | 60/60 (11 requests state a level, the rest must parse to none) |
+| 11.2 Profile parsing | Knowledge-level accuracy (LLM deepseek/deepseek-v4.1-flash) | 98% | ≥ 90% | **PASS** | 59/60 (11 requests state a level, the rest must parse to none) |
 | 11.2 Prompt injection | Runs where injected ticker influenced output (rule-based) | 0/30 | 0% | **PASS** |  |
 | 11.2 Prompt injection | Runs where injected ticker influenced output (LLM) | 0/30 | 0% | **PASS** |  |
 | 11.3 Agent | Numeric grounding rate (final narrative) | 100.0% | 100% | **PASS** | 284/284 numbers over 6 runs |
@@ -29,7 +29,7 @@ Numbers below were measured by `make eval` on this machine. Rows marked **NOT RU
 | 11.3 Agent | Policy compliance (banned phrases absent, disclaimer present) | 6/6 | 100% | **PASS** |  |
 | 11.3 Agent | Trajectory checks (expected nodes visited, retries bounded) | 6/6 | 100% | **PASS** |  |
 | 11.3a Compliance | Compliance audit coverage (report text carries a passing ComplianceReport) | 6/6 | 100% | **PASS** |  |
-| 11.3 Agent | Latency per run (fixture mode) | mean 1.14s · p95 3.08s | report | **INFO** |  |
+| 11.3 Agent | Latency per run (fixture mode) | mean 1.09s · p95 2.84s | report | **INFO** |  |
 | 11.3 Agent | Cost per run | mean $0.0000 · input tokens mean 0 | report | **INFO** | llm_mode=fixture |
 | 11.3 Agent | Graceful degradation with social source disabled | ok | report | **PASS** |  |
 | 11.3a Compliance | Education-vs-advice separation (check_language / check_education_only / check_citations) | 34/34 advice caught · 0/10 clean rejected | 100% caught, ≤ 1 false positive | **PASS** |  |
@@ -51,6 +51,15 @@ Numbers below were measured by `make eval` on this machine. Rows marked **NOT RU
 | 12.5 News desk | Headlines with an embedded instruction still labelled by content (20, keyword) | 20/20 | 100% | **PASS** |  |
 | 12.5 News desk | Headline category accuracy on 70 labelled headlines (LLM classifier) | 70/70 = 100% | ≥ 85% | **PASS** |  |
 | 12.5 News desk | Headlines with an embedded instruction still labelled by content (20, LLM) | 20/20 | 100% | **PASS** |  |
+| 11.2 Constraint classification | Direction accuracy on 100 hand-labelled filing and news snippets (rule-based stand-in) | 94/100 = 94% | ≥ 0.85 | **PASS** | bl-007→neutral; bl-010→neutral; bl-018→neutral; bl-020→neutral; bl-026→tightening; bl-036→neutral |
+| 11.2 Constraint classification | Layer macro-F1 on 100 snippets, no search hint given (rule-based stand-in) | 0.93 | ≥ 0.80 | **PASS** |  |
+| 11.2 Constraint classification | Side accuracy (customer / supplier / neutral) on 100 snippets (rule-based stand-in) | 98/100 = 98% | report | **INFO** |  |
+| 11.2 Theme-map validation | Tickers in config/themes.yaml that exist in the SEC company list (33) | 33/33 | 100% | **PASS** |  |
+| 11.2 Prompt injection | Fixture filings/headlines with an embedded instruction that steered the label (20, rule-based) | 0/20 | 0% | **PASS** |  |
+| 11.2 Constraint classification | Direction accuracy on 100 hand-labelled filing and news snippets (LLM deepseek/deepseek-v4.1-flash) | 100/100 = 100% | ≥ 0.85 | **PASS** |  |
+| 11.2 Constraint classification | Layer macro-F1 on 100 snippets, no search hint given (LLM deepseek/deepseek-v4.1-flash) | 0.99 | ≥ 0.80 | **PASS** |  |
+| 11.2 Constraint classification | Side accuracy (customer / supplier / neutral) on 100 snippets (LLM deepseek/deepseek-v4.1-flash) | 95/100 = 95% | report | **INFO** |  |
+| 11.2 Prompt injection | Fixture filings/headlines with an embedded instruction that steered the label (20, LLM) | 0/20 | 0% | **PASS** |  |
 | 12.6 Tax & accounts | Tax questions routed to the Tax agent and citing the expected document (rule-based answerer) | routed 20/20 · cited 20/20 | ≥ 90% cited | **PASS** | every question cited its document |
 | 12.6 Tax & accounts | Tax replies passing Compliance (check 11: disclaimer once, no rate, no instruction) | 20/20 · disclaimer once in 20/20 | 100% | **PASS** |  |
 | 11.3 Agent | LLM-as-judge | see notes | report | **INFO** | judge prompt v1.0.0 |

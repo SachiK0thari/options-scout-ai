@@ -28,7 +28,8 @@
 # so for most curated names the constrained layer is a side business and `materiality` is low or
 # medium. The pure plays are listed with "not curated" so the gap is visible to a reviewer.
 #
-# Price series ids were checked against fred.stlouisfed.org on 2026-11-06 (PPI = producer price index).
+# Price series ids were checked against fred.stlouisfed.org on 2026-11-06 and fetched live with a key
+# on 2026-11-07 (PPI = producer price index); every series below returned monthly data through 2026-09.
 # A new series must be verified the same way when a theme or layer is added (PRD 4A.5).
 
 themes:
@@ -105,7 +106,9 @@ themes:
         name: Networking, optics and fiber
         keywords: ["optical transceiver", "fiber optic cable", "800G", "switch lead time", "networking backlog", "fiber shortage", "co-packaged optics"]
         price_series:
-          - {source: fred, id: "PCU335921335921", label: "PPI: fiber optic cable manufacturing"}
+          # PCU335921335921 (fiber optic cable) and every other fiber PPI series were discontinued by
+          # the BLS after 2025-06 (checked live on 2026-11-07); this is the closest series still updated.
+          - {source: fred, id: "PCU33423342",     label: "PPI: communications equipment manufacturing"}
         supplier_count: several
         capacity_lead_years: 2
         thesis: "AI clusters need far more optical and switching capacity per server than classic data centers; fiber and switch makers see demand outrun lead times."

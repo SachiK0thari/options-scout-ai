@@ -351,6 +351,17 @@ class DailyCount(Model):
     count: int = Field(ge=0)
 
 
+class SeriesPoint(Model):
+    """One observation of a price or index series (Phase 11: FRED, CSV trackers, search interest).
+
+    Unlike :class:`DailyCount` the value is a float: producer-price indexes and contract prices
+    are not counts. Series are monthly, weekly or daily; the signals only need the ordering.
+    """
+
+    day: date
+    value: float
+
+
 class NewsItem(Model):
     id: str
     title: str

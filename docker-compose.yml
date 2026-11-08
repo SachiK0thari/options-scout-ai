@@ -30,12 +30,14 @@ services:
     depends_on: [api]
 
   scheduler:
-    # Daily jobs: ATM IV snapshot per watchlist ticker and trend-board refresh.
+    # Daily jobs: ATM IV snapshot per watchlist ticker, trend-board refresh and the bottleneck
+    # board refresh with its thesis monitor (Phase 11).
     build: .
     command: >
       sh -c "while true; do
         python -m options_scout.jobs.snapshot_iv || true;
         python -m options_scout.jobs.refresh_trends || true;
+        python -m options_scout.jobs.refresh_bottlenecks || true;
         sleep 86400;
       done"
     environment:
@@ -48,6 +50,9 @@ services:
       REDDIT_USER_AGENT: ${REDDIT_USER_AGENT:-options-scout-ai/0.1 (educational screener)}
       X_BEARER_TOKEN: ${X_BEARER_TOKEN:-}
       OPTIONS_SCOUT_SOCIAL_SOURCES: ${OPTIONS_SCOUT_SOCIAL_SOURCES:-}
+      OPTIONS_SCOUT_BOTTLENECK_SOURCES: ${OPTIONS_SCOUT_BOTTLENECK_SOURCES:-}
+      OPTIONS_SCOUT_CONTACT_EMAIL: ${OPTIONS_SCOUT_CONTACT_EMAIL:-}
+      FRED_API_KEY: ${FRED_API_KEY:-}
     volumes: ["scout-data:/app/data"]
 
 volumes:

@@ -57,6 +57,24 @@ def point_in_time_scores(cfg, dates: list[datetime]) -> list[tuple[datetime, str
     return out
 
 
+def point_in_time_bottleneck_scores(
+    cfg, dates: list[datetime]
+) -> list[tuple[datetime, str, str, float]]:  # type: ignore[no-untyped-def]
+    """Phase 11: the bottleneck company score with the same point-in-time rule. ``end=d`` bounds
+    every text source (``until``) and every series, and no snapshot store is attached, so the
+    thesis monitor sees only that day's run."""
+    from options_scout.bottleneck.engine import BottleneckEngine
+
+    llm = LLMClient.from_config(cfg, mode="none")
+    engine = BottleneckEngine(cfg, llm, mode="fixture")
+    out = []
+    for d in dates:
+        run = engine.run(end=d, persist=False)
+        for ticker, score in run.scores(curated_only=True).items():
+            out.append((d, f"bottleneck:{ticker}", ticker, score))
+    return out
+
+
 def forward_return(closes: list[float], t0_offset: int, horizon_trading_days: int) -> float | None:
     c0 = _close_on(closes, t0_offset)
     c1 = _close_on(closes, t0_offset + horizon_trading_days)
@@ -160,6 +178,29 @@ def run_study() -> str:
                 + " | ".join(cells)
                 + " |"
             )
+    # ---- Phase 11: the bottleneck company score, reported separately (section 11.4)
+    bn_scored = point_in_time_bottleneck_scores(cfg, dates)
+    bn_with_prices = [(d, e, t, sc) for d, e, t, sc in bn_scored if t in closes]
+    lines += [
+        "",
+        "## Signal study: point-in-time bottleneck company score (Phase 11, reported separately)",
+        "",
+        f"- Curated supplier scores produced: {len(bn_scored)} over {len(dates)} dates "
+        f"({len({t for _, _, t, _ in bn_scored})} tickers: "
+        f"{', '.join(sorted({t for _, _, t, _ in bn_scored}))}); with a price fixture: {len(bn_with_prices)}.",
+    ]
+    if len(bn_with_prices) < 10:
+        lines += [
+            "",
+            "**Result: insufficient data; no predictive claim is made.** The offline bundle carries closes for "
+            "the ten demo tickers and none of them is a curated bottleneck supplier (HON, CSCO, XOM, CVX, UNP), so "
+            "no forward return can be paired with a bottleneck score yet. The synthetic filings corpus would make "
+            "any such pairing meaningless anyway; the table above shows the method, the live snapshots in "
+            "`data/bottleneck_snapshots.sqlite` (180-day retention) are what this study will read once they exist.",
+        ]
+    else:  # pragma: no cover - needs live snapshots and prices
+        for d, _e, t, sc in bn_with_prices[:20]:
+            lines.append(f"- {d:%Y-%m-%d} {t} score {sc:.0f}")
     lines += [
         "",
         "### Caveats (read these before the numbers)",
@@ -169,6 +210,9 @@ def run_study() -> str:
         "- **Tiny sample, multiple horizons.** Three horizons × two groups on a handful of names: "
         "treat every interval above as uninformative.",
         "- **Forward windows truncated** by the 90-day close history; later horizons have fewer observations.",
+        "- **Bottleneck score (Phase 11):** scored on the same synthetic corpus; the layer z-scores depend on "
+        "designed fixture dates, and the curated suppliers have no bundled closes, so the second study is a "
+        "method demonstration only until `jobs/refresh_bottlenecks.py` has run live for two quarters.",
         "- **What would make this real:** run `jobs/refresh_trends.py` daily in live mode for 6+ months, "
         "persist each snapshot, then re-run this study on stored scores vs realised returns, with the "
         "same point-in-time rule and a pre-registered hypothesis (top-decile 60-day excess return > 0).",

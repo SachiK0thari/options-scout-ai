@@ -29,6 +29,7 @@ from pydantic import BaseModel
 
 from options_scout.config import AppConfig, LLMMode, LLMProviderName, LLMProviderSettings
 from options_scout.core.models import (
+    ConstraintLabelBatch,
     ExtractionBatch,
     GoalParse,
     HoldingsParse,
@@ -533,6 +534,19 @@ class LLMClient:
             NewsClassificationBatch,
             ticker=ticker,
             headlines=rendered,
+        )
+
+    def classify_bottleneck(self, snippets: Sequence[Any], theme_map: Any) -> ConstraintLabelBatch:
+        """Bottleneck snippet labels (Phase 11, section 4A.6); snippets are rendered as data."""
+        from options_scout.bottleneck.classify import render_layers, render_snippets
+
+        return self._run(
+            "classify_bottleneck",
+            self.models.extraction_model,
+            self._prompt("classify_bottleneck"),
+            ConstraintLabelBatch,
+            layers=render_layers(theme_map),
+            snippets=render_snippets(snippets),
         )
 
     def answer_tax(

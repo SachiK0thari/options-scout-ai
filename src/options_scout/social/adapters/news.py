@@ -30,6 +30,11 @@ class NewsAdapter:
     def status(self) -> SourceStatus:
         return self._status
 
+    def preload(self, items: list[NewsItem]) -> None:
+        """Use ``items`` as the fixture corpus (a caller that reads a fixture with extra keys,
+        such as the bottleneck engine's labelled headlines, parses the file itself)."""
+        self._fixture = list(items)
+
     def fetch(self, query: str, since: datetime, ticker: str | None = None) -> list[NewsItem]:
         try:
             if self.mode == "fixture":

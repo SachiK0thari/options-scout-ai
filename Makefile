@@ -4,7 +4,7 @@ UV        ?= uv
 PORT_API  ?= 8000
 PORT_UI   ?= 8501
 
-.PHONY: help install test test-cov test-live lint fmt eval bench requirements api ui mcp demo demo-core index clean check
+.PHONY: help install test test-cov test-live lint fmt eval bench requirements api ui mcp demo demo-core bottlenecks index clean check
 
 help:
 	@grep -E '^[a-zA-Z_-]+:.*?## ' $(MAKEFILE_LIST) | awk 'BEGIN {FS = ":.*?## "}; {printf "  %-12s %s\n", $$1, $$2}'
@@ -59,6 +59,9 @@ demo: ## full agent pipeline in fixture mode, prints a report (ARGS="--no-llm" t
 
 demo-core: ## deterministic screeners + sizing + risk for every profile × account type
 	$(PY) -m options_scout.cli demo-core $(ARGS)
+
+bottlenecks: ## bottleneck board + thesis monitor in fixture mode, writes a snapshot (ARGS="--no-llm" / "--mode live")
+	$(PY) -m options_scout.jobs.refresh_bottlenecks --fixture $(ARGS)
 
 index: ## regenerate knowledge/rules from PRD + config and rebuild data/knowledge.sqlite (offline, hash embedder)
 	$(PY) -m options_scout.rag.index

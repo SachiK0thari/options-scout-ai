@@ -22,6 +22,10 @@ edgar:                          # text: 10-K / 10-Q MD&A and risk factors, 8-K e
   cache_ttl_hours: 24
   contact_email_env: OPTIONS_SCOUT_CONTACT_EMAIL   # descriptive User-Agent with a contact address
   timeout_seconds: 30
+  max_documents_per_query: 10   # filings opened per layer keyword; each is windowed into snippets
+  max_snippets_per_document: 4
+  max_document_chars: 2000000   # a 10-K is a few MB of HTML; the rest of the file is ignored
+  max_attempts: 3               # 5xx and 429 are retried with backoff; other 4xx are final
 
 fred:                           # series: producer-price and industrial series per layer
   enabled: true
@@ -31,6 +35,8 @@ fred:                           # series: producer-price and industrial series p
   base_url: https://api.stlouisfed.org/fred/series/observations
   lookback_days: 400
   timeout_seconds: 30
+  cache_ttl_hours: 24
+  max_attempts: 3
 
 csv_series:                     # series: operator-licensed trackers dropped as dated CSVs (never committed)
   enabled: true

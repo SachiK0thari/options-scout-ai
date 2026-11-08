@@ -427,6 +427,9 @@ class Subreddits(_Strict):
     consumer: list[str]
     stock: list[str]
     fetch: SubredditFetch
+    # Phase 11 (section 4A.5): industry and enthusiast subs the bottleneck engine reads for
+    # everyday observation (prices paid, availability). They never feed the consumer signal.
+    industry: list[str] = Field(default_factory=list)
 
 
 # -------------------------------------------------------------------- social_sources.yaml
@@ -691,6 +694,10 @@ class EdgarSourceConfig(_Strict):
     cache_ttl_hours: int = Field(default=24, ge=1)
     contact_email_env: str = "OPTIONS_SCOUT_CONTACT_EMAIL"
     timeout_seconds: float = Field(default=30.0, gt=0.0)
+    max_documents_per_query: int = Field(default=10, ge=1)  # filings opened per keyword
+    max_snippets_per_document: int = Field(default=4, ge=1)
+    max_document_chars: int = Field(default=2_000_000, ge=10_000)  # a 10-K is a few MB of HTML
+    max_attempts: int = Field(default=3, ge=1)  # 5xx / 429 are retried; other 4xx are final
 
 
 class FredSourceConfig(_Strict):
@@ -701,6 +708,8 @@ class FredSourceConfig(_Strict):
     base_url: str = "https://api.stlouisfed.org/fred/series/observations"
     lookback_days: int = Field(default=400, ge=30)
     timeout_seconds: float = Field(default=30.0, gt=0.0)
+    cache_ttl_hours: int = Field(default=24, ge=1)
+    max_attempts: int = Field(default=3, ge=1)
 
 
 class CsvSeriesSourceConfig(_Strict):

@@ -26,6 +26,15 @@ stock:
   - options
   - pennystocks
   - thetagang
+# Industry and enthusiast subs the bottleneck engine (Phase 11, PRD 4A.5) reads for everyday
+# observation: prices paid, availability, complaints. Same provider chain, filters and privacy
+# rules as the consumer subs; they never feed the consumer-trend signal.
+industry:
+  - datacenter
+  - hardware
+  - buildapcsales
+  - electricians
+  - solar
 fetch:
   posts_per_subreddit: 100
   listing: new            # new | hot | top
