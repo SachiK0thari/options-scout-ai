@@ -289,7 +289,8 @@ def test_learning_path_tracks_progress_and_opens_a_page() -> None:
     assert any("Reading level: **beginner**" in c.value for c in at.caption)
     assert _stage_open(at) == [True, False, False]
     total = next(c.value for c in at.caption if c.value.startswith("Path progress:")).split("/")[1]
-    assert int(total.split()[0]) == 28 + 24 + 12 + 14  # basics, core concepts, advanced, tax
+    # basics, core concepts (25 with bottleneck-arbitrage, step 11.5), advanced, tax
+    assert int(total.split()[0]) == 28 + 25 + 12 + 14
     at.checkbox(key="read-what-is-a-stock").check().run()
     assert any(c.value.startswith("Path progress: 1/") for c in at.caption)
     assert any(e.label.startswith("1 · Basics · 1/28 read") for e in at.expander)

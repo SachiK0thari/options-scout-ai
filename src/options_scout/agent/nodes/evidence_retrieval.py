@@ -18,11 +18,11 @@ from typing import Any
 
 from options_scout.agent.deps import Deps
 from options_scout.agent.state import AgentState
-from options_scout.core.models import BottleneckSignal, TrendSignal
+from options_scout.core.models import BOTTLENECK_BOARD_DOC_ID, BottleneckSignal, TrendSignal
 from options_scout.rag.models import Chunk
 
 BOARD_FACTS_TITLE = "Bottleneck board (secondary signal)"
-BOARD_DOC_ID = "bottleneck-board"
+BOARD_DOC_ID = BOTTLENECK_BOARD_DOC_ID  # compliance check 7 reads the snapshot date off this id
 _KIND_ORDER = {"filing": 0, "headline": 1, "post": 2, "price": 3}
 
 

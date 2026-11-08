@@ -1056,6 +1056,7 @@ class ComplianceConfig(_Strict):
     """Section 13.1 rules: banned patterns with an allow-list, suitability limits, freshness."""
 
     max_age_days: int = Field(default=400, ge=1)
+    max_snapshot_age_days: int = Field(default=7, ge=1)  # bottleneck board snapshot (Phase 11)
     reminder: str = "Education, not advice."
     require_delayed_data_statement: bool = True
     banned_patterns: list[BannedPattern]

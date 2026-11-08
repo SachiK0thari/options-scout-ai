@@ -34,6 +34,7 @@ SAMPLE_QUESTIONS: list[tuple[str, str]] = [
     ("what is IV rank", "iv-rank"),
     ("how is the Reg T margin requirement for a naked put computed", "reg-t-margin"),
     ("why is hype a risk for short puts", "hype-short-puts"),
+    ("what is a bottleneck in a supply chain", "bottleneck-arbitrage"),  # Phase 11, step 11.5
     ("how does the quality gate work", "quality-gate"),
     ("what are the CSP screener rules in force", "rules-3-3-csp-screener"),
     ("Apple risk factors supply chain", "filing-aapl"),
@@ -82,6 +83,7 @@ def test_concept_docs_meet_the_prd_contract(corpus: list[Document]) -> None:
     required = {
         "quality-gate",
         "hype-short-puts",
+        "bottleneck-arbitrage",
         "cash-secured-put",
         "assignment",
         "leaps",

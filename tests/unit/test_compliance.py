@@ -2,13 +2,15 @@
 
 from __future__ import annotations
 
-from datetime import date
+import re
+from datetime import date, timedelta
 
 import pytest
 
 from options_scout.config import AppConfig, ComplianceConfig
 from options_scout.core import compliance as cc
 from options_scout.core.models import (
+    BOTTLENECK_BOARD_DOC_ID,
     Citation,
     Narrative,
     Paragraph,
@@ -399,3 +401,77 @@ def test_run_compliance_report_and_feedback(ccfg: ComplianceConfig) -> None:
     )
     assert "check_language:" in rep.retry_feedback and "23.7%" in rep.retry_feedback
     assert not rep.verification.passed  # kept consistent with the full set of checks
+
+
+# ------------------------------------------------------- Phase 11, step 11.5: bottleneck board
+def _board_citation(**over: object) -> Citation:
+    base = Citation(
+        chunk_id=f"{BOTTLENECK_BOARD_DOC_ID}#0",
+        doc_id=BOTTLENECK_BOARD_DOC_ID,
+        title="Bottleneck board (secondary signal)",
+        url="",
+        quote="Layer Power generation and grid equipment: layer score 79, thesis holding.",
+        kind="evidence",
+        tag="S2",
+        as_of=date(2026, 10, 26),
+    )
+    return base.model_copy(update=over)
+
+
+def test_check_sources_fresh_covers_the_bottleneck_snapshot(ccfg: ComplianceConfig) -> None:
+    """A cited board whose snapshot is older than ``max_snapshot_age_days`` warns; the evidence
+    pack ages like a filing; trend evidence posts never do."""
+    today = date(2026, 10, 27)
+    assert cc.check_sources_fresh([_board_citation()], ccfg, today).passed
+    old = _board_citation(as_of=today - timedelta(days=ccfg.max_snapshot_age_days + 1))
+    c = cc.check_sources_fresh([old], ccfg, today)
+    assert not c.passed and c.severity == "warn"
+    assert "bottleneck snapshot may be out of date" in c.detail and c.locations == ["S2"]
+    filing = _board_citation(
+        chunk_id="bottleneck-ai-datacenter-power#0",
+        doc_id="bottleneck-ai-datacenter-power",
+        title="Bottleneck evidence: Power generation and grid equipment",
+        tag="S3",
+        as_of=date(2026, 3, 1),
+    )
+    assert cc.check_sources_fresh([filing], ccfg, today).passed  # 240 days old, under max_age_days
+    ancient = filing.model_copy(update={"as_of": date(2024, 1, 1)})
+    c = cc.check_sources_fresh([ancient, old], ccfg, today)
+    assert "source may be out of date" in c.detail and "bottleneck snapshot" in c.detail
+    assert c.locations == ["S3", "S2"]
+    trend = ancient.model_copy(
+        update={"doc_id": "evidence-costco", "chunk_id": "evidence-costco#0"}
+    )
+    assert cc.check_sources_fresh(
+        [trend], ccfg, today
+    ).passed  # posts are dated context, not sources
+
+
+def _golden_board_paragraphs() -> list[str]:
+    from tests.conftest import REPO_ROOT
+
+    text = (REPO_ROOT / "tests/fixtures/reports/phase9_demo_report.md").read_text(encoding="utf-8")
+    start = text.index("## Bottleneck board")
+    end = text.index("\n## ", start + 1)
+    return [p for p in text[start:end].split("\n\n") if p.strip()]
+
+
+def test_thesis_monitor_vocabulary_is_not_advice(ccfg: ComplianceConfig) -> None:
+    """The allow-list was reviewed against the board's words (step 11.5): *holding*, *tripped
+    since <date>*, *thesis weakening*, *easing*, *new supply* report state and match no banned
+    pattern in any mode, so the rendered board passes check_language and check_no_pii as it is."""
+    paragraphs = _golden_board_paragraphs()
+    assert any("tripped since" in p for p in paragraphs) and any(
+        "weakening" in p for p in paragraphs
+    )
+    as_result = Narrative(paragraphs=[res(p) for p in paragraphs])
+    assert cc.check_language(as_result, ccfg).passed, cc.check_language(as_result, ccfg).detail
+    assert cc.check_no_pii(as_result).passed
+    as_uncited_education = Narrative(
+        paragraphs=[Paragraph(mode="education", text=p) for p in paragraphs]
+    )
+    assert cc.check_language(as_uncited_education, ccfg).passed  # no allow-list entry needed
+    # the board's own words, with the quoted filing excerpts and headlines removed (a 10-K may
+    # say "average selling prices"; the monitor itself never says exit, sell or take profits)
+    own_words = re.sub(r"“[^”]*”", " ", "\n".join(paragraphs)).lower()
+    assert not re.search(r"\b(exit|sell|take profits|you should)\b", own_words)

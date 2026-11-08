@@ -22,6 +22,7 @@ from typing import Any
 
 from options_scout.config import ComplianceConfig
 from options_scout.core.models import (
+    BOTTLENECK_BOARD_DOC_ID,
     SOURCE_TAG,
     Citation,
     ComplianceCheck,
@@ -511,25 +512,49 @@ def check_disclaimer(
 
 
 # ------------------------------------------------------------------- 7 check_sources_fresh
+def _ages_like_a_filing(c: Citation) -> bool:
+    """Rules, SEC filings and the bottleneck evidence pack (filing excerpts, price points and
+    headlines indexed as ``bottleneck-<theme>-<layer>`` evidence) age; concepts do not."""
+    if c.kind in ("rules", "filings"):
+        return True
+    return c.kind == "evidence" and c.doc_id.startswith("bottleneck-")
+
+
 def check_sources_fresh(
     citations: Sequence[Citation], cfg: ComplianceConfig, today: date | None = None
 ) -> ComplianceCheck:
+    """Check 7 (warn): a cited rule, filing or bottleneck evidence item older than
+    ``max_age_days`` may be out of date; a cited bottleneck board whose snapshot ``as_of`` is older
+    than ``max_snapshot_age_days`` reports a constraint the daily job has not re-measured (Phase 11,
+    step 11.5). Both compare against the data clock passed as ``today``."""
     today = today or date.today()
-    stale = [
-        c.tag or c.doc_id
-        for c in citations
-        if c.kind in ("rules", "filings") and c.as_of and (today - c.as_of).days > cfg.max_age_days
-    ]
+    stale: list[str] = []
+    old_board: list[str] = []
+    for c in citations:
+        if c.as_of is None:
+            continue
+        age = (today - c.as_of).days
+        if c.doc_id == BOTTLENECK_BOARD_DOC_ID:
+            if age > cfg.max_snapshot_age_days:
+                old_board.append(c.tag or c.doc_id)
+        elif _ages_like_a_filing(c) and age > cfg.max_age_days:
+            stale.append(c.tag or c.doc_id)
+    problems: list[str] = []
+    if stale:
+        problems.append(
+            f"{', '.join(stale)} older than {cfg.max_age_days} days (source may be out of date)"
+        )
+    if old_board:
+        problems.append(
+            f"{', '.join(old_board)} snapshot older than {cfg.max_snapshot_age_days} days "
+            "(bottleneck snapshot may be out of date)"
+        )
     return ComplianceCheck(
         name="check_sources_fresh",
-        passed=not stale,
+        passed=not problems,
         severity="warn",
-        detail=(
-            f"{', '.join(stale)} older than {cfg.max_age_days} days (source may be out of date)"
-            if stale
-            else "cited rules and filings are current"
-        ),
-        locations=stale,
+        detail="; ".join(problems) or "cited rules and filings are current",
+        locations=stale + old_board,
     )
 
 

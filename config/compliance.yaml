@@ -2,6 +2,7 @@
 # never advice; these are the deterministic rules the agent applies to every LLM-written text.
 
 max_age_days: 400            # a cited rule/filing older than this gets a "(source may be out of date)" warning
+max_snapshot_age_days: 7     # a cited bottleneck board whose snapshot `as_of` is older than this gets a "(bottleneck snapshot may be out of date)" warning (Phase 11)
 reminder: "Education, not advice."   # one-line closer required on chat replies that name a specific option
 require_delayed_data_statement: true # report narratives must say the data is delayed
 
@@ -40,6 +41,10 @@ banned_patterns:
 
 # Inside an `education` paragraph that carries a citation, these spans are removed before the
 # banned patterns are applied: quoted terminology and "X is the term for…" definitions.
+# Reviewed against the thesis-monitor vocabulary of the bottleneck board (Phase 11, step 11.5):
+# "holding", "tripped since <date>", "thesis weakening", "easing", "new supply" are reports of
+# state, match no banned pattern and need no allow-list entry; the board never says exit, sell or
+# take profits (tests/unit/test_compliance.py::test_thesis_monitor_vocabulary_is_not_advice).
 allow_list:
   - "[\"“][^\"”]{1,80}[\"”]"
   - "\\b\\S+(?:[- ]\\S+){0,3} is the (?:term|name|phrase|order type|order) (?:for|used|brokers use)\\b[^.]*"

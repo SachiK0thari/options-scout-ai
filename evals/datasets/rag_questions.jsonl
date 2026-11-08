@@ -58,3 +58,6 @@
 {"id": "rag-58", "question": "is a LEAPS call held for more than a year taxed as long-term", "kind": "tax", "doc_id": "leaps-holding-period", "relevant_chunks": ["leaps-holding-period#0", "leaps-holding-period#1"]}
 {"id": "rag-59", "question": "what is dollar-cost averaging", "kind": "basics", "doc_id": "dollar-cost-averaging", "relevant_chunks": ["dollar-cost-averaging#0", "dollar-cost-averaging#1", "dollar-cost-averaging#2"]}
 {"id": "rag-60", "question": "how are option gains taxed", "kind": "tax", "doc_id": "short-term-vs-long-term", "relevant_chunks": ["short-term-vs-long-term#0", "short-term-vs-long-term#4", "short-put-premium-taxation#0", "short-put-premium-taxation#1"]}
+{"id": "rag-61", "question": "what is a bottleneck", "kind": "concepts", "doc_id": "bottleneck-arbitrage", "relevant_chunks": ["bottleneck-arbitrage#0"]}
+{"id": "rag-62", "question": "why are price deceleration and new supply risks for a short put", "kind": "concepts", "doc_id": "bottleneck-arbitrage", "relevant_chunks": ["bottleneck-arbitrage#2"]}
+{"id": "rag-63", "question": "what does the bottleneck thesis monitor show", "kind": "concepts", "doc_id": "bottleneck-arbitrage", "relevant_chunks": ["bottleneck-arbitrage#3"]}

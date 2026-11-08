@@ -5,7 +5,7 @@ source: "FINRA, 'Social Sentiment Investing Tools' investor insight; OCC disclos
 url: https://www.finra.org/investors/insights/social-sentiment-investing-tools
 kind: concepts
 level: intermediate
-as_of: 2026-11-03
+as_of: 2026-11-08
 ---
 
 # Why hype is a risk for short puts
@@ -33,6 +33,10 @@ Every design choice in the trend engine is a constraint on what the signal is al
 ## What a trend signal is good for
 
 Within a universe of stocks the user would be happy to own anyway, rising genuine consumer interest in a company's products is modest, useful context: it may say something about the next quarter and it is a reason to look at one good-to-own name before another. That is the whole claim this app makes for it. The signal study in the repository reports the historical relationship between the score and forward returns with its confidence intervals, and those results are deliberately described as weak and noisy.
+
+## The second signal: a shortage, not attention
+
+The app's other Market Intelligence signal, bottleneck arbitrage, measures a supply shortage rather than a conversation and lives under the same containment: it re-orders quality-gated names only. Its risk for a put writer is new supply rather than hype; the companion document *Bottleneck arbitrage: what a supply-constraint signal can and cannot do for a short put* explains why.
 
 ## Sources
 

@@ -504,6 +504,9 @@ class BottleneckEvidence(Model):
     value: float | None = None  # the price point for a `price` item
 
 
+BOTTLENECK_BOARD_DOC_ID = "bottleneck-board"  # the board-facts evidence chunk's document id
+
+
 class BottleneckSignal(Model):
     """A layer row (``ticker is None``) or a company row of the bottleneck board (section 7)."""
 
