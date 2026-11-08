@@ -17,7 +17,14 @@ from options_scout.agent.nodes.knowledge_retrieval import audience_for
 from options_scout.agent.state import AgentState
 from options_scout.core import payoff
 from options_scout.core.compliance import resolve_citations
-from options_scout.core.models import Narrative, OptionCandidate, PMCCCandidate, SizedPosition
+from options_scout.core.models import (
+    BottleneckSignal,
+    Narrative,
+    OptionCandidate,
+    PMCCCandidate,
+    SizedPosition,
+)
+from options_scout.core.screeners import BOTTLENECK_FLAGS
 from options_scout.llm.rules import rule_explain
 from options_scout.rag.models import Chunk, citation_of
 
@@ -51,6 +58,40 @@ def _quality_section(state: AgentState) -> dict[str, Any]:
             for q in passed
         ],
         "excluded": [{"ticker": q.ticker, "reasons": q.reasons} for q in failed],
+    }
+
+
+def bottleneck_section(signals: Sequence[BottleneckSignal]) -> dict[str, Any]:
+    """The board as the explainer may describe it (Phase 11): every layer with its integer score
+    and thesis state, the curated suppliers with their company score, layer and flags. Numbers
+    are rounded here exactly as the rule-based narrative quotes them."""
+    layers = sorted((s for s in signals if s.ticker is None), key=lambda s: -s.score)
+    best: dict[str, BottleneckSignal] = {}
+    for s in signals:
+        t = s.ticker or ""
+        scored = bool(t) and s.role == "supplier" and s.curated
+        if scored and (t not in best or s.score > best[t].score):
+            best[t] = s
+    return {
+        "note": "secondary signal: re-orders quality-gated stocks, never adds one",
+        "layers": [
+            {
+                "layer": f"{s.theme_id}/{s.layer_id}",
+                "name": s.layer_name,
+                "score": round(s.score),
+                "thesis_state": "weakening" if s.thesis_weakening else "holding",
+            }
+            for s in layers
+        ],
+        "companies": [
+            {
+                "ticker": t,
+                "score": round(s.score),
+                "layer": f"{s.theme_id}/{s.layer_id}",
+                "flags": s.flags,
+            }
+            for t, s in sorted(best.items(), key=lambda kv: -kv[1].score)
+        ],
     }
 
 
@@ -172,6 +213,13 @@ def build_explain_payload(
                 "premium": _money(p.premium),
                 "pmcc_short_call_id": p.pmcc_short_call_id,
                 "payoff": position_payoff(p, candidates, pairs),
+                "bottleneck_flags": [
+                    f
+                    for f in (
+                        candidates[p.candidate_id].flags if p.candidate_id in candidates else []
+                    )
+                    if f in BOTTLENECK_FLAGS
+                ],
             }
             for p in portfolio.positions
         ],
@@ -207,6 +255,8 @@ def build_explain_payload(
         "errors": state.get("errors", [])[:8],
         "disclaimer": disclaimer,
     }
+    if state.get("bottlenecks"):  # Phase 11: the board, when the engine produced one
+        payload["bottlenecks"] = bottleneck_section(list(state["bottlenecks"]))
     plan = state.get("goal_plan")
     if plan is not None:  # Phase 12: a screen seeded with a goal
         from options_scout.agent.nodes.goal_explainer import goal_payload

@@ -327,6 +327,10 @@ def run_status(thread_id: str) -> RunStatus:
             partial[key] = v.model_dump(mode="json") if hasattr(v, "model_dump") else v
     if values.get("trends"):
         partial["trends"] = [t.model_dump(mode="json") for t in values["trends"][:10]]
+    if values.get("bottlenecks"):  # Phase 11: the layer rows while the run is in flight
+        partial["bottlenecks"] = [
+            s.model_dump(mode="json") for s in values["bottlenecks"] if s.ticker is None
+        ]
     return RunStatus(
         thread_id=thread_id,
         status=status,
@@ -428,6 +432,19 @@ def thread_status(thread_id: str) -> ThreadStatus:
         related_threads=reg.session.related_threads(thread_id),
         goal_plan=values.get("goal_plan"),
     )
+
+
+@app.get("/v1/bottlenecks", dependencies=[Depends(_auth)])
+def bottlenecks() -> list[dict[str, Any]]:
+    """The latest bottleneck board (Phase 11, section 4A): layer rows first (``ticker`` null), then
+    one row per supplier with its company score, flags, thesis monitor and evidence links. Served
+    from the stored snapshot when one exists, else computed and journalled."""
+    reg = registry()
+    store = reg.deps.bottlenecks()
+    latest = store.latest(10**6)
+    if latest is None:
+        latest = reg.deps.bottleneck().run().signals
+    return [s.model_dump(mode="json") for s in latest]
 
 
 @app.get("/v1/trends", dependencies=[Depends(_auth)])

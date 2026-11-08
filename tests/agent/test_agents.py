@@ -10,7 +10,13 @@
 
 The golden was recorded from the Phase 9 graph for step 10.1 (no behaviour change) and
 re-recorded in step 10.3, which deliberately changed the Explanation (cited education paragraphs,
-payoff summaries, a Sources section). Re-record only when the report *content* is meant to change:
+payoff summaries, a Sources section), in step 11.1 (the 0.10/0.05 signal-weight split moves the
+blended scores) and once more in step 11.4, which adds the "Bottleneck board (secondary)" section,
+a bottleneck paragraph to the Explanation and the ``bottleneck`` source status. The 11.4 re-record
+changes **scores and sections, never the order**: the fixture tickers carry no bottleneck exposure
+(MSFT is a customer in the theme map and customers are never scored), so every candidate takes the
+neutral 50 and ``test_fixture_tickers_rank_as_before`` asserts the order is unchanged. Re-record
+only when the report *content* is meant to change:
 ``OPTIONS_SCOUT_RECORD_GOLDEN=1 pytest tests/agent/test_agents.py -k golden``.
 """
 
@@ -91,10 +97,12 @@ def config_module() -> AppConfig:
 
 @pytest.fixture(scope="module")
 def deps(config_module: AppConfig, tmp_path_factory: pytest.TempPathFactory) -> Deps:
+    from options_scout.bottleneck.engine import BottleneckStore
     from options_scout.social.pipeline import TrendStore
 
     d = Deps.from_config(config_module)
     d.trend_store = TrendStore(tmp_path_factory.mktemp("trends") / "t.sqlite")
+    d.bottleneck_store = BottleneckStore(tmp_path_factory.mktemp("bottlenecks") / "b.sqlite")
     return d
 
 
@@ -102,11 +110,14 @@ def deps(config_module: AppConfig, tmp_path_factory: pytest.TempPathFactory) -> 
 def demo_run(
     config_module: AppConfig, tmp_path_factory: pytest.TempPathFactory
 ) -> tuple[list[dict[str, Any]], dict[str, Any]]:
-    """The `make demo` request on its own trend store, so the social pipeline runs as in Phase 9."""
+    """The `make demo` request on its own trend and bottleneck stores, so both Market Intelligence
+    pipelines run from the fixtures (no journal history) as in Phase 9 / step 11.4."""
+    from options_scout.bottleneck.engine import BottleneckStore
     from options_scout.social.pipeline import TrendStore
 
     deps = Deps.from_config(config_module)
     deps.trend_store = TrendStore(tmp_path_factory.mktemp("trends-demo") / "t.sqlite")
+    deps.bottleneck_store = BottleneckStore(tmp_path_factory.mktemp("bn-demo") / "b.sqlite")
     graph = build_graph(deps)
     updates = list(stream_run(graph, initial_state(DEMO_REQUEST), "t-agents-demo"))
     return updates, graph.get_state(thread_config("t-agents-demo")).values
@@ -179,7 +190,8 @@ def test_each_specialist_runs_standalone_and_fills_only_its_slice(deps: Deps) ->
         assert changed & slice_keys(SLICES[name]), f"{name} wrote nothing to its slice"
     # the hand-chained specialists reproduce the full pipeline
     assert slice_of(state, SLICES[orchestrator.NAME]).profile_complete
-    assert slice_of(state, SLICES[market_intelligence.NAME]).trends
+    mi = slice_of(state, SLICES[market_intelligence.NAME])
+    assert mi.trends and mi.bottlenecks and mi.bottleneck_scores  # Phase 11: both boards
     assert len(slice_of(state, SLICES[market_data.NAME]).market_data) >= 5
     assert slice_of(state, SLICES[strategy.NAME]).ranked
     assert slice_of(state, SLICES[portfolio.NAME]).portfolio is not None
@@ -255,6 +267,7 @@ def test_report_markdown_identical_to_golden(demo_run: Any) -> None:
     renamed = ["compliance_node" if n == "verifier_node" else n for n in PHASE9_NODE_SEQUENCE]
     added = [
         "route_node",
+        "bottleneck_scout_node",  # Phase 11 step 11.4
         "evidence_retrieval_node",
         "knowledge_retrieval_node",
         "audit_node",
@@ -267,6 +280,7 @@ def test_report_markdown_identical_to_golden(demo_run: Any) -> None:
         "route_node",  # step 10.5
         "intake_node",
         "trend_scout_node",
+        "bottleneck_scout_node",  # Phase 11 step 11.4
         "evidence_retrieval_node",  # step 10.3
         "regime_node",
         "universe_node",
@@ -285,6 +299,39 @@ def test_report_markdown_identical_to_golden(demo_run: Any) -> None:
         "audit_node",  # step 10.4
         "report_node",
     ]
+
+
+def test_fixture_tickers_rank_as_before(demo_run: Any) -> None:
+    """Why the 11.4 golden re-record changed sections and scores but no candidate order: the demo
+    universe has no bottleneck exposure (MSFT is a customer in the theme map and customers are
+    never scored), so every ranked row carries the neutral 50 and the four-term blend is the
+    three-term blend plus a constant. The board itself is present and labelled secondary."""
+    from options_scout.core.ranking import rank_candidates
+
+    _updates, final = demo_run
+    rep: ScreeningReport = final["report"]
+    assert rep.ranked and all(r.bottleneck_score == 50.0 for r in rep.ranked)
+    assert not any(
+        f.startswith(("bottleneck", "catalyst")) for r in rep.ranked for f in r.candidate.flags
+    )
+    assert final["bottleneck_scores"] and not set(final["bottleneck_scores"]) & set(rep.universe)
+    layers = [s for s in rep.bottlenecks if s.ticker is None]
+    assert len(layers) == 8 and "## Bottleneck board (secondary)" in final["report_markdown"]
+    assert final["data_source_status"]["bottleneck"].startswith("ran (")
+    # re-ranking the same contracts without any bottleneck scores reproduces the order exactly
+    app_cfg = load_config(REPO_ROOT)
+    quality = {q.ticker: q.score for q in rep.quality if q.passed}
+    again = rank_candidates(
+        [r.candidate for r in rep.ranked],
+        final["social_scores"],
+        quality,
+        weights=app_cfg.settings.ranking.weights,
+        option_weights=app_cfg.settings.ranking.option_quality_weights,
+        rules=app_cfg.rules,
+        pmcc_pairs=rep.pmcc_candidates,
+    )
+    assert [r.candidate.id for r in again] == [r.candidate.id for r in rep.ranked]
+    assert [r.final_score for r in again] == [r.final_score for r in rep.ranked]
 
 
 # ----------------------------------------------------------------------------- deprecations

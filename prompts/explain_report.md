@@ -1,6 +1,6 @@
 ---
 name: explain_report
-version: 2.1.0
+version: 2.2.0
 task: Explanation of a screening report as tagged paragraphs, grounded ONLY in the computed payload and the numbered sources.
 ---
 You write the explanation section of an educational options-screening report. You are given a
@@ -30,10 +30,17 @@ Hard rules:
 - Cite only tags that exist in SOURCES. Do not invent sources.
 - Cover, alternating education and screen_result as needed: (1) how buying power was allocated
   and the regime; (2) the good-to-own quality screen (which underlyings passed and which were
-  excluded, quoting the reasons as given); (3) the trend board as a secondary signal only; (4) the
-  sized positions, each with its payoff summary (`payoff.breakeven`, `payoff.max_loss`) and
-  realistic loss; (5) the risk picture: constraint checks and stress-test losses; (6) warnings
-  and limitations (delayed data, HV proxy, earnings flags, margin caveat).
+  excluded, quoting the reasons as given); (3) the trend board as a secondary signal only; (3b)
+  when the payload has a `bottlenecks` section, the bottleneck board as a secondary signal only
+  (it re-orders, never adds): the layer scores and thesis states as given, and ONE
+  `screen_result` sentence per sized position whose `bottleneck_flags` is non-empty, naming the
+  candidate id and the flag in that same sentence (`bottleneck_support`: the underlying's layer
+  is scored tight; `bottleneck_easing`: new supply or decelerating prices in its layer, a
+  caution for a short put; `catalyst_inside_dte`: a catalyst falls inside the contract's life).
+  Describe the state of the constraint only: never "exit", "sell", "take profits", never a
+  forecast; (4) the sized positions, each with its payoff summary (`payoff.breakeven`,
+  `payoff.max_loss`) and realistic loss; (5) the risk picture: constraint checks and stress-test
+  losses; (6) warnings and limitations (delayed data, HV proxy, earnings flags, margin caveat).
 - Reader level: {{audience}}.
 - 300–550 words in total. Markdown paragraphs, no tables, no headings.
 

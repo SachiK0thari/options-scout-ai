@@ -63,3 +63,25 @@ def test_live_every_theme_map_series_still_publishes(config: AppConfig) -> None:
     ]
     assert fred.status().ok, fred.status().errors
     assert empty == [], f"series without recent observations: {empty}"
+
+
+def test_live_market_facts_for_a_curated_supplier(
+    config: AppConfig, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """The priced_in market terms and the earnings catalyst for one curated supplier, from the
+    configured live market-data provider (skipped without its key)."""
+    from options_scout.bottleneck.market_facts import market_facts_for
+    from options_scout.data.market import MarketData, MarketDataError
+
+    monkeypatch.setenv("OPTIONS_SCOUT_DATA_MODE", "live")
+    try:
+        md = MarketData.from_config(config, mode="live")
+    except MarketDataError as exc:
+        pytest.skip(str(exc))
+    facts = market_facts_for(md, ["HON"])
+    assert set(facts) == {"HON"}
+    hon = facts["HON"]
+    assert hon.rel_return_90d is not None and -1.0 < hon.rel_return_90d < 5.0
+    assert hon.dist_from_high is not None and 0.0 <= hon.dist_from_high <= 1.0
+    assert hon.iv_rank is None or 0.0 <= hon.iv_rank <= 100.0
+    assert hon.next_event is None or hon.next_event >= date.today()

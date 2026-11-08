@@ -10,12 +10,14 @@ at ``rag.report_sources``, so the explainer can teach each concept the report re
 from __future__ import annotations
 
 import re
-from collections.abc import Callable, Iterable
+from collections.abc import Callable, Iterable, Sequence
 from typing import Any
 
 from options_scout.agent.deps import Deps
+from options_scout.agent.nodes.bottleneck_scout import fresh_snapshot
+from options_scout.agent.nodes.evidence_retrieval import BOARD_DOC_ID, board_chunks
 from options_scout.agent.state import AgentState
-from options_scout.core.models import ScreeningReport, UserProfile
+from options_scout.core.models import BottleneckSignal, ScreeningReport, UserProfile
 from options_scout.rag.models import Chunk, Kind, Level, RetrievalResult, level_rank
 from options_scout.rag.retriever import KnowledgeRetriever
 
@@ -185,11 +187,15 @@ def run_facts_chunk(rep: ScreeningReport) -> Chunk:
             lines.append(f"{q.ticker} was excluded by the quality gate: {'; '.join(q.reasons)}.")
     for r in rep.ranked[:10]:
         c = r.candidate
+        bflags = [f for f in c.flags if f.startswith(("bottleneck", "catalyst"))]
         lines.append(
             f"Rank {r.rank}: {c.id} ({c.ticker}) final score {r.final_score:.2f}, option quality "
             f"{r.option_quality:.2f}, stock quality {r.quality_score:.2f}, consumer-trend score "
-            f"{r.social_score:.0f}."
+            f"{r.social_score:.0f}, bottleneck score {r.bottleneck_score:.0f}"
+            + (f", flags {', '.join(bflags)}" if bflags else "")
+            + "."
         )
+    lines.extend(bottleneck_fact_lines(rep.bottlenecks, {r.candidate.ticker for r in rep.ranked}))
     for skipped in rep.portfolio.skipped:
         lines.append(f"Skipped in sizing: {skipped}.")
     for p in rep.portfolio.positions:
@@ -213,6 +219,92 @@ def run_facts_chunk(rep: ScreeningReport) -> Chunk:
     )
 
 
+def bottleneck_fact_lines(signals: Sequence[BottleneckSignal], tickers: set[str]) -> list[str]:
+    """Why X ranks above Y (Phase 11): the bottleneck term of every ranked ticker the board knows,
+    with its layer, the layer's thesis state and its flags; tickers off the board take the neutral
+    50, which the ranking line already states."""
+    out: list[str] = []
+    best: dict[str, BottleneckSignal] = {}
+    for s in signals:
+        t = s.ticker or ""
+        on_board = t in tickers and s.role == "supplier" and s.curated
+        if on_board and (t not in best or s.score > best[t].score):
+            best[t] = s
+    for t, s in sorted(best.items(), key=lambda kv: -kv[1].score):
+        state = "weakening" if s.thesis_weakening else "holding"
+        flags = f"; flags {', '.join(s.flags)}" if s.flags else ""
+        out.append(
+            f"{t} bottleneck exposure: company score {s.score:.0f} from layer {s.layer_name} "
+            f"(layer score {s.layer_score:.0f}, thesis {state}, exposure "
+            f"{s.components.get('exposure', 0.0):.2f}){flags}."
+        )
+    return out
+
+
+_BOTTLENECK_WORDS = re.compile(
+    r"\b(?:bottleneck|shortage|supply chain|lead time|capacity|thesis|falsifier|tighten\w*"
+    r"|easing)\b",
+    re.IGNORECASE,
+)
+
+
+def board_question_tickers(question: str, signals: Sequence[BottleneckSignal]) -> set[str]:
+    """Tickers in the question that sit on the bottleneck board (as suppliers)."""
+    on_board = {s.ticker for s in signals if s.ticker and s.role == "supplier"}
+    return {t for t in re.findall(r"\b[A-Z]{2,5}\b", question) if t in on_board}
+
+
+def asks_about_board(question: str, signals: Sequence[BottleneckSignal]) -> bool:
+    named = board_question_tickers(question, signals)
+    return bool(named) or _BOTTLENECK_WORDS.search(question) is not None
+
+
+def latest_board(deps: Deps) -> list[BottleneckSignal]:
+    """The board for a question asked outside a screen (CLI ``--ask``, a fresh chat thread): the
+    fresh snapshot, else a run of the engine. Never fatal; an empty list means no board."""
+    if "bottleneck" in deps.disabled_sources:
+        return []
+    try:
+        rows = fresh_snapshot(
+            deps.bottlenecks(), deps.cfg.bottleneck.snapshot_max_age_hours, deps.md.now()
+        )
+        if rows is None:
+            rows = deps.bottleneck().run().signals
+        return list(rows)
+    except Exception:
+        return []
+
+
+def board_sources(
+    question: str, evidence: Sequence[Chunk], signals: Sequence[BottleneckSignal]
+) -> list[Chunk]:
+    """Deterministic attachments for a question that names board tickers: the board facts chunk
+    and the leading (filing) evidence chunk of each named ticker's best layer, so the answer can
+    quote the filing behind the score (4A.10) whatever the embedder ranks first."""
+    named = board_question_tickers(question, signals)
+    if not named:
+        return []
+    by_id = {c.id: c for c in evidence}
+    out: list[Chunk] = []
+    if (facts := by_id.get(f"{BOARD_DOC_ID}#0")) is not None:
+        out.append(facts)
+    for t in sorted(named):
+        rows = [s for s in signals if s.ticker == t and s.role == "supplier"]
+        if not rows:
+            continue
+        best = max(rows, key=lambda s: s.score)
+        doc_id = f"bottleneck-{_slug(best.theme_id)}-{_slug(best.layer_id)}"
+        lead = by_id.get(f"{doc_id}#0")
+        if lead is not None and lead not in out:
+            out.append(lead)
+    return out
+
+
+def _slug(text: str) -> str:
+    slug = re.sub(r"[^a-z0-9]+", "-", text.lower()).strip("-")
+    return slug or "entity"
+
+
 def why_rule_queries(question: str, rep: ScreeningReport) -> list[str]:
     """The rule a ``why`` question is really about: the gate for exclusions, the ranking for
     order, the sizing constraints for skipped or missing positions."""
@@ -223,7 +315,9 @@ def why_rule_queries(question: str, rep: ScreeningReport) -> list[str]:
     if tickers & excluded or any(w in low for w in ("exclud", "gate", "screened out", "not in")):
         queries.append("how this app's quality gate works")
     if any(w in low for w in ("rank", "above", "below", "first", "last", "order", "score")):
-        queries.append("ranking weights option quality stock quality consumer trend")
+        queries.append("ranking weights option quality stock quality consumer trend bottleneck")
+    if _BOTTLENECK_WORDS.search(question):
+        queries.append("bottleneck arbitrage supply constraint signal re-orders only")
     if any(w in low for w in ("position", "skip", "only", "reserve", "cash", "size", "fit")):
         queries.append("portfolio risk constraints and sizing")
     if not queries:
@@ -249,12 +343,26 @@ def make(deps: Deps) -> Callable[[AgentState], dict[str, Any]]:
                 )
                 log.extend(rule_log)
                 chunks.extend(c for c in rules if c.doc_id not in {x.doc_id for x in chunks})
-            evidence = state.get("evidence") or []
+            evidence = list(state.get("evidence") or [])
+            board = list(state.get("bottlenecks") or [])
+            if not evidence and rep is None:
+                # outside a screen (CLI --ask, a fresh thread) the bottleneck board is still
+                # public, dated evidence: attach it when the question is about it (Phase 11)
+                board = latest_board(deps)
+                if board and asks_about_board(question, board):
+                    evidence = board_chunks(board)
+                else:
+                    board = []
             if evidence:
                 ev = KnowledgeRetriever.in_memory(evidence, retriever.embedder, deps.cfg.rag)
                 ev_result = ev.retrieve(question, top_k=2)
                 log.append(ev_result)
-                chunks.extend(h.chunk for h in ev_result.hits)
+                have = {c.id for c in chunks}
+                for c in board_sources(question, evidence, board):
+                    if c.id not in have:
+                        chunks.append(c)
+                        have.add(c.id)
+                chunks.extend(h.chunk for h in ev_result.hits if h.chunk.id not in have)
             if not chunks:
                 errors.append(f"knowledge_retrieval: no source above the floor for {question!r}")
             return {"sources": chunks, "retrievals": log, "errors": errors}

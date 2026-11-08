@@ -253,6 +253,7 @@ class RankedCandidate(Model):
     option_quality: float = Field(ge=0, le=1)
     social_score: float = Field(ge=0, le=100)
     quality_score: float = Field(default=0.5, ge=0, le=1)
+    bottleneck_score: float = Field(default=50.0, ge=0, le=100)  # Phase 11: neutral 50 if none
     final_score: float = Field(ge=0, le=1)
     rank: int = Field(ge=1)
     pmcc: PMCCCandidate | None = None  # populated when a LEAPS has a matched short call
@@ -636,6 +637,9 @@ class SuitabilityFacts(Model):
     hv_proxy_ids: list[str] = Field(default_factory=list)
     pmcc_present: bool = False
     leaps_requested: bool = False
+    # Phase 11 (4A.8): sized CSP ids whose underlying carries ``bottleneck_easing``; a conservative
+    # narrative must say so in the sentence that names the candidate (check 4)
+    bottleneck_easing_flagged: list[str] = Field(default_factory=list)
 
 
 class ComplianceCheck(Model):

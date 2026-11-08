@@ -294,6 +294,7 @@ Repository layout: [`PRD.md`](PRD.md) section 8. Key paths: `config/*.yaml` (eve
 | `GET` | `/v1/threads/{thread_id}` | the conversation: every turn with its intent, compliance report and citations, whether the thread holds a report, the pending interrupt, related threads, the latest goal plan |
 | `GET` | `/v1/quality-universe` | the curated good-to-own list with the reason per name and the gate values in force |
 | `GET` | `/v1/trends` | the latest consumer-trend board |
+| `GET` | `/v1/bottlenecks` | the latest bottleneck board (Phase 11): layer rows, then supplier rows with company score, flags, thesis monitor and evidence links |
 
 A screen from the command line, in fixture mode:
 

@@ -225,6 +225,13 @@ def suitability_facts(
         for p in portfolio.positions
         if (c := candidates.get(p.candidate_id)) is not None and c.iv_rank_source == "hv_proxy"
     )
+    easing = sorted(  # Phase 11 (4A.8): short puts on a supplier whose bottleneck is easing
+        p.candidate_id
+        for p in portfolio.positions
+        if p.strategy == "csp"
+        and (c := candidates.get(p.candidate_id)) is not None
+        and "bottleneck_easing" in c.flags
+    )
     return SuitabilityFacts(
         account_type=profile.account_type,
         risk_profile=profile.risk_profile,
@@ -242,4 +249,5 @@ def suitability_facts(
         hv_proxy_ids=hv_proxy,
         pmcc_present="pmcc" in present,
         leaps_requested="leaps" in profile.strategies or "pmcc" in profile.strategies,
+        bottleneck_easing_flagged=easing,
     )

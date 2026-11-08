@@ -23,9 +23,11 @@ def client(tmp_path_factory: pytest.TempPathFactory) -> Iterator[TestClient]:
     api._hits.clear()
     c = TestClient(api.app)
     reg = api.registry()
+    from options_scout.bottleneck.engine import BottleneckStore
     from options_scout.social.pipeline import TrendStore
 
     reg.deps.trend_store = TrendStore(tmp_path_factory.mktemp("api") / "t.sqlite")
+    reg.deps.bottleneck_store = BottleneckStore(tmp_path_factory.mktemp("api-bn") / "b.sqlite")
     yield c
     api._RATE_LIMIT_PER_MIN = saved_limit
     api._hits.clear()
@@ -63,8 +65,10 @@ def test_screen_report_and_markdown(client: TestClient) -> None:
     assert "report_node" in body["nodes_visited"]
     rep = client.get(f"/v1/runs/{tid}/report").json()
     assert rep["verification"]["passed"] and rep["disclaimer"]
+    assert rep["bottlenecks"] and sum(1 for s in rep["bottlenecks"] if s["ticker"] is None) == 8
     md = client.get(f"/v1/runs/{tid}/report?format=md")
     assert md.status_code == 200 and "## Explanation" in md.text
+    assert "## Bottleneck board (secondary)" in md.text
     stream = client.get(f"/v1/runs/{tid}/stream")
     assert stream.status_code == 200 and "event: end" in stream.text
 
@@ -100,6 +104,7 @@ def test_validation_and_auth(client: TestClient, monkeypatch: pytest.MonkeyPatch
     monkeypatch.setenv("OPTIONS_SCOUT_API_KEY", "secret")
     assert client.get("/v1/trends").status_code == 401
     assert client.get("/v1/trends", headers={"X-API-Key": "secret"}).status_code == 200
+    assert client.get("/v1/bottlenecks").status_code == 401
 
 
 def test_recommend_front_door(client: TestClient) -> None:
@@ -166,3 +171,22 @@ def test_api_key_is_a_secret_in_the_schema() -> None:
     auth = MarketDataAuth(provider="tradier", api_key="super-secret")  # type: ignore[arg-type]
     assert "super-secret" not in repr(auth) and "super-secret" not in auth.model_dump_json()
     assert auth.api_key is not None and auth.api_key.get_secret_value() == "super-secret"
+
+
+def test_bottlenecks_endpoint(client: TestClient) -> None:
+    r = client.get("/v1/bottlenecks")
+    assert r.status_code == 200
+    rows = r.json()
+    layers = [s for s in rows if s["ticker"] is None]
+    companies = [s for s in rows if s["ticker"] is not None]
+    assert len(layers) == 8 and companies
+    assert rows[0]["ticker"] is None  # layer rows first
+    for s in layers:
+        assert s["thesis"] and s["falsifiers"] and s["evidence"]
+        assert 0 <= s["score"] <= 100
+    assert all(s["role"] == "supplier" for s in companies)
+    assert {s["ticker"] for s in companies if s["curated"]} == {"HON", "CSCO", "XOM", "CVX", "UNP"}
+    assert any(not s["curated"] for s in companies)  # pure plays shown as context
+    # a second call serves the journalled snapshot (same as_of) rather than re-running
+    again = client.get("/v1/bottlenecks").json()
+    assert {s["as_of"] for s in again} == {s["as_of"] for s in rows}

@@ -188,6 +188,31 @@ def test_check_education_only_requires_realistic_loss_for_short_options() -> Non
             "CSP-COST-2026-12-18-850P met the criteria.",
             None,
         ),
+        (  # Phase 11 (4A.8): a conservative reader is told a short put's layer is easing
+            {
+                "risk_profile": "conservative",
+                "loss_limit_pct": 0.02,
+                "max_position_loss_pct": 0.01,
+                "bottleneck_easing_flagged": ["CSP-HON-2026-12-18-200P"],
+            },
+            "CSP-HON-2026-12-18-200P met the criteria. Its layer shows new supply arriving.",
+            "bottleneck_easing_unflagged_conservative",
+        ),
+        (
+            {
+                "risk_profile": "conservative",
+                "loss_limit_pct": 0.02,
+                "max_position_loss_pct": 0.01,
+                "bottleneck_easing_flagged": ["CSP-HON-2026-12-18-200P"],
+            },
+            "CSP-HON-2026-12-18-200P met the criteria, flagged bottleneck_easing (new supply in its layer).",
+            None,
+        ),
+        (
+            {"bottleneck_easing_flagged": ["CSP-HON-2026-12-18-200P"]},  # balanced: informational
+            "CSP-HON-2026-12-18-200P met the criteria.",
+            None,
+        ),
         ({"account_type": "cash", "margin_used": 0.0}, "This naked put…", "naked_language_on_cash"),
         ({}, "This naked put…", None),
         (

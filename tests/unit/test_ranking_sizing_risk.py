@@ -114,6 +114,59 @@ def test_blend_golden_and_quality_moves_rank(world: dict[str, object]) -> None:
     assert best_hi < best_lo  # a higher stock-quality score ranks the same contracts higher
 
 
+def test_bottleneck_scores_enter_the_fourth_term(world: dict[str, object]) -> None:
+    """Step 11.4: a curated supplier's company score moves its contracts; a ticker without a row
+    takes the neutral 50; with neutral scores everywhere the order is the three-term formula's."""
+    from options_scout.config import RankingWeights
+
+    cfg: AppConfig = world["cfg"]  # type: ignore[assignment]
+    w = cfg.settings.ranking.weights
+    cands: list[OptionCandidate] = world["cands"]  # type: ignore[assignment]
+    tk = cands[0].ticker
+    common = {
+        "weights": w,
+        "option_weights": cfg.settings.ranking.option_quality_weights,
+        "rules": cfg.rules,
+    }
+    neutral = ranking.rank_candidates(cands, {}, {}, **common)  # type: ignore[arg-type]
+    assert all(r.bottleneck_score == ranking.NEUTRAL_BOTTLENECK_SCORE for r in neutral)
+    hi = ranking.rank_candidates(cands, {}, {}, bottleneck_scores={tk: 100.0}, **common)  # type: ignore[arg-type]
+    lo = ranking.rank_candidates(cands, {}, {}, bottleneck_scores={tk: 0.0}, **common)  # type: ignore[arg-type]
+    assert next(r.bottleneck_score for r in hi if r.candidate.ticker == tk) == 100.0
+    assert (
+        next(r.rank for r in hi if r.candidate.ticker == tk)
+        <= next(r.rank for r in neutral if r.candidate.ticker == tk)
+        <= next(r.rank for r in lo if r.candidate.ticker == tk)
+    )
+    # the fourth term is bounded by its weight
+    for r_hi, r_lo in zip(
+        sorted(hi, key=lambda r: r.candidate.id),
+        sorted(lo, key=lambda r: r.candidate.id),
+        strict=True,
+    ):
+        if r_hi.candidate.ticker == tk:
+            assert r_hi.final_score - r_lo.final_score == pytest.approx(w.bottleneck, abs=1e-9)
+        else:
+            assert r_hi.final_score == r_lo.final_score
+    # neutral everywhere ranks identically to the three-term formula (signal share on social only)
+    three_term = RankingWeights(
+        option_quality=0.50, stock_quality=0.35, social=0.15, bottleneck=0.0
+    )
+    before = ranking.rank_candidates(
+        cands,
+        {},
+        {},
+        weights=three_term,
+        option_weights=cfg.settings.ranking.option_quality_weights,
+        rules=cfg.rules,
+    )
+    assert [r.candidate.id for r in before] == [r.candidate.id for r in neutral]
+    for r_old, r_new in zip(before, neutral, strict=True):
+        assert r_new.final_score == pytest.approx(
+            r_old.final_score, abs=1e-9
+        )  # 0.05·50/100 = 0.10·50/100 + 0.05·50/100
+
+
 def test_rank_cap_keeps_best_n_per_ticker_and_strategy(world: dict[str, object]) -> None:
     cfg: AppConfig = world["cfg"]  # type: ignore[assignment]
     full = _rank(world)  # uncapped: SPY's $1-strike ladder fills the top of the list

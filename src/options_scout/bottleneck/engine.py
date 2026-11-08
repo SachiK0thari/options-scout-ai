@@ -104,7 +104,17 @@ class BottleneckEngine:
     def sources(self) -> BottleneckSourceSet:
         return self.fetcher.sources
 
-    def run(self, *, end: datetime | None = None, persist: bool = True) -> BottleneckRun:
+    def run(
+        self,
+        *,
+        end: datetime | None = None,
+        persist: bool = True,
+        market: Mapping[str, sig.CompanyMarketFacts] | None = None,
+    ) -> BottleneckRun:
+        """``market`` (per-company facts for ``priced_in`` and ``catalyst_days``) overrides the
+        facts given at construction for this run; see ``bottleneck/market_facts.py``."""
+        if market is not None:
+            self.market = dict(market)
         corpus = self.fetcher.run(end=end)
         as_of = corpus.as_of
         snippets = corpus.snippets()

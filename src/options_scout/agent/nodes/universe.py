@@ -1,14 +1,16 @@
 """universe_node: the curated 'good to own' list ∪ the user's tickers − exclusions, then fan out.
 
-Social-trend tickers no longer widen the universe: a trending brand only matters if its parent is
-already on the curated list, where the trend score promotes it towards the front of the queue
-(section 3.7). Everything that leaves this node still has to pass the numeric quality gate in
-``market_data_node``.
+Signal tickers never widen the universe: a trending brand or a bottleneck pure play only matters
+if it is already on the curated list, where its signal score promotes it towards the front of the
+queue (section 3.7). The two Market Intelligence signals are combined per ticker as
+``max(social, bottleneck)`` (step 11.4); a non-curated ticker with a signal is reported as *not on
+the good-to-own list; skipped*. Everything that leaves this node still has to pass the numeric
+quality gate in ``market_data_node``.
 """
 
 from __future__ import annotations
 
-from collections.abc import Callable
+from collections.abc import Callable, Mapping
 from typing import Any
 
 from langgraph.types import Send
@@ -18,19 +20,43 @@ from options_scout.agent.state import AgentState
 from options_scout.data.market import FixtureSource
 
 
+def combine_signal_scores(
+    social_scores: Mapping[str, float], bottleneck_scores: Mapping[str, float]
+) -> tuple[dict[str, float], dict[str, str]]:
+    """``{ticker: max(social, bottleneck)}`` and, per ticker, which signal set it (for the notes):
+    ``trending`` for the consumer-trend board, ``bottleneck`` for the bottleneck board."""
+    scores: dict[str, float] = {}
+    kinds: dict[str, str] = {}
+    for t, s in social_scores.items():
+        scores[t] = float(s)
+        kinds[t] = "trending"
+    for t, s in bottleneck_scores.items():
+        if t not in scores or float(s) > scores[t]:
+            scores[t] = float(s)
+            kinds[t] = "bottleneck"
+    return scores, kinds
+
+
 def build_universe(
     *,
     curated: list[str],
     watchlist: list[str],
     exclude: list[str],
-    social_scores: dict[str, float],
+    signal_scores: Mapping[str, float],
     max_tickers: int,
     available: set[str] | None = None,
+    signal_kinds: Mapping[str, str] | None = None,
 ) -> tuple[list[str], list[str]]:
-    """Return (universe, notes). Pure, so it is unit-testable without a graph."""
+    """Return (universe, notes). Pure, so it is unit-testable without a graph.
+
+    ``signal_scores`` is ``{ticker: max(social, bottleneck)}`` (see :func:`combine_signal_scores`);
+    ``signal_kinds`` names the signal behind each score so the note for a non-curated ticker says
+    whether it is a trending brand or a bottleneck pure play.
+    """
     notes: list[str] = []
     excl = {t.upper() for t in exclude}
     curated_set = set(curated)
+    kinds = dict(signal_kinds or {})
     order: list[str] = []
 
     def add(t: str) -> None:
@@ -39,13 +65,14 @@ def build_universe(
 
     for t in watchlist:  # the user's own tickers always come first
         add(t.upper())
-    # curated names with a consumer-trend signal next (highest score first), then list order
-    trending = sorted((t for t in curated if t in social_scores), key=lambda t: -social_scores[t])
-    for t in [*trending, *curated]:
+    # curated names with a Market Intelligence signal next (highest score first), then list order
+    signalled = sorted((t for t in curated if t in signal_scores), key=lambda t: -signal_scores[t])
+    for t in [*signalled, *curated]:
         add(t)
-    for t, _score in sorted(social_scores.items(), key=lambda kv: -kv[1]):
+    for t, _score in sorted(signal_scores.items(), key=lambda kv: -kv[1]):
         if t not in curated_set and t not in order and t not in excl:
-            notes.append(f"universe: trending ticker {t} is not on the good-to-own list; skipped")
+            kind = kinds.get(t, "trending")
+            notes.append(f"universe: {kind} ticker {t} is not on the good-to-own list; skipped")
 
     if available is not None:
         missing = [t for t in order if t not in available]
@@ -70,13 +97,17 @@ def make(deps: Deps) -> Callable[[AgentState], dict[str, Any]]:
         available: set[str] | None = None
         if isinstance(deps.md.source, FixtureSource):
             available = set(deps.md.source.available())
+        scores, kinds = combine_signal_scores(
+            state.get("social_scores", {}), state.get("bottleneck_scores", {})
+        )
         universe, notes = build_universe(
             curated=deps.cfg.quality.symbols,
             watchlist=profile.watchlist,
             exclude=profile.exclude,
-            social_scores=state.get("social_scores", {}),
+            signal_scores=scores,
             max_tickers=deps.cfg.quality.universe.max_tickers,
             available=available,
+            signal_kinds=kinds,
         )
         return {"universe": universe, "errors": notes}
 

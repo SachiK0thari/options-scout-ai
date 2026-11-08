@@ -469,6 +469,7 @@ def eval_agent(res: Results, cfg: Any, deps: Deps) -> None:
         "regime_node",
         "allocator_node",
         "trend_scout_node",
+        "bottleneck_scout_node",
         "evidence_retrieval_node",
         "universe_node",
         "market_data_node",

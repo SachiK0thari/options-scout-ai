@@ -36,6 +36,17 @@ def make(deps: Deps) -> Callable[[AgentState], dict[str, Any]]:
                 if "pmcc" in profile.strategies:
                     pairs += screeners.pair_pmcc(leaps, snap, cfg.rules.pmcc, today=today, r=r)
         errors = [] if cands else ["screener: no candidates met the criteria"]
+        # Phase 11 (4A.8): strategy-fit flags from the bottleneck board; flags, never filters
+        flagged = screeners.apply_bottleneck_flags(
+            cands,
+            pairs,
+            state.get("bottlenecks") or [],
+            state.get("market_data", {}),
+            rules=cfg.bottleneck.flags,
+            today=today,
+        )
+        if flagged:
+            errors.append(f"screener: {flagged} bottleneck strategy-fit flag(s) set (4A.8)")
         return {"candidates": cands, "pmcc_pairs": pairs, "errors": errors}
 
     return screener_node

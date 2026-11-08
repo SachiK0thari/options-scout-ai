@@ -1,4 +1,4 @@
-"""ranker_node: final = w1·option_quality + w2·stock_quality + w3·social/100."""
+"""ranker_node: final = w1·option_quality + w2·stock_quality + w3·social/100 + w4·bottleneck/100."""
 
 from __future__ import annotations
 
@@ -24,6 +24,7 @@ def make(deps: Deps) -> Callable[[AgentState], dict[str, Any]]:
             rules=deps.cfg.rules,
             pmcc_pairs=state.get("pmcc_pairs", []),
             max_per_ticker=cap,
+            bottleneck_scores=state.get("bottleneck_scores", {}),
         )
         scored = sum(1 for c in candidates if c.strategy != "pmcc_short_call")
         notes: list[str] = []

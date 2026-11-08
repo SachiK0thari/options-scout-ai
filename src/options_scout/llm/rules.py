@@ -615,6 +615,33 @@ def rule_explain(user_prompt: str) -> Narrative:
         )
     else:
         result("**Trend board.** No social trend signals were available for this run.")
+    board = payload.get("bottlenecks") or {}
+    if board.get("layers"):
+        top = ", ".join(
+            f"{ly.get('layer')} (score {ly.get('score')}, thesis {ly.get('thesis_state')})"
+            for ly in board["layers"][:3]
+        )
+        comps = board.get("companies") or []
+        names = (
+            ", ".join(f"{c.get('ticker')} {c.get('score')}" for c in comps[:5])
+            if comps
+            else "none of the screened underlyings"
+        )
+        weakening = [
+            ly.get("layer") for ly in board["layers"] if ly.get("thesis_state") == "weakening"
+        ]
+        result(
+            f"**Bottleneck board.** The supply-constraint scan is a secondary signal that re-orders "
+            f"quality-gated stocks and never adds one. Tightest layers: {top}. Curated suppliers with "
+            f"a company score: {names}."
+            + (
+                f" Thesis weakening (a falsifier tripped, so scores in the layer are decayed): "
+                f"{', '.join(weakening)}."
+                if weakening
+                else ""
+            )
+            + " A layer score describes the state of a shortage, not a forecast."
+        )
     # education paragraphs sit between the screen and the positions they explain
     paras.extend(education_paragraphs(sources))
     if positions:
@@ -627,10 +654,25 @@ def rule_explain(user_prompt: str) -> Narrative:
                 if payoff.get("max_loss") is not None:
                     extra += f", maximum loss {payoff.get('max_loss')}"
                 extra += "."
+            bflags = p.get("bottleneck_flags") or []
+            flag_txt = ""
+            if bflags:
+                parts = []
+                if "bottleneck_easing" in bflags:
+                    parts.append(
+                        "bottleneck_easing (new supply or decelerating prices in its layer)"
+                    )
+                if "bottleneck_support" in bflags:
+                    parts.append("bottleneck_support (its supply layer is scored tight)")
+                if "catalyst_inside_dte" in bflags:
+                    parts.append(
+                        "catalyst_inside_dte (a catalyst falls inside the contract's life)"
+                    )
+                flag_txt = ", flagged " + " and ".join(parts)
             lines.append(
                 f"{p.get('candidate_id')}: {p.get('contracts')} contract(s) of the {p.get('strategy')} with strike "
                 f"{p.get('strike')} expiring {p.get('expiry')}, using {p.get('capital_used')} of capital with a "
-                f"realistic loss of {p.get('realistic_loss')} if the underlying falls 30%.{extra}"
+                f"realistic loss of {p.get('realistic_loss')} if the underlying falls 30%{flag_txt}.{extra}"
                 + (
                     f" It is paired with short call {p.get('pmcc_short_call_id')}."
                     if p.get("pmcc_short_call_id")
@@ -690,7 +732,11 @@ def why_paragraphs(sources: list[dict[str, str]], question: str) -> list[Paragra
     """``why`` answers: the run-facts source lines that mention a term of the question, reported
     as ``screen_result`` (run data may not appear in an education paragraph), then any evidence
     posts behind the trend signal."""
-    facts = [s for s in sources if s["title"].startswith("This run's screen")]
+    facts = [
+        s
+        for s in sources
+        if s["title"].startswith("This run's screen") or s["title"].startswith("Bottleneck board")
+    ]
     posts = [s for s in sources if s.get("kind") == "evidence" and s not in facts]
     if not facts and not posts:
         return []
@@ -705,10 +751,15 @@ def why_paragraphs(sources: list[dict[str, str]], question: str) -> list[Paragra
             if any(tk in ln for tk in tickers) or any(t in ln.lower() for t in terms if len(t) > 4)
         ]
         picked = hits[:4] or lines[1:4]
+        head = (
+            "**What the bottleneck board recorded.**"
+            if src["title"].startswith("Bottleneck board")
+            else "**What the screen recorded.**"
+        )
         out.append(
             Paragraph(
                 mode="screen_result",
-                text=f"**What the screen recorded.** {' '.join(picked)} [{src['tag']}]",
+                text=f"{head} {' '.join(picked)} [{src['tag']}]",
                 citations=[src["tag"]],
             )
         )
@@ -717,7 +768,7 @@ def why_paragraphs(sources: list[dict[str, str]], question: str) -> list[Paragra
         out.append(
             Paragraph(
                 mode="screen_result",
-                text=f"**Evidence behind the trend signal.** {quoted}",
+                text=f"**Evidence behind the signal.** {quoted}",
                 citations=[p["tag"] for p in posts[:2]],
             )
         )
@@ -733,7 +784,8 @@ def rule_answer_concept(user_prompt: str) -> Narrative:
     intent = re.search(r"Intent of this question: (\w+)", user_prompt)
     question = _tag(user_prompt, "question")
     paras: list[Paragraph] = []
-    if intent and intent.group(1) == "why":
+    if (intent and intent.group(1) == "why") or any(is_run_data(s) for s in sources):
+        # run facts, or the bottleneck board attached to a question outside a screen (Phase 11)
         paras.extend(why_paragraphs(sources, question))
     knowledge = [s for s in sources if not is_run_data(s)]
     paras.extend(education_paragraphs(knowledge, limit=2 if not paras else 1))

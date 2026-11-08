@@ -351,6 +351,9 @@ def check_education_only(
 
 
 # -------------------------------------------------------------------- 4 check_suitability
+_EASING_WORDS = re.compile(r"\b(?:easing|weakening|new supply)\b|bottleneck_easing", re.IGNORECASE)
+
+
 def suitability_problems(
     facts: SuitabilityFacts, text: str, cfg: ComplianceConfig
 ) -> list[tuple[str, str]]:
@@ -390,6 +393,19 @@ def suitability_problems(
                         "earnings_unflagged_conservative",
                         f"{cid} has earnings before expiry but the text does not say so "
                         "in the same sentence",
+                    )
+                )
+                break
+    if facts.risk_profile == "conservative" and facts.bottleneck_easing_flagged:
+        # Phase 11 (4A.8): a short put on a supplier whose bottleneck is easing is flagged, and a
+        # conservative reader is told so in the sentence that names the candidate
+        for cid in facts.bottleneck_easing_flagged:
+            if not any(cid in s and _EASING_WORDS.search(s) for s in _sentences(text)):
+                out.append(
+                    (
+                        "bottleneck_easing_unflagged_conservative",
+                        f"{cid} carries the bottleneck_easing flag (new supply or decelerating "
+                        "prices in its layer) but the text does not say so in the same sentence",
                     )
                 )
                 break

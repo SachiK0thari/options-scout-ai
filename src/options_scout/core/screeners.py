@@ -1,19 +1,29 @@
-"""CSP, LEAPS and PMCC screeners (sections 3.3–3.5). Pure functions over a TickerSnapshot."""
+"""CSP, LEAPS and PMCC screeners (sections 3.3–3.5). Pure functions over a TickerSnapshot.
+
+:func:`apply_bottleneck_flags` adds the Phase 11 strategy-fit flags of section 4A.8 after the
+screens have run: flags on candidates, never filters.
+"""
 
 from __future__ import annotations
 
-from collections.abc import Iterable
+from collections.abc import Iterable, Mapping, Sequence
 from datetime import date
 
-from options_scout.config import CSPRules, LEAPSRules, PMCCRules
+from options_scout.config import BottleneckFlags, CSPRules, LEAPSRules, PMCCRules
 from options_scout.core import margin, pricing
 from options_scout.core.models import (
+    BottleneckSignal,
     OptionCandidate,
     OptionChain,
     OptionQuote,
     PMCCCandidate,
     TickerSnapshot,
 )
+
+FLAG_BOTTLENECK_SUPPORT = "bottleneck_support"
+FLAG_BOTTLENECK_EASING = "bottleneck_easing"
+FLAG_CATALYST_INSIDE_DTE = "catalyst_inside_dte"
+BOTTLENECK_FLAGS = (FLAG_BOTTLENECK_SUPPORT, FLAG_BOTTLENECK_EASING, FLAG_CATALYST_INSIDE_DTE)
 
 
 def _dte(expiry: date, today: date) -> int:
@@ -303,3 +313,77 @@ def _pmcc_matches(
                     )
                 )
     return matches
+
+
+# ------------------------------------------------------------------ bottleneck flags (4A.8)
+def best_company_rows(signals: Iterable[BottleneckSignal]) -> dict[str, BottleneckSignal]:
+    """Per ticker, the supplier row with the highest company score (a company in several layers
+    takes the maximum, section 4A.7); layer rows and customers are skipped."""
+    best: dict[str, BottleneckSignal] = {}
+    for s in signals:
+        if s.ticker is None or s.role != "supplier":
+            continue
+        cur = best.get(s.ticker)
+        if cur is None or s.score > cur.score:
+            best[s.ticker] = s
+    return best
+
+
+def catalyst_days_for(row: BottleneckSignal, earnings: date | None, today: date) -> int | None:
+    """Days to the nearest catalyst (4A.2 step 7): the engine's configured data release when it
+    knows one, or the ticker's next earnings date; ``None`` when neither is known."""
+    days = [d for d in (row.catalyst_days,) if d is not None]
+    if earnings is not None and earnings >= today:
+        days.append((earnings - today).days)
+    return min(days) if days else None
+
+
+def _flag(c: OptionCandidate, flag: str) -> None:
+    if flag not in c.flags:
+        c.flags.append(flag)
+
+
+def apply_bottleneck_flags(
+    candidates: Sequence[OptionCandidate],
+    pairs: Sequence[PMCCCandidate],
+    signals: Iterable[BottleneckSignal],
+    snapshots: Mapping[str, TickerSnapshot],
+    *,
+    rules: BottleneckFlags,
+    today: date,
+) -> int:
+    """Set the three strategy-fit flags of section 4A.8 in place; returns how many were set.
+
+    * ``bottleneck_support`` on LEAPS and CSP rows whose ticker's company score is at least
+      ``support_min`` (informational);
+    * ``bottleneck_easing`` on CSP rows whose ticker's row carries the engine's easing flag (a
+      falsifier tripped, or ``price_deceleration`` / ``supply_response_z`` above its threshold):
+      the method's reason **not** to sell puts once supply is arriving;
+    * ``catalyst_inside_dte`` on CSP and PMCC short-call rows when the nearest catalyst falls
+      inside the contract's DTE; it generalises ``earnings_before_expiry`` to configured data
+      releases and is set only for tickers on the bottleneck board.
+
+    Tickers without a board entry are left untouched, so a run with the engine off (or a universe
+    with no bottleneck exposure) screens exactly as before.
+    """
+    rows = best_company_rows(signals)
+    if not rows:
+        return 0
+    n = 0
+    short_calls = [p.short_call for p in pairs]
+    for c in [*candidates, *short_calls]:
+        row = rows.get(c.ticker)
+        if row is None:
+            continue
+        before = len(c.flags)
+        if c.strategy in ("csp", "leaps") and row.score >= rules.support_min:
+            _flag(c, FLAG_BOTTLENECK_SUPPORT)
+        if c.strategy == "csp" and FLAG_BOTTLENECK_EASING in row.flags:
+            _flag(c, FLAG_BOTTLENECK_EASING)
+        if c.strategy in ("csp", "pmcc_short_call"):
+            snap = snapshots.get(c.ticker)
+            days = catalyst_days_for(row, snap.earnings_date if snap else None, today)
+            if days is not None and days < c.dte:
+                _flag(c, FLAG_CATALYST_INSIDE_DTE)
+        n += len(c.flags) - before
+    return n

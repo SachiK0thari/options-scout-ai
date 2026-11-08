@@ -13,7 +13,15 @@ import sys
 from pathlib import Path
 
 from options_scout.bottleneck.engine import BottleneckEngine, BottleneckRun, BottleneckStore
-from options_scout.config import BOTTLENECK_SOURCE_NAMES, AppConfig, get_config, load_env
+from options_scout.bottleneck.market_facts import market_facts_for
+from options_scout.config import (
+    BOTTLENECK_SOURCE_NAMES,
+    AppConfig,
+    DataMode,
+    get_config,
+    load_env,
+)
+from options_scout.data.market import MarketData
 from options_scout.llm.client import LLMClient
 
 
@@ -62,9 +70,11 @@ def format_run(run: BottleneckRun, *, top: int = 10) -> str:
     for s in companies[:top]:
         flags = f" [{', '.join(s.flags)}]" if s.flags else ""
         tag = "curated" if s.curated else "not on the good-to-own list"
+        catalyst = "n/a" if s.catalyst_days is None else f"{s.catalyst_days}d"
         lines.append(
             f"{s.score:6.1f}  {s.ticker:<6} {s.theme_id}/{s.layer_id:<12} "
-            f"exposure {s.components.get('exposure', 0):.2f}  {tag}{flags}"
+            f"exposure {s.components.get('exposure', 0):.2f}  priced_in "
+            f"{s.components.get('priced_in', 0):.2f}  catalyst {catalyst:<5} {tag}{flags}"
         )
     return "\n".join(lines)
 
@@ -78,6 +88,12 @@ def main(argv: list[str] | None = None) -> int:
     parser.add_argument("--no-llm", action="store_true", help="rule-based classification only")
     parser.add_argument("--top", type=int, default=10)
     parser.add_argument(
+        "--no-market",
+        action="store_true",
+        help="skip the market facts (90-day relative return, 52-week high, IV rank, next earnings) "
+        "that feed priced_in and catalyst_days for the curated suppliers",
+    )
+    parser.add_argument(
         "--sources",
         default=None,
         help=f"comma-separated subset of {','.join(BOTTLENECK_SOURCE_NAMES)} to run",
@@ -89,9 +105,17 @@ def main(argv: list[str] | None = None) -> int:
     cfg = get_config()
     llm = LLMClient.from_config(cfg, mode="none" if args.no_llm else None)
     store = BottleneckStore(store_path(cfg))
-    engine = BottleneckEngine(cfg, llm, mode="fixture" if args.fixture else args.mode, store=store)
-    run = engine.run()
+    run_mode: DataMode = "fixture" if args.fixture else (args.mode or cfg.settings.data_mode)
+    engine = BottleneckEngine(cfg, llm, mode=run_mode, store=store)
+    market = None
+    if not args.no_market:
+        md = MarketData.from_config(cfg, mode=run_mode)
+        market = market_facts_for(md, cfg.themes.supplier_tickers(curated_only=True))
+    run = engine.run(market=market)
     print(format_run(run, top=args.top))
+    if market is not None:
+        served = ", ".join(sorted(market)) or "none"
+        print(f"\nmarket facts for {len(market)} curated supplier(s): {served}")
     print(f"\nsnapshots stored: {store.count()} in {store.path}")
     for e in run.errors:
         print("error:", e, file=sys.stderr)

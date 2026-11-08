@@ -49,10 +49,12 @@ def config_module() -> AppConfig:
 
 @pytest.fixture(scope="module")
 def deps(config_module: AppConfig, tmp_path_factory: pytest.TempPathFactory) -> Deps:
+    from options_scout.bottleneck.engine import BottleneckStore
     from options_scout.social.pipeline import TrendStore
 
     d = Deps.from_config(config_module)
     d.trend_store = TrendStore(tmp_path_factory.mktemp("trends") / "t.sqlite")
+    d.bottleneck_store = BottleneckStore(tmp_path_factory.mktemp("bottlenecks") / "b.sqlite")
     return d
 
 
@@ -132,7 +134,7 @@ def test_select_sources_one_per_document_with_lead_chunk(deps: Deps) -> None:
 def test_evidence_collection_from_trends(report: Any, deps: Deps) -> None:
     rep, final = report
     chunks = evidence_chunks(rep.trends)
-    assert chunks and final["evidence"] == chunks
+    assert chunks and final["evidence"][: len(chunks)] == chunks  # then the bottleneck pack (11.4)
     assert all(c.kind == "evidence" and c.id == f"{c.doc_id}#{c.n}" for c in chunks)
     assert {c.doc_id for c in chunks} == {
         f"evidence-{re.sub(r'[^a-z0-9]+', '-', t.entity.lower()).strip('-')}"
@@ -145,6 +147,42 @@ def test_evidence_collection_from_trends(report: Any, deps: Deps) -> None:
     state = {**question_state(f"why is {entity} trending"), "evidence": chunks}
     out = edu.invoke(state)
     assert any(c.kind == "evidence" for c in out["sources"])
+
+
+def test_bottleneck_evidence_is_indexed_and_cited(report: Any, deps: Deps) -> None:
+    """Phase 11 (4A.10): the evidence pack and the board facts are evidence chunks of the run,
+    and a why question about two curated suppliers cites a filing excerpt behind the score."""
+    from options_scout.agent.nodes.evidence_retrieval import (
+        BOARD_DOC_ID,
+        board_facts_chunk,
+        bottleneck_evidence_chunks,
+    )
+    from options_scout.agent.nodes.knowledge_retrieval import run_facts_chunk
+
+    rep, final = report
+    chunks = bottleneck_evidence_chunks(rep.bottlenecks)
+    assert chunks and all(
+        c.kind == "evidence" and c.doc_id.startswith("bottleneck-") for c in chunks
+    )
+    assert all(len(c.text) <= 200 for c in chunks)  # excerpts, never full text (4A.10)
+    assert any(c.url.startswith("https://www.sec.gov/Archives/") for c in chunks)
+    assert all(c.n == 0 and "filing" in c.source for c in chunks if c.id.endswith("#0"))
+    facts = board_facts_chunk(rep.bottlenecks)
+    assert facts is not None and facts.id == f"{BOARD_DOC_ID}#0" and "HON" in facts.text
+    assert {c.id for c in [*chunks, facts]} <= {c.id for c in final["evidence"]}
+    # the run facts a why answer cites carry the bottleneck term of every ranked ticker
+    assert "bottleneck score 50" in run_facts_chunk(rep).text
+    # on the run's thread: "why is HON ranked above UNP" quotes a filing and the board facts
+    final_q = answer_question(deps, "why is HON ranked above UNP", "t-why-bn-fresh")
+    cites = final_q["citations"]
+    assert any(c.doc_id == BOARD_DOC_ID for c in cites)
+    assert any(c.url.startswith("https://www.sec.gov/Archives/") for c in cites)
+    answer: Narrative = final_q["answer"]
+    text = answer.markdown.lower()
+    assert "hon" in text and "unp" in text and "bottleneck company score" in text
+    assert final_q["verification"].passed and final_q["verification"].ungrounded_numbers == []
+    for banned in ("exit", "sell", "take profits"):
+        assert banned not in text
 
 
 # -------------------------------------------------------------------------- concept Q&A

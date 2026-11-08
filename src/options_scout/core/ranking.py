@@ -1,4 +1,4 @@
-"""Blend option quality, 'good to own' stock quality and the social score (ranker_node).
+"""Blend option quality, 'good to own' stock quality and the two signal scores (ranker_node).
 
 After scoring, :func:`rank_candidates` keeps only the best ``max_per_ticker`` contracts per
 (ticker, strategy) so the shortlist spans the universe instead of listing one ETF's strike ladder.
@@ -58,8 +58,8 @@ def blend(
 ) -> float:
     """final = w1·option_quality + w2·stock_quality + w3·social/100 + w4·bottleneck/100, in [0, 1].
 
-    ``bottleneck`` defaults to the neutral 50 until the ranker node passes real company scores
-    (Phase 11 step 11.4), so with the engine absent the formula ranks as the three-term one did.
+    ``bottleneck`` is the company score of section 4A.7 for a curated supplier and the neutral 50
+    for every other ticker, so with the engine absent the formula ranks as the three-term one did.
     """
     return _clip01(
         w.option_quality * option_q
@@ -79,13 +79,17 @@ def rank_candidates(
     rules: ScreenerRules,
     pmcc_pairs: Iterable[PMCCCandidate] = (),
     max_per_ticker: int = 0,
+    bottleneck_scores: Mapping[str, float] | None = None,
 ) -> list[RankedCandidate]:
     """Score every candidate with :func:`blend`; sort descending (ties → higher open interest).
 
     ``max_per_ticker`` > 0 keeps only that many of the best contracts per (ticker, strategy); the
     rest are dropped so one ticker cannot monopolise the shortlist. 0 keeps everything.
+    ``bottleneck_scores`` (Phase 11) maps curated suppliers to their company score; a ticker
+    without one takes :data:`NEUTRAL_BOTTLENECK_SCORE`.
     """
     quality_scores = quality_scores or {}
+    bottleneck_scores = bottleneck_scores or {}
     pair_by_leaps = {p.leaps.id: p for p in pmcc_pairs}
     ranked: list[RankedCandidate] = []
     for c in candidates:
@@ -94,13 +98,15 @@ def rank_candidates(
         q = option_quality(c, option_weights, rules)
         s = float(social_scores.get(c.ticker, NEUTRAL_SOCIAL_SCORE))
         sq = float(quality_scores.get(c.ticker, NEUTRAL_QUALITY_SCORE))
+        b = float(bottleneck_scores.get(c.ticker, NEUTRAL_BOTTLENECK_SCORE))
         ranked.append(
             RankedCandidate(
                 candidate=c,
                 option_quality=q,
                 social_score=s,
                 quality_score=_clip01(sq),
-                final_score=blend(q, sq, s, weights),
+                bottleneck_score=b,
+                final_score=blend(q, sq, s, weights, bottleneck=b),
                 rank=1,
                 pmcc=pair_by_leaps.get(c.id),
             )

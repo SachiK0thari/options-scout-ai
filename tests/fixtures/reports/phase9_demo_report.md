@@ -34,6 +34,90 @@ VIX 17.51 (57th percentile, normal), risk-free rate 4.04% (fixture data).
 | Oura Ring | product | n/a | no | 81 | +4.0 | +3.0 | 4 | not_investable |
 | Olipop | brand | n/a | no | 81 | +4.0 | +4.0 | 4 | not_investable |
 
+## Bottleneck board (secondary)
+_Secondary signal: re-orders, never adds. Company score = layer score × exposure; a ticker without a row takes the neutral 50 in the ranking. Scores and flags describe the state of a supply constraint; they are not forecasts._
+
+| Layer | Name | Score | Tightness z | Price trend | Deceleration | Supply z | Cross-source | Thesis |
+|---|---|---|---|---|---|---|---|---|
+| ai_datacenter/power | Power generation and grid equipment | 79 | +4.0 | +0.89 | +0.00 | +0.0 | 0.50 | holding |
+| electrification/grid | Grid equipment and transformers | 76 | +3.0 | +0.97 | +0.00 | -0.4 | 0.67 | holding |
+| ai_datacenter/memory | DRAM and high-bandwidth memory (HBM) | 56 | +4.0 | +0.43 | +0.00 | +1.2 | 0.17 | holding |
+| electrification/industrial | Industrial electrification and automation | 38 | +3.2 | +0.01 | +0.41 | -0.7 | 0.17 | holding |
+| ai_datacenter/materials | Copper and specialty gases | 14 | -3.8 | +0.40 | +0.17 | +1.0 | 0.00 | holding |
+| ai_datacenter/networking | Networking, optics and fiber | 13 | -1.9 | +0.23 | +0.00 | +2.8 | 0.17 | weakening |
+| ai_datacenter/cooling | Liquid cooling and thermal management | 12 | -1.2 | +0.02 | +0.68 | +0.8 | 0.17 | holding |
+| electrification/battery | Battery materials | 6 | -3.2 | -0.74 | +0.00 | +2.4 | 0.00 | weakening |
+
+| Ticker | Layer | Company score | Exposure | Priced in | Catalyst days | Curated | Flags |
+|---|---|---|---|---|---|---|---|
+| GEV | electrification/grid | 76 | 1.00 | 0.00 | n/a | no (not on the good-to-own list) | bottleneck_support |
+| ETN | electrification/grid | 76 | 1.00 | 0.00 | n/a | no (not on the good-to-own list) | bottleneck_support |
+| HUBB | electrification/grid | 76 | 1.00 | 0.00 | n/a | no (not on the good-to-own list) | bottleneck_support |
+| VST | ai_datacenter/power | 74 | 0.94 | 0.10 | n/a | no (not on the good-to-own list) | bottleneck_support |
+| MU | ai_datacenter/memory | 55 | 0.98 | 0.04 | n/a | no (not on the good-to-own list) |  |
+| HON | ai_datacenter/power | 37 | 0.47 | 0.10 | n/a | yes |  |
+| PWR | electrification/grid | 33 | 0.44 | 0.00 | n/a | no (not on the good-to-own list) |  |
+| AMAT | ai_datacenter/memory | 20 | 0.37 | 0.04 | n/a | no (not on the good-to-own list) |  |
+| LRCX | ai_datacenter/memory | 20 | 0.37 | 0.04 | n/a | no (not on the good-to-own list) |  |
+| EMR | electrification/industrial | 18 | 0.46 | 0.78 | n/a | no (not on the good-to-own list) |  |
+| ROK | electrification/industrial | 15 | 0.40 | 0.78 | n/a | no (not on the good-to-own list) |  |
+| VRT | ai_datacenter/cooling | 12 | 1.00 | 0.00 | n/a | no (not on the good-to-own list) | bottleneck_easing |
+| XOM | ai_datacenter/power | 11 | 0.14 | 0.10 | n/a | yes |  |
+| CVX | ai_datacenter/power | 11 | 0.14 | 0.10 | n/a | yes |  |
+| FCX | ai_datacenter/materials | 7 | 0.51 | 0.70 | n/a | no (not on the good-to-own list) |  |
+
+**Thesis monitor and evidence:**
+- **ai_datacenter/cooling** (thesis holding): Rack power density is moving data halls from air to liquid cooling faster than thermal-equipment capacity is being added; specialists see backlog and pricing power.
+  - `supply_response_z > 1.5` for 1 snapshot(s): holding (observed 0.84)
+  - `tightness_z < -1` for 3 snapshot(s): holding (observed -1.25)
+  - filing MSFT, 2026-09-20: “Delivery schedules for coolant distribution units slipped by 30 weeks. rack density is a limiting factor on the timing of our capital expenditures.” ([edgar](https://www.sec.gov/Archives/edgar/data/789019/000116510026746731/msft-10k.htm)) · tightening · lead_time
+  - filing VRT, 2026-10-24: “Competitors announced additional chillers capacity in Ohio, and we see the liquid cooling constraint resolving over the next several quarters.” ([edgar](https://www.sec.gov/Archives/edgar/data/1674101/000183663126375172/vrt-10q.htm)) · easing · capacity
+  - headline, 2026-09-07: “Explainer: why direct-to-chip became the story of the year in building solutions (Data Hall Report)” ([news](https://news.example.com/explainer-why-directtochip-became-the-story-of-the-year-in-b-000040)) · neutral · coverage
+- **ai_datacenter/materials** (thesis holding): Data centers, grids and electrification all draw on copper and fab gases whose new supply takes the better part of a decade; miners and gas majors see sustained pricing.
+  - `price_deceleration > 0.5` for 2 snapshot(s): holding (observed 0.17)
+  - `supply_response_z > 1.5` for 1 snapshot(s): holding (observed 1.00)
+  - filing APD, 2026-10-09: “We realized higher average selling prices in metals as cathode premium persisted across the industry; backlog grew 25% year over year and now extends into 2027.” ([edgar](https://www.sec.gov/Archives/edgar/data/2969/000147814926447800/apd-8k.htm)) · tightening · price
+  - headline, 2026-10-27: “Copper price easing: copper cathode oversupply expected by 2027, analysts say (Mining Journal Digest)” ([news](https://news.example.com/copper-price-easing-copper-cathode-oversupply-expected-by-20-000064)) · easing · capacity
+  - headline, 2026-10-25: “Explainer: why copper price became the story of the year in electronics gases (Power Markets News)” ([news](https://news.example.com/explainer-why-copper-price-became-the-story-of-the-year-in-e-000065)) · neutral · coverage
+- **ai_datacenter/memory** (thesis holding): Accelerator demand has sold out HBM and tightened commodity DRAM; the three memory makers and their tool suppliers gain volume and price together.
+  - `price_deceleration > 0.5` for 2 snapshot(s): holding (observed 0.00)
+  - `supply_response_z > 1.5` for 1 snapshot(s): holding (observed 1.21)
+  - filing MU, 2026-10-27: “We realized higher average selling prices in memory as memory supply tight persisted across the industry; backlog grew 30% year over year and now extends into 2028.” ([edgar](https://www.sec.gov/Archives/edgar/data/723125/000162454326230666/mu-8k.htm)) · tightening · price
+  - filing LRCX, 2026-10-25: “Competitors announced additional HBM3E stacks capacity in Idaho, and we see the memory supply tight constraint resolving over the next several quarters.” ([edgar](https://www.sec.gov/Archives/edgar/data/707549/000136989726231403/lrcx-10k.htm)) · easing · capacity
+  - headline, 2026-10-21: “LRCX signs multi-year deposition tools supply deal amid HBM sold out (Power Markets News)” ([news](https://news.example.com/lrcx-signs-multiyear-deposition-tools-supply-deal-amid-hbm-s-000021)) · tightening · deal
+- **ai_datacenter/networking** (**thesis weakening**): AI clusters need far more optical and switching capacity per server than classic data centers; fiber and switch makers see demand outrun lead times.
+  - `price_deceleration > 0.5` for 2 snapshot(s): holding (observed 0.00)
+  - `supply_response_z > 1.5` for 1 snapshot(s): tripped since 2026-10-27 (observed 2.81)
+  - filing GLW, 2026-10-24: “We realized higher average selling prices in optical communications as fiber optic cable persisted across the industry; backlog grew 12% year over year and now extends into 2027.” ([edgar](https://www.sec.gov/Archives/edgar/data/24741/000126341826320360/glw-8k.htm)) · tightening · price
+  - headline, 2026-10-25: “GLW to expand 800G transceivers capacity 40% as fiber shortage persists (Power Markets News)” ([news](https://news.example.com/glw-to-expand-800g-transceivers-capacity-40-as-fiber-shortag-000044)) · easing · capacity
+  - headline, 2026-10-25: “Explainer: why networking backlog became the story of the year in networking (Semiconductor Daily)” ([news](https://news.example.com/explainer-why-networking-backlog-became-the-story-of-the-yea-000057)) · neutral · coverage
+- **ai_datacenter/power** (thesis holding): Data-center power demand is outrunning grid interconnection and gas-turbine supply; equipment makers and fuel suppliers see backlog growth and pricing power.
+  - `price_deceleration > 0.5` for 2 snapshot(s): holding (observed 0.00)
+  - `supply_response_z > 1.5` for 1 snapshot(s): holding (observed 0.00)
+  - `tightness_z < -1` for 3 snapshot(s): holding (observed 4.00)
+  - filing XOM, 2026-10-26: “Lead times for uninterruptible power systems extended to 52 weeks during the quarter as grid interconnection remained the binding constraint on our customers' build schedules.” ([edgar](https://www.sec.gov/Archives/edgar/data/2115436/000117959526324190/xom-10k.htm)) · tightening · lead_time
+  - headline, 2026-08-19: “New entrant breaks ground on uninterruptible power systems factory, citing turbine lead time (Industrial Monitor)” ([news](https://news.example.com/new-entrant-breaks-ground-on-uninterruptible-power-systems-f-000001)) · easing · capacity
+  - headline, 2026-10-22: “Gas turbines lead times stretch to 104 weeks as interconnection queue bites, survey finds (Semiconductor Daily)” ([news](https://news.example.com/gas-turbines-lead-times-stretch-to-104-weeks-as-interconnect-000005)) · tightening · lead_time
+- **electrification/battery** (**thesis weakening**): Storage and vehicle batteries need lithium, nickel and graphite whose mines and refineries take years to permit and build; a renewed tightening would lift the miners first.
+  - `price_trend < 0` for 2 snapshot(s): holding (observed -0.74)
+  - `supply_response_z > 1.5` for 1 snapshot(s): tripped since 2026-10-27 (observed 2.40)
+  - filing TSLA, 2026-07-17: “We paid higher prices for lithium hydroxide this year as lithium carbonate spread to every supplier we use; the increase was absorbed in our capital plan.” ([edgar](https://www.sec.gov/Archives/edgar/data/1318605/000152326626042217/tsla-10k.htm)) · tightening · price
+  - headline, 2026-10-26: “New entrant breaks ground on lithium hydroxide factory, citing graphite anode supply (Grid Weekly)” ([news](https://news.example.com/new-entrant-breaks-ground-on-lithium-hydroxide-factory-citin-000083)) · easing · capacity
+  - headline, 2026-10-23: “ALB to expand lithium hydroxide capacity 12% as lithium price persists (Industrial Monitor)” ([news](https://news.example.com/alb-to-expand-lithium-hydroxide-capacity-12-as-lithium-price-000081)) · easing · capacity
+- **electrification/grid** (thesis holding): Load growth, renewables interconnection and grid hardening have stretched transformer and switchgear lead times to years; the few domestic makers hold pricing power.
+  - `price_deceleration > 0.5` for 2 snapshot(s): holding (observed 0.00)
+  - `supply_response_z > 1.5` for 1 snapshot(s): holding (observed -0.35)
+  - `tightness_z < -1` for 3 snapshot(s): holding (observed 3.04)
+  - filing GEV, 2026-10-25: “Lead times for substation equipment extended to 104 weeks during the quarter as distribution transformer remained the binding constraint on our customers' build schedules.” ([edgar](https://www.sec.gov/Archives/edgar/data/1996810/000170126026452964/gev-8k.htm)) · tightening · lead_time
+  - headline, 2026-09-24: “HUBB announces new substation equipment plant in Pennsylvania to address substation backlog (Data Hall Report)” ([news](https://news.example.com/hubb-announces-new-substation-equipment-plant-in-pennsylvani-000069)) · easing · capacity
+  - headline, 2026-10-13: “What transformer shortage means for HUBB and its peers (Power Markets News)” ([news](https://news.example.com/what-transformer-shortage-means-for-hubb-and-its-peers-000079)) · neutral · coverage
+- **electrification/industrial** (thesis holding): Factories, mines and freight are replacing combustion and manual processes with electric drives and automation; controls makers see multi-year backlogs.
+  - `supply_response_z > 1.5` for 1 snapshot(s): holding (observed -0.66)
+  - `tightness_z < -1` for 3 snapshot(s): holding (observed 3.24)
+  - filing TSLA, 2026-10-25: “Our expansion of plant electrification projects was constrained by electric locomotive; we have entered multi-year supply agreements to secure variable-frequency drives through 2028.” ([edgar](https://www.sec.gov/Archives/edgar/data/1318605/000153764426001988/tsla-8k.htm)) · tightening · capacity
+  - filing GM, 2026-09-27: “Availability of motor controls improved and electric locomotive was no longer a constraint on our mine conversions during the quarter.” ([edgar](https://www.sec.gov/Archives/edgar/data/1467858/000104206926381928/gm-10q.htm)) · easing · capacity
+  - headline, 2026-10-24: “Analysts weigh electric locomotive impact on process solutions margins (Industrial Monitor)” ([news](https://news.example.com/analysts-weigh-electric-locomotive-impact-on-process-solutio-000095)) · neutral · coverage
+
 Universe considered: NKE, COST, AAPL, MSFT, SBUX, SPY, QQQ
 
 ## News desk
@@ -154,6 +238,8 @@ _Headlines never change the ranking; they flag what to read before trading._
 
 **Trend board.** The consumer-trend scan surfaced CAVA (score 90, CAVA), On Cloud (score 89, ONON), HOKA (score 89, DECK), e.l.f. (score 86, ELF), Crocs (score 86, CROX). Scores combine mention velocity, purchase intent, cross-source confirmation and the gap between social and news attention; stock-forum hype is penalised rather than rewarded.
 
+**Bottleneck board.** The supply-constraint scan is a secondary signal that re-orders quality-gated stocks and never adds one. Tightest layers: ai_datacenter/power (score 79, thesis holding), electrification/grid (score 76, thesis holding), ai_datacenter/memory (score 56, thesis holding). Curated suppliers with a company score: HON 37, XOM 11, CVX 11, UNP 3, CSCO 1. Thesis weakening (a falsifier tripped, so scores in the layer are decayed): ai_datacenter/networking, electrification/battery. A layer score describes the state of a shortage, not a forecast.
+
 **Cash-secured put (CSP): selling a put while holding the cash to buy the shares.** A **cash-secured put** is a short put position in which the writer sets aside enough cash to buy the shares at the strike price if the put is assigned. The writer sells the put, collects the premium up front, and accepts the obligation to buy 100 shares per contract at the strike any time before expiration. [S1]
 
 **Assignment: what happens when a short option is exercised against you.** **Assignment** is the process by which an option writer is selected to fulfil the obligation of a contract that a holder has exercised. When a put holder exercises, some put writer is obliged to take the shares at the strike; when a call holder exercises, some call writer must deliver them. [S2]
@@ -181,7 +267,7 @@ Educational screening tool. Not investment, tax or legal advice. Options involve
 ## Compliance
 PASS · audit `<audit_id>` · report · attempt 1
 
-- ✓ `check_numbers`: 50 numbers checked, all grounded
+- ✓ `check_numbers`: 58 numbers checked, all grounded
 - ✓ `check_citations`: 3 tag(s) resolve to retrieved sources
 - ✓ `check_education_only`: education paragraphs carry no run data; short options show their loss
 - ✓ `check_suitability`: suits the profile
@@ -194,18 +280,38 @@ PASS · audit `<audit_id>` · report · attempt 1
 - ✓ `tax_reply`: no tax reply to check
 
 ## Verification
-PASS: 50 numbers checked, 0 ungrounded, banned phrases: none, disclaimer present, citations 3 checked / 0 unknown, attempts 1.
+PASS: 58 numbers checked, 0 ungrounded, banned phrases: none, disclaimer present, citations 3 checked / 0 unknown, attempts 1.
 
 ## Run metadata
 - Models: {"extraction": "deepseek/deepseek-v4.1-flash", "explanation": "deepseek/deepseek-v4.1-flash", "provider": "fixture"}
-- Prompt versions: {"answer_concept": "1.2.0", "answer_tax": "1.0.0", "classify_bottleneck": "1.0.0", "classify_news": "1.1.0", "explain_goal": "1.0.0", "explain_report": "2.1.0", "extract_entities": "1.1.0", "judge_explanation": "1.0.0", "parse_goal": "1.0.0", "parse_holdings": "1.0.0", "parse_profile": "1.2.0", "route_message": "1.3.0"}
+- Prompt versions: {"answer_concept": "1.2.0", "answer_tax": "1.0.0", "classify_bottleneck": "1.0.0", "classify_news": "1.1.0", "explain_goal": "1.0.0", "explain_report": "2.2.0", "extract_entities": "1.1.0", "judge_explanation": "1.0.0", "parse_goal": "1.0.0", "parse_holdings": "1.0.0", "parse_profile": "1.2.0", "route_message": "1.3.0"}
 - Config hash: `<config_hash>`
-- Data sources: {"AAPL": "ok", "COST": "ok", "MSFT": "ok", "NKE": "ok", "QQQ": "ok", "SBUX": "ok", "SPY": "ok", "google_trends": "ok", "market_data": "fixture", "news": "ok", "news_alphavantage_news": "ok", "news_desk": "41 headlines for 7 ticker(s)", "news_rss": "ok", "reddit": "ok", "sec": "ok", "social": "ran (7095 posts, 28 entities)", "wikipedia": "ok", "x": "ok"}
+- Data sources: {"AAPL": "ok", "COST": "ok", "MSFT": "ok", "NKE": "ok", "QQQ": "ok", "SBUX": "ok", "SPY": "ok", "bottleneck": "ran (274 snippets, 8 layers, 30 companies)", "bottleneck:csv_series": "ok", "bottleneck:edgar": "ok", "bottleneck:fred": "ok", "bottleneck:google_trends": "ok", "bottleneck:news": "ok", "bottleneck:reddit": "ok", "bottleneck:transcripts": "disabled", "google_trends": "ok", "market_data": "fixture", "news": "ok", "news_alphavantage_news": "ok", "news_desk": "41 headlines for 7 ticker(s)", "news_rss": "ok", "reddit": "ok", "sec": "ok", "social": "ran (7095 posts, 28 entities)", "wikipedia": "ok", "x": "ok"}
 - Tokens: 0 in / 0 out · cost $0.0000
 
 ## Notes and degraded sources
 - ranker: kept the best 2 contracts per ticker and strategy (122 near-duplicate strikes/expiries not listed)
-- universe: no offline fixture for PEP, GOOGL, AMZN, CSCO, TXN, ACN, WMT, PG, KO, MCD, HD, LOW, TJX, JNJ, ABBV, MRK, ABT, JPM, V, MA, HON, UNP, LMT, XOM, CVX; skipped
+- universe: bottleneck ticker ALB is not on the good-to-own list; skipped
+- universe: bottleneck ticker AMAT is not on the good-to-own list; skipped
+- universe: bottleneck ticker ANET is not on the good-to-own list; skipped
+- universe: bottleneck ticker APD is not on the good-to-own list; skipped
+- universe: bottleneck ticker CIEN is not on the good-to-own list; skipped
+- universe: bottleneck ticker EMR is not on the good-to-own list; skipped
+- universe: bottleneck ticker ETN is not on the good-to-own list; skipped
+- universe: bottleneck ticker FCX is not on the good-to-own list; skipped
+- universe: bottleneck ticker GEV is not on the good-to-own list; skipped
+- universe: bottleneck ticker GLW is not on the good-to-own list; skipped
+- universe: bottleneck ticker HUBB is not on the good-to-own list; skipped
+- universe: bottleneck ticker LIN is not on the good-to-own list; skipped
+- universe: bottleneck ticker LRCX is not on the good-to-own list; skipped
+- universe: bottleneck ticker MU is not on the good-to-own list; skipped
+- universe: bottleneck ticker PWR is not on the good-to-own list; skipped
+- universe: bottleneck ticker ROK is not on the good-to-own list; skipped
+- universe: bottleneck ticker SCCO is not on the good-to-own list; skipped
+- universe: bottleneck ticker SQM is not on the good-to-own list; skipped
+- universe: bottleneck ticker VRT is not on the good-to-own list; skipped
+- universe: bottleneck ticker VST is not on the good-to-own list; skipped
+- universe: no offline fixture for PEP, HON, XOM, CVX, UNP, CSCO, GOOGL, AMZN, TXN, ACN, WMT, PG, KO, MCD, HD, LOW, TJX, JNJ, ABBV, MRK, ABT, JPM, V, MA, LMT; skipped
 - universe: trending ticker ANF is not on the good-to-own list; skipped
 - universe: trending ticker BIRK is not on the good-to-own list; skipped
 - universe: trending ticker BROS is not on the good-to-own list; skipped

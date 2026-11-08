@@ -28,10 +28,12 @@ REQUEST = (
 @pytest.fixture(scope="module")
 def deps(config_module: AppConfig, tmp_path_factory: pytest.TempPathFactory) -> Deps:
     d = Deps.from_config(config_module)
-    # isolate the trend snapshot store per test module
+    # isolate the trend and bottleneck snapshot stores per test module
+    from options_scout.bottleneck.engine import BottleneckStore
     from options_scout.social.pipeline import TrendStore
 
     d.trend_store = TrendStore(tmp_path_factory.mktemp("trends") / "t.sqlite")
+    d.bottleneck_store = BottleneckStore(tmp_path_factory.mktemp("bottlenecks") / "b.sqlite")
     return d
 
 
@@ -62,6 +64,7 @@ def test_end_to_end_fixture_run(deps: Deps) -> None:
         "regime_node",
         "allocator_node",
         "trend_scout_node",
+        "bottleneck_scout_node",  # Phase 11
         "evidence_retrieval_node",
         "universe_node",
         "market_data_node",
@@ -89,6 +92,15 @@ def test_end_to_end_fixture_run(deps: Deps) -> None:
     assert rep.profile.buying_power == 100_000 and rep.profile.account_type == "margin"
     assert set(rep.profile.watchlist) == {"COST", "NKE"}
     assert rep.trends and any(t.investable for t in rep.trends)
+    # Phase 11: the bottleneck board is present, secondary, and never adds a ticker
+    layers = [s for s in rep.bottlenecks if s.ticker is None]
+    companies = [s for s in rep.bottlenecks if s.ticker is not None]
+    assert len(layers) == 8 and companies and all(s.role == "supplier" for s in companies)
+    assert not {s.ticker for s in companies if not s.curated} & set(rep.universe)
+    assert "## Bottleneck board (secondary)" in final["report_markdown"]
+    assert "re-orders, never adds" in final["report_markdown"]
+    assert all(r.bottleneck_score == 50.0 for r in rep.ranked)  # no fixture ticker is a supplier
+    assert "Bottleneck board" in rep.narrative_markdown
     assert rep.portfolio.positions and rep.risk.passed
     # numeric grounding: 100% of narrative numbers exist in the payload
     assert rep.verification.passed and rep.verification.ungrounded_numbers == []
@@ -172,3 +184,39 @@ def test_user_added_risky_ticker_is_excluded_by_quality_gate(deps: Deps) -> None
     assert any(e.startswith("quality ELF: excluded") for e in rep.errors)
     assert rep.verification.passed and rep.risk.passed
     assert "Quality screen" in rep.narrative_markdown
+
+
+def test_graceful_degradation_when_bottleneck_engine_disabled(deps: Deps) -> None:
+    deps.disabled_sources.add("bottleneck")
+    try:
+        _visited, final = _run(deps, REQUEST, "t-degraded-bn")
+    finally:
+        deps.disabled_sources.discard("bottleneck")
+    rep = final["report"]
+    assert rep.bottlenecks == [] and final["bottleneck_scores"] == {}
+    assert any("bottleneck_scout: engine disabled" in e for e in rep.errors)
+    assert "_No bottleneck board" in final["report_markdown"]
+    assert rep.portfolio.positions and rep.verification.passed
+    assert all(r.bottleneck_score == 50.0 for r in rep.ranked)
+
+
+def test_user_added_non_curated_bottleneck_ticker_is_gated_with_reasons(deps: Deps) -> None:
+    """A pure play from the theme map (GEV, the top of the board) is not on the good-to-own list.
+    The user may add it; it then faces the same gates as everything else and the report says
+    why it went no further, while the board still shows it as context (4A.1)."""
+    text = (
+        "I have $100,000 of buying power in a margin account, balanced risk tolerance. "
+        "Show me CSPs and LEAPS/PMCC ideas. I like GEV and COST."
+    )
+    _visited, final = _run(deps, text, "t-bn-pure-play")
+    rep = final["report"]
+    assert isinstance(rep, ScreeningReport)
+    assert "GEV" in rep.profile.watchlist
+    gev = [s for s in rep.bottlenecks if s.ticker == "GEV"]
+    assert gev and not any(s.curated for s in gev) and max(s.score for s in gev) >= 70
+    assert "GEV" in final["bottleneck_scores"]  # scored on the board…
+    assert "GEV" not in rep.universe  # …but never screened: no fixture data for it offline
+    assert any("GEV" in e and "skipped" in e for e in rep.errors)
+    assert not any(c.ticker == "GEV" for c in rep.csp_candidates + rep.leaps_candidates)
+    assert "not on the good-to-own list" in final["report_markdown"]
+    assert rep.verification.passed and rep.verification.ungrounded_numbers == []

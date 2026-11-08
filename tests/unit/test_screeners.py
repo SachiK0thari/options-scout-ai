@@ -213,3 +213,106 @@ def test_csp_fallback_window_is_flagged_and_only_used_when_strict_is_empty(
     # fallback disabled → nothing
     rules = config.rules.csp.model_copy(update={"dte_fallback_min": 30, "dte_fallback_max": 30})
     assert screeners.screen_csp(snap, rules, today=TODAY, r=R, realistic_loss_drop=0.3) == []
+
+
+# ------------------------------------------------------------ bottleneck flags (4A.8, step 11.4)
+def _row(ticker: str, score: float, flags: list[str], catalyst_days: int | None = None):
+    from options_scout.core.models import BottleneckSignal
+
+    return BottleneckSignal(
+        theme_id="ai_datacenter",
+        layer_id="power",
+        layer_name="Power",
+        ticker=ticker,
+        role="supplier",
+        curated=True,
+        investable=True,
+        layer_score=79.0,
+        score=score,
+        components={},
+        thesis="t",
+        catalyst_days=catalyst_days,
+        flags=flags,
+        as_of=datetime(2026, 10, 27, tzinfo=UTC),
+    )
+
+
+def _screened(config: AppConfig, earnings: date | None = None):
+    snap = _snapshot(earnings=earnings)
+    csp = screeners.screen_csp(snap, config.rules.csp, today=TODAY, r=R, realistic_loss_drop=0.30)
+    leaps = screeners.screen_leaps(snap, config.rules.leaps, today=TODAY, r=R)
+    pairs = screeners.pair_pmcc(leaps, snap, config.rules.pmcc, today=TODAY, r=R)
+    return snap, csp, leaps, pairs
+
+
+def test_bottleneck_flags_are_set_per_strategy_and_never_filter(config: AppConfig) -> None:
+    snap, csp, leaps, pairs = _screened(config)
+    assert csp and leaps and pairs
+    before = len(csp) + len(leaps) + len(pairs)
+    rows = [_row("TEST", 80.0, ["bottleneck_support", "bottleneck_easing"], catalyst_days=10)]
+    n = screeners.apply_bottleneck_flags(
+        [*csp, *leaps], pairs, rows, {"TEST": snap}, rules=config.bottleneck.flags, today=TODAY
+    )
+    assert n > 0 and len(csp) + len(leaps) + len(pairs) == before  # flags, never filters
+    assert all("bottleneck_support" in c.flags for c in csp + leaps)
+    assert all("bottleneck_easing" in c.flags for c in csp)  # a CSP flag only…
+    assert not any("bottleneck_easing" in c.flags for c in leaps)  # …never on a LEAPS
+    assert all("catalyst_inside_dte" in c.flags for c in csp)  # 10 days < 38 DTE
+    assert all("catalyst_inside_dte" in p.short_call.flags for p in pairs)
+    assert not any("catalyst_inside_dte" in c.flags for c in leaps)
+    # applying twice adds nothing
+    assert (
+        screeners.apply_bottleneck_flags(
+            [*csp, *leaps], pairs, rows, {"TEST": snap}, rules=config.bottleneck.flags, today=TODAY
+        )
+        == 0
+    )
+
+
+def test_bottleneck_flags_respect_thresholds_and_the_board(config: AppConfig) -> None:
+    snap, csp, leaps, pairs = _screened(config, earnings=TODAY + timedelta(days=20))
+    # score below support_min, no easing, no configured catalyst: only the earnings catalyst
+    rows = [_row("TEST", 40.0, [])]
+    screeners.apply_bottleneck_flags(
+        [*csp, *leaps], pairs, rows, {"TEST": snap}, rules=config.bottleneck.flags, today=TODAY
+    )
+    assert not any("bottleneck_support" in c.flags for c in csp + leaps)
+    assert not any("bottleneck_easing" in c.flags for c in csp)
+    assert all("catalyst_inside_dte" in c.flags for c in csp)  # earnings in 20 days < 38 DTE
+    assert all("earnings_before_expiry" in c.flags for c in csp)  # the Phase 3 flag still there
+    # a ticker that is not on the board is left exactly as the screeners produced it
+    snap2, csp2, leaps2, pairs2 = _screened(config, earnings=TODAY + timedelta(days=20))
+    flags_before = [list(c.flags) for c in csp2 + leaps2]
+    assert (
+        screeners.apply_bottleneck_flags(
+            [*csp2, *leaps2],
+            pairs2,
+            [_row("OTHER", 99.0, ["bottleneck_support"])],
+            {"TEST": snap2},
+            rules=config.bottleneck.flags,
+            today=TODAY,
+        )
+        == 0
+    )
+    assert [list(c.flags) for c in csp2 + leaps2] == flags_before
+    assert (
+        screeners.apply_bottleneck_flags(
+            csp2, pairs2, [], {}, rules=config.bottleneck.flags, today=TODAY
+        )
+        == 0
+    )
+
+
+def test_best_company_row_and_catalyst_days() -> None:
+    rows = [_row("TEST", 30.0, []), _row("TEST", 55.0, ["bottleneck_support"]), _row("X", 1.0, [])]
+    best = screeners.best_company_rows(rows)
+    assert best["TEST"].score == 55.0 and set(best) == {"TEST", "X"}
+    assert screeners.catalyst_days_for(_row("TEST", 1.0, []), None, TODAY) is None
+    assert screeners.catalyst_days_for(_row("TEST", 1.0, [], 12), None, TODAY) == 12
+    assert (
+        screeners.catalyst_days_for(_row("TEST", 1.0, [], 12), TODAY + timedelta(days=5), TODAY)
+        == 5
+    )
+    assert (
+        screeners.catalyst_days_for(_row("TEST", 1.0, []), TODAY - timedelta(days=1), TODAY) is None
+    )

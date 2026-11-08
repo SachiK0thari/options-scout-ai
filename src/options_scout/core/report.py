@@ -6,6 +6,7 @@ from collections.abc import Iterable, Sequence
 
 from options_scout.core.models import (
     AllocationPlan,
+    BottleneckSignal,
     Citation,
     ComplianceReport,
     GoalPlan,
@@ -98,6 +99,107 @@ def render_trends(trends: Sequence[TrendSignal], limit: int = 10) -> str:
             "Flags",
         ],
         rows,
+    )
+
+
+def _signed(components: dict[str, float], key: str, digits: int = 2) -> str:
+    v = components.get(key)
+    return "n/a" if v is None else f"{v:+.{digits}f}"
+
+
+def render_bottlenecks(signals: Sequence[BottleneckSignal], limit: int = 15) -> str:
+    """The bottleneck board (section 4A, Phase 11): layer table, company table, evidence links
+    and the thesis monitor. Reports state; never says exit, sell or take profits."""
+    layers = [s for s in signals if s.ticker is None]
+    if not layers:
+        return "_No bottleneck board (engine disabled or no snapshot)._"
+    layer_rows = [
+        [
+            f"{row.theme_id}/{row.layer_id}",
+            row.layer_name,
+            f"{row.score:.0f}",
+            _signed(row.components, "tightness_z", 1),
+            _signed(row.components, "price_trend"),
+            _signed(row.components, "price_deceleration"),
+            _signed(row.components, "supply_response_z", 1),
+            f"{row.components.get('cross_source_norm', 0.0):.2f}",
+            "weakening" if row.thesis_weakening else "holding",
+        ]
+        for row in sorted(layers, key=lambda s: -s.score)
+    ]
+    layer_table = _table(
+        [
+            "Layer",
+            "Name",
+            "Score",
+            "Tightness z",
+            "Price trend",
+            "Deceleration",
+            "Supply z",
+            "Cross-source",
+            "Thesis",
+        ],
+        layer_rows,
+    )
+    best: dict[str, BottleneckSignal] = {}  # one row per ticker: its best layer (4A.7)
+    for s in signals:
+        if (
+            s.ticker
+            and s.role == "supplier"
+            and (s.ticker not in best or s.score > best[s.ticker].score)
+        ):
+            best[s.ticker] = s
+    companies = sorted(best.values(), key=lambda s: -s.score)
+    company_rows = [
+        [
+            s.ticker or "",
+            f"{s.theme_id}/{s.layer_id}",
+            f"{s.score:.0f}",
+            f"{s.components.get('exposure', 0.0):.2f}",
+            f"{s.components.get('priced_in', 0.0):.2f}",
+            "n/a" if s.catalyst_days is None else str(s.catalyst_days),
+            "yes" if s.curated else "no (not on the good-to-own list)",
+            ", ".join(s.flags),
+        ]
+        for s in companies[:limit]
+    ]
+    company_table = _table(
+        [
+            "Ticker",
+            "Layer",
+            "Company score",
+            "Exposure",
+            "Priced in",
+            "Catalyst days",
+            "Curated",
+            "Flags",
+        ],
+        company_rows,
+    )
+    monitor: list[str] = []
+    for row in sorted(layers, key=lambda s: (s.theme_id, s.layer_id)):
+        state = "**thesis weakening**" if row.thesis_weakening else "thesis holding"
+        monitor.append(f"- **{row.theme_id}/{row.layer_id}** ({state}): {row.thesis}")
+        for f in row.falsifiers:
+            obs = "n/a" if f.observed is None else f"{f.observed:.2f}"
+            monitor.append(
+                f"  - `{f.signal} {f.op} {f.value:g}` for {f.snapshots} snapshot(s): {f.state} "
+                f"(observed {obs})"
+            )
+        for e in row.evidence[:3]:
+            who = f" {e.filer_ticker}" if e.filer_ticker else ""
+            link = f" ([{e.source}]({e.url}))" if e.url else f" ({e.source})"
+            label = f" · {e.label}" if e.label else ""
+            monitor.append(f"  - {e.kind}{who}, {e.date.isoformat()}: “{e.excerpt}”{link}{label}")
+    return (
+        "_Secondary signal: re-orders, never adds. Company score = layer score × exposure; a "
+        "ticker without a row takes the neutral 50 in the ranking. Scores and flags describe the "
+        "state of a supply constraint; they are not forecasts._\n\n"
+        + layer_table
+        + "\n\n"
+        + company_table
+        + "\n\n**Thesis monitor and evidence:**\n"
+        + "\n".join(monitor)
     )
 
 

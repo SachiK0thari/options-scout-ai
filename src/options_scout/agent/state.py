@@ -19,6 +19,7 @@ from pydantic import BaseModel, Field
 
 from options_scout.core.models import (
     AllocationPlan,
+    BottleneckSignal,
     ChatTurn,
     Citation,
     ClassifiedNews,
@@ -82,6 +83,8 @@ class AgentState(TypedDict, total=False):
     allocation: AllocationPlan | None
     trends: list[TrendSignal]
     social_scores: dict[str, float]
+    bottlenecks: list[BottleneckSignal]  # Phase 11: the bottleneck board (layer + company rows)
+    bottleneck_scores: dict[str, float]  # Phase 11: curated supplier → company score (4A.7)
     evidence: list[Chunk]  # Phase 10: the run's evidence posts as a retrievable collection
     universe: list[str]
     market_data: Annotated[dict[str, TickerSnapshot], merge_dicts]  # only tickers that passed
@@ -169,10 +172,12 @@ class MarketDataSlice(BaseModel):
 
 
 class MarketIntelligenceSlice(BaseModel):
-    """Owned by Market Intelligence (#2): the consumer-trend board."""
+    """Owned by Market Intelligence (#2): the consumer-trend and bottleneck boards."""
 
     trends: list[TrendSignal] = Field(default_factory=list)
     social_scores: dict[str, float] = Field(default_factory=dict)
+    bottlenecks: list[BottleneckSignal] = Field(default_factory=list)
+    bottleneck_scores: dict[str, float] = Field(default_factory=dict)
     evidence: list[Chunk] = Field(default_factory=list)
 
 
