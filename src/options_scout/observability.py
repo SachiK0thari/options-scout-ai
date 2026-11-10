@@ -24,6 +24,7 @@ from typing import Any
 import structlog
 from langchain_core.runnables import RunnableConfig
 from langgraph.errors import GraphInterrupt
+from structlog.typing import EventDict
 
 _configured = False
 
@@ -71,7 +72,7 @@ def redact_value(value: Any) -> Any:
     return value
 
 
-def _redact_event(_logger: Any, _name: str, event: dict[str, Any]) -> dict[str, Any]:
+def _redact_event(_logger: Any, _name: str, event: EventDict) -> EventDict:
     return {k: redact_value(v) for k, v in event.items()}
 
 
