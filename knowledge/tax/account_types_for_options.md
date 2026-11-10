@@ -28,7 +28,7 @@ A **cash account** requires every purchase to be paid for in full and every shor
 | LEAPS call (long) | Allowed with approval; paid in full | Allowed; may be marginable | Allowed at many brokers |
 | PMCC (LEAPS plus short call) | Often not allowed; spreads need margin at most brokers | Allowed with spread-level approval | Allowed at some brokers as a defined-risk spread |
 
-A **naked put**, a short put secured by margin rather than full cash, needs a margin account and the broker's highest approval level; it is not screened by this app. A **PMCC** is a diagonal spread, so it needs spread approval wherever it is placed.
+A **naked put**, a short put secured by margin rather than full cash, needs a margin account and the broker's highest approval level. When the Setup tab records a margin account, this app sizes its short puts on the Reg T requirement, which makes them naked puts, and labels them so; check that your approval level allows them. A **PMCC** is a diagonal spread, so it needs spread approval wherever it is placed.
 
 ## What can go wrong
 

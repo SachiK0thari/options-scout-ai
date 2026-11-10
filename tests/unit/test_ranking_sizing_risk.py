@@ -709,3 +709,69 @@ def test_suitability_needs_the_sizing_facts_stated() -> None:
     ]
     # these are wording problems: a rewrite fixes them, so they never withhold a report
     assert not {"single_name_unstated", "account_too_small_unstated"} & FACT_SUITABILITY_CODES
+
+
+# ------------------------------------------- W24: portfolio-level loss and assignment cash
+@pytest.mark.parametrize(
+    ("account", "risk_name"),
+    [("cash", "balanced"), ("margin", "balanced"), ("margin", "aggressive")],
+)
+def test_a_million_dollar_account_is_cut_back_to_both_portfolio_limits(
+    world: dict[str, object], account: str, risk_name: str
+) -> None:
+    """The plan's three rows: 28%, 42% and 60% of the account lost at -30% with every check
+    passing. Now the total loss and the cash needed on full assignment are limits too."""
+    cfg: AppConfig = world["cfg"]  # type: ignore[assignment]
+    # up to 50 positions, so the per-position caps alone let the total run past the limit
+    profile = _profile(1_000_000, risk_name, account).model_copy(update={"max_positions": 50})
+    ranked = _pipeline_ranked(world, profile)
+    port, rep = _size(world, profile, ranked, reporting=cfg.risk.reporting)
+    limits = cfg.risk.constraints[risk_name]
+    assert port.positions
+    # without the new limit the same run loses more than the cap (23% / 33% on the fixtures)
+    alloc = allocate(profile, _REGIME, cfg.risk)
+    loose = limits.model_copy(update={"max_portfolio_loss": 1.0, "max_assignment_cash_x": 100.0})
+    unlimited = sizing.size_portfolio(
+        ranked, profile, alloc, loose, realistic_loss_drop=cfg.risk.realistic_loss_drop
+    )
+    assert unlimited.totals.realistic_loss / profile.account_value > limits.max_portfolio_loss
+    t = port.totals
+    assert t.realistic_loss / profile.account_value <= limits.max_portfolio_loss + 1e-9
+    assignment = t.short_put_notional + t.leaps_cost
+    assert t.assignment_cash == pytest.approx(assignment)
+    assert assignment / profile.buying_power <= limits.max_assignment_cash_x + 1e-9
+    names = {c.name: c for c in rep.checks}  # type: ignore[attr-defined]
+    assert names["portfolio_loss"].passed and names["assignment_cash_x"].passed
+    assert names["portfolio_loss"].limit == limits.max_portfolio_loss
+
+
+def test_portfolio_limits_are_the_decided_numbers(world: dict[str, object]) -> None:
+    cfg: AppConfig = world["cfg"]  # type: ignore[assignment]
+    c = cfg.risk.constraints
+    assert [c[p].max_portfolio_loss for p in ("conservative", "balanced", "aggressive")] == [
+        0.15,
+        0.20,
+        0.30,
+    ]
+    assert {c[p].max_assignment_cash_x for p in c} == {1.0}
+
+
+def test_portfolio_limits_bind_in_the_sizer(world: dict[str, object]) -> None:
+    """With a tight total-loss limit the sizer stops filling and says which limit stopped it."""
+    cfg: AppConfig = world["cfg"]  # type: ignore[assignment]
+    profile = _profile(1_000_000, "aggressive", "margin")
+    ranked = _pipeline_ranked(world, profile)
+    alloc = allocate(profile, _REGIME, cfg.risk)
+    tight = cfg.risk.constraints["aggressive"].model_copy(update={"max_portfolio_loss": 0.05})
+    port = sizing.size_portfolio(
+        ranked, profile, alloc, tight, realistic_loss_drop=cfg.risk.realistic_loss_drop
+    )
+    assert port.totals.realistic_loss <= 0.05 * profile.account_value + 1e-6
+    assert any("portfolio loss" in s for s in port.skipped)
+    # and the assignment-cash limit, tightened, caps the cash every put would need
+    short = cfg.risk.constraints["aggressive"].model_copy(update={"max_assignment_cash_x": 0.2})
+    port2 = sizing.size_portfolio(
+        ranked, profile, alloc, short, realistic_loss_drop=cfg.risk.realistic_loss_drop
+    )
+    assert port2.totals.assignment_cash <= 0.2 * profile.buying_power + 1e-6
+    assert any("assignment cash" in s for s in port2.skipped)

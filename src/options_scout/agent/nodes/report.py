@@ -57,7 +57,7 @@ def render_markdown(rep: ScreeningReport) -> str:
         "## Regime and allocation",
         md.render_regime(rep.regime),
         "",
-        md.render_allocation(rep.allocation),
+        md.render_allocation(rep.allocation, rep.profile.account_type),
         "",
         "## Trend board (consumer trends)",
         md.render_trends(rep.trends),
@@ -83,7 +83,9 @@ def render_markdown(rep: ScreeningReport) -> str:
         (
             f"{WITHHELD_NOTICE} Reason codes: {', '.join(rep.withheld_reasons)}."
             if rep.withheld
-            else md.render_portfolio(rep.portfolio, rep.ranked, rep.risk.sizing_warnings)
+            else md.render_portfolio(
+                rep.portfolio, rep.ranked, rep.risk.sizing_warnings, rep.profile.account_type
+            )
         ),
         "",
         "## Risk",

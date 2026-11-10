@@ -22,7 +22,7 @@ A brokerage account comes in two basic forms. In a **cash account**, every purch
 
 ## Short puts in each account type
 
-In a cash account a short put must be **cash-secured**: the broker holds strike times 100, less the premium, for the life of the trade. In a margin account the same put can be written against the much smaller Reg T and FINRA requirement, leaving the rest of the account free. The second arrangement is often called a **naked put** and is not screened by this app. A $120 premium on a $50 strike put is 2.4% of $4,880 of cash collateral, but around 12% of a $1,000 margin requirement. The higher figure is not extra return; it is the same return with the risk of owing $5,000 on assignment against a far smaller reserve.
+In a cash account a short put must be **cash-secured**: the broker holds strike times 100, less the premium, for the life of the trade. In a margin account the same put can be written against the much smaller Reg T and FINRA requirement, leaving the rest of the account free. The second arrangement is often called a **naked put**. When the Setup tab records a margin account, this app sizes its short puts on that Reg T requirement, so they are naked puts and the report labels them that way; it also shows the cash every put would need if all were assigned, which a portfolio limit caps at the account's buying power. A $120 premium on a $50 strike put is 2.4% of $4,880 of cash collateral, but around 12% of a $1,000 margin requirement. The higher figure is not extra return; it is the same return with the risk of owing $5,000 on assignment against a far smaller reserve.
 
 ## What can go wrong
 

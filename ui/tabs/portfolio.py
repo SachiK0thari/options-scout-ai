@@ -5,6 +5,7 @@ from __future__ import annotations
 import pandas as pd
 import streamlit as st
 
+from options_scout.core import report as report_md
 from options_scout.core.compliance import WITHHELD_NOTICE
 from ui import charts, compute, session, theme
 from ui.session import CFG, md, money, pct
@@ -138,9 +139,13 @@ def render(view: session.View) -> None:
         theme.show(
             charts.allocation_donut(
                 {
-                    "Cash-secured puts": a.csp_dollars,
+                    report_md.put_bucket_label(prof.account_type): a.csp_dollars,
                     "LEAPS": a.leaps_dollars,
-                    "Cash reserve": a.cash_dollars,
+                    (
+                        "Unallocated buying power"
+                        if report_md.on_margin(prof.account_type)
+                        else "Cash reserve"
+                    ): a.cash_dollars,
                 }
             ),
             f"{prof.risk_profile} profile, {a.tilt.replace('_', ' ')} volatility tilt; buckets for "
@@ -158,6 +163,11 @@ def render(view: session.View) -> None:
                     [
                         {
                             "Candidate": p.candidate_id,
+                            "Type": (
+                                report_md.put_label(prof.account_type)
+                                if p.strategy == "csp"
+                                else p.strategy
+                            ),
                             "Contracts": p.contracts,
                             "Capital used": p.capital_used,
                             "Margin used": p.margin_used or None,
@@ -192,9 +202,16 @@ def render(view: session.View) -> None:
         )
         m3.metric("Net premium", money(t.premium_income))
         m4.metric(
-            "Reg T margin" if prof.account_type != "cash" else "Margin (cash account)",
+            report_md.margin_label(prof.account_type)
+            if prof.account_type != "cash"
+            else "Margin (cash account)",
             money(t.margin_used),
         )
+        n1, n2 = st.columns(2)
+        n1.metric(report_md.reserve_label(prof.account_type), money(t.cash_reserve))
+        n2.metric("Cash needed if every put is assigned", money(t.assignment_cash))
+        if prof.account_type == "portfolio_margin":
+            st.caption(report_md.PORTFOLIO_MARGIN_NOTE)
         if prof.account_type != "cash":
             st.caption(
                 md(

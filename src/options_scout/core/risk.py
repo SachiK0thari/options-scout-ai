@@ -52,7 +52,8 @@ def check_constraints(
             "margin_usage",
             t.margin_used / profile.buying_power,
             limits.max_margin_usage,
-            f"Reg T margin ${t.margin_used:,.0f} of buying power ${profile.buying_power:,.0f}",
+            f"margin (Reg T rules) ${t.margin_used:,.0f} of buying power "
+            f"${profile.buying_power:,.0f}",
         )
     worst_pos = max((p.realistic_loss for p in portfolio.positions), default=0.0)
     add(
@@ -75,6 +76,21 @@ def check_constraints(
         f"heaviest ticker {worst_t[0]}",
     )
     add("max_per_sector", worst_s[1] / av, limits.max_per_sector, f"heaviest sector {worst_s[0]}")
+    # W24: limits on the whole portfolio, not just each position, ticker and sector
+    add(
+        "portfolio_loss",
+        t.realistic_loss / av,
+        limits.max_portfolio_loss,
+        f"every position at -30% together: ${t.realistic_loss:,.0f} of ${av:,.0f}",
+    )
+    assignment = t.short_put_notional + t.leaps_cost
+    add(
+        "assignment_cash_x",
+        assignment / profile.buying_power,
+        limits.max_assignment_cash_x,
+        f"cash if every put is assigned plus LEAPS debits: ${assignment:,.0f} vs buying power "
+        f"${profile.buying_power:,.0f}",
+    )
     add(
         "dollar_delta_x",
         abs(t.dollar_delta) / av,
@@ -289,9 +305,17 @@ def build_risk_report(
                 )
     if profile.account_type != "cash" and portfolio.totals.margin_used > 0:
         warnings.append(
-            f"Margin account: Reg T requirement is ${portfolio.totals.margin_used:,.0f} but the "
-            f"loss at a -30% move is ${portfolio.totals.realistic_loss:,.0f}. Brokers can raise "
-            f"requirements at any time, especially in volatile markets."
+            f"Margin account: the puts are sized as naked puts on the Reg T requirement "
+            f"(${portfolio.totals.margin_used:,.0f}), but the loss at a -30% move is "
+            f"${portfolio.totals.realistic_loss:,.0f} and assignment of every put plus the LEAPS "
+            f"debits would need ${portfolio.totals.assignment_cash:,.0f} in cash. Brokers can "
+            f"raise requirements at any time, especially in volatile markets."
+            + (
+                " Sized with Reg T rules; your broker's risk-based (portfolio margin) "
+                "requirement will differ."
+                if profile.account_type == "portfolio_margin"
+                else ""
+            )
         )
     for p in portfolio.positions:
         c = candidates.get(p.candidate_id)

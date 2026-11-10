@@ -141,7 +141,11 @@ def test_both_strategies_fill_every_tab() -> None:
     assert any("ELF" in m.value for m in excluded.markdown)
     # Portfolio & Risk: positions, limit checks, margin caption
     labels = [m.label for m in at.metric]
-    assert "Positions sized" in labels and "Capital used" in labels and "Reg T margin" in labels
+    assert "Positions sized" in labels and "Capital used" in labels
+    # W24: on margin the puts are naked; no "cash reserve", and the assignment cash is shown
+    assert "Reg T margin used" in labels and "Unused buying power" in labels
+    assert "Cash needed if every put is assigned" in labels
+    assert "Cash kept in reserve" not in labels
     assert any("Margin account" in c.value for c in at.caption)
     checks = next(df for df in at.dataframe if "Check" in df.value.columns)
     assert len(checks.value) >= 5

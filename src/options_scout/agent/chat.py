@@ -363,6 +363,7 @@ def summary_numbers(rep: ScreeningReport, drop_pct: int = 30) -> dict[str, Any]:
         "passed": sum(1 for q in rep.quality if q.passed),
         "excluded": sum(1 for q in rep.quality if not q.passed),
         "cash_reserve": round(rep.portfolio.totals.cash_reserve),
+        "assignment_cash": round(rep.portfolio.totals.assignment_cash),
         "realistic_loss": round(rep.portfolio.totals.realistic_loss),
     }
 
@@ -373,8 +374,14 @@ def screen_summary(rep: ScreeningReport, drop_pct: int = 30) -> str:
         f"**Screen complete** (run `{rep.run_id}`). {n['passed']} underlying(s) passed the "
         f"good-to-own gate and {n['excluded']} were excluded; the screen found {n['csp']} "
         f"cash-secured put and {n['leaps']} LEAPS candidate(s) and sized {n['positions']} "
-        f"position(s), keeping {n['cash_reserve']:,} in reserve with a realistic loss of "
-        f"{n['realistic_loss']:,} at a {n['decline_pct']}% decline. See the Candidates and "
+        + (
+            f"position(s) as short puts on margin (naked), leaving {n['cash_reserve']:,} of "
+            f"buying power unused; assigning every put would need {n['assignment_cash']:,} in "
+            f"cash. The realistic loss is "
+            if rep.profile.account_type != "cash"
+            else f"position(s), keeping {n['cash_reserve']:,} in reserve with a realistic loss of "
+        )
+        + f"{n['realistic_loss']:,} at a {n['decline_pct']}% decline. See the Candidates and "
         f"Portfolio tabs for the tables and the Explanation for the cited narrative. Market data "
         f"is delayed.\n\n"
         f"{rep.disclaimer}"

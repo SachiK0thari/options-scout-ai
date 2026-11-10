@@ -1585,6 +1585,39 @@ notional cap stops the fill first. `portfolio_margin` is sized exactly like Reg 
 
 Suggested commit: `feat(risk): portfolio-level loss and assignment-cash limits; margin path labelled as naked puts`
 
+**Status, 2026-11-10:** done in the working tree, steps 1 to 7.
+- **New limits:** `Constraints.max_portfolio_loss` (0.15 / 0.20 / 0.30) and
+  `max_assignment_cash_x` (1.0 for all three profiles), as decided, are in `risk_profiles.yaml`.
+  They are two more caps in `_max_contracts` (`_Book` tracks the total loss and the assignment
+  cash), two terms in `min_account_for_one` and two checks (`portfolio_loss`,
+  `assignment_cash_x`). `PortfolioTotals.assignment_cash` is new.
+- **Effect on the fixtures:** the default 8-position cap keeps every run under both limits, so
+  the plan's 12-name rows do not reproduce as such. With `max_positions=50` the $1M runs lost 23%
+  (balanced) and 33% (aggressive) before the change and stop at 20% and 30% now. The tests use
+  that setting and show the uncapped run exceeding the limit. The assignment-cash cap does not
+  bind on the fixtures (0.64x at most); a tightened-limit test shows it binding.
+- **Step 4 (labels):** on a margin account positions read "short put on margin (naked)", the
+  allocation bucket "Short puts on margin (naked)" and "Held back (unallocated buying power)",
+  and the totals "Unused buying power" plus "Cash needed if every put is assigned (+ LEAPS
+  debits)". This holds in the Markdown report, the Portfolio and Setup tabs, the chat summary and
+  the margin warning.
+- **Step 5:** `portfolio_margin` is kept, labelled "Margin (Reg T rules; broker's requirement
+  differs)", with the note "Sized with Reg T rules; your broker's risk-based (portfolio margin)
+  requirement will differ" in the report, the Portfolio tab, the margin warning and the Setup
+  help.
+- **Step 6:** the margin-usage limits are kept and documented in PRD 3.2, `config.py` and the
+  yaml as unable to bind while the assignment figure is 1.0x, and as the binding limit for an
+  assignment figure above 1.0x.
+- **Step 7:** the three "not screened" sentences in `basics/cash_vs_margin_accounts.md`,
+  `tax/account_types_for_options.md` and `tax/reg_t_vs_portfolio_margin.md` are corrected (this
+  covers the matching row of W26). PRD 3.2 holds the table rows and the policy, and `make index`
+  regenerated `knowledge/rules/constraints.md`.
+
+Tests: three new ones in `test_ranking_sizing_risk.py`; the existing never-violates property
+test now covers both limits through `check_constraints`. The UI test checks the new labels. The
+golden report was re-recorded (labels, two checks, assignment line). Full suite passes; mypy
+unchanged at 28.
+
 ---
 
 ### W25. Smaller math defects

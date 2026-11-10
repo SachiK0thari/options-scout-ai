@@ -150,7 +150,7 @@ def render_demo(cfg: AppConfig, profile: UserProfile, out: dict[str, Any]) -> st
         report.render_regime(out["regime"]),
         "",
         "### Allocation",
-        report.render_allocation(out["allocation"]),
+        report.render_allocation(out["allocation"], profile.account_type),
         "",
         "### Good-to-own quality screen",
         report.render_quality(out["quality"]),
@@ -162,7 +162,9 @@ def render_demo(cfg: AppConfig, profile: UserProfile, out: dict[str, Any]) -> st
         report.render_leaps(out["leaps"], out["pairs"]),
         "",
         "### Sized portfolio",
-        report.render_portfolio(out["portfolio"], out["ranked"], out["risk"].sizing_warnings),
+        report.render_portfolio(
+            out["portfolio"], out["ranked"], out["risk"].sizing_warnings, profile.account_type
+        ),
         "",
         "### Risk",
         report.render_risk(out["risk"]),

@@ -51,9 +51,16 @@ class _Book:
         self.premium = 0.0
         self.tickers_by_strategy: set[tuple[str, str]] = set()
         self.csp_notional_by_ticker: dict[str, float] = {}  # for the concentration constraint
+        self.total_loss = 0.0  # W24: the whole portfolio's realistic loss
+
+    @property
+    def assignment_cash(self) -> float:
+        """W24: cash needed if every put is assigned (the full notional), plus LEAPS debits."""
+        return self.notional + self.leaps_capital
 
     def add(self, p: SizedPosition) -> None:
         self.positions.append(p)
+        self.total_loss += p.realistic_loss
         self.by_ticker_loss[p.ticker] = self.by_ticker_loss.get(p.ticker, 0.0) + p.realistic_loss
         self.by_sector_loss[p.sector] = self.by_sector_loss.get(p.sector, 0.0) + p.realistic_loss
         if p.strategy == "csp":
@@ -125,6 +132,15 @@ def _max_contracts(
             "dollar delta",
         ),
         (MAX_CONTRACTS_PER_POSITION, "position cap"),
+        # W24: a correlated fall hits every position at once, so the total is a limit too
+        (_floor_div(limits.max_portfolio_loss * av - book.total_loss, loss), "portfolio loss"),
+        (
+            _floor_div(
+                limits.max_assignment_cash_x * profile.buying_power - book.assignment_cash,
+                notional if is_csp else capital,
+            ),
+            "assignment cash",
+        ),
     ]
     if is_csp:
         caps.append(
@@ -178,6 +194,8 @@ def min_account_for_one(
         loss / limits.max_exposure_per_ticker,
         loss / limits.max_per_sector,
         abs(ddelta) / limits.max_dollar_delta_x,
+        loss / limits.max_portfolio_loss,
+        (notional if is_csp else capital) / limits.max_assignment_cash_x,
     ]
     if is_csp:
         needs.append(notional / limits.max_short_put_notional_x)
@@ -427,6 +445,7 @@ def size_portfolio(
         dollar_delta=book.dollar_delta,
         premium_income=book.premium,
         cash_reserve=max(profile.buying_power - capital_used, 0.0),
+        assignment_cash=book.assignment_cash,
         buying_power_used_pct=capital_used / profile.buying_power if profile.buying_power else 0.0,
     )
     return SizedPortfolio(

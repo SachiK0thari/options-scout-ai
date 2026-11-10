@@ -250,11 +250,18 @@ class RegimeTilt(_Strict):
 
 class Constraints(_Strict):
     max_short_put_notional_x: float
+    # Reg T requirement / buying power (margin accounts). With max_assignment_cash_x at 1.0 the
+    # requirement (15-20% of notional) cannot reach these figures; they are kept as the binding
+    # limit for when an assignment-cash figure above 1.0 (leverage) is chosen deliberately (W24)
     max_margin_usage: float
     max_loss_per_position: float
     max_exposure_per_ticker: float
     max_per_sector: float
     max_dollar_delta_x: float
+    # W24 (decided 2026-11-09): the whole portfolio's realistic loss at the -30% shock / account
+    # value, and the cash needed if every put is assigned plus the LEAPS debits / buying power
+    max_portfolio_loss: float = Field(gt=0.0, le=1.0)
+    max_assignment_cash_x: float = Field(gt=0.0)
     # Phase 12 (12.4), the seventh constraint: a ticker's share of (holdings + buying power) after
     # a cash-secured put on it is assigned; applied only when the user entered holdings.
     max_ticker_concentration_after_assignment: float = Field(default=1.0, gt=0.0, le=1.0)

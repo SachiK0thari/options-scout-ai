@@ -295,8 +295,11 @@ class PortfolioTotals(Model):
     realistic_loss: float = Field(ge=0)
     dollar_delta: float
     premium_income: float
+    # buying power not used. In a cash account this is cash; on margin it is unused buying power,
+    # not a reserve: the puts may still need their full notional in cash on assignment
     cash_reserve: float = Field(ge=0)
     buying_power_used_pct: float = Field(ge=0)
+    assignment_cash: float = Field(default=0.0, ge=0)  # W24: every put assigned + LEAPS debits
 
 
 class SkipDetail(Model):

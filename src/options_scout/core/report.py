@@ -55,13 +55,50 @@ def render_regime(r: MarketRegime) -> str:
     )
 
 
-def render_allocation(a: AllocationPlan) -> str:
+# ------------------------------------------------- W24: what the margin path actually is
+PORTFOLIO_MARGIN_NOTE = (
+    "Sized with Reg T rules; your broker's risk-based (portfolio margin) requirement will differ."
+)
+
+
+def on_margin(account_type: str) -> bool:
+    return account_type != "cash"
+
+
+def put_label(account_type: str) -> str:
+    """A short put in a cash account is cash-secured; on margin it is sized on the Reg T
+    requirement, which is a naked put (W24)."""
+    return "short put on margin (naked)" if on_margin(account_type) else "cash-secured put"
+
+
+def put_bucket_label(account_type: str) -> str:
+    return "Short puts on margin (naked)" if on_margin(account_type) else "CSP collateral"
+
+
+def reserve_label(account_type: str) -> str:
+    """Unused buying power is cash only in a cash account."""
+    return "Unused buying power" if on_margin(account_type) else "Cash reserve"
+
+
+def margin_label(account_type: str) -> str:
+    if account_type == "portfolio_margin":
+        return "Margin (Reg T rules; broker's requirement differs)"
+    return "Reg T margin used"
+
+
+def render_allocation(a: AllocationPlan, account_type: str = "cash") -> str:
     table = _table(
         ["Bucket", "Share", "Dollars"],
         [
-            ["CSP collateral", pct(a.csp_pct, 0), money(a.csp_dollars)],
+            [put_bucket_label(account_type), pct(a.csp_pct, 0), money(a.csp_dollars)],
             ["LEAPS / PMCC", pct(a.leaps_pct, 0), money(a.leaps_dollars)],
-            ["Cash reserve", pct(a.cash_pct, 0), money(a.cash_dollars)],
+            [
+                "Held back (unallocated buying power)"
+                if on_margin(account_type)
+                else "Cash reserve",
+                pct(a.cash_pct, 0),
+                money(a.cash_dollars),
+            ],
         ],
     )
     return table + "\n\n" + "\n".join(f"- {line}" for line in a.rationale)
@@ -350,6 +387,7 @@ def render_portfolio(
     port: SizedPortfolio,
     ranked: Sequence[RankedCandidate] | None = None,
     warnings: Sequence[str] = (),
+    account_type: str = "cash",
 ) -> str:
     """The sized positions, led by the sizer's warnings (W6: one-stock portfolio, ranking not
     followed, account too small), then totals and the skipped candidates with the account size
@@ -366,7 +404,7 @@ def render_portfolio(
         rows = [
             [
                 p.candidate_id,
-                p.strategy,
+                put_label(account_type) if p.strategy == "csp" else p.strategy,
                 str(p.contracts),
                 f"{p.strike:g}",
                 p.expiry.isoformat(),
@@ -406,14 +444,17 @@ def render_portfolio(
                 "Capital used",
                 f"{money(t.capital_used)} ({pct(t.buying_power_used_pct, 0)} of buying power)",
             ],
-            ["Reg T margin used", money(t.margin_used)],
+            [margin_label(account_type), money(t.margin_used)],
             ["LEAPS net debit", money(t.leaps_cost)],
             ["Loss at -30% (all positions)", money(t.realistic_loss)],
             ["Net dollar delta", f"{t.dollar_delta:,.0f}"],
             ["Net premium (income − debits)", f"{t.premium_income:,.0f}"],
-            ["Cash reserve", money(t.cash_reserve)],
+            [reserve_label(account_type), money(t.cash_reserve)],
+            ["Cash needed if every put is assigned (+ LEAPS debits)", money(t.assignment_cash)],
         ],
     )
+    if account_type == "portfolio_margin":
+        totals += f"\n\n_{PORTFOLIO_MARGIN_NOTE}_"
     skipped = ""
     if port.skipped:
         shown = port.skipped[:8]

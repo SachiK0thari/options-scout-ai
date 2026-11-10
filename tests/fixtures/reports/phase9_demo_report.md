@@ -11,9 +11,9 @@ VIX 17.51 (57th percentile, normal), risk-free rate 4.04% (fixture data).
 
 | Bucket | Share | Dollars |
 |---|---|---|
-| CSP collateral | 45% | $45,000 |
+| Short puts on margin (naked) | 45% | $45,000 |
 | LEAPS / PMCC | 25% | $25,000 |
-| Cash reserve | 30% | $30,000 |
+| Held back (unallocated buying power) | 30% | $30,000 |
 
 - balanced profile baseline: CSP 45%, LEAPS/PMCC 25%, cash reserve 30%.
 - VIX 17.51 sits at the 57th percentile of its last year (normal).
@@ -179,7 +179,7 @@ _Headlines never change the ranking; they flag what to read before trading._
 
 | Candidate | Strategy | Contracts | Strike | Expiry | Capital | Margin | Loss @ -30% | $ delta | Premium | Score | PMCC short call |
 |---|---|---|---|---|---|---|---|---|---|---|---|
-| CSP-NKE-2026-11-20-35P | csp | 3 | 35 | 2026-11-20 | $1,655 | $1,655 | $2,443 | 2,630 | 169 | 0.58 | n/a |
+| CSP-NKE-2026-11-20-35P | short put on margin (naked) | 3 | 35 | 2026-11-20 | $1,655 | $1,655 | $2,443 | 2,630 | 169 | 0.58 | n/a |
 | LEAPS-NKE-2028-12-15-20C | leaps | 1 | 20 | 2028-12-15 | $1,808 | n/a | $1,808 | 1,884 | -1,808 | 0.52 | PMCCSC-NKE-2026-11-20-40C |
 
 | Metric | Value |
@@ -191,7 +191,8 @@ _Headlines never change the ranking; they flag what to read before trading._
 | Loss at -30% (all positions) | $4,251 |
 | Net dollar delta | 4,515 |
 | Net premium (income − debits) | -1,639 |
-| Cash reserve | $96,536 |
+| Unused buying power | $96,536 |
+| Cash needed if every put is assigned (+ LEAPS debits) | $12,308 |
 
 <details><summary>Skipped candidates (12)</summary>
 
@@ -217,6 +218,8 @@ _Headlines never change the ranking; they flag what to read before trading._
 | max_loss_per_position | 0.024 | 0.030 | PASS |
 | max_exposure_per_ticker | 0.043 | 0.080 | PASS |
 | max_per_sector | 0.043 | 0.300 | PASS |
+| portfolio_loss | 0.043 | 0.200 | PASS |
+| assignment_cash_x | 0.123 | 1.000 | PASS |
 | dollar_delta_x | 0.045 | 1.000 | PASS |
 
 **Stress test (instant move, each leg repriced with BSM before and after; the IV shock is the figure for a 30-day option and shrinks as √(30 / DTE) for longer-dated legs):**
@@ -232,7 +235,7 @@ _Headlines never change the ranking; they flag what to read before trading._
 - ⚠️ Only $3,464 of the $70,000 set aside for the requested strategies is used (5%); the rest stays in cash.
 - ⚠️ CSP-NKE-2026-11-20-35P: IV rank is an HV proxy (fewer than 30 IV snapshots stored).
 - ⚠️ LEAPS-NKE-2028-12-15-20C: IV rank is an HV proxy (fewer than 30 IV snapshots stored).
-- ⚠️ Margin account: Reg T requirement is $1,655 but the loss at a -30% move is $4,251. Brokers can raise requirements at any time, especially in volatile markets.
+- ⚠️ Margin account: the puts are sized as naked puts on the Reg T requirement ($1,655), but the loss at a -30% move is $4,251 and assignment of every put plus the LEAPS debits would need $12,308 in cash. Brokers can raise requirements at any time, especially in volatile markets.
 
 ## Explanation
 **Allocation.** With 100000 of buying power in a margin account and a balanced profile, the plan sets aside 45000 for cash-secured put collateral, 25000 for LEAPS/PMCC and keeps 30000 in reserve. The VIX reading of 17.51 sits at the 57 percentile of its past year, so the regime is normal and the tilt applied was "none".
@@ -251,9 +254,9 @@ _Headlines never change the ranking; they flag what to read before trading._
 
 **Sized positions.** CSP-NKE-2026-11-20-35P: 3 contract(s) of the csp with strike 35.0 expiring 2026-11-20, using 1655 of capital with a realistic loss of 2443 if the underlying falls 30%. Breakeven at expiry 34.44, maximum loss 10330. LEAPS-NKE-2028-12-15-20C: 1 contract(s) of the leaps with strike 20.0 expiring 2028-12-15, using 1808 of capital with a realistic loss of 1808 if the underlying falls 30%. Breakeven at expiry 38.09, maximum loss 1808. It is paired with short call PMCCSC-NKE-2026-11-20-40C.
 
-**Risk.** 6 of 6 constraint checks pass. Stress test with an instant move and an IV shock: a -10% move gives -876; a -20% move gives -1901; a -30% move gives -3176. The combined loss at a 30% drop across all positions is 4251.
+**Risk.** 8 of 8 constraint checks pass. Stress test with an instant move and an IV shock: a -10% move gives -876; a -20% move gives -1901; a -30% move gives -3176. The combined loss at a 30% drop across all positions is 4251.
 
-**Warnings and limitations.** Every sized position is on NKE, so this is a one-stock portfolio even though the limits passed. The 2 highest-ranked underlying(s) (SPY, QQQ) did not fit this account size. The smallest account at which the top-ranked CSP-SPY-2026-11-30-735P fits is $640,477. Only $3,464 of the $70,000 set aside for the requested strategies is used (5%); the rest stays in cash. CSP-NKE-2026-11-20-35P: IV rank is an HV proxy (fewer than 30 IV snapshots stored). LEAPS-NKE-2028-12-15-20C: IV rank is an HV proxy (fewer than 30 IV snapshots stored). Margin account: Reg T requirement is $1,655 but the loss at a -30% move is $4,251. Brokers can raise requirements at any time, especially in volatile markets.
+**Warnings and limitations.** Every sized position is on NKE, so this is a one-stock portfolio even though the limits passed. The 2 highest-ranked underlying(s) (SPY, QQQ) did not fit this account size. The smallest account at which the top-ranked CSP-SPY-2026-11-30-735P fits is $640,477. Only $3,464 of the $70,000 set aside for the requested strategies is used (5%); the rest stays in cash. CSP-NKE-2026-11-20-35P: IV rank is an HV proxy (fewer than 30 IV snapshots stored). LEAPS-NKE-2028-12-15-20C: IV rank is an HV proxy (fewer than 30 IV snapshots stored). Margin account: the puts are sized as naked puts on the Reg T requirement ($1,655), but the loss at a -30% move is $4,251 and assignment of every put plus the LEAPS debits would need $12,308 in cash. Brokers can raise requirements at any time, especially in volatile markets.
 
 Market data is delayed and Greeks are model-derived; these are screened candidates that meet the configured criteria, not recommendations.
 
@@ -270,7 +273,7 @@ Educational screening tool. Not investment, tax or legal advice. Options involve
 ## Compliance
 PASS · audit `<audit_id>` · report · attempt 1
 
-- ✓ `check_numbers`: 63 numbers checked, all grounded
+- ✓ `check_numbers`: 64 numbers checked, all grounded
 - ✓ `check_citations`: 3 tag(s) resolve to retrieved sources
 - ✓ `check_education_only`: education paragraphs carry no run data; short options show their loss
 - ✓ `check_suitability`: suits the profile
@@ -283,7 +286,7 @@ PASS · audit `<audit_id>` · report · attempt 1
 - ✓ `tax_reply`: no tax reply to check
 
 ## Verification
-PASS: 63 numbers checked, 0 ungrounded, banned phrases: none, disclaimer present, citations 3 checked / 0 unknown, attempts 1.
+PASS: 64 numbers checked, 0 ungrounded, banned phrases: none, disclaimer present, citations 3 checked / 0 unknown, attempts 1.
 
 ## Run metadata
 - Models: {"extraction": "deepseek/deepseek-v4.1-flash", "explanation": "deepseek/deepseek-v4.1-flash", "provider": "fixture"}

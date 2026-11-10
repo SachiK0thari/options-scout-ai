@@ -47,7 +47,11 @@ def _form() -> tuple[dict[str, object] | None, str, str, bool]:
                 ["cash", "margin", "portfolio_margin"],
                 index=0,
                 key="acct",
-                help="Cash: puts are fully cash-secured. Margin: Reg T margin is shown alongside.",
+                help=(
+                    "Cash: puts are fully cash-secured. Margin: puts are sized on the Reg T "
+                    "requirement, which makes them naked puts. Portfolio margin is sized with "
+                    "Reg T rules too; your broker's requirement will differ."
+                ),
             )
             risk_profile = a2.selectbox(
                 "Risk appetite", ["conservative", "balanced", "aggressive"], index=0, key="risk"
@@ -196,7 +200,10 @@ def render(view: session.View) -> None:
     m[1].metric("CSP candidates", len(report.csp_candidates) if view.show_csp else "n/a")
     m[2].metric("LEAPS candidates", len(report.leaps_candidates) if view.show_leaps else "n/a")
     m[3].metric("Positions sized", len(report.portfolio.positions))
-    m[4].metric("Cash kept in reserve", money(report.portfolio.totals.cash_reserve))
+    m[4].metric(
+        "Unused buying power" if prof.account_type != "cash" else "Cash kept in reserve",
+        money(report.portfolio.totals.cash_reserve),
+    )
     st.success(
         "Screen complete. The **Quality Screen**, **Candidates**, **Portfolio & Risk**, **Trends** "
         "and **Under the hood** tabs hold the tables and charts; ask follow-up questions on **Scout**."

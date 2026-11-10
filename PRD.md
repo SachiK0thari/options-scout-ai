@@ -93,10 +93,24 @@ The web page asks for exactly three things: **buying power**, **CSP / LEAPS / bo
 | Max exposure per ticker (risk terms) | 5% | 8% | 10% |
 | Max per sector | 25% | 30% | 35% |
 | Max total dollar delta / account value | 0.8x | 1.0x | 1.5x |
+| Max total realistic loss at −30% (all positions together) / account value | 15% | 20% | 30% |
+| Max cash needed if every put is assigned, plus LEAPS debits / buying power | 1.0x | 1.0x | 1.0x |
 
 - "Realistic loss" for a CSP = loss if the stock drops 30% at expiry. For a LEAPS = full premium paid.
 - Cash accounts: margin constraints do not apply, and CSP collateral = full cash-secured amount.
 - Same ticker in a CSP and a PMCC: combined exposure counts against the per-ticker cap.
+- **Portfolio limits (decided 2026-11-09, W24).** The per-position, per-ticker and per-sector caps
+  do not bound a correlated fall, so the whole portfolio's loss at −30% is capped too, and so is
+  the cash needed on full assignment. The assignment figure is 1.0x for every profile: above 1.0
+  is leverage, and the aggressive figure is to be raised only deliberately.
+- **Margin accounts are naked puts.** On a margin account a short put is sized on the Reg T
+  requirement, not on full cash, which is what a naked put is. The report and UI say "short put
+  on margin (naked)", show unused buying power instead of a cash reserve, and show the cash
+  needed if every put is assigned. With the assignment limit at 1.0x the margin-usage limits
+  (30/40/50% of buying power) cannot bind, because the Reg T requirement is 15–20% of notional;
+  they remain as the binding limit for an assignment figure above 1.0x.
+- **Portfolio margin** is sized with the same Reg T rules and labelled "sized with Reg T rules;
+  your broker's risk-based requirement will differ".
 
 **When the ranking and the limits disagree (decided 2026-11-09, W6).** The loss cap is a dollar
 amount per contract, so on a small account it selects by share price: the best-ranked names can

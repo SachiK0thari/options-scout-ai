@@ -14,11 +14,13 @@ regime_tilt:
 constraints:
   conservative:
     max_short_put_notional_x: 1.0     # strike*100*contracts / account value
-    max_margin_usage: 0.30            # of buying power (margin accounts only)
+    max_margin_usage: 0.30            # Reg T requirement / buying power (margin accounts); cannot bind while max_assignment_cash_x is 1.0
     max_loss_per_position: 0.02       # realistic loss / account value
     max_exposure_per_ticker: 0.05     # realistic loss per ticker / account value
     max_per_sector: 0.25              # realistic loss per sector / account value
     max_dollar_delta_x: 0.8           # total dollar delta / account value
+    max_portfolio_loss: 0.15          # W24: total realistic loss at -30% / account value
+    max_assignment_cash_x: 1.0        # cash on full assignment + LEAPS debits / buying power (>1.0 = leverage)
     max_ticker_concentration_after_assignment: 0.25  # (holdings + assigned shares) / (holdings + buying power); only with holdings
   balanced:
     max_short_put_notional_x: 1.0
@@ -27,6 +29,8 @@ constraints:
     max_exposure_per_ticker: 0.08
     max_per_sector: 0.30
     max_dollar_delta_x: 1.0
+    max_portfolio_loss: 0.20
+    max_assignment_cash_x: 1.0
     max_ticker_concentration_after_assignment: 0.30
   aggressive:
     max_short_put_notional_x: 1.5
@@ -35,6 +39,8 @@ constraints:
     max_exposure_per_ticker: 0.10
     max_per_sector: 0.35
     max_dollar_delta_x: 1.5
+    max_portfolio_loss: 0.30
+    max_assignment_cash_x: 1.0
     max_ticker_concentration_after_assignment: 0.40
 
 # W6: what the sizer reports about the candidates it could not size (PRD 3.2)
