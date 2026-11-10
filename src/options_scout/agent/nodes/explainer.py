@@ -265,7 +265,8 @@ def build_explain_payload(
                 }
                 for s in risk.stress
             ],
-            "warnings": risk.warnings,
+            "warnings": risk.warnings,  # W6: the sizing warnings come first
+            "sizing_flags": risk.sizing_flags,
         },
         "errors": state.get("errors", [])[:8],
         "disclaimer": disclaimer,

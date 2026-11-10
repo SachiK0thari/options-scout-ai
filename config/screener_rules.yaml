@@ -6,6 +6,7 @@ csp:
   # the nearest expiry inside this wider window is allowed and flagged `dte_outside_preferred`.
   dte_fallback_min: 21
   dte_fallback_max: 60
+  fallback_tie_days: 3    # fallback expiries this close to the nearest are a tie: more open interest, then longer, wins
   delta_min: 0.15
   delta_max: 0.30
   min_open_interest: 500

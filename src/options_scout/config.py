@@ -260,11 +260,24 @@ class Constraints(_Strict):
     max_ticker_concentration_after_assignment: float = Field(default=1.0, gt=0.0, le=1.0)
 
 
+class SizingReporting(_Strict):
+    """W6: how the sizer reports what it left behind (``reporting:`` in risk_profiles.yaml)."""
+
+    # the ranking is judged on its best N distinct underlyings, not N strikes of one name
+    top_tickers: int = Field(default=5, ge=1)
+    # policy B (decided 2026-11-09): when no candidate on those N underlyings fits, size nothing
+    # and say the account is too small, instead of filling it with lower-ranked leftovers
+    require_top_ranked: bool = True
+    # capital used below this share of the requested strategy buckets is reported
+    low_deployment_pct: float = Field(default=0.5, ge=0.0, le=1.0)
+
+
 class RiskProfiles(_Strict):
     allocation: dict[RiskProfileName, AllocationSplit]
     regime_tilt: RegimeTilt
     constraints: dict[RiskProfileName, Constraints]
     realistic_loss_drop: float = Field(gt=0, lt=1)
+    reporting: SizingReporting = Field(default_factory=SizingReporting)
 
 
 # -------------------------------------------------------------------- screener_rules.yaml
@@ -273,6 +286,9 @@ class CSPRules(_Strict):
     dte_max: int
     dte_fallback_min: int
     dte_fallback_max: int
+    # W6 step 8: fallback expiries within this many days of the closest are a near tie, settled
+    # by open interest and then the longer expiry (not by one day of distance)
+    fallback_tie_days: int = Field(default=3, ge=0)
     delta_min: float
     delta_max: float
     min_open_interest: int

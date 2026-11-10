@@ -36,11 +36,21 @@ def make(deps: Deps) -> Callable[[AgentState], dict[str, Any]]:
             account_value=profile.account_value,
         )
         report = risk_core.build_risk_report(
-            portfolio, profile, limits, stress, cands, state.get("holdings_analysis")
+            portfolio,
+            profile,
+            limits,
+            stress,
+            cands,
+            state.get("holdings_analysis"),
+            ranked=state.get("ranked", []),
+            allocation=state.get("allocation"),
+            reporting=deps.cfg.risk.reporting,
         )
         out: dict[str, Any] = {
             "risk": report,
-            "suitability_facts": risk_core.suitability_facts(portfolio, profile, limits, cands),
+            "suitability_facts": risk_core.suitability_facts(
+                portfolio, profile, limits, cands, report
+            ),
         }
         if not report.passed:
             n = int((state.get("retries") or {}).get("sizing", 0)) + 1

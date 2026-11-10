@@ -405,10 +405,19 @@ _EASING_WORDS = re.compile(r"\b(?:easing|weakening|new supply)\b|bottleneck_easi
 
 
 # Suitability codes that describe the sized portfolio itself. A rewrite of the narrative cannot
-# change them, so a run that fails on one is withheld at once (W12). The one text-only code,
-# ``earnings_unflagged_conservative``, is fixed by saying "earnings" in the sentence, so it
-# keeps the normal retry.
-TEXT_SUITABILITY_CODES = frozenset({"earnings_unflagged_conservative"})
+# change them, so a run that fails on one is withheld at once (W12). Every other code is about
+# wording (a flag the text must state, language it must not use) and keeps the normal retry; an
+# explicit list of fact codes means a new code defaults to the retry, never to withholding.
+FACT_SUITABILITY_CODES = frozenset(
+    {
+        "margin_on_cash",
+        "loss_over_limit",
+        "too_many_positions",
+        "pmcc_without_leaps",
+        "buying_power_below_minimum",
+    }
+)
+_ONE_STOCK = re.compile(r"\b(?:one|single)[- ](?:stock|name|underlying|ticker)\b", re.IGNORECASE)
 WITHHELD_NOTICE = "This screen was withheld: the sized portfolio does not suit the stated account."
 
 
@@ -419,7 +428,7 @@ def fact_suitability_codes(report: ComplianceReport | None) -> list[str]:
     out: list[str] = []
     for c in report.checks:
         if c.name == "check_suitability" and not c.passed:
-            out += [code for code in c.locations if code not in TEXT_SUITABILITY_CODES]
+            out += [code for code in c.locations if code in FACT_SUITABILITY_CODES]
     return list(dict.fromkeys(out))
 
 
@@ -511,6 +520,34 @@ def suitability_problems(
                     )
                 )
                 break
+    # W6: what the sizer left behind must be said, not hidden behind "all constraints pass"
+    low = text.lower()
+    if facts.account_too_small and "too small" not in low:
+        out.append(
+            (
+                "account_too_small_unstated",
+                "nothing was sized because the account is too small for the top-ranked "
+                "underlyings, but the text does not say the account is too small",
+            )
+        )
+    if facts.single_ticker and not any(
+        facts.single_ticker in s and _ONE_STOCK.search(s) for s in _sentences(text)
+    ):
+        out.append(
+            (
+                "single_name_unstated",
+                f"every sized position is on {facts.single_ticker} but no sentence names it as a "
+                "one-stock (single-name) portfolio",
+            )
+        )
+    if facts.ranking_not_followed and "did not fit" not in low:
+        out.append(
+            (
+                "ranking_not_followed_unstated",
+                "higher-ranked underlyings did not fit this account size and the text does not "
+                "say they did not fit",
+            )
+        )
     if (
         cfg.suitability.reject_naked_language_on_cash
         and facts.account_type == "cash"

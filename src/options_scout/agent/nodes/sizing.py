@@ -26,6 +26,7 @@ def make(deps: Deps) -> Callable[[AgentState], dict[str, Any]]:
             scale=RETRY_SHRINK**attempt,
             attempt=attempt + 1,
             holdings=state.get("holdings_analysis"),
+            reporting=deps.cfg.risk.reporting,
         )
         return {"portfolio": portfolio}
 

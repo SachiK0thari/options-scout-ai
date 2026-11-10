@@ -496,3 +496,216 @@ def test_stress_golden_numbers() -> None:
     # an up move carries no vol shock and the long call gains
     assert _stress(call, shocks=[0.10], iv_shock=0.5)[0.10] > 0
     assert math.isclose(risk.tenor_scale(365, 30), math.sqrt(30 / 365))
+
+
+# --------------------------------------------------------------- W6: the sizer explains itself
+_REGIME = MarketRegime(
+    vix=18, vix_percentile=40, risk_free_rate=0.04, label="normal", as_of=datetime(2026, 10, 27)
+)
+
+
+def _profile(bp: float, risk_name: str = "balanced", account: str = "cash") -> UserProfile:
+    return UserProfile(
+        buying_power=bp,
+        account_value=bp,
+        account_type=account,  # type: ignore[arg-type]
+        risk_profile=risk_name,  # type: ignore[arg-type]
+    )
+
+
+def _rank_neutral(world: dict[str, object]) -> list[RankedCandidate]:
+    """The ranking with no social or quality input, as a run without trend data ranks."""
+    cfg: AppConfig = world["cfg"]  # type: ignore[assignment]
+    return ranking.rank_candidates(
+        world["cands"],  # type: ignore[arg-type]
+        {},
+        {},
+        weights=cfg.settings.ranking.weights,
+        option_weights=cfg.settings.ranking.option_quality_weights,
+        rules=cfg.rules,
+        pmcc_pairs=world["pairs"],  # type: ignore[arg-type]
+    )
+
+
+def _size(
+    world: dict[str, object],
+    profile: UserProfile,
+    ranked: list[RankedCandidate] | None = None,
+    reporting: object = None,
+) -> tuple[SizedPortfolio, object]:
+    cfg: AppConfig = world["cfg"]  # type: ignore[assignment]
+    ranked = _rank_neutral(world) if ranked is None else ranked
+    alloc = allocate(profile, _REGIME, cfg.risk)
+    limits = cfg.risk.constraints[profile.risk_profile]
+    port = sizing.size_portfolio(
+        ranked,
+        profile,
+        alloc,
+        limits,
+        realistic_loss_drop=cfg.risk.realistic_loss_drop,
+        reporting=reporting,  # type: ignore[arg-type]
+    )
+    rep = risk.build_risk_report(
+        port,
+        profile,
+        limits,
+        [],
+        {r.candidate.id: r.candidate for r in ranked},
+        ranked=ranked,
+        allocation=alloc,
+        reporting=reporting or cfg.risk.reporting,  # type: ignore[arg-type]
+    )
+    return port, rep
+
+
+def _pipeline_ranked(world: dict[str, object], profile: UserProfile) -> list[RankedCandidate]:
+    """The ranking the real deterministic pipeline produces (quality scores included)."""
+    from options_scout.cli import run_deterministic_pipeline
+
+    cfg: AppConfig = world["cfg"]  # type: ignore[assignment]
+    out = run_deterministic_pipeline(cfg, profile, list(DEMO_TICKERS), md=world["md"])  # type: ignore[arg-type]
+    return list(out["ranked"])
+
+
+def _spy_750p(world: dict[str, object]) -> RankedCandidate:
+    return next(
+        r
+        for r in _rank(world)
+        if r.candidate.ticker == "SPY"
+        and r.candidate.strategy == "csp"
+        and r.candidate.strike == 750
+    )
+
+
+def test_a_skipped_spy_750_put_reports_the_account_it_needs(world: dict[str, object]) -> None:
+    spy = _spy_750p(world)
+    assert spy.candidate.spot == pytest.approx(769.66) and spy.candidate.mid == pytest.approx(6.21)
+    port, _rep = _size(world, _profile(100_000), [spy])
+    assert not port.positions
+    (d,) = port.skipped_detail
+    assert d.candidate_id == spy.candidate.id and d.rank == spy.rank
+    assert d.per_contract_loss == pytest.approx(20_503, abs=1)
+    # the per-position loss cap binds: 20,503 / 3% for a balanced profile
+    assert d.min_account_value == pytest.approx(20_502.8 / 0.03, abs=2)
+
+
+@settings(max_examples=40, deadline=None)
+@given(
+    idx=st.integers(min_value=0, max_value=10_000),
+    risk_name=st.sampled_from(["conservative", "balanced", "aggressive"]),
+    account=st.sampled_from(["cash", "margin"]),
+)
+def test_the_reported_minimum_account_sizes_one_contract(
+    world: dict[str, object], idx: int, risk_name: str, account: str
+) -> None:
+    """Property: at the reported minimum, with the candidate first, at least one contract fits."""
+    ranked = _rank(world)
+    r = ranked[idx % len(ranked)]
+    port, _ = _size(world, _profile(5_000, risk_name, account), [r])
+    if port.positions:
+        return  # it already fits a $5,000 account
+    (d,) = port.skipped_detail
+    if d.min_account_value is None:
+        return
+    again, _ = _size(world, _profile(d.min_account_value, risk_name, account), [r])
+    assert again.positions and again.positions[0].contracts >= 1, (r.candidate.id, d)
+
+
+def test_single_name_and_ranking_warnings_at_100k(world: dict[str, object]) -> None:
+    cfg: AppConfig = world["cfg"]  # type: ignore[assignment]
+    ranked = _pipeline_ranked(world, _profile(100_000))
+    port, rep = _size(world, _profile(100_000), ranked, reporting=cfg.risk.reporting)
+    tickers = {p.ticker for p in port.positions}
+    assert len(tickers) == 1 and not port.account_too_small
+    (name,) = tickers
+    assert "single_name_portfolio" in rep.sizing_flags  # type: ignore[attr-defined]
+    assert "ranking_not_followed" in rep.sizing_flags  # type: ignore[attr-defined]
+    texts = " ".join(rep.sizing_warnings)  # type: ignore[attr-defined]
+    assert f"Every sized position is on {name}" in texts and "did not fit" in texts
+    assert rep.top_ranked_fits_from and rep.top_ranked_fits_from > 100_000  # type: ignore[attr-defined]
+    assert rep.warnings[: len(rep.sizing_warnings)] == rep.sizing_warnings  # type: ignore[attr-defined]
+
+
+def test_policy_b_sizes_nothing_when_no_top_ranked_underlying_fits(
+    world: dict[str, object],
+) -> None:
+    cfg: AppConfig = world["cfg"]  # type: ignore[assignment]
+    # $25k: nothing on the top 5 underlyings fits, and the leftovers are not sized either
+    ranked = _pipeline_ranked(world, _profile(100_000))
+    port, rep = _size(world, _profile(25_000), ranked, reporting=cfg.risk.reporting)
+    assert port.account_too_small and not port.positions
+    assert rep.sizing_flags == ["account_too_small"]  # type: ignore[attr-defined]
+    assert "too small" in rep.sizing_warnings[0]  # type: ignore[attr-defined]
+    assert "No positions could be sized" not in " ".join(rep.warnings)  # type: ignore[attr-defined]
+    # judging on the top 2 underlyings (SPY, QQQ), the $100k NKE leftovers are refused too
+    top2 = cfg.risk.reporting.model_copy(update={"top_tickers": 2})
+    port2, _rep2 = _size(world, _profile(100_000), ranked, reporting=top2)
+    assert port2.account_too_small and not port2.positions
+    assert any("not sized, ranked below SPY, QQQ" in s for s in port2.skipped)
+    # with the rule off the leftovers are sized and only labelled
+    off = cfg.risk.reporting.model_copy(update={"require_top_ranked": False})
+    port3, _ = _size(world, _profile(100_000), ranked, reporting=off)
+    assert port3.positions and not port3.account_too_small
+
+
+def test_low_deployment_is_reported(world: dict[str, object]) -> None:
+    cfg: AppConfig = world["cfg"]  # type: ignore[assignment]
+    ranked = _pipeline_ranked(world, _profile(100_000))
+    _port, rep = _size(world, _profile(100_000), ranked, reporting=cfg.risk.reporting)
+    assert "low_deployment" in rep.sizing_flags  # type: ignore[attr-defined]
+
+
+def test_fallback_expiry_breaks_a_near_tie_on_open_interest() -> None:
+    from options_scout.config import load_config
+    from tests.conftest import REPO_ROOT
+
+    rules = load_config(REPO_ROOT).rules.csp
+    near = _leg("put", spot=40, strike=35, dte=24, iv=0.3, mid=0.4).model_copy(
+        update={"open_interest": 300}
+    )
+    monthly = _leg("put", spot=40, strike=35, dte=52, iv=0.3, mid=0.9).model_copy(
+        update={"open_interest": 3_000}
+    )
+    assert screeners._fallback_expiry([near, monthly], rules) == monthly.expiry
+    far = monthly.model_copy(update={"dte": 59, "expiry": _TODAY + timedelta(days=59)})
+    assert screeners._fallback_expiry([near, far], rules) == near.expiry  # 14 days off: no tie
+
+
+def test_suitability_needs_the_sizing_facts_stated() -> None:
+    from options_scout.config import load_config
+    from options_scout.core.compliance import (
+        FACT_SUITABILITY_CODES,
+        suitability_problems,
+    )
+    from options_scout.core.models import SuitabilityFacts
+    from tests.conftest import REPO_ROOT
+
+    cfg = load_config(REPO_ROOT).compliance
+    base = SuitabilityFacts(
+        account_type="cash",
+        risk_profile="balanced",
+        buying_power=100_000,
+        account_value=100_000,
+        strategies_requested=["csp"],
+        strategies_present=["csp"],
+        margin_used=0,
+        realistic_loss_pct=0.01,
+        max_position_loss_pct=0.01,
+        loss_limit_pct=0.03,
+        position_count=1,
+        max_positions=8,
+    )
+    one = base.model_copy(update={"single_ticker": "NKE", "ranking_not_followed": True})
+    codes = {c for c, _ in suitability_problems(one, "NKE puts were sized.", cfg)}
+    assert {"single_name_unstated", "ranking_not_followed_unstated"} <= codes
+    said = (
+        "Every sized position is on NKE, so this is a one-stock portfolio. SPY and QQQ did not "
+        "fit this account size."
+    )
+    assert not {c for c, _ in suitability_problems(one, said, cfg)}
+    small = base.model_copy(update={"account_too_small": True, "position_count": 0})
+    assert [c for c, _ in suitability_problems(small, "Nothing was sized.", cfg)] == [
+        "account_too_small_unstated"
+    ]
+    # these are wording problems: a rewrite fixes them, so they never withhold a report
+    assert not {"single_name_unstated", "account_too_small_unstated"} & FACT_SUITABILITY_CODES

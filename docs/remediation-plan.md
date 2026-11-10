@@ -103,7 +103,7 @@ reopen them. Each is repeated in its workstream next to the step it fixes.
 | Workstream | Decision |
 |---|---|
 | W12 suitability failure | Withhold the narrative and the sized portfolio. Release the deterministic tables (candidates, constraint checks, stress) under a fixed notice naming the failed checks and mark the run `withheld`. A suitability failure is about facts, so rewriting prose cannot fix it, and releasing it with a FAIL line defeats the gate. |
-| W6 sizer | Option B. When the top-ranked candidates all fail to fit, size nothing, say the account is too small for this universe, and print the account size at which the best candidate would fit. |
+| W6 sizer | Option B. When the top-ranked candidates all fail to fit, size nothing, say the account is too small for this universe, and print the account size at which the best candidate would fit. "Top-ranked" counts the best five distinct underlyings, not five candidates (decided 2026-11-10: the fixture ranking lists 28 SPY strikes before the next name). |
 | W24 portfolio limits | Total loss at −30% capped at 15%, 20% and 30% of account value for conservative, balanced and aggressive. Cash needed on full assignment capped at 1.0 × buying power for all three until the margin path is labelled as naked puts; raise the aggressive figure deliberately later if leverage is to be a feature. |
 | W23 PMCC short call through earnings | Exclude, as the put screen does. Flagging only would be inconsistent. |
 | W29 signals in the ranking | Promote a ticker into the run only at a score of 60 or more. A score can only help, never hurt (`max(score, 50)`). Bottleneck ranking weight set to zero; the board stays informational. |
@@ -664,6 +664,43 @@ The cap itself is honest. One SPY 750 put on $100k loses about $20,500 in a 30% 
 - With policy B, the $100k run sizes nothing and states the smallest account that fits SPY.
 
 Suggested commit: `feat(sizing): account size needed per skipped candidate; single-name and ranking warnings`
+
+**Status, 2026-11-10:** done in the working tree, steps 1 to 8, with policy B.
+- **Policy B, by ticker:** "top N" counts the best five distinct underlyings
+  (`reporting.top_tickers`), decided with the user because the fixture ranking lists 28 SPY
+  strikes before the next name. Counting candidates would have made every fixture run but $500k
+  aggressive size nothing.
+- **Behaviour on the fixture data:** $25k sizes nothing and reports `account_too_small` with "fits
+  from $640,477" for the top-ranked SPY put. $100k sizes the NKE put and LEAPS with the
+  single-name, ranking-not-followed and low-deployment warnings. The SPY 750P reports a $20,503
+  loss per contract and fits from $683,427, as the plan predicted.
+- **Model and config:** `SkipDetail`, `SizedPortfolio.skipped_detail` and `.account_too_small`;
+  `RiskReport.sizing_flags`, `.sizing_warnings` and `.top_ranked_fits_from`; a
+  `SizingReporting` config with a `reporting:` block in `risk_profiles.yaml`.
+- **Sizer and risk:** `sizing.min_account_for_one` (also covers the margin-usage cap for margin
+  accounts, rounded up to whole dollars) and `top_tickers`; `risk.sizing_warnings`.
+  `build_risk_report` takes `ranked`, `allocation` and `reporting`, and the sizing warnings lead
+  the warnings list.
+- **Report and UI:** `render_portfolio` prints the warnings above the table and "fits from" on
+  each size-limited skip. The Portfolio tab shows the warnings before the table and the skipped
+  candidates as a table with rank, loss per contract and "Fits from".
+- **Compliance:** `SuitabilityFacts` gains `single_ticker`, `ranking_not_followed` and
+  `account_too_small`, enforced by three wording codes. W12's text-code list became an explicit
+  `FACT_SUITABILITY_CODES` allowlist. This also fixes a W12 bug: the
+  earnings-unknown, bottleneck-easing and language codes were wording problems, but W12 withheld
+  the report on them instead of retrying.
+- **Narrative:** the rule-based writer has an account-too-small sentence;
+  `prompts/explain_report.md` is now 2.3.0.
+- **Step 8:** fallback expiries within `fallback_tie_days` (3) of the nearest are a tie, settled
+  by open interest and then the longer expiry. The fixture demo's NKE put is unchanged because
+  its strict window had candidates.
+- **Docs:** PRD 3.2 records the policy, and `make index` regenerated
+  `knowledge/rules/constraints.md`. `demo-core` no longer counts "too small" as a failure.
+
+Tests: seven new ones in `tests/unit/test_ranking_sizing_risk.py`, including the
+minimum-account property test, run on the real pipeline's ranking. The Phase 9 golden report
+was re-recorded with the warnings, the "fits from" lines, the narrative warnings (63 numbers,
+all grounded) and the prompt version. Full suite passes; mypy unchanged at 28.
 
 ---
 

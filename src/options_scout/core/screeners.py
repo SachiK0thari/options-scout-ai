@@ -232,13 +232,28 @@ def screen_csp(
             iv_rules=iv_rules,
         )
         if out:
-            # nearest expiry to the preferred window only
-            target = min(
-                out, key=lambda c: min(abs(c.dte - rules.dte_min), abs(c.dte - rules.dte_max))
-            )
-            out = [c for c in out if c.expiry == target.expiry]
+            out = [c for c in out if c.expiry == _fallback_expiry(out, rules)]
     out.sort(key=lambda c: c.annualized_return or 0.0, reverse=True)
     return out
+
+
+def _fallback_expiry(cands: list[OptionCandidate], rules: CSPRules) -> date:
+    """The one fallback expiry to keep: nearest the preferred window, with expiries within
+    ``fallback_tie_days`` of the nearest treated as a tie and settled by total open interest,
+    then by the longer expiry (W6: a 24-day put had beaten the 52-day monthly with ten times the
+    open interest by a single day of distance)."""
+
+    def distance(c: OptionCandidate) -> int:
+        return min(abs(c.dte - rules.dte_min), abs(c.dte - rules.dte_max))
+
+    by_expiry: dict[date, list[OptionCandidate]] = {}
+    for c in cands:
+        by_expiry.setdefault(c.expiry, []).append(c)
+    nearest = min(distance(c) for c in cands)
+    tied = {
+        e: cs for e, cs in by_expiry.items() if distance(cs[0]) <= nearest + rules.fallback_tie_days
+    }
+    return max(tied, key=lambda e: (sum(c.open_interest for c in tied[e]), tied[e][0].dte))
 
 
 # --------------------------------------------------------------------------------- LEAPS

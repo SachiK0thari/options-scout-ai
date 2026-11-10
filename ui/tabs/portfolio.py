@@ -150,6 +150,8 @@ def render(view: session.View) -> None:
             st.caption(f"• {line}")
     with k2:
         st.markdown("**Sized positions**")
+        for w in report.risk.sizing_warnings:  # W6: before the table, not after the checks
+            st.warning(md(w))
         if port.positions:
             st.dataframe(
                 pd.DataFrame(
@@ -179,7 +181,7 @@ def render(view: session.View) -> None:
                     "Dollar delta": st.column_config.NumberColumn(format="dollar"),
                 },
             )
-        elif not report.withheld:
+        elif not report.withheld and not port.account_too_small:
             st.warning("No position fit inside the risk limits for this buying power.")
         m1, m2, m3, m4 = st.columns(4)
         m1.metric(
@@ -203,8 +205,29 @@ def render(view: session.View) -> None:
             )
         if port.skipped:
             with st.expander(f"Candidates that did not fit ({len(port.skipped)})"):
+                detail = {d.candidate_id: d for d in port.skipped_detail}
+                rows = []
                 for s in port.skipped:
-                    st.caption(f"• {s}")
+                    cid, _, why = s.partition(": ")
+                    d = detail.get(cid)
+                    rows.append(
+                        {
+                            "Candidate": cid,
+                            "Rank": d.rank if d else None,
+                            "Why": why,
+                            "Loss per contract": d.per_contract_loss if d else None,
+                            "Fits from (account)": d.min_account_value if d else None,
+                        }
+                    )
+                st.dataframe(
+                    pd.DataFrame(rows),
+                    width="stretch",
+                    hide_index=True,
+                    column_config={
+                        "Loss per contract": st.column_config.NumberColumn(format="dollar"),
+                        "Fits from (account)": st.column_config.NumberColumn(format="dollar"),
+                    },
+                )
 
     st.markdown("**Risk limit checks**")
     r1, r2 = st.columns([1, 1])

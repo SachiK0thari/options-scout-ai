@@ -11,7 +11,7 @@ from __future__ import annotations
 import math
 from collections.abc import Iterable
 
-from options_scout.config import Constraints
+from options_scout.config import Constraints, SizingReporting
 from options_scout.core import margin
 from options_scout.core.models import (
     AllocationPlan,
@@ -21,6 +21,7 @@ from options_scout.core.models import (
     RankedCandidate,
     SizedPortfolio,
     SizedPosition,
+    SkipDetail,
     UserProfile,
 )
 
@@ -154,6 +155,56 @@ def _max_contracts(
     return max(n, 0), reason
 
 
+def min_account_for_one(
+    *,
+    capital: float,
+    loss: float,
+    notional: float,
+    ddelta: float,
+    margin_used: float,
+    limits: Constraints,
+    bucket_pct: float,
+    is_csp: bool,
+    margin_account: bool,
+) -> float | None:
+    """Smallest account (value == buying power, whole dollars) at which ONE contract passes every
+    per-account limit on an empty book (W6). ``bucket_pct`` is the strategy's share of buying
+    power after the regime tilt and any retry shrink; with no bucket no account size helps."""
+    if bucket_pct <= 0:
+        return None
+    needs = [
+        capital / bucket_pct,
+        loss / limits.max_loss_per_position,
+        loss / limits.max_exposure_per_ticker,
+        loss / limits.max_per_sector,
+        abs(ddelta) / limits.max_dollar_delta_x,
+    ]
+    if is_csp:
+        needs.append(notional / limits.max_short_put_notional_x)
+    if margin_account and margin_used > 0:
+        needs.append(margin_used / limits.max_margin_usage)
+    return float(math.ceil(max(needs)))
+
+
+def top_tickers(ranked: Iterable[RankedCandidate], profile: UserProfile, n: int) -> list[str]:
+    """The best ``n`` distinct underlyings among the candidates this profile could hold."""
+    out: list[str] = []
+    for r in ranked:
+        c = r.candidate
+        if c.ticker in profile.exclude or c.ticker in out or not _wanted(c.strategy, profile):
+            continue
+        out.append(c.ticker)
+        if len(out) >= n:
+            break
+    return out
+
+
+def _wanted(strategy: str, profile: UserProfile) -> bool:
+    if strategy == "csp":
+        return "csp" in profile.strategies
+    return bool({"leaps", "pmcc"} & profile.strategies)
+
+
 def concentration_base(holdings: HoldingsAnalysis, buying_power: float) -> float:
     """What a ticker's weight is measured against: existing holdings plus the account's buying
     power (PRD 3.10). The sizer, the risk check and the holdings analysis all use this one base."""
@@ -185,11 +236,43 @@ def size_portfolio(
     scale: float = 1.0,
     attempt: int = 1,
     holdings: HoldingsAnalysis | None = None,
+    reporting: SizingReporting | None = None,
 ) -> SizedPortfolio:
     """Greedy fill. ``scale`` < 1 shrinks strategy budgets (used by the sizing↔risk retry loop).
-    ``holdings`` (Phase 12) enables the seventh constraint, concentration after assignment."""
+    ``holdings`` (Phase 12) enables the seventh constraint, concentration after assignment.
+
+    Every candidate that does not fit one contract gets a ``SkipDetail`` with the account size at
+    which it would (W6). With ``reporting.require_top_ranked`` (policy B), a run in which no
+    candidate on the best ``reporting.top_tickers`` underlyings fits sizes nothing and is marked
+    ``account_too_small``: lower-ranked leftovers are not presented as the screen's answer."""
+    ranked = list(ranked)
     book = _Book()
     skipped: list[str] = []
+    details: list[SkipDetail] = []
+    margin_account = profile.account_type != "cash"
+
+    def too_small(
+        c: OptionCandidate, rank: int, why: str, capital: float, loss: float, **kw: float
+    ) -> None:
+        skipped.append(f"{c.id}: 0 contracts fit ({why})")
+        details.append(
+            SkipDetail(
+                candidate_id=c.id,
+                ticker=c.ticker,
+                rank=rank,
+                reason=why,
+                per_contract_capital=capital,
+                per_contract_loss=loss,
+                min_account_value=min_account_for_one(
+                    capital=capital,
+                    loss=loss,
+                    limits=limits,
+                    margin_account=margin_account,
+                    **kw,  # type: ignore[arg-type]
+                ),
+            )
+        )
+
     csp_budget = allocation.csp_dollars * scale if "csp" in profile.strategies else 0.0
     leaps_budget = (
         allocation.leaps_dollars * scale if ({"leaps", "pmcc"} & profile.strategies) else 0.0
@@ -231,7 +314,18 @@ def size_portfolio(
                 holdings=holdings,
             )
             if n < 1:
-                skipped.append(f"{c.id}: 0 contracts fit ({why})")
+                too_small(
+                    c,
+                    r.rank,
+                    why,
+                    capital,
+                    loss,
+                    notional=notional,
+                    ddelta=ddelta,
+                    margin_used=m_used,
+                    bucket_pct=allocation.csp_pct * scale,
+                    is_csp=True,
+                )
                 continue
             book.add(
                 SizedPosition(
@@ -276,7 +370,18 @@ def size_portfolio(
                 is_csp=False,
             )
             if n < 1:
-                skipped.append(f"{c.id}: 0 contracts fit ({why})")
+                too_small(
+                    c,
+                    r.rank,
+                    why,
+                    capital,
+                    loss,
+                    notional=0.0,
+                    ddelta=ddelta,
+                    margin_used=0.0,
+                    bucket_pct=allocation.leaps_pct * scale,
+                    is_csp=False,
+                )
                 continue
             book.add(
                 SizedPosition(
@@ -299,6 +404,19 @@ def size_portfolio(
                 )
             )
 
+    account_too_small = False
+    if reporting is not None and reporting.require_top_ranked and book.positions:
+        best = top_tickers(ranked, profile, reporting.top_tickers)
+        if best and not {p.ticker for p in book.positions} & set(best):
+            # policy B: only leftovers fit; size nothing rather than present them as the answer
+            account_too_small = True
+            names = ", ".join(best)
+            skipped += [
+                f"{p.candidate_id}: not sized, ranked below {names}" for p in book.positions
+            ]
+            book = _Book()
+    elif reporting is not None and reporting.require_top_ranked and details:
+        account_too_small = True  # nothing fit at all
     capital_used = book.csp_capital + book.leaps_capital
     totals = PortfolioTotals(
         short_put_notional=book.notional,
@@ -311,4 +429,11 @@ def size_portfolio(
         cash_reserve=max(profile.buying_power - capital_used, 0.0),
         buying_power_used_pct=capital_used / profile.buying_power if profile.buying_power else 0.0,
     )
-    return SizedPortfolio(positions=book.positions, totals=totals, skipped=skipped, attempt=attempt)
+    return SizedPortfolio(
+        positions=book.positions,
+        totals=totals,
+        skipped=skipped,
+        attempt=attempt,
+        skipped_detail=details,
+        account_too_small=account_too_small,
+    )

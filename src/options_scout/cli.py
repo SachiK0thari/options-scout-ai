@@ -95,7 +95,12 @@ def run_deterministic_pipeline(
     )
     limits = cfg.risk.constraints[profile.risk_profile]
     portfolio = sizing.size_portfolio(
-        ranked, profile, allocation, limits, realistic_loss_drop=cfg.risk.realistic_loss_drop
+        ranked,
+        profile,
+        allocation,
+        limits,
+        realistic_loss_drop=cfg.risk.realistic_loss_drop,
+        reporting=cfg.risk.reporting,
     )
     cands = {c.id: c for c in csp + leaps}
     for p in pairs:
@@ -111,7 +116,16 @@ def run_deterministic_pipeline(
         today=today,
         account_value=profile.account_value,
     )
-    risk_report = risk.build_risk_report(portfolio, profile, limits, stress, cands)
+    risk_report = risk.build_risk_report(
+        portfolio,
+        profile,
+        limits,
+        stress,
+        cands,
+        ranked=ranked,
+        allocation=allocation,
+        reporting=cfg.risk.reporting,
+    )
     return {
         "regime": regime,
         "allocation": allocation,
@@ -148,7 +162,7 @@ def render_demo(cfg: AppConfig, profile: UserProfile, out: dict[str, Any]) -> st
         report.render_leaps(out["leaps"], out["pairs"]),
         "",
         "### Sized portfolio",
-        report.render_portfolio(out["portfolio"], out["ranked"]),
+        report.render_portfolio(out["portfolio"], out["ranked"], out["risk"].sizing_warnings),
         "",
         "### Risk",
         report.render_risk(out["risk"]),
@@ -180,7 +194,9 @@ def cmd_demo_core(args: argparse.Namespace) -> int:
             )
             out = run_deterministic_pipeline(cfg, profile, tickers, md=md)
             print(render_demo(cfg, profile, out))
-            if not out["risk"].passed or not out["portfolio"].positions:
+            port = out["portfolio"]
+            # W6: "too small for this universe" is a correct answer, not a failure
+            if not out["risk"].passed or (not port.positions and not port.account_too_small):
                 failures += 1
     if failures:
         print(

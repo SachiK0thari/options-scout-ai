@@ -299,11 +299,28 @@ class PortfolioTotals(Model):
     buying_power_used_pct: float = Field(ge=0)
 
 
+class SkipDetail(Model):
+    """W6: a candidate the sizer could not fit even one contract of, and the account that would."""
+
+    candidate_id: str
+    ticker: str
+    rank: int
+    reason: str  # the binding constraint, as in ``SizedPortfolio.skipped``
+    per_contract_capital: float
+    per_contract_loss: float
+    # smallest account (value == buying power) at which one contract passes every per-account
+    # limit on an empty book; None when no account size helps (the strategy has no budget)
+    min_account_value: float | None
+
+
 class SizedPortfolio(Model):
     positions: list[SizedPosition]
     totals: PortfolioTotals
     skipped: list[str] = Field(default_factory=list)  # candidate ids that could not be sized + why
     attempt: int = Field(default=1, ge=1)
+    skipped_detail: list[SkipDetail] = Field(default_factory=list)  # W6: size-limited skips
+    # W6 policy B: none of the top-ranked underlyings fits, so nothing was sized
+    account_too_small: bool = False
 
 
 # -------------------------------------------------------------------------------- risk
@@ -329,6 +346,11 @@ class RiskReport(Model):
     passed: bool
     worst_case_loss: float  # most negative stress pnl
     max_loss_at_minus_30: float  # realistic loss total
+    # W6: what the sizer left behind. Codes: account_too_small, single_name_portfolio,
+    # ranking_not_followed, low_deployment; the texts are also in ``warnings``
+    sizing_flags: list[str] = Field(default_factory=list)
+    sizing_warnings: list[str] = Field(default_factory=list)
+    top_ranked_fits_from: float | None = None  # smallest account at which the top one fits
 
 
 # ------------------------------------------------------------------------------ social
@@ -658,6 +680,10 @@ class SuitabilityFacts(Model):
     # Phase 11 (4A.8): sized CSP ids whose underlying carries ``bottleneck_easing``; a conservative
     # narrative must say so in the sentence that names the candidate (check 4)
     bottleneck_easing_flagged: list[str] = Field(default_factory=list)
+    # W6: the narrative must state each of these (check 4, text codes the writer can fix)
+    single_ticker: str | None = None  # every sized position is on this one underlying
+    ranking_not_followed: bool = False  # higher-ranked underlyings were skipped for size
+    account_too_small: bool = False  # nothing sized: no top-ranked underlying fits
 
 
 class ComplianceCheck(Model):

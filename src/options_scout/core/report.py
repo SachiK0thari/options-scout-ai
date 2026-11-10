@@ -346,9 +346,21 @@ def render_leaps(
     )
 
 
-def render_portfolio(port: SizedPortfolio, ranked: Sequence[RankedCandidate] | None = None) -> str:
+def render_portfolio(
+    port: SizedPortfolio,
+    ranked: Sequence[RankedCandidate] | None = None,
+    warnings: Sequence[str] = (),
+) -> str:
+    """The sized positions, led by the sizer's warnings (W6: one-stock portfolio, ranking not
+    followed, account too small), then totals and the skipped candidates with the account size
+    each would fit from."""
+    lead = "\n>\n".join(f"> ⚠️ {w}" for w in warnings) + "\n\n" if warnings else ""
     if not port.positions:
-        body = "_No positions could be sized under the constraints._"
+        body = (
+            "_Nothing sized: this account is too small for the top-ranked candidates._"
+            if port.account_too_small
+            else "_No positions could be sized under the constraints._"
+        )
     else:
         score = {r.candidate.id: r for r in ranked or []}
         rows = [
@@ -409,11 +421,22 @@ def render_portfolio(port: SizedPortfolio, ranked: Sequence[RankedCandidate] | N
             "\n\n<details><summary>Skipped candidates ("
             + str(len(port.skipped))
             + ")</summary>\n\n"
-            + "\n".join(f"- {s}" for s in shown)
+            + "\n".join(f"- {s}{_fits_from(s, port)}" for s in shown)
             + ("\n- …" if len(port.skipped) > len(shown) else "")
             + "\n\n</details>"
         )
-    return body + "\n\n" + totals + skipped
+    return lead + body + "\n\n" + totals + skipped
+
+
+def _fits_from(line: str, port: SizedPortfolio) -> str:
+    """ " · fits from $683,427" for a size-limited skip (W6), else nothing."""
+    cid = line.split(":", 1)[0]
+    d = next((d for d in port.skipped_detail if d.candidate_id == cid), None)
+    if d is None:
+        return ""
+    if d.min_account_value is None:
+        return " · no account size fits (no budget for this strategy)"
+    return f" · fits from {money(d.min_account_value)}"
 
 
 def render_risk(r: RiskReport) -> str:

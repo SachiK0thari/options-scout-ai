@@ -98,6 +98,23 @@ The web page asks for exactly three things: **buying power**, **CSP / LEAPS / bo
 - Cash accounts: margin constraints do not apply, and CSP collateral = full cash-secured amount.
 - Same ticker in a CSP and a PMCC: combined exposure counts against the per-ticker cap.
 
+**When the ranking and the limits disagree (decided 2026-11-09, W6).** The loss cap is a dollar
+amount per contract, so on a small account it selects by share price: the best-ranked names can
+fail to fit while a low-ranked one does. The sizer does not hide this:
+- Every candidate that cannot fit one contract is listed with the smallest account (value equal
+  to buying power) at which it would, and the report prints that "fits from" figure.
+- **Too small for this universe.** If no candidate on the best five distinct underlyings in the
+  ranking fits (`reporting.top_tickers`, counted by ticker so that many strikes of one name do
+  not crowd out the rest), nothing is sized. The report says the account is too small and gives
+  the account size at which the top-ranked candidate fits. Lower-ranked leftovers are not
+  presented as the screen's answer (`reporting.require_top_ranked`).
+- Otherwise the portfolio is sized and labelled: a **one-stock portfolio** warning when every
+  position is on one underlying, a **ranking not followed** warning naming the higher-ranked
+  underlyings that did not fit, and a **low deployment** warning when less than half of the
+  requested strategy buckets is used (`reporting.low_deployment_pct`).
+- The narrative must state each of these (Compliance check 4); "all constraints pass" alone is
+  not an acceptable summary of such a portfolio.
+
 ### 3.3 CSP screener rules
 
 | Rule | Default |

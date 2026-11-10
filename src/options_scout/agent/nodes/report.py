@@ -83,7 +83,7 @@ def render_markdown(rep: ScreeningReport) -> str:
         (
             f"{WITHHELD_NOTICE} Reason codes: {', '.join(rep.withheld_reasons)}."
             if rep.withheld
-            else md.render_portfolio(rep.portfolio, rep.ranked)
+            else md.render_portfolio(rep.portfolio, rep.ranked, rep.risk.sizing_warnings)
         ),
         "",
         "## Risk",

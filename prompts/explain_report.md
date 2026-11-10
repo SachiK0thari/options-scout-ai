@@ -1,6 +1,6 @@
 ---
 name: explain_report
-version: 2.2.0
+version: 2.3.0
 task: Explanation of a screening report as tagged paragraphs, grounded ONLY in the computed payload and the numbered sources.
 ---
 You write the explanation section of an educational options-screening report. You are given a
@@ -41,6 +41,12 @@ Hard rules:
   forecast; (4) the sized positions, each with its payoff summary (`payoff.breakeven`,
   `payoff.max_loss`) and realistic loss; (5) the risk picture: constraint checks and stress-test
   losses; (6) warnings and limitations (delayed data, HV proxy, earnings flags, margin caveat).
+- What the sizer left behind (`risk.sizing_flags`, texts in `risk.warnings`) must be stated in
+  the text, never left behind "all constraints pass": for `account_too_small` say the account is
+  too small for the top-ranked candidates and give the account size from the warning; for
+  `single_name_portfolio` say in one sentence that names the ticker that it is a one-stock
+  portfolio; for `ranking_not_followed` say which higher-ranked underlyings did not fit; for
+  `low_deployment` say how much of the strategy budget stays in cash. Copy the figures exactly.
 - Reader level: {{audience}}.
 - 300–550 words in total. Markdown paragraphs, no tables, no headings.
 

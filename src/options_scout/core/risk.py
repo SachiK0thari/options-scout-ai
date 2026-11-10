@@ -6,12 +6,14 @@ import math
 from collections.abc import Mapping, Sequence
 from datetime import date
 
-from options_scout.config import Constraints
+from options_scout.config import Constraints, SizingReporting
 from options_scout.core import pricing
 from options_scout.core.models import (
+    AllocationPlan,
     ConstraintCheck,
     HoldingsAnalysis,
     OptionCandidate,
+    RankedCandidate,
     RiskReport,
     SizedPortfolio,
     StressResult,
@@ -19,7 +21,7 @@ from options_scout.core.models import (
     TickerSnapshot,
     UserProfile,
 )
-from options_scout.core.sizing import concentration_base
+from options_scout.core.sizing import concentration_base, top_tickers
 
 
 def check_constraints(
@@ -179,6 +181,86 @@ def stress_test(
     return out
 
 
+def _money(x: float) -> str:
+    return f"${x:,.0f}"
+
+
+def sizing_warnings(
+    portfolio: SizedPortfolio,
+    profile: UserProfile,
+    ranked: Sequence[RankedCandidate],
+    allocation: AllocationPlan | None,
+    reporting: SizingReporting,
+) -> tuple[list[tuple[str, str]], float | None]:
+    """W6: ``[(code, text)]`` about what the sizer left behind, and the smallest account at which
+    the top-ranked skipped candidate fits (None when the top one was sized or no size helps).
+
+    * ``account_too_small``: policy B sized nothing because no top-ranked underlying fits.
+    * ``single_name_portfolio``: every sized position is on one underlying.
+    * ``ranking_not_followed``: higher-ranked underlyings were skipped for size.
+    * ``low_deployment``: capital used is below ``low_deployment_pct`` of the requested buckets.
+    """
+    out: list[tuple[str, str]] = []
+    detail = {d.candidate_id: d for d in portfolio.skipped_detail}
+    order = top_tickers(ranked, profile, len(ranked) or 1)
+    sized = {p.ticker for p in portfolio.positions}
+    first = next((r for r in ranked if r.candidate.ticker in order), None)  # the rank-1 candidate
+    top = first if first is not None and first.candidate.id in detail else None  # ...if skipped
+    fits_from = detail[top.candidate.id].min_account_value if top is not None else None
+    fits_txt = (
+        f" The smallest account at which the top-ranked {top.candidate.id} fits is "
+        f"{_money(fits_from)}."
+        if top is not None and fits_from is not None
+        else ""
+    )
+    if portfolio.account_too_small:
+        best = order[: reporting.top_tickers]
+        out.append(
+            (
+                "account_too_small",
+                f"This account is too small for this universe: no candidate on the "
+                f"{len(best)} highest-ranked underlyings ({', '.join(best)}) fits even one "
+                f"contract inside the limits, so nothing was sized.{fits_txt}",
+            )
+        )
+        return out, fits_from
+    if portfolio.positions and len(sized) == 1:
+        (name,) = sized
+        out.append(
+            (
+                "single_name_portfolio",
+                f"Every sized position is on {name}, so this is a one-stock portfolio even though "
+                "the limits passed.",
+            )
+        )
+    if portfolio.positions:
+        best_sized = next((i for i, t in enumerate(order) if t in sized), None)
+        above = order[:best_sized] if best_sized else []
+        skipped_above = [t for t in above if any(d.ticker == t for d in detail.values())]
+        if skipped_above:
+            out.append(
+                (
+                    "ranking_not_followed",
+                    f"The {len(skipped_above)} highest-ranked underlying(s) "
+                    f"({', '.join(skipped_above)}) did not fit this account size.{fits_txt}",
+                )
+            )
+    if allocation is not None and portfolio.positions:
+        wanted = (allocation.csp_dollars if "csp" in profile.strategies else 0.0) + (
+            allocation.leaps_dollars if {"leaps", "pmcc"} & profile.strategies else 0.0
+        )
+        used = portfolio.totals.capital_used
+        if wanted > 0 and used < reporting.low_deployment_pct * wanted:
+            out.append(
+                (
+                    "low_deployment",
+                    f"Only {_money(used)} of the {_money(wanted)} set aside for the requested "
+                    f"strategies is used ({used / wanted:.0%}); the rest stays in cash.",
+                )
+            )
+    return out, fits_from
+
+
 def build_risk_report(
     portfolio: SizedPortfolio,
     profile: UserProfile,
@@ -186,9 +268,16 @@ def build_risk_report(
     stress: Sequence[StressResult],
     candidates: Mapping[str, OptionCandidate],
     holdings: HoldingsAnalysis | None = None,
+    *,
+    ranked: Sequence[RankedCandidate] | None = None,
+    allocation: AllocationPlan | None = None,
+    reporting: SizingReporting | None = None,
 ) -> RiskReport:
     checks = check_constraints(portfolio, profile, limits, holdings)
     warnings: list[str] = []
+    flags, fits_from = sizing_warnings(
+        portfolio, profile, list(ranked or []), allocation, reporting or SizingReporting()
+    )
     if holdings is not None and holdings.positions:
         base = concentration_base(holdings, profile.buying_power)
         cap = limits.max_ticker_concentration_after_assignment
@@ -214,17 +303,21 @@ def build_risk_report(
             warnings.append(f"{c.id}: IV rank is an HV proxy (fewer than 30 IV snapshots stored).")
         if "roll_or_close" in c.flags:
             warnings.append(f"{c.id}: LEAPS below the roll/close DTE threshold.")
-    if not portfolio.positions:
+    if not portfolio.positions and not portfolio.account_too_small:
         warnings.append("No positions could be sized under the constraints.")
     worst = min((s.pnl for s in stress), default=0.0)
     passed = all(c.passed for c in checks)
+    sizing_texts = [text for _code, text in flags]
     return RiskReport(
         checks=checks,
         stress=list(stress),
-        warnings=sorted(set(warnings)),
+        warnings=sizing_texts + sorted(set(warnings)),  # the sizing warnings lead
         passed=passed,
         worst_case_loss=worst,
         max_loss_at_minus_30=portfolio.totals.realistic_loss,
+        sizing_flags=[code for code, _text in flags],
+        sizing_warnings=sizing_texts,
+        top_ranked_fits_from=fits_from,
     )
 
 
@@ -233,6 +326,7 @@ def suitability_facts(
     profile: UserProfile,
     limits: Constraints,
     candidates: Mapping[str, OptionCandidate],
+    risk_report: RiskReport | None = None,
 ) -> SuitabilityFacts:
     """The facts Compliance needs (13.1), computed once here so it never recomputes anything."""
     av = profile.account_value
@@ -290,4 +384,12 @@ def suitability_facts(
         pmcc_present="pmcc" in present,
         leaps_requested="leaps" in profile.strategies or "pmcc" in profile.strategies,
         bottleneck_easing_flagged=easing,
+        single_ticker=(
+            portfolio.positions[0].ticker
+            if risk_report is not None and "single_name_portfolio" in risk_report.sizing_flags
+            else None
+        ),
+        ranking_not_followed=risk_report is not None
+        and "ranking_not_followed" in risk_report.sizing_flags,
+        account_too_small=portfolio.account_too_small,
     )

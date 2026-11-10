@@ -171,6 +171,12 @@ _Headlines never change the ranking; they flag what to read before trading._
 | LEAPS-COST-2028-12-15-800C | 800 | 2028-12-15 | 780 | 0.81 | 297.00 | 4.9% | 1097.00 | 172/3% | n/a | iv_disagrees, high_iv_rank |
 
 ## Sized portfolio
+> ⚠️ Every sized position is on NKE, so this is a one-stock portfolio even though the limits passed.
+>
+> ⚠️ The 2 highest-ranked underlying(s) (SPY, QQQ) did not fit this account size. The smallest account at which the top-ranked CSP-SPY-2026-11-30-735P fits is $640,477.
+>
+> ⚠️ Only $3,464 of the $70,000 set aside for the requested strategies is used (5%); the rest stays in cash.
+
 | Candidate | Strategy | Contracts | Strike | Expiry | Capital | Margin | Loss @ -30% | $ delta | Premium | Score | PMCC short call |
 |---|---|---|---|---|---|---|---|---|---|---|---|
 | CSP-NKE-2026-11-20-35P | csp | 3 | 35 | 2026-11-20 | $1,655 | $1,655 | $2,443 | 2,630 | 169 | 0.58 | n/a |
@@ -189,14 +195,14 @@ _Headlines never change the ranking; they flag what to read before trading._
 
 <details><summary>Skipped candidates (12)</summary>
 
-- CSP-SPY-2026-11-30-735P: 0 contracts fit (max loss per position)
-- CSP-SPY-2026-11-30-750P: 0 contracts fit (max loss per position)
-- CSP-QQQ-2026-11-30-695P: 0 contracts fit (max loss per position)
-- LEAPS-SPY-2028-12-15-550C: 0 contracts fit (allocation budget)
-- CSP-QQQ-2026-11-30-690P: 0 contracts fit (max loss per position)
-- LEAPS-SPY-2028-01-21-600C: 0 contracts fit (max loss per position)
-- LEAPS-QQQ-2028-12-15-530C: 0 contracts fit (allocation budget)
-- LEAPS-QQQ-2029-01-19-550C: 0 contracts fit (max loss per position)
+- CSP-SPY-2026-11-30-735P: 0 contracts fit (max loss per position) · fits from $640,477
+- CSP-SPY-2026-11-30-750P: 0 contracts fit (max loss per position) · fits from $683,427
+- CSP-QQQ-2026-11-30-695P: 0 contracts fit (max loss per position) · fits from $602,851
+- LEAPS-SPY-2028-12-15-550C: 0 contracts fit (allocation budget) · fits from $929,284
+- CSP-QQQ-2026-11-30-690P: 0 contracts fit (max loss per position) · fits from $589,651
+- LEAPS-SPY-2028-01-21-600C: 0 contracts fit (max loss per position) · fits from $706,034
+- LEAPS-QQQ-2028-12-15-530C: 0 contracts fit (allocation budget) · fits from $869,167
+- LEAPS-QQQ-2029-01-19-550C: 0 contracts fit (max loss per position) · fits from $826,667
 - …
 
 </details>
@@ -221,6 +227,9 @@ _Headlines never change the ranking; they flag what to read before trading._
 | -20% | +50% | -1,901 | -1.9% |
 | -30% | +50% | -3,176 | -3.2% |
 
+- ⚠️ Every sized position is on NKE, so this is a one-stock portfolio even though the limits passed.
+- ⚠️ The 2 highest-ranked underlying(s) (SPY, QQQ) did not fit this account size. The smallest account at which the top-ranked CSP-SPY-2026-11-30-735P fits is $640,477.
+- ⚠️ Only $3,464 of the $70,000 set aside for the requested strategies is used (5%); the rest stays in cash.
 - ⚠️ CSP-NKE-2026-11-20-35P: IV rank is an HV proxy (fewer than 30 IV snapshots stored).
 - ⚠️ LEAPS-NKE-2028-12-15-20C: IV rank is an HV proxy (fewer than 30 IV snapshots stored).
 - ⚠️ Margin account: Reg T requirement is $1,655 but the loss at a -30% move is $4,251. Brokers can raise requirements at any time, especially in volatile markets.
@@ -244,7 +253,7 @@ _Headlines never change the ranking; they flag what to read before trading._
 
 **Risk.** 6 of 6 constraint checks pass. Stress test with an instant move and an IV shock: a -10% move gives -876; a -20% move gives -1901; a -30% move gives -3176. The combined loss at a 30% drop across all positions is 4251.
 
-**Warnings and limitations.** CSP-NKE-2026-11-20-35P: IV rank is an HV proxy (fewer than 30 IV snapshots stored). LEAPS-NKE-2028-12-15-20C: IV rank is an HV proxy (fewer than 30 IV snapshots stored). Margin account: Reg T requirement is $1,655 but the loss at a -30% move is $4,251. Brokers can raise requirements at any time, especially in volatile markets.
+**Warnings and limitations.** Every sized position is on NKE, so this is a one-stock portfolio even though the limits passed. The 2 highest-ranked underlying(s) (SPY, QQQ) did not fit this account size. The smallest account at which the top-ranked CSP-SPY-2026-11-30-735P fits is $640,477. Only $3,464 of the $70,000 set aside for the requested strategies is used (5%); the rest stays in cash. CSP-NKE-2026-11-20-35P: IV rank is an HV proxy (fewer than 30 IV snapshots stored). LEAPS-NKE-2028-12-15-20C: IV rank is an HV proxy (fewer than 30 IV snapshots stored). Margin account: Reg T requirement is $1,655 but the loss at a -30% move is $4,251. Brokers can raise requirements at any time, especially in volatile markets.
 
 Market data is delayed and Greeks are model-derived; these are screened candidates that meet the configured criteria, not recommendations.
 
@@ -261,7 +270,7 @@ Educational screening tool. Not investment, tax or legal advice. Options involve
 ## Compliance
 PASS · audit `<audit_id>` · report · attempt 1
 
-- ✓ `check_numbers`: 58 numbers checked, all grounded
+- ✓ `check_numbers`: 63 numbers checked, all grounded
 - ✓ `check_citations`: 3 tag(s) resolve to retrieved sources
 - ✓ `check_education_only`: education paragraphs carry no run data; short options show their loss
 - ✓ `check_suitability`: suits the profile
@@ -274,11 +283,11 @@ PASS · audit `<audit_id>` · report · attempt 1
 - ✓ `tax_reply`: no tax reply to check
 
 ## Verification
-PASS: 58 numbers checked, 0 ungrounded, banned phrases: none, disclaimer present, citations 3 checked / 0 unknown, attempts 1.
+PASS: 63 numbers checked, 0 ungrounded, banned phrases: none, disclaimer present, citations 3 checked / 0 unknown, attempts 1.
 
 ## Run metadata
 - Models: {"extraction": "deepseek/deepseek-v4.1-flash", "explanation": "deepseek/deepseek-v4.1-flash", "provider": "fixture"}
-- Prompt versions: {"answer_concept": "1.3.0", "answer_tax": "1.0.0", "classify_bottleneck": "1.0.0", "classify_news": "1.1.0", "explain_goal": "1.0.0", "explain_report": "2.2.0", "extract_entities": "1.1.0", "judge_explanation": "1.0.0", "parse_goal": "1.0.0", "parse_holdings": "1.0.0", "parse_profile": "1.2.0", "route_message": "1.3.0"}
+- Prompt versions: {"answer_concept": "1.3.0", "answer_tax": "1.0.0", "classify_bottleneck": "1.0.0", "classify_news": "1.1.0", "explain_goal": "1.0.0", "explain_report": "2.3.0", "extract_entities": "1.1.0", "judge_explanation": "1.0.0", "parse_goal": "1.0.0", "parse_holdings": "1.0.0", "parse_profile": "1.2.0", "route_message": "1.3.0"}
 - Config hash: `<config_hash>`
 - Data sources: {"AAPL": "ok", "COST": "ok", "MSFT": "ok", "NKE": "ok", "QQQ": "ok", "SBUX": "ok", "SPY": "ok", "bottleneck": "ran (274 snippets, 8 layers, 30 companies)", "bottleneck:csv_series": "ok", "bottleneck:edgar": "ok", "bottleneck:fred": "ok", "bottleneck:google_trends": "ok", "bottleneck:news": "ok", "bottleneck:reddit": "ok", "bottleneck:transcripts": "disabled", "google_trends": "ok", "market_data": "fixture", "news": "ok", "news_alphavantage_news": "ok", "news_desk": "41 headlines for 7 ticker(s)", "news_rss": "ok", "reddit": "ok", "sec": "ok", "social": "ran (7095 posts, 28 entities)", "wikipedia": "ok", "x": "ok"}
 - Tokens: 0 in / 0 out · cost $0.0000

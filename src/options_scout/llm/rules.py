@@ -695,6 +695,12 @@ def rule_explain(user_prompt: str) -> Narrative:
                 )
             )
         result("**Sized positions.** " + " ".join(lines))
+    elif "account_too_small" in (risk.get("sizing_flags") or []):
+        result(
+            "**Sized positions.** None: this account is too small for the top-ranked "
+            "candidates, so nothing was sized rather than filling it with lower-ranked ones. "
+            "The warnings below give the account size at which the top-ranked one fits."
+        )
     else:
         result(
             "**Sized positions.** No candidate fit inside the risk constraints for this profile."
