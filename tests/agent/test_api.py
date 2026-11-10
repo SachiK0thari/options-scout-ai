@@ -10,11 +10,16 @@ from pathlib import Path
 import pytest
 from fastapi.testclient import TestClient
 
+KEY = "api-test-key"  # W37: the key is required by default
+TOKEN = "X-Thread-Token"
+
 
 @pytest.fixture(scope="module")
 def client(tmp_path_factory: pytest.TempPathFactory) -> Iterator[TestClient]:
     import options_scout.api.main as api
 
+    mp = pytest.MonkeyPatch()
+    mp.setenv("OPTIONS_SCOUT_API_KEY", KEY)
     api._registry = None
     # The per-IP limiter (30 req/min) is a module-level counter and every test here
     # shares one TestClient host, so polling in `_wait` would exhaust the budget on a
@@ -22,7 +27,7 @@ def client(tmp_path_factory: pytest.TempPathFactory) -> Iterator[TestClient]:
     saved_limit = api._RATE_LIMIT_PER_MIN
     api._RATE_LIMIT_PER_MIN = 10_000
     api._hits.clear()
-    c = TestClient(api.app)
+    c = TestClient(api.app, headers={"X-API-Key": KEY})
     reg = api.registry()
     from options_scout.bottleneck.engine import BottleneckStore
     from options_scout.social.pipeline import TrendStore
@@ -32,14 +37,21 @@ def client(tmp_path_factory: pytest.TempPathFactory) -> Iterator[TestClient]:
     yield c
     api._RATE_LIMIT_PER_MIN = saved_limit
     api._hits.clear()
+    mp.undo()
+
+
+def _start(resp: object) -> tuple[str, dict[str, str]]:
+    """``(thread_id, headers)`` of a thread the API just created: its token goes on every call."""
+    body = resp.json()  # type: ignore[attr-defined]
+    return body["thread_id"], {TOKEN: body["thread_token"]}
 
 
 def _wait(
-    client: TestClient, thread_id: str, want: set[str], timeout: float = 60
+    client: TestClient, thread_id: str, want: set[str], timeout: float = 60, *, h: dict[str, str]
 ) -> dict[str, object]:
     t0 = time.time()
     while time.time() - t0 < timeout:
-        r = client.get(f"/v1/runs/{thread_id}")
+        r = client.get(f"/v1/runs/{thread_id}", headers=h)
         assert r.status_code == 200, r.text
         body = r.json()
         if body["status"] in want:
@@ -52,6 +64,8 @@ def test_health(client: TestClient) -> None:
     r = client.get("/healthz")
     assert r.status_code == 200
     assert r.json()["data_mode"] == "fixture" and "market_data" in r.json()["sources"]
+    bare = TestClient(client.app).get("/healthz").json()  # liveness only without the key
+    assert bare["status"] == "ok" and "sources" not in bare
 
 
 def test_screen_report_and_markdown(client: TestClient) -> None:
@@ -60,27 +74,27 @@ def test_screen_report_and_markdown(client: TestClient) -> None:
         json={"request_text": "$100k margin account, balanced. CSPs and LEAPS. I like COST."},
     )
     assert r.status_code == 200
-    tid = r.json()["thread_id"]
-    body = _wait(client, tid, {"completed", "failed"})
+    tid, h = _start(r)
+    body = _wait(client, tid, {"completed", "failed"}, h=h)
     assert body["status"] == "completed", body["errors"]
     assert "report_node" in body["nodes_visited"]
-    rep = client.get(f"/v1/runs/{tid}/report").json()
+    rep = client.get(f"/v1/runs/{tid}/report", headers=h).json()
     assert rep["verification"]["passed"] and rep["disclaimer"]
     assert rep["bottlenecks"] and sum(1 for s in rep["bottlenecks"] if s["ticker"] is None) == 8
-    md = client.get(f"/v1/runs/{tid}/report?format=md")
+    md = client.get(f"/v1/runs/{tid}/report?format=md", headers=h)
     assert md.status_code == 200 and "## Explanation" in md.text
     assert "## Bottleneck board (secondary)" in md.text
-    stream = client.get(f"/v1/runs/{tid}/stream")
+    stream = client.get(f"/v1/runs/{tid}/stream", headers=h)
     assert stream.status_code == 200 and "event: end" in stream.text
 
 
 def test_interrupt_and_resume_via_api(client: TestClient) -> None:
     r = client.post("/v1/screen", json={"request_text": "help me find income ideas"})
-    tid = r.json()["thread_id"]
-    body = _wait(client, tid, {"interrupted", "completed", "failed"})
+    tid, h = _start(r)
+    body = _wait(client, tid, {"interrupted", "completed", "failed"}, h=h)
     assert body["status"] == "interrupted" and body["interrupt"] is not None
     assert "buying_power" in body["interrupt"]["needs_clarification"]
-    bad = client.get(f"/v1/runs/{tid}/report")
+    bad = client.get(f"/v1/runs/{tid}/report", headers=h)
     assert bad.status_code == 409
     r2 = client.post(
         f"/v1/runs/{tid}/resume",
@@ -92,18 +106,20 @@ def test_interrupt_and_resume_via_api(client: TestClient) -> None:
                 "risk_profile": "balanced",
             }
         },
+        headers=h,
     )
     assert r2.status_code == 200
-    body = _wait(client, tid, {"completed", "failed"})
+    body = _wait(client, tid, {"completed", "failed"}, h=h)
     assert body["status"] == "completed"
-    assert client.get(f"/v1/runs/{tid}/report").json()["profile"]["buying_power"] == 50000
+    report = client.get(f"/v1/runs/{tid}/report", headers=h).json()
+    assert report["profile"]["buying_power"] == 50000
 
 
 def test_validation_and_auth(client: TestClient, monkeypatch: pytest.MonkeyPatch) -> None:
     assert client.post("/v1/screen", json={}).status_code == 422
     assert client.get("/v1/runs/nope").status_code == 404
     monkeypatch.setenv("OPTIONS_SCOUT_API_KEY", "secret")
-    assert client.get("/v1/trends").status_code == 401
+    assert client.get("/v1/trends").status_code == 401  # the fixture's key is now wrong
     assert client.get("/v1/trends", headers={"X-API-Key": "secret"}).status_code == 200
     assert client.get("/v1/bottlenecks").status_code == 401
 
@@ -111,10 +127,10 @@ def test_validation_and_auth(client: TestClient, monkeypatch: pytest.MonkeyPatch
 def test_recommend_front_door(client: TestClient) -> None:
     r = client.post("/v1/recommend", json={"buying_power": 40000, "strategy": "csp"})
     assert r.status_code == 200, r.text
-    tid = r.json()["thread_id"]
-    body = _wait(client, tid, {"completed", "failed"})
+    tid, h = _start(r)
+    body = _wait(client, tid, {"completed", "failed"}, h=h)
     assert body["status"] == "completed", body["errors"]
-    rep = client.get(f"/v1/runs/{tid}/report").json()
+    rep = client.get(f"/v1/runs/{tid}/report", headers=h).json()
     assert rep["profile"] == {
         **rep["profile"],
         "buying_power": 40000,
@@ -137,11 +153,12 @@ def test_api_round_trip_leaves_the_repository_checkpoint_db_alone(client: TestCl
 
     repo_db = Path(__file__).resolve().parents[2] / "data" / "checkpoints.sqlite"
     before = repo_db.stat().st_size if repo_db.exists() else -1
-    test_db = api.registry().cfg.paths.checkpoint_db
-    assert test_db != repo_db
+    test_db = api.registry().checkpoint_path  # W37: the API's own file beside the UI's
+    assert test_db != repo_db and test_db != api.registry().cfg.paths.checkpoint_db
     r = client.post("/v1/recommend", json={"buying_power": 40000, "strategy": "csp"})
     assert r.status_code == 200, r.text
-    assert _wait(client, r.json()["thread_id"], {"completed", "failed"})["status"] == "completed"
+    tid, h = _start(r)
+    assert _wait(client, tid, {"completed", "failed"}, h=h)["status"] == "completed"
     after = repo_db.stat().st_size if repo_db.exists() else -1
     assert after == before
     assert test_db.exists() and test_db.stat().st_size > 0
@@ -170,16 +187,17 @@ def test_tradier_without_key_is_rejected_before_running(
 def test_rate_limit_returns_429(monkeypatch: pytest.MonkeyPatch) -> None:
     import options_scout.api.main as api
 
-    monkeypatch.delenv("OPTIONS_SCOUT_API_KEY", raising=False)
+    monkeypatch.setenv("OPTIONS_SCOUT_API_KEY", KEY)
     monkeypatch.setattr(api, "_RATE_LIMIT_PER_MIN", 2)
     monkeypatch.setattr(api, "_hits", defaultdict(deque))
-    c = TestClient(api.app)
+    c = TestClient(api.app, headers={"X-API-Key": KEY})
     assert c.get("/v1/trends").status_code == 200
     assert c.get("/v1/trends").status_code == 200
     r = c.get("/v1/trends")
     assert r.status_code == 429 and "rate limit" in r.json()["detail"]
-    # Unauthenticated public endpoints are not metered.
-    assert c.get("/v1/quality-universe").status_code == 200
+    assert int(r.headers["Retry-After"]) >= 1
+    # W37: every keyed endpoint is metered, the quality universe included
+    assert c.get("/v1/quality-universe").status_code == 429
 
 
 def test_api_key_is_a_secret_in_the_schema() -> None:

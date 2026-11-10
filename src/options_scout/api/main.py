@@ -3,13 +3,20 @@
 from __future__ import annotations
 
 import asyncio
+import hashlib
+import hmac
 import json
+import math
 import os
+import secrets
+import sqlite3
 import threading
 import time
 import uuid
 from collections import defaultdict, deque
 from collections.abc import AsyncIterator
+from contextlib import asynccontextmanager
+from pathlib import Path
 from typing import Any
 
 from fastapi import Depends, FastAPI, HTTPException, Request
@@ -51,15 +58,104 @@ configure_logging()
 log = get_logger(component="api")
 load_env()
 
+
+def _anonymous_allowed() -> bool:
+    return os.environ.get("OPTIONS_SCOUT_ALLOW_ANONYMOUS", "").strip() == "1"
+
+
+def check_deployment() -> None:
+    """W37: the API refuses to start open. A key is required unless anonymous access is asked for
+    explicitly with ``OPTIONS_SCOUT_ALLOW_ANONYMOUS=1`` (local development only)."""
+    if not os.environ.get("OPTIONS_SCOUT_API_KEY") and not _anonymous_allowed():
+        raise RuntimeError(
+            "OPTIONS_SCOUT_API_KEY is not set. Set it (clients send it as X-API-Key), or set "
+            "OPTIONS_SCOUT_ALLOW_ANONYMOUS=1 for a local, unpublished development server."
+        )
+
+
+@asynccontextmanager
+async def _lifespan(_app: FastAPI) -> AsyncIterator[None]:
+    check_deployment()
+    yield
+
+
+_DOCS = _anonymous_allowed() or os.environ.get("OPTIONS_SCOUT_API_DOCS", "").strip() == "1"
 app = FastAPI(
     title="OptionsScout AI",
     version=__version__,
     description="Educational options screener. Not investment advice. No order placement.",
+    lifespan=_lifespan,
+    # the schema and the docs pages are not behind the key, so they are off unless asked for
+    docs_url="/docs" if _DOCS else None,
+    redoc_url="/redoc" if _DOCS else None,
+    openapi_url="/openapi.json" if _DOCS else None,
 )
 
+THREAD_TOKEN_HEADER = "X-Thread-Token"
 _RATE_LIMIT_PER_MIN = int(os.environ.get("OPTIONS_SCOUT_RATE_LIMIT_PER_MIN", "30"))
+_SWEEP_SECONDS = 60.0
+_last_sweep = 0.0
 _hits: dict[str, deque[float]] = defaultdict(deque)
 _lock = threading.Lock()
+
+
+def api_checkpoint_path(checkpoint_db: Path) -> Path:
+    """The API's own checkpoint file beside the UI's (``checkpoints.sqlite`` →
+    ``checkpoints-api.sqlite``), so neither front end can open the other's threads (W37)."""
+    return checkpoint_db.with_name(f"{checkpoint_db.stem}-api{checkpoint_db.suffix}")
+
+
+class ThreadTokens:
+    """Who may use a thread: the SHA-256 of a random token issued when the thread is created.
+
+    The token itself is returned once and never stored. Every route that takes a ``thread_id``
+    checks it with ``hmac.compare_digest``; a missing or wrong token gets the same 404 as an
+    unknown thread, so a guessed id reveals nothing. A thread the chat session hands off to
+    (``<thread>-2``) is granted its parent's token."""
+
+    def __init__(self, path: Path) -> None:
+        path.parent.mkdir(parents=True, exist_ok=True)
+        self._conn = sqlite3.connect(str(path), check_same_thread=False)
+        self._lock = threading.Lock()
+        with self._lock, self._conn:
+            self._conn.execute(
+                "CREATE TABLE IF NOT EXISTS thread_tokens (thread_id TEXT PRIMARY KEY, "
+                "token_sha256 TEXT NOT NULL, created_at REAL NOT NULL)"
+            )
+
+    @staticmethod
+    def _digest(token: str) -> str:
+        return hashlib.sha256(token.encode("utf-8")).hexdigest()
+
+    def issue(self, thread_id: str) -> str:
+        token = secrets.token_urlsafe(32)
+        self._store(thread_id, self._digest(token))
+        return token
+
+    def grant(self, child: str, parent: str) -> None:
+        """``child`` answers to the same token as ``parent`` (chat handoffs)."""
+        with self._lock:
+            row = self._conn.execute(
+                "SELECT token_sha256 FROM thread_tokens WHERE thread_id = ?", (parent,)
+            ).fetchone()
+        if row is not None:
+            self._store(child, row[0])
+
+    def _store(self, thread_id: str, digest: str) -> None:
+        with self._lock, self._conn:
+            self._conn.execute(
+                "INSERT OR REPLACE INTO thread_tokens VALUES (?, ?, ?)",
+                (thread_id, digest, time.time()),
+            )
+
+    def verify(self, thread_id: str, token: str | None) -> bool:
+        with self._lock:
+            row = self._conn.execute(
+                "SELECT token_sha256 FROM thread_tokens WHERE thread_id = ?", (thread_id,)
+            ).fetchone()
+        expected = row[0] if row is not None else self._digest(secrets.token_urlsafe(32))
+        ok = hmac.compare_digest(expected, self._digest(token or ""))
+        return ok and row is not None and bool(token)
 
 
 class RunRegistry:
@@ -68,9 +164,11 @@ class RunRegistry:
     def __init__(self) -> None:
         self.cfg = get_config()
         self.deps = Deps.from_config(self.cfg)
+        self.checkpoint_path = api_checkpoint_path(self.cfg.paths.checkpoint_db)
         self.ckpt = sqlite_checkpointer(
-            self.cfg.paths.checkpoint_db, self.cfg.settings.agent.checkpoint_retention_days
+            self.checkpoint_path, self.cfg.settings.agent.checkpoint_retention_days
         )
+        self.tokens = ThreadTokens(self.checkpoint_path)
         self.graph = build_graph(self.deps, self.ckpt)
         self.session = ChatSession(self.deps, self.ckpt, graph=self.graph)
         self.events: dict[str, list[dict[str, Any]]] = {}
@@ -140,13 +238,11 @@ class RunRegistry:
         *,
         request_text: str = "",
         profile: UserProfile | None = None,
-        thread_id: str | None = None,
         market_data: MarketDataAuth | None = None,
         holdings: list[Any] | None = None,
-    ) -> str:
-        thread_id = thread_id or uuid.uuid4().hex[:16]
-        if thread_id in self.threads and self.threads[thread_id].is_alive():
-            raise HTTPException(409, "thread is already running")
+    ) -> tuple[str, str]:
+        """Start a screen on a new, server-generated thread; returns ``(thread_id, token)``."""
+        thread_id = uuid.uuid4().hex
         graph = self.graph_for(market_data)
         state = initial_state(request_text, profile.model_dump(mode="json") if profile else None)
         if holdings:
@@ -158,9 +254,10 @@ class RunRegistry:
             args=(thread_id, stream_run(graph, state, thread_id)),
             daemon=True,
         )
+        token = self.tokens.issue(thread_id)
         self.threads[thread_id] = t
         t.start()
-        return thread_id
+        return thread_id, token
 
     def resume(self, thread_id: str, answer: dict[str, Any]) -> None:
         if self.status.get(thread_id) != "interrupted":
@@ -195,6 +292,7 @@ class RunRegistry:
             try:
                 result = self.session.send(thread_id, message, on_update=on_update)
                 if result.new_thread_id:
+                    self.tokens.grant(result.new_thread_id, thread_id)  # same owner
                     self.status[result.new_thread_id] = result.status
                     self.events.setdefault(result.new_thread_id, []).append(
                         {"event": "end", "status": result.status, "ts": time.time()}
@@ -252,23 +350,71 @@ def registry() -> RunRegistry:
     return _registry
 
 
-def _auth(request: Request) -> None:
-    key = os.environ.get("OPTIONS_SCOUT_API_KEY")
-    if key and request.headers.get("x-api-key") != key:
-        raise HTTPException(401, "invalid or missing X-API-Key")
-    ip = request.client.host if request.client else "unknown"
+def client_ip(request: Request) -> str:
+    """The caller's address. ``X-Forwarded-For`` is trusted only with
+    ``OPTIONS_SCOUT_TRUSTED_PROXY=1`` (the API sits behind one proxy that appends the address it
+    saw): then the right-most entry is used, the one a client cannot forge."""
+    direct = request.client.host if request.client else "unknown"
+    if os.environ.get("OPTIONS_SCOUT_TRUSTED_PROXY", "").strip() == "1":
+        hops = [h.strip() for h in request.headers.get("x-forwarded-for", "").split(",")]
+        hops = [h for h in hops if h]
+        if hops:
+            return hops[-1]
+    return direct
+
+
+def _sweep(now: float) -> None:
+    """Drop limiter buckets idle for a minute, at most once a minute (caller holds ``_lock``)."""
+    global _last_sweep
+    if now - _last_sweep < _SWEEP_SECONDS:
+        return
+    _last_sweep = now
+    for ip in [ip for ip, q in _hits.items() if not q or now - q[-1] > 60]:
+        del _hits[ip]
+
+
+def _limit(request: Request) -> None:
+    ip = client_ip(request)
     now = time.time()
     with _lock:
+        _sweep(now)
         q = _hits[ip]
         while q and now - q[0] > 60:
             q.popleft()
         if len(q) >= _RATE_LIMIT_PER_MIN:
-            raise HTTPException(429, "rate limit exceeded")
+            retry = max(1, math.ceil(60 - (now - q[0])))
+            raise HTTPException(429, "rate limit exceeded", headers={"Retry-After": str(retry)})
         q.append(now)
 
 
-@app.get("/healthz", response_model=Health)
-def healthz() -> Health:
+def _key_ok(request: Request) -> bool:
+    key = os.environ.get("OPTIONS_SCOUT_API_KEY")
+    if not key:
+        return _anonymous_allowed()
+    given = request.headers.get("x-api-key") or ""
+    return hmac.compare_digest(given.encode("utf-8"), key.encode("utf-8"))
+
+
+def _auth(request: Request) -> None:
+    """Every request is metered first, so failed key guesses count against the limit too."""
+    _limit(request)
+    if not os.environ.get("OPTIONS_SCOUT_API_KEY") and not _anonymous_allowed():
+        raise HTTPException(503, "server misconfigured: OPTIONS_SCOUT_API_KEY is not set")
+    if not _key_ok(request):
+        raise HTTPException(401, "invalid or missing X-API-Key")
+
+
+def _owned(thread_id: str, request: Request) -> None:
+    """404 unless the request carries this thread's token (the same answer as for no thread)."""
+    if not registry().tokens.verify(thread_id, request.headers.get(THREAD_TOKEN_HEADER)):
+        raise HTTPException(404, "unknown thread")
+
+
+@app.get("/healthz", response_model=Health, response_model_exclude_none=True)
+def healthz(request: Request) -> Health:
+    """Liveness for anyone (the container healthcheck); data mode and sources only with the key."""
+    if not _key_ok(request):
+        return Health(status="ok", version=__version__)
     reg = registry()
     sources = {"market_data": reg.deps.md.source.name, **reg.deps.md.status}
     sources["llm"] = reg.deps.llm.provider.name
@@ -285,28 +431,31 @@ def healthz() -> Health:
 def screen(req: ScreenRequest) -> ScreenResponse:
     if not req.request_text and req.profile is None:
         raise HTTPException(422, "provide request_text or profile")
+    if req.thread_id:
+        raise HTTPException(422, "thread ids are generated by the server; omit thread_id")
     reg = registry()
-    thread_id = reg.start(
+    thread_id, token = reg.start(
         request_text=req.request_text or "",
         profile=req.profile,
-        thread_id=req.thread_id,
         market_data=req.market_data,
         holdings=req.holdings,
     )
-    return ScreenResponse(thread_id=thread_id, status="running")
+    return ScreenResponse(thread_id=thread_id, status="running", thread_token=token)
 
 
 @app.post("/v1/recommend", response_model=ScreenResponse, dependencies=[Depends(_auth)])
 def recommend(req: RecommendRequest) -> ScreenResponse:
     """Simple front door: buying power + strategy (+ optional market-data key) → run."""
     reg = registry()
-    thread_id = reg.start(
+    thread_id, token = reg.start(
         profile=req.to_profile(), market_data=req.market_data, holdings=req.holdings
     )
-    return ScreenResponse(thread_id=thread_id, status="running")
+    return ScreenResponse(thread_id=thread_id, status="running", thread_token=token)
 
 
-@app.get("/v1/quality-universe", response_model=QualityUniverseResponse)
+@app.get(
+    "/v1/quality-universe", response_model=QualityUniverseResponse, dependencies=[Depends(_auth)]
+)
 def quality_universe() -> QualityUniverseResponse:
     q = registry().cfg.quality
     return QualityUniverseResponse(
@@ -315,7 +464,10 @@ def quality_universe() -> QualityUniverseResponse:
     )
 
 
-@app.get("/v1/runs/{thread_id}", response_model=RunStatus, dependencies=[Depends(_auth)])
+_OWNED = [Depends(_auth), Depends(_owned)]  # metered and keyed, then the thread's token
+
+
+@app.get("/v1/runs/{thread_id}", response_model=RunStatus, dependencies=_OWNED)
 def run_status(thread_id: str) -> RunStatus:
     reg = registry()
     status = reg.status.get(thread_id, "unknown")
@@ -352,7 +504,7 @@ def run_status(thread_id: str) -> RunStatus:
     )
 
 
-@app.get("/v1/runs/{thread_id}/stream", dependencies=[Depends(_auth)])
+@app.get("/v1/runs/{thread_id}/stream", dependencies=_OWNED)
 async def run_stream(thread_id: str) -> EventSourceResponse:
     reg = registry()
     if thread_id not in reg.events:
@@ -374,7 +526,10 @@ async def run_stream(thread_id: str) -> EventSourceResponse:
 
 
 @app.post(
-    "/v1/runs/{thread_id}/resume", response_model=ScreenResponse, dependencies=[Depends(_auth)]
+    "/v1/runs/{thread_id}/resume",
+    response_model=ScreenResponse,
+    response_model_exclude_none=True,
+    dependencies=_OWNED,
 )
 def resume(thread_id: str, req: ResumeRequest) -> ScreenResponse:
     reg = registry()
@@ -396,7 +551,7 @@ def withheld_detail(rep: ScreeningReport) -> dict[str, Any]:
     }
 
 
-@app.get("/v1/runs/{thread_id}/report", dependencies=[Depends(_auth)])
+@app.get("/v1/runs/{thread_id}/report", dependencies=_OWNED)
 def report(thread_id: str, format: str = "json") -> Any:
     reg = registry()
     if reg.status.get(thread_id) != "completed":
@@ -415,16 +570,27 @@ def report(thread_id: str, format: str = "json") -> Any:
 
 
 @app.post("/v1/chat", dependencies=[Depends(_auth)])
-async def chat(req: ChatRequest) -> EventSourceResponse:
-    """One conversation turn as server-sent events: ``node`` updates, an optional ``handoff``
-    (a new screen started on another thread), the assistant ``turn`` (with its ComplianceReport),
-    then ``end``."""
+async def chat(req: ChatRequest, request: Request) -> EventSourceResponse:
+    """One conversation turn as server-sent events: on a new conversation a ``thread`` event with
+    the ``thread_id`` and its ``thread_token`` (sent once; also the ``X-Thread-Token`` response
+    header), ``node`` updates, an optional ``handoff`` (a new screen started on another thread,
+    owned by the same token), the assistant ``turn`` (with its ComplianceReport), then ``end``.
+    Continuing a conversation needs its ``thread_id`` and the token."""
     reg = registry()
-    thread_id = req.thread_id or uuid.uuid4().hex[:16]
+    token: str | None = None
+    if req.thread_id:
+        _owned(req.thread_id, request)
+        thread_id = req.thread_id
+    else:
+        thread_id = uuid.uuid4().hex
+        token = reg.tokens.issue(thread_id)
     start = len(reg.events.get(thread_id, []))
     reg.chat(thread_id, req.message)
 
     async def gen() -> AsyncIterator[dict[str, str]]:
+        if token is not None:
+            first = {"event": "thread", "thread_id": thread_id, "thread_token": token}
+            yield {"event": "thread", "data": json.dumps(first)}
         i = start
         while True:
             events = reg.events.get(thread_id, [])
@@ -436,10 +602,11 @@ async def chat(req: ChatRequest) -> EventSourceResponse:
                     return
             await asyncio.sleep(0.2)
 
-    return EventSourceResponse(gen())
+    headers = {THREAD_TOKEN_HEADER: token} if token is not None else None
+    return EventSourceResponse(gen(), headers=headers)
 
 
-@app.get("/v1/threads/{thread_id}", response_model=ThreadStatus, dependencies=[Depends(_auth)])
+@app.get("/v1/threads/{thread_id}", response_model=ThreadStatus, dependencies=_OWNED)
 def thread_status(thread_id: str) -> ThreadStatus:
     reg = registry()
     values = reg.state(thread_id)

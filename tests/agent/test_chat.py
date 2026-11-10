@@ -263,12 +263,10 @@ def test_chat_and_threads_endpoints(
     api._registry = None
     monkeypatch.setattr(api, "_RATE_LIMIT_PER_MIN", 10_000)
     api._hits.clear()
-    client = TestClient(api.app)
+    monkeypatch.setenv("OPTIONS_SCOUT_API_KEY", "k")  # W37: required by default
+    client = TestClient(api.app, headers={"X-API-Key": "k"})
     reg = api.registry()
     reg.deps.trend_store = TrendStore(tmp_path_factory.mktemp("api-chat") / "t.sqlite")
-    import uuid
-
-    tid = f"api-chat-{uuid.uuid4().hex[:8]}"  # the API checkpointer persists across test runs
 
     def events(resp: Any) -> list[dict[str, Any]]:
         out = []
@@ -277,9 +275,13 @@ def test_chat_and_threads_endpoints(
                 out.append(json.loads(line[6:]))
         return out
 
-    r = client.post("/v1/chat", json={"message": "What is a cash-secured put?", "thread_id": tid})
+    # W37: a new conversation gets a server-generated id and its token in the first event
+    r = client.post("/v1/chat", json={"message": "What is a cash-secured put?"})
     assert r.status_code == 200
     evs = events(r)
+    assert evs[0]["event"] == "thread"
+    tid = evs[0]["thread_id"]
+    client.headers["X-Thread-Token"] = evs[0]["thread_token"]
     turn = next(e for e in evs if e["event"] == "turn")
     assert turn["turn"]["intent"] == "concept" and turn["turn"]["compliance"]["passed"]
     assert any(e["event"] == "node" and e["node"] == "route_node" for e in evs)

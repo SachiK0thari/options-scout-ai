@@ -6,7 +6,7 @@ through the functions below, so no tab touches ``st.session_state`` keys directl
 
 from __future__ import annotations
 
-import time
+import uuid
 from collections.abc import Callable
 from dataclasses import dataclass
 from typing import Any
@@ -140,7 +140,9 @@ def has_fixtures() -> bool:
 
 # ------------------------------------------------------------------------------ threads
 def new_thread_id() -> str:
-    return f"ui{int(time.time() * 1000)}"  # no "-<digits>" suffix: the chat session derives "<thread>-2" from it
+    # unguessable (W37: a timestamp id was found in 151 guesses); no "-<digits>" suffix, because
+    # the chat session derives "<thread>-2" from it
+    return f"ui{uuid.uuid4().hex}"
 
 
 def thread_id() -> str | None:
@@ -158,7 +160,7 @@ def set_thread(tid: str, *, interrupted: bool) -> None:
 
 def learn_thread_id() -> str:
     if "learn_thread" not in st.session_state:
-        st.session_state["learn_thread"] = f"learn{int(time.time() * 1000)}"
+        st.session_state["learn_thread"] = f"learn{uuid.uuid4().hex}"
     tid: str = st.session_state["learn_thread"]
     return tid
 

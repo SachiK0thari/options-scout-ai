@@ -2212,6 +2212,39 @@ never limited; the limiter keys on the socket address, never evicts, and sends n
 
 Suggested commit: `fix(api): per-thread tokens, generated thread ids, key required by default`
 
+**Status, 2026-11-10:** done in the working tree, steps 1 to 7.
+- **Thread ownership:** `api/main.py:ThreadTokens` issues a 32-byte `secrets.token_urlsafe` token
+  when `/v1/screen`, `/v1/recommend` or `/v1/chat` (without `thread_id`) creates a thread. It
+  stores only the SHA-256, in a `thread_tokens` table in the API's checkpoint file, and checks it
+  with `hmac.compare_digest`. A chat handoff thread is granted its parent's token.
+- **Routes:** every route that names a thread depends on `_owned`, which answers 404 for a
+  missing or wrong token. `ScreenRequest.thread_id` is now rejected (422), and `/v1/chat` with
+  an unknown `thread_id` is 404. A new chat sends the token once, in a first `thread` SSE event
+  and the `X-Thread-Token` response header.
+- **Thread ids:** the API uses full `uuid4().hex`. The UI uses `ui<uuid4 hex>` (and
+  `learn<uuid4 hex>` for the Learn tab), which keeps the no-`-digits` property.
+- **Separate stores:** the API uses `data/checkpoints-api.sqlite`
+  (`api_checkpoint_path`), so UI threads are neither in its store nor tokenised.
+- **Auth:** `check_deployment()` runs in the app lifespan and refuses to start without
+  `OPTIONS_SCOUT_API_KEY` unless `OPTIONS_SCOUT_ALLOW_ANONYMOUS=1`. Per request a missing
+  configuration is a 503. Keys are compared with `hmac.compare_digest`.
+  `/v1/quality-universe` now needs the key. `/docs`, `/redoc` and `/openapi.json` are off
+  unless anonymous mode or `OPTIONS_SCOUT_API_DOCS=1`. `/healthz` without the key returns only
+  status and version, so the container healthcheck still works.
+- **Limiter:** it runs before the key check, sweeps idle buckets once a minute and sends
+  `Retry-After`. `client_ip` reads the right-most `X-Forwarded-For` entry only with
+  `OPTIONS_SCOUT_TRUSTED_PROXY=1`.
+- **Deployment and docs:** compose publishes the UI on `127.0.0.1:8501` and never sets
+  anonymous mode. `make api` binds 127.0.0.1 with anonymous mode on. README (API and Deploy),
+  PRD section 9, PRIVACY.md, `.env.example` and `.gitignore` (`data/checkpoints*.sqlite*`) are
+  updated.
+
+Tests: nine in the new `tests/agent/test_api_security.py`. The existing API tests in
+`test_api.py`, `test_chat.py` and `test_compliance_agent.py` now send a key and the thread
+token. Full suite passes; mypy unchanged at 28. Not covered: the MCP server (stdio, local by
+design) and the UI's lack of login, which is documented and contained by the localhost bind
+rather than fixed.
+
 ---
 
 ### W38. API keys and user data leave the process

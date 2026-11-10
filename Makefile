@@ -45,8 +45,8 @@ bench: ## performance benchmarks in fixture mode (latency per agent, tokens, cos
 requirements: ## export requirements.txt from pyproject.toml (pinned, universal); pyproject stays the source of truth
 	$(PY) scripts/export_requirements.py --uv $(UV)
 
-api: ## FastAPI on :8000
-	$(PY) -m uvicorn options_scout.api.main:app --host 0.0.0.0 --port $(PORT_API) --reload
+api: ## FastAPI on localhost:8000 (local dev: anonymous allowed because it is not published)
+	OPTIONS_SCOUT_ALLOW_ANONYMOUS=$${OPTIONS_SCOUT_ALLOW_ANONYMOUS:-1} $(PY) -m uvicorn options_scout.api.main:app --host 127.0.0.1 --port $(PORT_API) --reload
 
 ui: ## Streamlit on :8501
 	$(PY) -m streamlit run ui/streamlit_app.py --server.port $(PORT_UI)

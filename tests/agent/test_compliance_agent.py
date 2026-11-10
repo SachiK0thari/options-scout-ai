@@ -181,12 +181,14 @@ def test_api_report_endpoint_requires_an_audit_entry(
     api._registry = None
     monkeypatch.setattr(api, "_RATE_LIMIT_PER_MIN", 10_000)
     api._hits.clear()
-    client = TestClient(api.app)
+    monkeypatch.setenv("OPTIONS_SCOUT_API_KEY", "k")  # W37: required by default
+    client = TestClient(api.app, headers={"X-API-Key": "k"})
     reg = api.registry()
     reg.deps.trend_store = TrendStore(tmp_path_factory.mktemp("api-comp") / "t.sqlite")
     r = client.post("/v1/screen", json={"request_text": REQUEST})
     assert r.status_code == 200
     thread = r.json()["thread_id"]
+    client.headers["X-Thread-Token"] = r.json()["thread_token"]
     for _ in range(600):
         if client.get(f"/v1/runs/{thread}").json()["status"] in ("completed", "failed"):
             break
@@ -279,10 +281,13 @@ def test_api_withholds_an_unsuitable_report_with_409(
     api._registry = None
     monkeypatch.setattr(api, "_RATE_LIMIT_PER_MIN", 10_000)
     api._hits.clear()
-    client = TestClient(api.app)
+    monkeypatch.setenv("OPTIONS_SCOUT_API_KEY", "k")  # W37: required by default
+    client = TestClient(api.app, headers={"X-API-Key": "k"})
     reg = api.registry()
     reg.deps.trend_store = TrendStore(tmp_path_factory.mktemp("api-withheld") / "t.sqlite")
-    thread = client.post("/v1/screen", json={"request_text": REQUEST}).json()["thread_id"]
+    started = client.post("/v1/screen", json={"request_text": REQUEST}).json()
+    thread = started["thread_id"]
+    client.headers["X-Thread-Token"] = started["thread_token"]
     for _ in range(600):
         if client.get(f"/v1/runs/{thread}").json()["status"] in ("withheld", "completed", "failed"):
             break

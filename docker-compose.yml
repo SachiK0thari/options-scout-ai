@@ -8,6 +8,7 @@ services:
       OPTIONS_SCOUT_LLM_MODE: ${OPTIONS_SCOUT_LLM_MODE:-fixture}
       OPENROUTER_API_KEY: ${OPENROUTER_API_KEY:-}
       ANTHROPIC_API_KEY: ${ANTHROPIC_API_KEY:-}
+      # required: the API refuses to start without it (clients send it as X-API-Key)
       OPTIONS_SCOUT_API_KEY: ${OPTIONS_SCOUT_API_KEY:-}
       LANGSMITH_API_KEY: ${LANGSMITH_API_KEY:-}
     volumes: ["scout-data:/app/data"]
@@ -20,7 +21,8 @@ services:
   ui:
     build: .
     command: ["python", "-m", "streamlit", "run", "ui/streamlit_app.py", "--server.port", "8501", "--server.address", "0.0.0.0", "--server.headless", "true"]
-    ports: ["8501:8501"]
+    # the Streamlit UI has no authentication: published on this machine only (W37)
+    ports: ["127.0.0.1:8501:8501"]
     environment:
       OPTIONS_SCOUT_DATA_MODE: ${OPTIONS_SCOUT_DATA_MODE:-fixture}
       OPTIONS_SCOUT_LLM_MODE: ${OPTIONS_SCOUT_LLM_MODE:-fixture}
