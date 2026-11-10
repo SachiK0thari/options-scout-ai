@@ -159,6 +159,12 @@ class BottleneckEngine:
                         f for f in company_flags(0.0, components, falsifiers, self.cfg.bottleneck)
                     ],
                     evidence=evidence,
+                    mentions={"tightening": _points(ls.tightening), "easing": _points(ls.easing)},
+                    series={
+                        k: sorted(v, key=lambda p: p.day)
+                        for k, v in series.items()
+                        if not k.startswith("google_trends:")
+                    },
                     as_of=as_of,
                 )
             )
@@ -235,6 +241,11 @@ class BottleneckEngine:
                 )
             )
         return out
+
+
+def _points(daily: Mapping[date, float]) -> list[SeriesPoint]:
+    """A date → count mapping as a dated series (oldest first), for the board's charts."""
+    return [SeriesPoint(day=d, value=round(v, 4)) for d, v in sorted(daily.items()) if v]
 
 
 # ------------------------------------------------------------------------------ evidence pack

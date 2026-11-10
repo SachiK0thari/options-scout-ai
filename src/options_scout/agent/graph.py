@@ -24,8 +24,10 @@ answer to END. ``agent/chat.py`` drives multi-turn conversations over this graph
 
 from __future__ import annotations
 
+import sqlite3
 import uuid
 from collections.abc import Iterator, Mapping
+from datetime import UTC, datetime, timedelta
 from pathlib import Path
 from typing import Any
 
@@ -378,15 +380,61 @@ def ask_specialist(
     return values
 
 
-def sqlite_checkpointer(path: Path) -> BaseCheckpointSaver[Any]:
-    import sqlite3
+def sqlite_checkpointer(path: Path, retention_days: int = 0) -> BaseCheckpointSaver[Any]:
+    """Open (or create) the SQLite checkpoint database at ``path``.
 
+    A new file is created with ``auto_vacuum=INCREMENTAL`` so deleted threads give their pages
+    back. With ``retention_days`` above zero (``agent.checkpoint_retention_days`` in
+    ``config/settings.yaml``), every thread whose newest checkpoint is older than that is
+    deleted on open and the freed pages are released; ``0`` keeps every thread.
+    """
     from langgraph.checkpoint.sqlite import SqliteSaver
 
     path.parent.mkdir(parents=True, exist_ok=True)
     conn = sqlite3.connect(str(path), check_same_thread=False)
+    if conn.execute("PRAGMA page_count").fetchone()[0] == 0:
+        # auto_vacuum can only be chosen before the first table exists
+        conn.execute("PRAGMA auto_vacuum=INCREMENTAL")
     saver: BaseCheckpointSaver[Any] = SqliteSaver(conn, serde=serializer())
+    saver.setup()  # type: ignore[attr-defined]
+    if retention_days > 0:
+        prune_stale_threads(conn, saver, retention_days)
     return saver
+
+
+def prune_stale_threads(
+    conn: sqlite3.Connection,
+    saver: BaseCheckpointSaver[Any],
+    retention_days: int,
+    *,
+    now: datetime | None = None,
+) -> list[str]:
+    """Delete every thread whose newest checkpoint is older than ``retention_days``.
+
+    The newest checkpoint per thread is the row with the largest ``checkpoint_id`` (the saver's
+    own ordering; ids are time-ordered UUIDs) and its age is the checkpoint's ``ts`` field. A
+    row that cannot be decoded is kept. Returns the deleted thread ids.
+    """
+    cutoff = (now or utcnow()) - timedelta(days=retention_days)
+    rows = conn.execute(
+        "SELECT thread_id, type, checkpoint, MAX(checkpoint_id) FROM checkpoints GROUP BY thread_id"
+    ).fetchall()
+    stale: list[str] = []
+    for thread_id, type_, blob, _newest_id in rows:
+        try:
+            newest = datetime.fromisoformat(saver.serde.loads_typed((type_, blob))["ts"])
+        except Exception:  # an unreadable checkpoint is never a reason to delete a thread
+            continue
+        if newest.tzinfo is None:
+            newest = newest.replace(tzinfo=UTC)
+        if newest < cutoff:
+            stale.append(str(thread_id))
+    for thread_id in stale:
+        saver.delete_thread(thread_id)
+    if stale:
+        conn.execute("PRAGMA incremental_vacuum")
+        conn.commit()
+    return stale
 
 
 def initial_state(request_text: str = "", profile: dict[str, Any] | None = None) -> AgentState:

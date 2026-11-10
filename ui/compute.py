@@ -156,8 +156,13 @@ def greeks_explained(c: OptionCandidate) -> list[tuple[str, str, str]]:
         (
             "Implied vol",
             f"{c.iv:.0%}",
-            "The volatility the market price implies; the Greeks above are computed from it with "
-            "Black-Scholes-Merton.",
+            (
+                "Solved from the contract's mid price with Black-Scholes-Merton; the Greeks above "
+                "are computed from it."
+                if c.iv_source == "mid"
+                else "The data provider's figure: no volatility reproduces the quoted mid (the "
+                "option trades at parity), so the Greeks above use this value instead."
+            ),
         ),
         (
             "Probability OTM",

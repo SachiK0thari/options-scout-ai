@@ -62,7 +62,9 @@ TABS: tuple[str, ...] = (
 @st.cache_resource(show_spinner=False)
 def _resources() -> tuple[Any, Deps, Any]:
     deps = Deps.from_config(CFG)
-    ckpt = sqlite_checkpointer(CFG.paths.checkpoint_db)
+    ckpt = sqlite_checkpointer(
+        CFG.paths.checkpoint_db, CFG.settings.agent.checkpoint_retention_days
+    )
     return build_graph(deps, ckpt), deps, ckpt
 
 

@@ -6,7 +6,7 @@ from datetime import UTC, date, datetime, timedelta
 
 import pytest
 
-from options_scout.config import AppConfig
+from options_scout.config import AppConfig, LEAPSRules
 from options_scout.core import pricing, screeners
 from options_scout.core.models import OptionChain, OptionQuote, SpotQuote, TickerSnapshot
 from options_scout.data.market import MarketData
@@ -67,6 +67,190 @@ def _snapshot(
         iv_rank=0.5,
         iv_rank_source="hv_proxy",
     )
+
+
+# ------------------------------------------------------- implied vol from the mid (W1)
+def _one_call_snapshot(
+    q: OptionQuote, S: float = 100.0, dividend_yield: float = 0.0
+) -> TickerSnapshot:
+    chain = OptionChain(ticker="TEST", expiry=q.expiry, as_of=datetime.now(tz=UTC), calls=[q])
+    return TickerSnapshot(
+        ticker="TEST",
+        as_of=datetime.now(tz=UTC),
+        spot=SpotQuote(ticker="TEST", price=S, avg_volume=5e6, as_of=datetime.now(tz=UTC)),
+        chains=[chain],
+        earnings_date=None,
+        hv30=0.25,
+        dividend_yield=dividend_yield,
+        atm_iv=0.31,
+        iv_rank=0.5,
+        iv_rank_source="hv_proxy",
+    )
+
+
+def _priced_quote(
+    K: float, expiry: date, S: float, true_iv: float, reported_iv: float
+) -> OptionQuote:
+    """A call whose bid/ask straddle the BSM price at ``true_iv`` while the provider says
+    ``reported_iv``. Spread 1% so the solved figure lands within 1e-4 of ``true_iv``."""
+    T = (expiry - TODAY).days / 365
+    mid = pricing.bsm_price(S, K, T, R, 0.0, true_iv, "call")
+    half = mid * 0.005
+    return OptionQuote(
+        contract_symbol=f"XC{K}",
+        kind="call",
+        strike=K,
+        expiry=expiry,
+        bid=mid - half,
+        ask=mid + half,
+        open_interest=1000,
+        iv=reported_iv,
+    )
+
+
+def _loose_leaps(config: AppConfig) -> LEAPSRules:
+    """LEAPS rules with the delta window and extrinsic cap opened, so the tests below exercise
+    the implied-vol choice alone."""
+    return config.rules.leaps.model_copy(
+        update={"delta_min": 0.0, "delta_max": 1.0, "max_extrinsic_per_year_pct": 10.0}
+    )
+
+
+def test_candidate_iv_is_solved_from_the_mid_not_the_provider(config: AppConfig) -> None:
+    far = TODAY + timedelta(days=600)
+    q = _priced_quote(80.0, far, 100.0, true_iv=0.30, reported_iv=0.45)
+    out = screeners.screen_leaps(
+        _one_call_snapshot(q),
+        _loose_leaps(config),
+        today=TODAY,
+        r=R,
+        iv_rules=config.rules.implied_vol,
+    )
+    assert len(out) == 1
+    c = out[0]
+    assert c.iv == pytest.approx(0.30, abs=1e-4)
+    assert c.iv_source == "mid"
+    assert c.iv_provider == pytest.approx(0.45)
+    T = pricing.years_to_expiry(c.dte)
+    g = pricing.bsm_greeks(100.0, 80.0, T, R, 0.0, c.iv, "call")
+    assert c.delta == pytest.approx(g.delta)
+    assert c.prob_otm == pytest.approx(pricing.prob_otm(100.0, 80.0, T, R, 0.0, c.iv, "call"))
+    # provider and solved figure differ by 15 points: above the 5-point tolerance
+    assert "iv_disagrees" in c.flags and "iv_from_provider" not in c.flags
+
+
+def test_candidate_falls_back_to_provider_iv_below_the_european_floor(config: AppConfig) -> None:
+    far = TODAY + timedelta(days=600)
+    # deep in the money, quoted at parity (S - K): below the discounted-forward floor the
+    # European model can reach, so no vol reproduces the mid
+    q = OptionQuote(
+        contract_symbol="XC40",
+        kind="call",
+        strike=40.0,
+        expiry=far,
+        bid=59.9,
+        ask=60.1,
+        open_interest=1000,
+        iv=0.42,
+    )
+    out = screeners.screen_leaps(
+        _one_call_snapshot(q),
+        _loose_leaps(config),
+        today=TODAY,
+        r=R,
+        iv_rules=config.rules.implied_vol,
+    )
+    assert len(out) == 1
+    c = out[0]
+    assert c.iv == pytest.approx(0.42) and c.iv_source == "provider"
+    assert c.iv_provider == pytest.approx(0.42)
+    assert "iv_from_provider" in c.flags and "iv_disagrees" not in c.flags
+
+
+def test_quote_with_zero_provider_iv_but_a_solvable_mid_is_kept(config: AppConfig) -> None:
+    far = TODAY + timedelta(days=600)
+    q = _priced_quote(80.0, far, 100.0, true_iv=0.30, reported_iv=0.0)
+    out = screeners.screen_leaps(
+        _one_call_snapshot(q),
+        _loose_leaps(config),
+        today=TODAY,
+        r=R,
+        iv_rules=config.rules.implied_vol,
+    )
+    assert len(out) == 1
+    c = out[0]
+    assert c.iv == pytest.approx(0.30, abs=1e-4) and c.iv_source == "mid"
+    assert c.iv_provider is None
+    assert "iv_disagrees" not in c.flags  # nothing to disagree with
+    # neither a provider figure nor a solvable mid: dropped
+    q_bad = OptionQuote(
+        contract_symbol="XC40",
+        kind="call",
+        strike=40.0,
+        expiry=far,
+        bid=59.9,
+        ask=60.1,
+        open_interest=1000,
+        iv=0.0,
+    )
+    assert (
+        screeners.screen_leaps(
+            _one_call_snapshot(q_bad),
+            _loose_leaps(config),
+            today=TODAY,
+            r=R,
+            iv_rules=config.rules.implied_vol,
+        )
+        == []
+    )
+
+
+def test_solve_from_mid_can_be_switched_off(config: AppConfig) -> None:
+    far = TODAY + timedelta(days=600)
+    q = _priced_quote(80.0, far, 100.0, true_iv=0.30, reported_iv=0.45)
+    off = config.rules.implied_vol.model_copy(update={"solve_from_mid": False})
+    out = screeners.screen_leaps(
+        _one_call_snapshot(q), _loose_leaps(config), today=TODAY, r=R, iv_rules=off
+    )
+    assert len(out) == 1
+    assert out[0].iv == pytest.approx(0.45) and out[0].iv_source == "provider"
+    # the provider figure was asked for, so neither provenance flag is set
+    assert not {"iv_from_provider", "iv_disagrees"} & set(out[0].flags)
+
+
+def test_solved_iv_reprices_the_mid_on_every_fixture_candidate(config: AppConfig) -> None:
+    """Acceptance check from the plan: for every candidate priced from the mid, BSM at the
+    candidate's vol reproduces the quoted mid to within a cent."""
+    md = MarketData.from_config(config, mode="fixture")
+    today = md.today()
+    r = md.get_risk_free_rate()
+    checked = 0
+    for t in ["AAPL", "COST", "SPY", "NKE", "MSFT", "QQQ", "SBUX"]:
+        snap = md.build_snapshot(t)
+        csp = screeners.screen_csp(
+            snap,
+            config.rules.csp,
+            today=today,
+            r=r,
+            realistic_loss_drop=0.3,
+            iv_rules=config.rules.implied_vol,
+        )
+        leaps = screeners.screen_leaps(
+            snap, config.rules.leaps, today=today, r=r, iv_rules=config.rules.implied_vol
+        )
+        pairs = screeners.pair_pmcc(
+            leaps, snap, config.rules.pmcc, today=today, r=r, iv_rules=config.rules.implied_vol
+        )
+        for c in [*csp, *leaps, *(p.short_call for p in pairs)]:
+            assert c.iv_source in ("mid", "provider")
+            if c.iv_source != "mid":
+                assert "iv_from_provider" in c.flags
+                continue
+            T = pricing.years_to_expiry(c.dte)
+            model = pricing.bsm_price(c.spot, c.strike, T, r, snap.dividend_yield, c.iv, c.kind)
+            assert abs(model - c.mid) < 0.01, (c.id, model, c.mid)
+            checked += 1
+    assert checked > 0
 
 
 def test_csp_screen_respects_delta_and_computes_math(config: AppConfig) -> None:

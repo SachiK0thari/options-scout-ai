@@ -202,6 +202,9 @@ class AgentSettings(_Strict):
     max_sizing_retries: int
     max_explainer_retries: int
     verifier_number_tolerance: float
+    # Conversation threads whose newest checkpoint is older than this are deleted when the
+    # checkpoint database is opened (0 keeps every thread forever).
+    checkpoint_retention_days: int = Field(ge=0)
 
 
 class RiskSettings(_Strict):
@@ -299,10 +302,20 @@ class PMCCRules(_Strict):
     delta_max: float
 
 
+class ImpliedVolRules(_Strict):
+    """How a candidate's implied vol is chosen (W1). Solving from the mid makes the Greeks
+    belong to the option that was actually quoted; the provider's figure is the fallback."""
+
+    solve_from_mid: bool = True  # false restores the provider's figure everywhere
+    # |provider - solved| above this (in vol fraction, 0.05 = five points) flags `iv_disagrees`
+    disagreement_points: float = Field(default=0.05, ge=0)
+
+
 class ScreenerRules(_Strict):
     csp: CSPRules
     leaps: LEAPSRules
     pmcc: PMCCRules
+    implied_vol: ImpliedVolRules = ImpliedVolRules()
 
 
 # ---------------------------------------------------------------------- social_score.yaml
@@ -1115,12 +1128,22 @@ def _load_yaml(path: Path) -> dict[str, Any]:
 
 
 def _apply_env_overrides(raw: dict[str, Any]) -> dict[str, Any]:
-    """Allow OPTIONS_SCOUT_<KEY> to override top-level scalar settings keys."""
+    """Allow OPTIONS_SCOUT_<KEY> to override top-level scalar settings keys.
+
+    ``OPTIONS_SCOUT_CHECKPOINT_DB`` overrides ``paths.checkpoint_db`` (relative to the repository
+    root unless absolute). The test suite sets it to a temporary file so no test ever writes a
+    conversation thread into the real database.
+    """
     out = dict(raw)
     for key in ("data_mode", "llm_mode"):
         env_val = os.environ.get(f"OPTIONS_SCOUT_{key.upper()}")
         if env_val:
             out[key] = env_val
+    checkpoint_db = os.environ.get("OPTIONS_SCOUT_CHECKPOINT_DB")
+    if checkpoint_db:
+        paths = dict(out.get("paths") or {})
+        paths["checkpoint_db"] = checkpoint_db
+        out["paths"] = paths
     return out
 
 

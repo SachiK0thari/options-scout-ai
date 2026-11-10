@@ -128,14 +128,36 @@ def implied_vol(
     hi: float = 5.0,
     tol: float = 1e-8,
     max_iter: int = 200,
+    guess: float | None = None,
+    newton_iter: int = 8,
 ) -> float | None:
-    """Bisection IV solver. Returns None when the price is outside the no-arbitrage band."""
+    """Implied-vol solver. Returns None when the price is outside the no-arbitrage band.
+
+    With a ``guess`` inside ``[lo, hi]`` (the screeners pass the data provider's figure, usually
+    within ten points of the answer) a few Newton steps on vega converge in three to five price
+    evaluations instead of the thirty or so bisection needs. Newton falls back to bisection
+    whenever it leaves the bracket, stalls on a flat vega or runs out of steps, so the result is
+    the same vol either way to within ``tol`` in price.
+    """
     if T <= 0:
         return None
     floor = bsm_price(S, K, T, r, q, lo, kind)
     cap = bsm_price(S, K, T, r, q, hi, kind)
     if price < floor - 1e-10 or price > cap + 1e-10:
         return None
+    if guess is not None and math.isfinite(guess) and lo < guess < hi:
+        sigma = guess
+        for _ in range(newton_iter):
+            g = bsm_greeks(S, K, T, r, q, sigma, kind)
+            diff = g.price - price
+            if abs(diff) < tol:
+                return sigma
+            dprice_dsigma = g.vega * 100.0  # vega is quoted per vol point
+            if dprice_dsigma <= _EPS:
+                break
+            sigma -= diff / dprice_dsigma
+            if not (lo < sigma < hi):
+                break
     a, b = lo, hi
     for _ in range(max_iter):
         m = 0.5 * (a + b)

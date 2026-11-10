@@ -6,10 +6,12 @@ Charts never compute finance: they take report objects or the output of ``ui.com
 from __future__ import annotations
 
 from collections.abc import Mapping, Sequence
+from datetime import timedelta
 
 import plotly.graph_objects as go
 
 from options_scout.core.models import (
+    BottleneckSignal,
     GoalPlan,
     HoldingsAnalysis,
     OptionCandidate,
@@ -430,6 +432,158 @@ def sentiment_intent_scatter(
         "Sentiment vs purchase intent (size = trend score)",
         "Mean sentiment (−1 … +1)",
         "Mentions with purchase intent (%)",
+    )
+
+
+# ---------------------------------------------------------------------------- bottlenecks
+def bottleneck_mentions(layer: BottleneckSignal, recent_days: int) -> go.Figure:
+    """Tightening (up) and easing (down) mentions per day for one layer, with the recent window
+    the tightness z-score reads shaded (Phase 11, section 4A.7)."""
+    tight = layer.mentions.get("tightening", [])
+    ease = layer.mentions.get("easing", [])
+    fig = go.Figure()
+    fig.add_bar(
+        name="tightening",
+        x=[p.day for p in tight],
+        y=[p.value for p in tight],
+        marker={"color": theme.POSITIVE, "line": {"width": 0}},
+        hovertemplate="%{x}<br>tightening mentions %{y:g}<extra></extra>",
+    )
+    fig.add_bar(
+        name="easing (new supply, lower prices)",
+        x=[p.day for p in ease],
+        y=[-p.value for p in ease],
+        marker={"color": theme.NEGATIVE, "line": {"width": 0}},
+        customdata=[p.value for p in ease],
+        hovertemplate="%{x}<br>easing mentions %{customdata:g}<extra></extra>",
+    )
+    end = layer.as_of.date()
+    start = end - timedelta(days=recent_days)
+    # plotly cannot place a shape annotation on a date axis, so the label is its own annotation
+    fig.add_vrect(x0=start, x1=end, fillcolor="rgba(42,120,214,0.08)", line={"width": 0})
+    fig.add_annotation(
+        x=start.isoformat(),
+        y=1.0,
+        yref="paper",
+        text=f"last {recent_days} days",
+        showarrow=False,
+        xanchor="left",
+        yanchor="top",
+        font={"color": theme.MUTED},
+    )
+    fig.add_hline(y=0, line={"color": theme.AXIS, "width": 1})
+    fig.update_layout(barmode="relative")
+    z = layer.components.get("tightness_z")
+    z_text = "" if z is None else f" · tightness z {z:+.1f}"
+    return theme.style(
+        fig,
+        f"Tightening vs easing mentions: {layer.layer_name}{z_text}",
+        "Day",
+        "Weighted mentions (easing shown below zero)",
+    )
+
+
+def bottleneck_price_series(
+    layer: BottleneckSignal, labels: Mapping[str, str], window_days: int
+) -> go.Figure:
+    """Each configured price series of a layer rebased to 100 at the start of the previous slope
+    window, with the boundary between the two windows the deceleration penalty compares marked."""
+    end = layer.as_of.date()
+    boundary = end - timedelta(days=window_days)
+    first_day = end - timedelta(days=2 * window_days)
+    keys = list(layer.series)
+    colors = theme.color_map(keys)
+    fig = go.Figure()
+    for key in keys:
+        pts = sorted(layer.series[key], key=lambda p: p.day)
+        if not pts:
+            continue
+        base_pt = next((p for p in pts if p.day >= first_day), pts[0])
+        base = base_pt.value or 1.0
+        fig.add_scatter(
+            name=labels.get(key, key),
+            mode="lines+markers",
+            x=[p.day for p in pts],
+            y=[100.0 * p.value / base for p in pts],
+            line={"color": colors[key], "width": 2},
+            marker={"size": 6, "color": colors[key]},
+            customdata=[p.value for p in pts],
+            hovertemplate=(
+                "%{x}<br>rebased %{y:.1f} · value %{customdata:g}<extra>" + key + "</extra>"
+            ),
+        )
+    all_days = [p.day for pts in layer.series.values() for p in pts]
+    if all_days:
+        fig.update_xaxes(range=[min(all_days) - timedelta(days=15), end + timedelta(days=30)])
+    decel = layer.components.get("price_deceleration")
+    trend = layer.components.get("price_trend")
+    note = "no price data" if trend is None else f"trend {trend:+.2f}"
+    if decel is not None:
+        note += f" · deceleration {decel:.2f}"
+    fig.add_vline(x=boundary.isoformat(), line={"color": theme.MUTED, "width": 1, "dash": "dash"})
+    fig.add_annotation(
+        x=boundary.isoformat(),
+        y=1.0,
+        yref="paper",
+        text=f"previous window | recent window ({note})",
+        showarrow=False,
+        xanchor="left",
+        yanchor="top",
+        font={"color": theme.MUTED},
+    )
+    return theme.style(
+        fig,
+        f"Price series: {layer.layer_name}",
+        "Observation date",
+        f"Index (100 = start of the {2 * window_days}-day history)",
+    )
+
+
+def bottleneck_score_scatter(
+    companies: Sequence[BottleneckSignal], label_top: int = 6
+) -> go.Figure:
+    """Company score against the priced-in penalty, one dot per supplier (size = exposure);
+    curated names are highlighted and always labelled, the rest cannot be screened here
+    (section 4A.1) and only the ``label_top`` highest-scoring of them carry a label."""
+    top = {s.ticker for s in sorted(companies, key=lambda s: -s.score)[:label_top]}
+    fig = go.Figure()
+    groups = (
+        ("on the good-to-own list", theme.ACCENT, [s for s in companies if s.curated]),
+        ("not investable here", theme.MUTED, [s for s in companies if not s.curated]),
+    )
+    for name, color, sub in groups:
+        if not sub:
+            continue
+        fig.add_scatter(
+            name=name,
+            mode="markers+text",
+            x=[s.components.get("priced_in", 0.0) for s in sub],
+            y=[s.score for s in sub],
+            text=[s.ticker if s.curated or s.ticker in top else "" for s in sub],
+            hovertext=[s.ticker or "" for s in sub],
+            textposition="top center",
+            marker={
+                "color": color,
+                "size": [8 + 16 * s.components.get("exposure", 0.0) for s in sub],
+                "line": {"color": "#ffffff", "width": 2},
+            },
+            customdata=[
+                [f"{s.theme_id}/{s.layer_id}", s.layer_score, s.components.get("exposure", 0.0)]
+                for s in sub
+            ],
+            hovertemplate=(
+                "%{hovertext} · %{customdata[0]}<br>company score %{y:.0f} · layer score "
+                "%{customdata[1]:.0f}<br>exposure %{customdata[2]:.2f} · priced in %{x:.2f}"
+                "<extra></extra>"
+            ),
+        )
+    fig.update_xaxes(range=[-0.05, 1.05])
+    fig.update_yaxes(range=[0, 105])
+    return theme.style(
+        fig,
+        "Company score vs priced-in penalty (size = exposure)",
+        "Priced in (0 = nothing in the price, 1 = fully priced)",
+        "Company score (0–100)",
     )
 
 

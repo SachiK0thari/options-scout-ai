@@ -5,6 +5,7 @@ from __future__ import annotations
 import time
 from collections import defaultdict, deque
 from collections.abc import Iterator
+from pathlib import Path
 
 import pytest
 from fastapi.testclient import TestClient
@@ -128,6 +129,22 @@ def test_recommend_front_door(client: TestClient) -> None:
         client.post("/v1/recommend", json={"buying_power": 1000, "strategy": "yolo"}).status_code
         == 422
     )
+
+
+def test_api_round_trip_leaves_the_repository_checkpoint_db_alone(client: TestClient) -> None:
+    """W19: tests write their threads to a temporary database, never to data/checkpoints.sqlite."""
+    import options_scout.api.main as api
+
+    repo_db = Path(__file__).resolve().parents[2] / "data" / "checkpoints.sqlite"
+    before = repo_db.stat().st_size if repo_db.exists() else -1
+    test_db = api.registry().cfg.paths.checkpoint_db
+    assert test_db != repo_db
+    r = client.post("/v1/recommend", json={"buying_power": 40000, "strategy": "csp"})
+    assert r.status_code == 200, r.text
+    assert _wait(client, r.json()["thread_id"], {"completed", "failed"})["status"] == "completed"
+    after = repo_db.stat().st_size if repo_db.exists() else -1
+    assert after == before
+    assert test_db.exists() and test_db.stat().st_size > 0
 
 
 def test_quality_universe_endpoint(client: TestClient) -> None:

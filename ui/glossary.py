@@ -101,8 +101,19 @@ TERMS: dict[str, Term] = {
         "Screener notes on the contract, for example a low IV rank or a date outside the "
         "preferred window.",
     ),
+    "Supply constraint": Term(
+        "bottleneck-arbitrage",
+        "Notes from the bottleneck board (Phase 11): the company sells into a tight supply layer, "
+        "the constraint is easing (new supply or slower prices, a reason not to sell puts), or an "
+        "earnings date or data release falls before expiry. Never a filter.",
+    ),
     # the advanced view's extra columns
-    "Implied vol": Term("vega"),
+    "Implied vol": Term(
+        "vega",
+        "Volatility solved from the contract's mid price with Black-Scholes-Merton, so the "
+        "Greeks describe the option at the price shown. Falls back to the data provider's figure "
+        "(flag iv_from_provider) when no volatility reproduces the mid.",
+    ),
     "Theta / day": Term("theta"),
     "Vega": Term(
         "vega",

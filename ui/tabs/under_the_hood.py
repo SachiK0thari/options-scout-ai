@@ -6,7 +6,32 @@ import pandas as pd
 import streamlit as st
 
 from options_scout.agent.graph import AGENT_ORDER
+from options_scout.config import BOTTLENECK_SOURCE_NAMES
 from ui import charts, session, theme
+from ui.session import CFG
+
+
+def bottleneck_source_rows(status: dict[str, str]) -> list[dict[str, str]]:
+    """The bottleneck engine's status and one row per configured source (Phase 11, 4A.5): what
+    ``bottleneck_scout_node`` reported for this run (``ran``, ``snapshot``, ``disabled``, ``error``)
+    and each adapter's state when the engine ran; a reused snapshot carries no per-source state."""
+    engine = status.get("bottleneck", "not run")
+    rows = [{"Source": "bottleneck engine", "Enabled": "yes", "Status": engine}]
+    for name in BOTTLENECK_SOURCE_NAMES:
+        enabled = CFG.bottleneck_sources.is_enabled(name)
+        state = status.get(f"bottleneck:{name}")
+        if state is None:
+            state = (
+                "disabled"
+                if not enabled
+                else (
+                    "not fetched (board reused from the snapshot)"
+                    if engine == "snapshot"
+                    else "n/a"
+                )
+            )
+        rows.append({"Source": name, "Enabled": "yes" if enabled else "no", "Status": state})
+    return rows
 
 
 def render(view: session.View) -> None:
@@ -128,6 +153,17 @@ def render(view: session.View) -> None:
         )
         d2.download_button(
             "Download Markdown", view.markdown, f"{report.run_id}.md", "text/markdown", key="dl_md"
+        )
+        st.markdown("**Bottleneck source status**")
+        st.dataframe(
+            pd.DataFrame(bottleneck_source_rows(meta.data_source_status)),
+            width="stretch",
+            hide_index=True,
+        )
+        st.caption(
+            "Sources are switched in config/bottleneck_sources.yaml or per run with "
+            "OPTIONS_SCOUT_BOTTLENECK_SOURCES; the engine reuses a journalled snapshot younger than "
+            f"{CFG.bottleneck.snapshot_max_age_hours} h instead of fetching again."
         )
         if report.errors:
             st.markdown("**Notes and degraded sources**")

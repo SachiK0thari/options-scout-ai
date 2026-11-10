@@ -2,7 +2,7 @@
  {
   "section": "11.1 Deterministic",
   "name": "Golden-value + property tests (tests/unit)",
-  "value": "391 passed",
+  "value": "415 passed",
   "target": "all pass",
   "status": "PASS",
   "detail": ""
@@ -10,15 +10,15 @@
  {
   "section": "Quality",
   "name": "Offline test suite (unit + agent + API + UI + MCP)",
-  "value": "557 passed",
+  "value": "594 passed",
   "target": "all pass",
   "status": "PASS",
-  "detail": "309s"
+  "detail": "329s"
  },
  {
   "section": "Quality",
-  "name": "Line coverage on core/, rag/, agent/ (pytest --cov, same run)",
-  "value": "94.6%",
+  "name": "Line coverage on core/, rag/, agent/, bottleneck/ (pytest --cov, same run)",
+  "value": "95.2%",
   "target": "\u2265 85%",
   "status": "PASS",
   "detail": "whole package 92.0%"
@@ -42,10 +42,10 @@
  {
   "section": "11.2 Entity extraction",
   "name": "F1 on 150 labeled posts (LLM deepseek/deepseek-v4.1-flash)",
-  "value": "P 0.72 / R 0.91 / F1 0.80",
+  "value": "P 0.74 / R 0.94 / F1 0.83",
   "target": "F1 \u2265 0.80",
   "status": "PASS",
-  "detail": "tp=163 fp=64 fn=16"
+  "detail": "tp=168 fp=59 fn=11"
  },
  {
   "section": "11.2 Entity extraction",
@@ -53,7 +53,7 @@
   "value": "0.98",
   "target": "report",
   "status": "INFO",
-  "detail": "n=163"
+  "detail": "n=168"
  },
  {
   "section": "11.2 Resolution",
@@ -106,18 +106,18 @@
  {
   "section": "11.2 Profile parsing",
   "name": "Clarification routing accuracy (LLM deepseek/deepseek-v4.1-flash)",
-  "value": "98%",
+  "value": "100%",
   "target": "\u2265 95%",
   "status": "PASS",
-  "detail": "59/60"
+  "detail": "60/60"
  },
  {
   "section": "11.2 Profile parsing",
   "name": "Knowledge-level accuracy (LLM deepseek/deepseek-v4.1-flash)",
-  "value": "98%",
+  "value": "100%",
   "target": "\u2265 90%",
   "status": "PASS",
-  "detail": "59/60 (11 requests state a level, the rest must parse to none)"
+  "detail": "60/60 (11 requests state a level, the rest must parse to none)"
  },
  {
   "section": "11.2 Prompt injection",
@@ -141,7 +141,7 @@
   "value": "100.0%",
   "target": "100%",
   "status": "PASS",
-  "detail": "284/284 numbers over 6 runs"
+  "detail": "332/332 numbers over 6 runs"
  },
  {
   "section": "11.3 Agent",
@@ -185,8 +185,24 @@
  },
  {
   "section": "11.3 Agent",
+  "name": "Bottleneck containment: board suppliers off the good-to-own list never enter the universe, a candidate table or the ranking (Phase 11, 4A.11)",
+  "value": "6/6",
+  "target": "100%",
+  "status": "PASS",
+  "detail": ""
+ },
+ {
+  "section": "11.3 Agent",
+  "name": "Bottleneck board present with a thesis monitor (every layer row carries falsifiers and evidence links)",
+  "value": "6/6",
+  "target": "100%",
+  "status": "PASS",
+  "detail": "8 layers; thesis weakening: ai_datacenter/networking, electrification/battery"
+ },
+ {
+  "section": "11.3 Agent",
   "name": "Latency per run (fixture mode)",
-  "value": "mean 1.09s \u00b7 p95 2.84s",
+  "value": "mean 1.17s \u00b7 p95 3.05s",
   "target": "report",
   "status": "INFO",
   "detail": ""
@@ -218,7 +234,7 @@
  {
   "section": "11.3a Compliance",
   "name": "Suitability gate (correct check name per case)",
-  "value": "20/20",
+  "value": "22/22",
   "target": "100%",
   "status": "PASS",
   "detail": ""
@@ -241,11 +257,11 @@
  },
  {
   "section": "11.3a Retrieval",
-  "name": "Retrieval quality: recall@6 on 60 labelled questions (hash embedder, CI default)",
-  "value": "0.83 (50/60) \u00b7 MRR 0.60",
+  "name": "Retrieval quality: recall@6 on 63 labelled questions (hash embedder, CI default)",
+  "value": "0.84 (53/63) \u00b7 MRR 0.60",
   "target": "recall@6 \u2265 0.70",
   "status": "PASS",
-  "detail": "document-level recall 53/60; chunk misses: rag-05, rag-07, rag-11, rag-16, rag-23, rag-25, rag-26, rag-27, rag-30, rag-58"
+  "detail": "document-level recall 56/63; chunk misses: rag-05, rag-07, rag-11, rag-16, rag-23, rag-25, rag-26, rag-27, rag-30, rag-58"
  },
  {
   "section": "11.3a Retrieval",
@@ -258,23 +274,23 @@
  {
   "section": "11.3a Citations",
   "name": "Citation faithfulness: cited [Sn] tags that exist in the retrieved set (rule-based answerer)",
-  "value": "103/103",
+  "value": "110/110",
   "target": "100%",
   "status": "PASS",
-  "detail": "over 60 answers"
+  "detail": "over 63 answers"
  },
  {
   "section": "11.3a Citations",
   "name": "Citation faithfulness: education paragraphs carrying a citation (rule-based answerer)",
-  "value": "103/103",
+  "value": "106/106",
   "target": "100%",
   "status": "PASS",
   "detail": ""
  },
  {
   "section": "11.3a Citations",
-  "name": "Answers to the 60 questions passing Compliance",
-  "value": "60/60",
+  "name": "Answers to the 63 questions passing Compliance",
+  "value": "63/63",
   "target": "100%",
   "status": "PASS",
   "detail": "0 answered with the no-source sentence"
@@ -418,7 +434,7 @@
  {
   "section": "11.2 Constraint classification",
   "name": "Side accuracy (customer / supplier / neutral) on 100 snippets (LLM deepseek/deepseek-v4.1-flash)",
-  "value": "95/100 = 95%",
+  "value": "91/100 = 91%",
   "target": "report",
   "status": "INFO",
   "detail": ""

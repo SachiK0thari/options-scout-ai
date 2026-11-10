@@ -13,9 +13,32 @@ import pandas as pd
 import streamlit as st
 
 from options_scout.core.models import OptionCandidate, ScreeningReport
+from options_scout.core.screeners import (
+    BOTTLENECK_FLAGS,
+    FLAG_BOTTLENECK_EASING,
+    FLAG_BOTTLENECK_SUPPORT,
+    FLAG_CATALYST_INSIDE_DTE,
+)
 from ui import charts, glossary, session, theme
 from ui.components import market_strip
 from ui.session import CFG, pct
+
+# the three strategy-fit flags of PRD 4A.8 in plain language (Phase 11, step 11.6)
+SUPPLY_FLAG_TEXT: dict[str, str] = {
+    FLAG_BOTTLENECK_SUPPORT: "🔧 sells into a tight supply layer",
+    FLAG_BOTTLENECK_EASING: "🟡 constraint easing: new supply or slower prices",
+    FLAG_CATALYST_INSIDE_DTE: "📅 earnings or data release before expiry",
+}
+HIDDEN_FLAGS = ("iv_rank_is_hv_proxy", *BOTTLENECK_FLAGS)  # shown elsewhere or in plain language
+
+
+def supply_constraint_text(flags: list[str]) -> str:
+    """The bottleneck flags on a contract, in plain language; empty when there are none."""
+    return "; ".join(SUPPLY_FLAG_TEXT[f] for f in BOTTLENECK_FLAGS if f in flags)
+
+
+def _other_flags(flags: list[str]) -> str:
+    return ", ".join(f for f in flags if f not in HIDDEN_FLAGS)
 
 
 def _csp_rows(cands: list[OptionCandidate], flagged: set[str] | None = None) -> pd.DataFrame:
@@ -37,7 +60,8 @@ def _csp_rows(cands: list[OptionCandidate], flagged: set[str] | None = None) -> 
                 **_greek_cells(c),
                 "Earnings before expiry": "⚠️" if c.earnings_before_expiry else "",
                 "News": "📰" if c.id in flagged else "",  # Phase 12: a News Desk calendar flag
-                "Flags": ", ".join(f for f in c.flags if f != "iv_rank_is_hv_proxy"),
+                "Supply constraint": supply_constraint_text(c.flags),  # Phase 11: the 4A.8 flags
+                "Flags": _other_flags(c.flags),
                 "id": c.id,
             }
             for c in cands
@@ -66,7 +90,8 @@ def _leaps_rows(cands: list[OptionCandidate], report: ScreeningReport) -> pd.Dat
                     if c.id in pairs
                     else ""
                 ),
-                "Flags": ", ".join(f for f in c.flags if f != "iv_rank_is_hv_proxy"),
+                "Supply constraint": supply_constraint_text(c.flags),
+                "Flags": _other_flags(c.flags),
                 "id": c.id,
             }
             for c in cands
@@ -222,6 +247,7 @@ def render(view: session.View) -> None:
                                 "Short-call yield on debit (annualized)": pct(
                                     p.short_call_annualized_yield_on_debit
                                 ),
+                                "Supply constraint": supply_constraint_text(p.short_call.flags),
                             }
                             for p in report.pmcc_candidates
                         ]
@@ -233,7 +259,18 @@ def render(view: session.View) -> None:
                     "Safety rule: short strike ≥ LEAPS strike + LEAPS debit, so the pair cannot "
                     "lose money on a sharp rally."
                 )
+    w = CFG.settings.ranking.weights
     st.caption(
-        "Ranked list (option quality 50% · stock quality 35% · consumer trend 15%): "
+        f"Ranked list (option quality {w.option_quality:.0%} · stock quality {w.stock_quality:.0%} · "
+        f"consumer trend {w.social:.0%} · bottleneck {w.bottleneck:.0%}): "
         + ", ".join(f"{r.rank}. {r.candidate.id} ({r.final_score:.2f})" for r in report.ranked[:8])
     )
+    if any(
+        supply_constraint_text(c.flags) for c in [*report.csp_candidates, *report.leaps_candidates]
+    ):
+        st.caption(
+            "*Supply constraint* marks the bottleneck board's strategy-fit notes (Trends & News → "
+            "Bottlenecks): a tight layer the company sells into, a constraint that is easing (the "
+            "method's reason not to sell puts once supply is arriving), or a catalyst inside the "
+            "contract's window. They are notes, never filters."
+        )

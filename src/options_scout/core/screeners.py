@@ -9,10 +9,11 @@ from __future__ import annotations
 from collections.abc import Iterable, Mapping, Sequence
 from datetime import date
 
-from options_scout.config import BottleneckFlags, CSPRules, LEAPSRules, PMCCRules
+from options_scout.config import BottleneckFlags, CSPRules, ImpliedVolRules, LEAPSRules, PMCCRules
 from options_scout.core import margin, pricing
 from options_scout.core.models import (
     BottleneckSignal,
+    IVSource,
     OptionCandidate,
     OptionChain,
     OptionQuote,
@@ -24,6 +25,10 @@ FLAG_BOTTLENECK_SUPPORT = "bottleneck_support"
 FLAG_BOTTLENECK_EASING = "bottleneck_easing"
 FLAG_CATALYST_INSIDE_DTE = "catalyst_inside_dte"
 BOTTLENECK_FLAGS = (FLAG_BOTTLENECK_SUPPORT, FLAG_BOTTLENECK_EASING, FLAG_CATALYST_INSIDE_DTE)
+# W1: implied-vol provenance flags
+FLAG_IV_FROM_PROVIDER = "iv_from_provider"  # no vol reproduces the mid; provider figure used
+FLAG_IV_DISAGREES = "iv_disagrees"  # provider and solved figures differ by more than the tolerance
+_DEFAULT_IV_RULES = ImpliedVolRules()
 
 
 def _dte(expiry: date, today: date) -> int:
@@ -48,8 +53,16 @@ def _base_candidate(
     today: date,
     r: float,
     rules_spread: float,
+    iv_rules: ImpliedVolRules,
 ) -> OptionCandidate | None:
-    """Shared liquidity + Greeks computation. Returns None when the quote is untradeable."""
+    """Shared liquidity + Greeks computation. Returns None when the quote is untradeable.
+
+    The implied vol is solved from the quoted mid (W1) so that delta, the other Greeks and the
+    probability OTM describe the option at the price shown. The provider's figure is kept as
+    ``iv_provider`` and used only when no vol reproduces the mid (a deep in-the-money option
+    quoted at parity sits below the European floor) or when solving is switched off. The cheap
+    liquidity filters run first; the solver is about 30 bisection steps per quote.
+    """
     if q.bid <= 0 or q.ask <= 0 or q.ask < q.bid:
         return None
     mid = pricing.mid_price(q.bid, q.ask)
@@ -57,12 +70,32 @@ def _base_candidate(
     if spread > rules_spread:
         return None
     dte = _dte(chain.expiry, today)
-    if dte <= 0 or q.iv <= 0:
+    if dte <= 0:
         return None
     T = pricing.years_to_expiry(dte)
     S = snap.spot.price
-    g = pricing.bsm_greeks(S, q.strike, T, r, snap.dividend_yield, q.iv, q.kind)
-    pop = pricing.prob_otm(S, q.strike, T, r, snap.dividend_yield, q.iv, q.kind)
+    # seed the solver with the provider's figure (or the ticker's ATM vol) so Newton converges
+    # in a few steps; the answer is the same as the plain bisection, only cheaper
+    guess = q.iv if q.iv > 0 else snap.atm_iv
+    solved = (
+        pricing.implied_vol(mid, S, q.strike, T, r, snap.dividend_yield, q.kind, guess=guess)
+        if iv_rules.solve_from_mid
+        else None
+    )
+    flags: list[str] = []
+    iv_source: IVSource
+    if solved is not None and solved > 1e-4 + 1e-9:
+        iv, iv_source = solved, "mid"
+        if q.iv > 0 and abs(q.iv - solved) > iv_rules.disagreement_points:
+            flags.append(FLAG_IV_DISAGREES)
+    elif q.iv > 0:
+        iv, iv_source = q.iv, "provider"
+        if iv_rules.solve_from_mid:
+            flags.append(FLAG_IV_FROM_PROVIDER)
+    else:
+        return None  # neither a solvable price nor a provider figure
+    g = pricing.bsm_greeks(S, q.strike, T, r, snap.dividend_yield, iv, q.kind)
+    pop = pricing.prob_otm(S, q.strike, T, r, snap.dividend_yield, iv, q.kind)
     suffix = "P" if q.kind == "put" else "C"
     return OptionCandidate(
         id=f"{prefix}-{snap.ticker}-{chain.expiry.isoformat()}-{_fmt_strike(q.strike)}{suffix}",
@@ -79,7 +112,9 @@ def _base_candidate(
         mid=mid,
         spread_pct=spread,
         open_interest=q.open_interest,
-        iv=q.iv,
+        iv=iv,
+        iv_source=iv_source,
+        iv_provider=q.iv if q.iv > 0 else None,
         iv_rank=snap.iv_rank,
         iv_rank_source=snap.iv_rank_source,
         delta=g.delta,
@@ -89,6 +124,7 @@ def _base_candidate(
         prob_otm=pop,
         breakeven=(q.strike - mid) if q.kind == "put" else (q.strike + mid),
         earnings_before_expiry=earnings_before_expiry(snap.earnings_date, today, chain.expiry),
+        flags=flags,
     )
 
 
@@ -102,6 +138,7 @@ def _csp_pass(
     dte_min: int,
     dte_max: int,
     fallback: bool,
+    iv_rules: ImpliedVolRules,
 ) -> list[OptionCandidate]:
     out: list[OptionCandidate] = []
     for chain in snap.chains:
@@ -122,6 +159,7 @@ def _csp_pass(
                 today=today,
                 r=r,
                 rules_spread=rules.max_spread_pct,
+                iv_rules=iv_rules,
             )
             if c is None or not (rules.delta_min <= abs(c.delta) <= rules.delta_max):
                 continue
@@ -144,13 +182,26 @@ def _csp_pass(
 
 
 def screen_csp(
-    snap: TickerSnapshot, rules: CSPRules, *, today: date, r: float, realistic_loss_drop: float
+    snap: TickerSnapshot,
+    rules: CSPRules,
+    *,
+    today: date,
+    r: float,
+    realistic_loss_drop: float,
+    iv_rules: ImpliedVolRules = _DEFAULT_IV_RULES,
 ) -> list[OptionCandidate]:
     """Cash-secured put screen. Strict 30–45 DTE first; a flagged wider window only if empty."""
     if snap.spot.price < rules.min_underlying_price or snap.spot.avg_volume < rules.min_avg_volume:
         return []
     out = _csp_pass(
-        snap, rules, today=today, r=r, dte_min=rules.dte_min, dte_max=rules.dte_max, fallback=False
+        snap,
+        rules,
+        today=today,
+        r=r,
+        dte_min=rules.dte_min,
+        dte_max=rules.dte_max,
+        fallback=False,
+        iv_rules=iv_rules,
     )
     if not out and rules.dte_fallback_max > rules.dte_fallback_min:
         out = _csp_pass(
@@ -161,6 +212,7 @@ def screen_csp(
             dte_min=rules.dte_fallback_min,
             dte_max=rules.dte_fallback_max,
             fallback=True,
+            iv_rules=iv_rules,
         )
         if out:
             # nearest expiry to the preferred window only
@@ -174,7 +226,12 @@ def screen_csp(
 
 # --------------------------------------------------------------------------------- LEAPS
 def screen_leaps(
-    snap: TickerSnapshot, rules: LEAPSRules, *, today: date, r: float
+    snap: TickerSnapshot,
+    rules: LEAPSRules,
+    *,
+    today: date,
+    r: float,
+    iv_rules: ImpliedVolRules = _DEFAULT_IV_RULES,
 ) -> list[OptionCandidate]:
     out: list[OptionCandidate] = []
     for chain in snap.chains:
@@ -193,6 +250,7 @@ def screen_leaps(
                 today=today,
                 r=r,
                 rules_spread=rules.max_spread_pct,
+                iv_rules=iv_rules,
             )
             if c is None or not (rules.delta_min <= c.delta <= rules.delta_max):
                 continue
@@ -229,6 +287,7 @@ def pair_pmcc(
     max_spread_pct: float = 0.10,
     min_open_interest: int = 100,
     per_leaps: int = 1,
+    iv_rules: ImpliedVolRules = _DEFAULT_IV_RULES,
 ) -> list[PMCCCandidate]:
     out: list[PMCCCandidate] = []
     for lp in leaps:
@@ -250,6 +309,7 @@ def pair_pmcc(
                 fallback=fallback,
                 max_spread_pct=max_spread_pct,
                 min_open_interest=min_open_interest,
+                iv_rules=iv_rules,
             )
         matches.sort(key=lambda p: p.short_call_annualized_yield_on_debit, reverse=True)
         out.extend(matches[:per_leaps])
@@ -268,6 +328,7 @@ def _pmcc_matches(
     fallback: bool,
     max_spread_pct: float,
     min_open_interest: int,
+    iv_rules: ImpliedVolRules,
 ) -> list[PMCCCandidate]:
     matches: list[PMCCCandidate] = []
     if True:
@@ -289,6 +350,7 @@ def _pmcc_matches(
                     today=today,
                     r=r,
                     rules_spread=max_spread_pct,
+                    iv_rules=iv_rules,
                 )
                 if sc is None or not (rules.delta_min <= sc.delta <= rules.delta_max):
                     continue

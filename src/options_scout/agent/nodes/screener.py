@@ -29,12 +29,22 @@ def make(deps: Deps) -> Callable[[AgentState], dict[str, Any]]:
                     today=today,
                     r=r,
                     realistic_loss_drop=cfg.risk.realistic_loss_drop,
+                    iv_rules=cfg.rules.implied_vol,
                 )
             if {"leaps", "pmcc"} & profile.strategies:
-                leaps = screeners.screen_leaps(snap, cfg.rules.leaps, today=today, r=r)
+                leaps = screeners.screen_leaps(
+                    snap, cfg.rules.leaps, today=today, r=r, iv_rules=cfg.rules.implied_vol
+                )
                 cands += leaps
                 if "pmcc" in profile.strategies:
-                    pairs += screeners.pair_pmcc(leaps, snap, cfg.rules.pmcc, today=today, r=r)
+                    pairs += screeners.pair_pmcc(
+                        leaps,
+                        snap,
+                        cfg.rules.pmcc,
+                        today=today,
+                        r=r,
+                        iv_rules=cfg.rules.implied_vol,
+                    )
         errors = [] if cands else ["screener: no candidates met the criteria"]
         # Phase 11 (4A.8): strategy-fit flags from the bottleneck board; flags, never filters
         flagged = screeners.apply_bottleneck_flags(

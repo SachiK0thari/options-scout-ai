@@ -1,5 +1,5 @@
 {
- "generated": "2026-11-06T21:38:58.877581+00:00",
+ "generated": "2026-11-09T23:59:17.495925+00:00",
  "env": {
   "data_mode": "fixture",
   "llm_mode": "fixture",
@@ -9,9 +9,9 @@
   {
    "thread": "bench-0",
    "request": "I have $50,000 of buying power in a margin account, balanced risk tolerance. CSPs and a few LEAPS/PMCC.",
-   "wall_s": 3.055,
+   "wall_s": 3.145,
    "positions": 1,
-   "candidates": 15,
+   "candidates": 14,
    "tokens_in": 0,
    "tokens_out": 0,
    "cost_usd": 0.0,
@@ -20,7 +20,7 @@
   {
    "thread": "bench-1",
    "request": "$100k cash account, conservative. Only cash-secured puts. I like COST and NKE, skip TSLA.",
-   "wall_s": 0.67,
+   "wall_s": 0.743,
    "positions": 1,
    "candidates": 5,
    "tokens_in": 0,
@@ -31,9 +31,9 @@
   {
    "thread": "bench-2",
    "request": "250k portfolio margin, aggressive, all strategies, watchlist AAPL MSFT SPY.",
-   "wall_s": 0.962,
+   "wall_s": 1.12,
    "positions": 2,
-   "candidates": 15,
+   "candidates": 14,
    "tokens_in": 0,
    "tokens_out": 0,
    "cost_usd": 0.0,
@@ -42,9 +42,9 @@
   {
    "thread": "bench-3",
    "request": "Roth IRA with 40k, cautious, CSPs and LEAPS please.",
-   "wall_s": 0.693,
+   "wall_s": 0.786,
    "positions": 0,
-   "candidates": 15,
+   "candidates": 14,
    "tokens_in": 0,
    "tokens_out": 0,
    "cost_usd": 0.0,
@@ -53,9 +53,9 @@
   {
    "thread": "bench-4",
    "request": "I've got about 75 grand in a margin account, moderate risk, PMCC ideas plus CSPs.",
-   "wall_s": 0.946,
+   "wall_s": 1.122,
    "positions": 2,
-   "candidates": 15,
+   "candidates": 14,
    "tokens_in": 0,
    "tokens_out": 0,
    "cost_usd": 0.0,
@@ -64,9 +64,9 @@
   {
    "thread": "bench-5",
    "request": "$1.2M margin account, balanced. Exclude QQQ and SPY.",
-   "wall_s": 0.342,
+   "wall_s": 0.379,
    "positions": 5,
-   "candidates": 7,
+   "candidates": 6,
    "tokens_in": 0,
    "tokens_out": 0,
    "cost_usd": 0.0,
@@ -75,83 +75,83 @@
  ],
  "agent_ms": {
   "orchestrator_agent": [
-   3.9,
-   3.0,
-   2.7,
-   2.8,
+   4.0,
    2.6,
-   2.9
+   2.6,
+   2.5,
+   2.6,
+   2.7
   ],
   "market_intelligence_agent": [
-   1826.2,
-   4.5,
-   4.4,
-   4.5,
-   4.5,
-   4.5
+   1844.0,
+   8.9,
+   9.7,
+   9.7,
+   9.4,
+   10.0
   ],
   "market_data_agent": [
-   166.3,
-   76.6,
-   76.2,
-   78.9,
-   75.8,
-   34.5
+   135.9,
+   80.5,
+   78.3,
+   143.1,
+   145.0,
+   37.3
   ],
   "strategy_agent": [
-   355.9,
-   94.7,
-   353.9,
-   123.4,
-   372.9,
-   66.6
+   466.8,
+   116.4,
+   478.4,
+   140.3,
+   449.9,
+   75.0
   ],
   "news_desk_agent": [
-   87.6,
-   88.5,
-   87.2,
-   86.7,
-   86.8,
-   38.0
+   88.8,
+   87.4,
+   88.0,
+   90.7,
+   90.0,
+   40.1
   ],
   "portfolio_agent": [
-   88.3,
-   82.4,
-   84.3,
-   91.4,
-   82.9,
-   36.5
+   84.9,
+   141.5,
+   85.8,
+   86.7,
+   86.0,
+   39.9
   ],
   "risk_agent": [
-   88.0,
-   83.4,
-   95.8,
-   86.1,
-   84.5,
-   33.9
+   84.3,
+   83.1,
+   86.9,
+   85.1,
+   86.6,
+   38.2
   ],
   "education_agent": [
-   276.4,
-   91.3,
-   102.1,
-   90.6,
-   97.3,
-   49.9
+   247.1,
+   94.8,
+   95.4,
+   93.7,
+   96.3,
+   52.9
   ],
   "compliance_agent": [
-   95.0,
-   89.0,
-   92.2,
-   86.2,
-   91.4,
-   42.1
+   136.3,
+   89.9,
+   92.6,
+   89.2,
+   91.9,
+   45.4
   ]
  },
  "turns": [
   {
    "intent": "goal",
    "text": "I want $400 a month from this account",
-   "wall_s": 0.437,
+   "wall_s": 0.476,
    "passed": true,
    "attempts": 1,
    "citations": 2
@@ -159,7 +159,7 @@
   {
    "intent": "holdings",
    "text": "200 AAPL at 150, 10 COST at 800, 40 SPY",
-   "wall_s": 0.48,
+   "wall_s": 0.502,
    "passed": true,
    "attempts": 1,
    "citations": 1
@@ -167,7 +167,7 @@
   {
    "intent": "news",
    "text": "any news on COST and NKE?",
-   "wall_s": 0.524,
+   "wall_s": 0.506,
    "passed": true,
    "attempts": 1,
    "citations": 1
@@ -175,7 +175,7 @@
   {
    "intent": "tax",
    "text": "what happens to my taxes if one of those puts is assigned?",
-   "wall_s": 0.476,
+   "wall_s": 0.502,
    "passed": true,
    "attempts": 1,
    "citations": 1
@@ -183,7 +183,7 @@
   {
    "intent": "concept",
    "text": "what is assignment",
-   "wall_s": 0.013,
+   "wall_s": 0.017,
    "passed": true,
    "attempts": 1,
    "citations": 2
@@ -196,11 +196,11 @@
  },
  "retrieval": {
   "embedder": "hash-2048",
-  "documents": 123,
-  "chunks": 1069,
-  "build_s": 0.34,
-  "queries": 60,
-  "query_mean_ms": 1.2,
-  "query_p95_ms": 1.65
+  "documents": 124,
+  "chunks": 1074,
+  "build_s": 0.324,
+  "queries": 63,
+  "query_mean_ms": 1.23,
+  "query_p95_ms": 1.73
  }
 }

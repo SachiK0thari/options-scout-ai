@@ -364,3 +364,205 @@ def test_chat_states_a_level_and_the_review_form_can_change_it() -> None:
     assert not at.exception, [e.message for e in at.exception]
     assert any("Reading level: **advanced** (your profile)" in c.value for c in at.caption)
     assert any(c.value.startswith("Advanced view:") for c in at.caption)
+
+
+# ------------------------------------------------------------------- bottlenecks (11.6)
+BOARDS = ["Consumer trends", "Bottlenecks", "News desk"]
+BOARD_ONLY = ("GEV", "VST", "ETN", "MU")  # suppliers on the board that are not good-to-own
+
+
+def _board(at: AppTest) -> AppTest:
+    at.radio(key="trends_board").set_value("Bottlenecks").run()
+    assert not at.exception, [e.message for e in at.exception]
+    return at
+
+
+def _company_table(at: AppTest) -> Any:
+    return next(d.value for d in at.dataframe if "Company score" in d.value.columns)
+
+
+def test_bottleneck_board_renders_without_a_report() -> None:
+    at = _board(_app(120))
+    assert at.radio(key="trends_board").options == BOARDS
+    assert any(c.value.startswith("Board from") for c in at.caption)
+    assert any("re-orders" in c.value and "never adds" in c.value for c in at.caption)
+    # theme → layer tree: one table per theme, eight layers in all, each with its thesis state
+    layer_tables = [d.value for d in at.dataframe if "Thesis" in d.value.columns]
+    assert len(layer_tables) == 2 and sum(len(t) for t in layer_tables) == 8
+    assert {"holding", "weakening"} >= {s for t in layer_tables for s in t["Thesis"]}
+    # companies per layer: materiality, the curated flag, plain-language flags
+    companies = _company_table(at)
+    assert {"Materiality", "On good-to-own list", "Flags"} <= set(companies.columns)
+    assert set(BOARD_ONLY) <= set(companies["Ticker"])
+    by = companies.set_index("Ticker")
+    assert (
+        by.loc["GEV", "On good-to-own list"] == "no"
+        and by.loc["HON", "On good-to-own list"] == "✅"
+    )
+    assert by.loc["GEV", "Materiality"] == "high" and by.loc["HON", "Materiality"] == "medium"
+    assert "strong constraint" in by.loc["GEV", "Flags"]
+    # the three charts, captioned, behind the layer selector
+    assert at.selectbox(key="bn_layer").value.startswith(("ai_datacenter/", "electrification/"))
+    for text in (
+        "Daily tightening and easing mentions",
+        "rebased to 100",
+        "Each dot is one supplier",
+    ):
+        assert any(text in c.value for c in at.caption), text
+    # the thesis monitor: one expander per layer with falsifiers and evidence links
+    monitors = [e for e in at.expander if "· thesis " in e.label]
+    assert len(monitors) == 8 and any("thesis weakening" in e.label for e in monitors)
+    falsifiers = [d for e in monitors for d in e.dataframe if "Falsifier" in d.value.columns]
+    assert len(falsifiers) == 8 and all(
+        set(d.value["State"])
+        <= {"holding"} | {s for s in d.value["State"] if s.startswith("tripped since")}
+        for d in falsifiers
+    )
+    links = [m.value for e in monitors for m in e.markdown]
+    assert any("https://www.sec.gov/Archives/" in m for m in links)
+    assert any("https://fred.stlouisfed.org/series/" in m for m in links)
+    assert not any(word in m.lower() for m in links for word in (" exit", "take profits", " sell "))
+
+
+def test_bottleneck_board_with_a_report_never_leaks_into_candidate_tables() -> None:
+    at = _board(_run_form(_app(), strategy="Both"))
+    assert any(c.value.startswith("Board from this screen") for c in at.caption)
+    companies = _company_table(at)
+    board_only = set(companies.loc[companies["On good-to-own list"] == "no", "Ticker"])
+    assert board_only >= set(BOARD_ONLY)
+    for df in at.dataframe:
+        frame = df.value
+        if "On good-to-own list" in frame.columns:
+            continue  # the two boards legitimately list names that cannot be screened here
+        for col in ("Ticker", "Candidate"):
+            if col in frame.columns:
+                assert not board_only & set(map(str, frame[col].tolist())), (col, frame[col])
+    # Candidates: the plain-language column at every level, the four ranking weights named
+    table = next(d.value for d in at.dataframe if "Cash to secure" in d.value.columns)
+    assert "Supply constraint" in table.columns
+    assert not any(
+        f.startswith("bottleneck") for cell in table["Flags"] for f in str(cell).split(", ")
+    )
+    assert any("bottleneck 5%" in c.value for c in at.caption)
+    # Under the hood: the engine's status and one row per configured source
+    from options_scout.config import BOTTLENECK_SOURCE_NAMES
+
+    status = next(
+        d.value for d in at.dataframe if list(d.value.columns) == ["Source", "Enabled", "Status"]
+    )
+    assert status.iloc[0]["Source"] == "bottleneck engine"
+    assert status.iloc[0]["Status"] == "snapshot" or status.iloc[0]["Status"].startswith("ran (")
+    assert set(status["Source"][1:]) == set(BOTTLENECK_SOURCE_NAMES)
+
+
+def test_supply_constraint_flags_render_in_plain_language() -> None:
+    from ui import glossary
+    from ui.tabs import candidates as tab
+    from ui.tabs.under_the_hood import bottleneck_source_rows
+
+    from options_scout.config import BOTTLENECK_SOURCE_NAMES
+
+    assert tab.supply_constraint_text([]) == ""
+    assert tab.supply_constraint_text(["dte_outside_preferred", "bottleneck_support"]) == (
+        "🔧 sells into a tight supply layer"
+    )
+    text = tab.supply_constraint_text(
+        ["catalyst_inside_dte", "bottleneck_easing", "bottleneck_support"]
+    )
+    assert text.split("; ") == [
+        "🔧 sells into a tight supply layer",
+        "🟡 constraint easing: new supply or slower prices",
+        "📅 earnings or data release before expiry",
+    ]
+    assert "bottleneck" not in text and "catalyst_inside_dte" not in text
+    tip = glossary.help_for("Supply constraint")
+    assert tip and "Never a filter" in tip and "Learn → Concepts → Bottleneck arbitrage" in tip
+    rows = bottleneck_source_rows(
+        {"bottleneck": "ran (300 snippets, 8 layers, 30 companies)", "bottleneck:edgar": "ok"}
+    )
+    assert rows[0] == {
+        "Source": "bottleneck engine",
+        "Enabled": "yes",
+        "Status": "ran (300 snippets, 8 layers, 30 companies)",
+    }
+    by = {r["Source"]: r for r in rows[1:]}
+    assert set(by) == set(BOTTLENECK_SOURCE_NAMES) and by["edgar"]["Status"] == "ok"
+    assert by["transcripts"] == {"Source": "transcripts", "Enabled": "no", "Status": "disabled"}
+    reused = bottleneck_source_rows({"bottleneck": "snapshot"})
+    assert all("snapshot" in r["Status"] for r in reused if r["Enabled"] == "yes")
+
+
+def test_bottleneck_charts_draw_the_series_and_the_markers() -> None:
+    from datetime import UTC, date, datetime, timedelta
+
+    from ui import charts
+
+    from options_scout.core.models import BottleneckSignal, SeriesPoint
+
+    as_of = datetime(2026, 10, 27, 23, 59, tzinfo=UTC)
+    days = [as_of.date() - timedelta(days=k) for k in range(60, -1, -1)]
+    layer = BottleneckSignal(
+        theme_id="ai_datacenter",
+        layer_id="power",
+        layer_name="Power generation and grid equipment",
+        ticker=None,
+        role=None,
+        curated=False,
+        investable=False,
+        layer_score=79.0,
+        score=79.0,
+        components={"tightness_z": 4.0, "price_trend": 0.89, "price_deceleration": 0.0},
+        thesis="Power demand is outrunning grid and turbine supply.",
+        mentions={
+            "tightening": [SeriesPoint(day=d, value=1.0 + i % 3) for i, d in enumerate(days)],
+            "easing": [SeriesPoint(day=d, value=0.5) for d in days[::7]],
+        },
+        series={
+            "fred:WPU0543": [
+                SeriesPoint(day=date(2026, m, 1), value=100.0 + m) for m in range(1, 11)
+            ]
+        },
+        as_of=as_of,
+    )
+    fig = charts.bottleneck_mentions(layer, 7)
+    assert [t.name for t in fig.data] == ["tightening", "easing (new supply, lower prices)"]
+    assert all(v <= 0 for v in fig.data[1].y) and "tightness z +4.0" in fig.layout.title.text
+    assert any("last 7 days" in a.text for a in fig.layout.annotations)
+    fig = charts.bottleneck_price_series(
+        layer, {"fred:WPU0543": "PPI: industrial electric power"}, 90
+    )
+    assert fig.data[0].name == "PPI: industrial electric power"
+    # rebased to 100 at the first observation inside the 180-day history (2026-05-01)
+    assert abs(fig.data[0].y[4] - 100.0) < 1e-9 and fig.data[0].y[0] < 100.0
+    assert any(
+        "deceleration 0.00" in a.text and "trend +0.89" in a.text for a in fig.layout.annotations
+    )
+    companies = [
+        layer.model_copy(
+            update={
+                "ticker": "HON",
+                "role": "supplier",
+                "curated": True,
+                "score": 37.0,
+                "components": {"exposure": 0.47, "priced_in": 0.1},
+            }
+        ),
+        layer.model_copy(
+            update={
+                "ticker": "GEV",
+                "role": "supplier",
+                "score": 79.0,
+                "components": {"exposure": 1.0, "priced_in": 0.0},
+            }
+        ),
+    ]
+    fig = charts.bottleneck_score_scatter(companies)
+    assert [t.name for t in fig.data] == ["on the good-to-own list", "not investable here"]
+    assert list(fig.data[0].text) == ["HON"] and list(fig.data[1].text) == ["GEV"]
+    # a layer row without series (an older snapshot) still draws an empty, captioned chart
+    bare = layer.model_copy(update={"mentions": {}, "series": {}, "components": {}})
+    assert len(charts.bottleneck_mentions(bare, 7).data) == 2
+    assert any(
+        "no price data" in a.text
+        for a in charts.bottleneck_price_series(bare, {}, 90).layout.annotations
+    )

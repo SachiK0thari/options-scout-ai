@@ -1,5 +1,7 @@
 from __future__ import annotations
 
+from pathlib import Path
+
 import pytest
 
 from options_scout.config import MAX_SIGNAL_WEIGHT, AppConfig, RankingWeights, load_config
@@ -29,6 +31,19 @@ def test_env_override_changes_mode(monkeypatch: pytest.MonkeyPatch, config: AppC
     monkeypatch.setenv("OPTIONS_SCOUT_LLM_MODE", "none")
     cfg = load_config(config.root)
     assert cfg.settings.llm_mode == "none"
+
+
+def test_checkpoint_db_env_override(
+    monkeypatch: pytest.MonkeyPatch, config: AppConfig, tmp_path: Path
+) -> None:
+    monkeypatch.setenv("OPTIONS_SCOUT_CHECKPOINT_DB", str(tmp_path / "c.sqlite"))
+    assert load_config(config.root).paths.checkpoint_db == tmp_path / "c.sqlite"
+    monkeypatch.setenv("OPTIONS_SCOUT_CHECKPOINT_DB", "var/c.sqlite")  # relative: under the root
+    assert load_config(config.root).paths.checkpoint_db == config.root / "var" / "c.sqlite"
+    monkeypatch.delenv("OPTIONS_SCOUT_CHECKPOINT_DB")
+    assert (
+        load_config(config.root).paths.checkpoint_db == config.root / "data" / "checkpoints.sqlite"
+    )
 
 
 def test_social_weights_present(config: AppConfig) -> None:

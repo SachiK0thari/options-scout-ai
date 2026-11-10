@@ -76,6 +76,8 @@ def test_implied_vol_round_trip() -> None:
 
 def test_implied_vol_below_intrinsic_returns_none() -> None:
     assert pricing.implied_vol(5.0, 120, 110, 0.4, 0.04, 0.0, "call") is None
+    # a guess never rescues a price outside the no-arbitrage band
+    assert pricing.implied_vol(5.0, 120, 110, 0.4, 0.04, 0.0, "call", guess=0.3) is None
 
 
 _S = st.floats(min_value=5, max_value=1000)
@@ -84,6 +86,61 @@ _T = st.floats(min_value=0.01, max_value=3)
 _r = st.floats(min_value=0.0, max_value=0.10)
 _q = st.floats(min_value=0.0, max_value=0.06)
 _sig = st.floats(min_value=0.05, max_value=1.5)
+
+
+def test_implied_vol_seeded_newton_matches_bisection_with_fewer_evaluations(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """The screeners seed the solver with the provider's vol (W1 follow-up). Seeded or not,
+    the answer is the same; seeded, it needs a fraction of the price evaluations."""
+    target = 0.345
+    S, K, T, r, q = 255.0, 250.0, 780 / 365, 0.04, 0.005  # the AAPL LEAPS from the W1 table
+    price = pricing.bsm_price(S, K, T, r, q, target, "call")
+    calls: list[int] = [0]
+    real_price, real_greeks = pricing.bsm_price, pricing.bsm_greeks
+
+    def counting_price(*args: object, **kwargs: object) -> float:
+        calls[0] += 1
+        return real_price(*args, **kwargs)  # type: ignore[arg-type]
+
+    def counting_greeks(*args: object, **kwargs: object) -> pricing.Greeks:
+        calls[0] += 1
+        return real_greeks(*args, **kwargs)  # type: ignore[arg-type]
+
+    monkeypatch.setattr(pricing, "bsm_price", counting_price)
+    monkeypatch.setattr(pricing, "bsm_greeks", counting_greeks)
+    plain = pricing.implied_vol(price, S, K, T, r, q, "call")
+    plain_calls = calls[0]
+    calls[0] = 0
+    seeded = pricing.implied_vol(price, S, K, T, r, q, "call", guess=0.449)  # provider said 0.449
+    seeded_calls = calls[0]
+    assert plain == pytest.approx(target, abs=1e-6)
+    assert seeded == pytest.approx(target, abs=1e-6)
+    assert seeded_calls < plain_calls / 3, (seeded_calls, plain_calls)
+
+
+@pytest.mark.parametrize("guess", [1e-4, 0.01, 0.3, 2.0, 4.99, 7.0, -1.0, float("nan")])
+def test_implied_vol_any_guess_gives_the_same_answer(guess: float) -> None:
+    """A poor, out-of-range or non-finite guess falls back to bisection and still converges."""
+    target = 0.62
+    price = pricing.bsm_price(80.0, 95.0, 0.15, 0.03, 0.0, target, "put")
+    assert pricing.implied_vol(price, 80.0, 95.0, 0.15, 0.03, 0.0, "put", guess=guess) == (
+        pytest.approx(target, abs=1e-6)
+    )
+
+
+@settings(max_examples=200, deadline=None)
+@given(S=_S, K=_K, T=_T, r=_r, q=_q, sigma=_sig, guess=_sig)
+def test_implied_vol_round_trip_property(
+    S: float, K: float, T: float, r: float, q: float, sigma: float, guess: float
+) -> None:
+    for kind in ("call", "put"):
+        price = pricing.bsm_price(S, K, T, r, q, sigma, kind)  # type: ignore[arg-type]
+        got = pricing.implied_vol(price, S, K, T, r, q, kind, guess=guess)  # type: ignore[arg-type]
+        if got is None:
+            continue  # a far-OTM price that rounds to the floor has no unique vol
+        back = pricing.bsm_price(S, K, T, r, q, got, kind)  # type: ignore[arg-type]
+        assert back == pytest.approx(price, abs=1e-6 * max(1.0, price))
 
 
 @settings(max_examples=300, deadline=None)

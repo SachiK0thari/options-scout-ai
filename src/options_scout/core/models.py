@@ -14,6 +14,7 @@ Strategy = Literal["csp", "leaps", "pmcc"]
 OptionKind = Literal["call", "put"]
 CandidateStrategy = Literal["csp", "leaps", "pmcc_short_call"]
 IVRankSource = Literal["history", "hv_proxy", "none"]
+IVSource = Literal["mid", "provider"]  # where a candidate's implied vol comes from (W1)
 RegimeLabel = Literal["high_iv", "normal", "low_iv"]
 EntityType = Literal["product", "brand", "company", "store"]
 Materiality = Literal["high", "medium", "low"]
@@ -201,7 +202,12 @@ class OptionCandidate(Model):
     mid: float = Field(ge=0)
     spread_pct: float = Field(ge=0)
     open_interest: int = Field(ge=0)
-    iv: float = Field(ge=0)
+    iv: float = Field(ge=0)  # the vol the Greeks below are computed from
+    # "mid": solved from the quoted mid with the BSM solver; "provider": the data provider's
+    # figure, used only when no vol reproduces the mid (deep ITM at parity) or solving is off.
+    # Defaults keep checkpoints and cached reports written before W1 loadable.
+    iv_source: IVSource = "provider"
+    iv_provider: float | None = None  # what the data provider reported, kept for the audit trail
     iv_rank: float | None = None
     iv_rank_source: IVRankSource
     delta: float
@@ -525,6 +531,11 @@ class BottleneckSignal(Model):
     catalyst_days: int | None = None
     flags: list[str] = Field(default_factory=list)  # bottleneck_support, bottleneck_easing, ...
     evidence: list[BottleneckEvidence] = Field(default_factory=list)
+    # layer rows only (step 11.6, for the Trends tab charts): the daily weighted tightening and
+    # easing mention counts the z-scores were built from, and each configured price series
+    # (``"<source>:<id>"`` → points; search-interest series are not price series and are left out)
+    mentions: dict[str, list[SeriesPoint]] = Field(default_factory=dict)
+    series: dict[str, list[SeriesPoint]] = Field(default_factory=dict)
     as_of: datetime
 
     @property

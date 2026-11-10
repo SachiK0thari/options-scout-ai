@@ -14,7 +14,7 @@ jobs:
         run: make install
       - name: Lint (ruff + mypy --strict)
         run: make lint
-      - name: Tests with coverage (fails below 85% on core/, rag/, agent/)
+      - name: Tests with coverage (fails below 85% on core/, rag/, agent/, bottleneck/)
         run: make test-cov COV_ARGS="--cov-report=xml"
       - name: Evals (writes evals/reports/latest.md; fails on any FAIL row)
         run: make eval

@@ -35,3 +35,9 @@ pmcc:
   delta_min: 0.20
   delta_max: 0.30
   # safety rule (always on): short strike >= LEAPS strike + LEAPS net debit
+
+# How each candidate's implied vol is chosen (W1). The Greeks, the probability OTM and the
+# stress test all use this figure, so it must belong to the quoted price.
+implied_vol:
+  solve_from_mid: true          # false restores the provider's figure
+  disagreement_points: 0.05     # |provider - solved| above this sets the flag iv_disagrees

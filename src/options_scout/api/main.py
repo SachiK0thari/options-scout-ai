@@ -67,7 +67,9 @@ class RunRegistry:
     def __init__(self) -> None:
         self.cfg = get_config()
         self.deps = Deps.from_config(self.cfg)
-        self.ckpt = sqlite_checkpointer(self.cfg.paths.checkpoint_db)
+        self.ckpt = sqlite_checkpointer(
+            self.cfg.paths.checkpoint_db, self.cfg.settings.agent.checkpoint_retention_days
+        )
         self.graph = build_graph(self.deps, self.ckpt)
         self.session = ChatSession(self.deps, self.ckpt, graph=self.graph)
         self.events: dict[str, list[dict[str, Any]]] = {}

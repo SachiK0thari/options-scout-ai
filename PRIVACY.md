@@ -1,6 +1,6 @@
 # Privacy and Data-Handling Policy: OptionsScout AI
 
-_Last updated: 2026-10-28_
+_Last updated: 2026-11-08_
 
 OptionsScout AI is an open-source, non-commercial educational options screener. This document
 describes what data the software collects, how it is used, how long it is kept, and how it is deleted.
@@ -23,12 +23,14 @@ Delayed quotes, option chains and price history come from public or user-authori
 cached locally (SQLite) for at most 15 minutes for option chains and 24 hours for earnings and
 dividend data. Market data contains no personal information.
 
-## 4. Public social and news data
+## 4. Public social, news and filings data
 The "consumer-trend" tiebreaker reads up to five public sources: public Reddit submissions, public X
 posts, Wikipedia article pageviews, Google Trends search-interest indices and financial-news RSS
-headlines. Each is switched on or off in `config/social_sources.yaml`. The published repository ships
-with a synthetic offline corpus; live sources are enabled only by an operator who supplies their own
-credentials and has the relevant provider's permission.
+headlines. Each is switched on or off in `config/social_sources.yaml`. The "bottleneck" signal
+(section 4.4) reads public SEC filings, public economic series and the same headline and forum
+sources with its own queries, switched in `config/bottleneck_sources.yaml`. The published repository
+ships with a synthetic offline corpus for both; live sources are enabled only by an operator who
+supplies their own credentials and has the relevant provider's permission.
 
 ### 4.1 Reddit
 - **Access:** public submissions are read either from the Arctic Shift archive
@@ -80,12 +82,47 @@ Only aggregate daily view counts, aggregate 0–100 search-interest indices and 
 (title, source, date, link) are stored. No personal data is involved. Google Trends is read through an
 unofficial client that the operator installs separately; no Google account is used.
 
+### 4.4 SEC EDGAR, FRED and the bottleneck snapshots
+The bottleneck-arbitrage signal reads three further kinds of public data, none of which concerns a
+person:
+- **SEC EDGAR full-text search** (`efts.sec.gov`, `www.sec.gov/Archives`): public company filings
+  (Forms 10-K, 10-Q and 8-K). The software searches by supply-chain keywords, opens the matching
+  filings and keeps windows of at most 400 characters around the keyword with the filer's ticker, the
+  form, the filing date and the accession URL. Requests carry a descriptive User-Agent with the
+  operator's contact address (`OPTIONS_SCOUT_CONTACT_EMAIL`), stay under the SEC's rate guidance and
+  are cached locally for 24 hours. Filings are corporate documents; signatory names that appear in
+  them are never extracted or stored.
+- **FRED** (Federal Reserve Bank of St. Louis, `api.stlouisfed.org`): aggregate producer-price and
+  industrial series, read with the operator's free API key and cached for 24 hours. Only series
+  identifiers, dates and values are stored.
+- **News RSS, industry subreddits and Google Trends** are read through the adapters of sections 4.1
+  and 4.3 with the signal's own queries; the same fields, filters, retention and removal rules apply.
+  No usernames, handles or author identifiers leave the pipeline.
+- **Price-tracker CSV files** that an operator drops under `data/bottleneck_series/` are read locally,
+  never fetched and never committed; their licence is the operator's responsibility.
+- **AI use:** a hosted language model reads each snippet once, at inference time, to label it as a
+  tightening or easing statement about a supply layer. Snippets are wrapped as data and an instruction
+  inside a filing or headline cannot change the label or add a ticker; no content is used to train,
+  fine-tune or build datasets or embedding stores for any model. Labels are cached locally by snippet
+  hash.
+- **Retention:** a dated snapshot (layer and company scores, the signals they were computed from, the
+  thesis monitor's state and an evidence pack of at most five items per layer: a filing excerpt of at
+  most 200 characters with its link, a series value, a headline with its link) is stored after every
+  refresh in `data/bottleneck_snapshots.sqlite` and deleted automatically after **180 days**
+  (`retention_days` in `config/bottleneck_score.yaml`). The longer retention, compared with the
+  48 hours for social snapshots, exists because the thesis monitor and the signal study need a
+  history, and is acceptable because the snapshots contain only public corporate documents,
+  aggregate series and headline metadata: no personal data.
+- **Sharing:** snapshots are served to the operator's own UI and API (`GET /v1/bottlenecks`) and
+  appear in reports as short excerpts and links; they are never sold or redistributed.
+
 ## 5. Logs and observability
 Structured logs and traces record run ids, node timings, token counts and error messages. They never
 contain API keys, Reddit usernames, X handles, or full post text.
 
 ## 6. Hosted demo
-The hosted demo runs in offline fixture mode with synthetic data and does not contact Reddit, X or Google.
+The hosted demo runs in offline fixture mode with synthetic data and does not contact Reddit, X,
+Google, the SEC or FRED.
 
 ## 7. Contact
 Questions or removal requests: dnesmozgawa767@gmail.com.

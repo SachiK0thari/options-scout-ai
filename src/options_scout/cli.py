@@ -73,12 +73,17 @@ def run_deterministic_pipeline(
                 today=today,
                 r=r,
                 realistic_loss_drop=cfg.risk.realistic_loss_drop,
+                iv_rules=cfg.rules.implied_vol,
             )
         if {"leaps", "pmcc"} & profile.strategies:
-            lp = screeners.screen_leaps(snap, cfg.rules.leaps, today=today, r=r)
+            lp = screeners.screen_leaps(
+                snap, cfg.rules.leaps, today=today, r=r, iv_rules=cfg.rules.implied_vol
+            )
             leaps += lp
             if "pmcc" in profile.strategies:
-                pairs += screeners.pair_pmcc(lp, snap, cfg.rules.pmcc, today=today, r=r)
+                pairs += screeners.pair_pmcc(
+                    lp, snap, cfg.rules.pmcc, today=today, r=r, iv_rules=cfg.rules.implied_vol
+                )
     ranked = ranking.rank_candidates(
         csp + leaps,
         social_scores or {},

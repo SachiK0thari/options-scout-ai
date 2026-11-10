@@ -18,9 +18,9 @@ install: ## create .venv and install all deps (uv)
 test: ## unit + agent tests (offline, fixtures only)
 	$(PY) -m pytest
 
-test-cov: ## offline tests with coverage; fails below 85% on core/, rag/, agent/ (COV_ARGS="--cov-report=xml" in CI)
+test-cov: ## offline tests with coverage; fails below 85% on core/, rag/, agent/, bottleneck/ (COV_ARGS="--cov-report=xml" in CI)
 	$(PY) -m pytest --cov=options_scout --cov-report=term-missing:skip-covered $(COV_ARGS)
-	$(PY) -m coverage report --include='src/options_scout/core/*,src/options_scout/rag/*,src/options_scout/agent/*' --skip-covered --fail-under=85
+	$(PY) -m coverage report --include='src/options_scout/core/*,src/options_scout/rag/*,src/options_scout/agent/*,src/options_scout/bottleneck/*' --skip-covered --fail-under=85
 
 test-live: ## integration tests that hit the network
 	$(PY) -m pytest -m live --override-ini="addopts=-q --strict-markers"

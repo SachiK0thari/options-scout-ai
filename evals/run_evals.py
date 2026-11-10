@@ -66,7 +66,7 @@ from options_scout.social.adapters.sec import SECAdapter  # noqa: E402
 from options_scout.social.pipeline import TrendStore  # noqa: E402
 from options_scout.social.resolution import BrandMap, Resolver  # noqa: E402
 
-COVERED_PACKAGES = ("core", "rag", "agent")  # the step 10.8 coverage target applies to these
+COVERED_PACKAGES = ("core", "rag", "agent", "bottleneck")  # the 10.8 target; bottleneck/ since 11.6
 COVERAGE_TARGET = 85.0
 
 DATASETS = ROOT / "evals" / "datasets"
@@ -142,7 +142,7 @@ def coverage_of(data: dict[str, Any], packages: tuple[str, ...]) -> float:
 
 def eval_tests_and_coverage(res: Results, tmp: Path) -> None:
     """One run of the whole offline suite under ``pytest --cov``: the 11.1 row (tests/unit), the
-    suite row and the step 10.8 coverage target on core/, rag/, agent/."""
+    suite row and the step 10.8 coverage target on core/, rag/, agent/ and (since 11.6) bottleneck/."""
     t0 = time.time()
     cov_json, junit = tmp / "coverage.json", tmp / "junit.xml"
     proc = subprocess.run(
@@ -182,14 +182,19 @@ def eval_tests_and_coverage(res: Results, tmp: Path) -> None:
     )
     if not cov_json.exists():
         res.add(
-            "Quality", "Line coverage on core/, rag/, agent/", "n/a", "≥ 85%", "FAIL", "no report"
+            "Quality",
+            "Line coverage on core/, rag/, agent/, bottleneck/",
+            "n/a",
+            "≥ 85%",
+            "FAIL",
+            "no report",
         )
         return
     data = json.loads(cov_json.read_text(encoding="utf-8"))
     cov = coverage_of(data, COVERED_PACKAGES)
     res.add(
         "Quality",
-        "Line coverage on core/, rag/, agent/ (pytest --cov, same run)",
+        "Line coverage on core/, rag/, agent/, bottleneck/ (pytest --cov, same run)",
         f"{cov:.1f}%",
         f"≥ {COVERAGE_TARGET:.0f}%",
         "PASS" if cov >= COVERAGE_TARGET else "FAIL",
@@ -464,6 +469,9 @@ def eval_agent(res: Results, cfg: Any, deps: Deps) -> None:
     tokens_in: list[int] = []
     trajectories_ok = 0
     audited = 0
+    contained = boards = 0  # Phase 11 (section 4A.11): the board never adds a ticker
+    layers_seen: set[str] = set()
+    weakening: set[str] = set()
     expected = [
         "intake_node",
         "regime_node",
@@ -502,6 +510,18 @@ def eval_agent(res: Results, cfg: Any, deps: Deps) -> None:
         trajectories_ok += int(
             all(n in visited for n in expected) and visited.count("sizing_node") <= 4
         )
+        board_only = {s.ticker for s in rep.bottlenecks if s.ticker and not s.curated}
+        screened = (
+            set(rep.universe)
+            | {c.ticker for c in rep.csp_candidates}
+            | {c.ticker for c in rep.leaps_candidates}
+            | {r.candidate.ticker for r in rep.ranked}
+        )
+        layer_rows = [s for s in rep.bottlenecks if s.ticker is None]
+        boards += int(bool(layer_rows) and all(s.falsifiers and s.evidence for s in layer_rows))
+        contained += int(bool(board_only) and not board_only & screened)
+        layers_seen |= {f"{s.theme_id}/{s.layer_id}" for s in layer_rows}
+        weakening |= {f"{s.theme_id}/{s.layer_id}" for s in layer_rows if s.thesis_weakening}
     n = len(REQUESTS)
     rate = grounded / checked if checked else 1.0
     res.add(
@@ -546,6 +566,23 @@ def eval_agent(res: Results, cfg: Any, deps: Deps) -> None:
         f"{audited}/{n}",
         "100%",
         "PASS" if audited == n else "FAIL",
+    )
+    res.add(
+        "11.3 Agent",
+        "Bottleneck containment: board suppliers off the good-to-own list never enter the universe, "
+        "a candidate table or the ranking (Phase 11, 4A.11)",
+        f"{contained}/{n}",
+        "100%",
+        "PASS" if contained == n else "FAIL",
+    )
+    res.add(
+        "11.3 Agent",
+        "Bottleneck board present with a thesis monitor (every layer row carries falsifiers and "
+        "evidence links)",
+        f"{boards}/{n}",
+        "100%",
+        "PASS" if boards == n else "FAIL",
+        f"{len(layers_seen)} layers; thesis weakening: {', '.join(sorted(weakening)) or 'none'}",
     )
     p95 = sorted(latencies)[max(round(0.95 * n) - 1, 0)]
     res.add(
