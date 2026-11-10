@@ -129,6 +129,7 @@ addopts = "-q -m 'not live' --strict-markers"
 markers = [
     "live: tests that hit the network (skipped by default; run with `make test-live`)",
     "llm: tests that need an LLM API key",
+    "slow: thread stress tests (W39); deselect with -m 'not slow'",
 ]
 filterwarnings = ["ignore::DeprecationWarning"]
 

@@ -13,10 +13,13 @@ and turns the outcome into an assistant ``ChatTurn`` whose text always carries t
 * a first-turn screen runs in place; when it pauses for human review the reply is the review
   prompt and ``resume`` continues it.
 
-Turns are stored on the thread (``chat_history``, a list reducer): the assistant turn produced by
-one call is written with the next call's input, so a paused interrupt is never disturbed;
-``history`` merges the pending turn. Deterministic texts (summaries, review prompts) are checked
-by ``run_compliance`` too, so the invariant "no reply without an audit entry" has no exceptions.
+Turns are stored on the thread (``chat_history``, a list reducer). An assistant turn is written to
+its thread as soon as it is produced (W9), so a new session after a restart sees it; only on a
+thread paused at an interrupt is it held in memory and written with the next call's input, so the
+paused task is never disturbed (``history`` merges it). Follow-on thread ids are numbered from
+the checkpointer, not from memory, so a restart never hands out an id that already holds a run.
+Deterministic texts (summaries, review prompts) are checked by ``run_compliance`` too, so the
+invariant "no reply without an audit entry" has no exceptions.
 """
 
 from __future__ import annotations
@@ -144,7 +147,18 @@ class ChatSession:
         return [*stored, *self._pending.get(thread_id, [])]
 
     def related_threads(self, thread_id: str) -> list[str]:
-        return list(self._related.get(thread_id, []))
+        """Follow-on threads of ``thread_id`` (``<thread>-2``, ``-3`` …): those this session made
+        plus those found in the checkpointer, so the list survives a restart (W9)."""
+        found = set(self._related.get(thread_id, []))
+        n = 2
+        while True:
+            cand = f"{thread_id}-{n}"
+            if self._values(cand):
+                found.add(cand)
+            elif cand not in found and cand not in self._pending:
+                break  # ids are handed out in order, so the first gap ends the list
+            n += 1
+        return sorted(found, key=_suffix)
 
     def run_handoff(self, result: ChatResult, *, on_update: OnUpdate | None = None) -> ChatResult:
         """Start a screen that ``send(run_handoffs=False)`` left pending (used by the API)."""
@@ -171,11 +185,26 @@ class ChatSession:
                     on_update(node, payload if isinstance(payload, dict) else {})
 
     def _new_thread_id(self, thread_id: str) -> str:
-        base = thread_id.rsplit("-", 1)[0] if thread_id.rsplit("-", 1)[-1].isdigit() else thread_id
-        n = len(self._related.get(base, [])) + 2
+        """The first free ``<base>-<n>``: free means no checkpoint and nothing pending, so a
+        second session (or the same one after a restart) never reuses an id (W9)."""
+        tail = thread_id.rsplit("-", 1)
+        base = tail[0] if len(tail) == 2 and tail[1].isdigit() else thread_id
+        n = 2
+        while self._values(f"{base}-{n}") or f"{base}-{n}" in self._pending:
+            n += 1
         new_id = f"{base}-{n}"
         self._related.setdefault(base, []).append(new_id)
         return new_id
+
+    def _record(self, thread_id: str, turn: ChatTurn) -> None:
+        """Write an assistant turn to its thread now (W9). A thread paused at an interrupt, or
+        not yet started, keeps it in memory instead: writing to a paused thread would disturb
+        the interrupted task, and the turn goes in with the next call's input."""
+        if self._values(thread_id) and pending_interrupt(self.graph, thread_id) is None:
+            turns = [*self._pending.pop(thread_id, []), turn]
+            self.graph.update_state(thread_config(thread_id), {"chat_history": turns})
+        else:
+            self._pending.setdefault(thread_id, []).append(turn)
 
     def _start_handoff(
         self,
@@ -199,7 +228,7 @@ class ChatSession:
         if not run_handoffs:
             notice = compliance or self._check(prefix, {}, extra={"prefix": prefix})
             turn = self._assistant(thread_id, prefix, handoff["intent"], notice, new_id)
-            self._pending.setdefault(thread_id, []).append(turn)
+            self._record(thread_id, turn)
             return ChatResult(turn, thread_id, "handoff", new_thread_id=new_id, handoff=handoff)
         return self._run_new_thread(
             new_id,
@@ -239,9 +268,7 @@ class ChatSession:
         result.new_thread_id = new_id
         result.turn.new_thread_id = new_id
         if origin is not None:
-            self._pending.setdefault(origin, []).append(
-                result.turn.model_copy(update={"thread_id": origin})
-            )
+            self._record(origin, result.turn.model_copy(update={"thread_id": origin}))
         return result
 
     def _finish(
@@ -298,7 +325,7 @@ class ChatSession:
         if report is None:  # 13.1 invariant
             raise RuntimeError("chat reply produced without a ComplianceReport")
         turn = self._assistant(thread_id, text, intent, report, None, citations)
-        self._pending.setdefault(thread_id, []).append(turn)
+        self._record(thread_id, turn)
         return ChatResult(turn, thread_id, "completed")
 
     def _assistant(
@@ -351,6 +378,11 @@ class ChatSession:
             rel_tol=self.deps.cfg.settings.agent.verifier_number_tolerance,
             today=self.deps.md.today(),
         )
+
+
+def _suffix(thread_id: str) -> int:
+    tail = thread_id.rsplit("-", 1)[-1]
+    return int(tail) if tail.isdigit() else 0
 
 
 # ---------------------------------------------------------------------- deterministic texts

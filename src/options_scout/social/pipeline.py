@@ -5,6 +5,7 @@ from __future__ import annotations
 import json
 import logging
 import sqlite3
+import threading
 from dataclasses import dataclass, field
 from datetime import UTC, date, datetime, timedelta
 from pathlib import Path
@@ -246,22 +247,29 @@ def _attention_keyword(source: str, entity: str, brand: Brand | None) -> str | N
 
 # ------------------------------------------------------------------- snapshot persistence
 class TrendStore:
+    """Dated trend snapshots. One connection shared by API request threads, the run's graph
+    branches and the scheduler, so every use holds ``_lock`` (W39). Other processes on the same
+    file (the scheduler container) wait on SQLite's own file lock for up to ``timeout``."""
+
     def __init__(self, path: Path) -> None:
         path.parent.mkdir(parents=True, exist_ok=True)
-        self._conn = sqlite3.connect(str(path), check_same_thread=False)
-        self._conn.execute(
-            "CREATE TABLE IF NOT EXISTS trend_snapshots "
-            "(as_of TEXT PRIMARY KEY, payload TEXT NOT NULL)"
-        )
-        self._conn.commit()
+        self._lock = threading.Lock()
+        self._conn = sqlite3.connect(str(path), check_same_thread=False, timeout=30)
+        with self._lock:
+            self._conn.execute(
+                "CREATE TABLE IF NOT EXISTS trend_snapshots "
+                "(as_of TEXT PRIMARY KEY, payload TEXT NOT NULL)"
+            )
+            self._conn.commit()
 
     def save(self, run: TrendRun) -> None:
         payload = json.dumps([s.model_dump(mode="json") for s in run.signals])
-        self._conn.execute(
-            "INSERT OR REPLACE INTO trend_snapshots (as_of, payload) VALUES (?, ?)",
-            (run.as_of.isoformat(), payload),
-        )
-        self._conn.commit()
+        with self._lock:
+            self._conn.execute(
+                "INSERT OR REPLACE INTO trend_snapshots (as_of, payload) VALUES (?, ?)",
+                (run.as_of.isoformat(), payload),
+            )
+            self._conn.commit()
 
     def purge(self, retention_hours: int, now: datetime | None = None) -> int:
         """Delete snapshots (and the post excerpts they carry) older than ``retention_hours``.
@@ -271,14 +279,16 @@ class TrendStore:
         """
         now = now or datetime.now(tz=UTC)
         cutoff = (now - timedelta(hours=retention_hours)).isoformat()
-        cur = self._conn.execute("DELETE FROM trend_snapshots WHERE as_of < ?", (cutoff,))
-        self._conn.commit()
-        return int(cur.rowcount or 0)
+        with self._lock:
+            cur = self._conn.execute("DELETE FROM trend_snapshots WHERE as_of < ?", (cutoff,))
+            self._conn.commit()
+            return int(cur.rowcount or 0)
 
     def latest(self, max_age_hours: int, now: datetime | None = None) -> list[TrendSignal] | None:
-        row = self._conn.execute(
-            "SELECT as_of, payload FROM trend_snapshots ORDER BY as_of DESC LIMIT 1"
-        ).fetchone()
+        with self._lock:
+            row = self._conn.execute(
+                "SELECT as_of, payload FROM trend_snapshots ORDER BY as_of DESC LIMIT 1"
+            ).fetchone()
         if row is None:
             return None
         as_of = datetime.fromisoformat(row[0])

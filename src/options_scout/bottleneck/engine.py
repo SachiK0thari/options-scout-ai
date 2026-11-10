@@ -14,6 +14,7 @@ from __future__ import annotations
 import json
 import logging
 import sqlite3
+import threading
 from collections.abc import Mapping, Sequence
 from dataclasses import dataclass, field
 from datetime import UTC, date, datetime, timedelta
@@ -310,12 +311,16 @@ class BottleneckStore:
     def __init__(self, path: Path) -> None:
         path.parent.mkdir(parents=True, exist_ok=True)
         self.path = path
-        self._conn = sqlite3.connect(str(path), check_same_thread=False)
-        self._conn.execute(
-            "CREATE TABLE IF NOT EXISTS bottleneck_snapshots "
-            "(as_of TEXT PRIMARY KEY, payload TEXT NOT NULL)"
-        )
-        self._conn.commit()
+        # shared by API request threads and the run's graph branches: every use holds the lock
+        # (W39); another process on the same file waits on SQLite's file lock up to ``timeout``
+        self._lock = threading.Lock()
+        self._conn = sqlite3.connect(str(path), check_same_thread=False, timeout=30)
+        with self._lock:
+            self._conn.execute(
+                "CREATE TABLE IF NOT EXISTS bottleneck_snapshots "
+                "(as_of TEXT PRIMARY KEY, payload TEXT NOT NULL)"
+            )
+            self._conn.commit()
 
     def save(self, run: BottleneckRun) -> None:
         payload = {
@@ -323,29 +328,33 @@ class BottleneckStore:
             "signals": [s.model_dump(mode="json") for s in run.signals],
             "layer_components": run.layer_components,
         }
-        self._conn.execute(
-            "INSERT OR REPLACE INTO bottleneck_snapshots (as_of, payload) VALUES (?, ?)",
-            (run.as_of.isoformat(), json.dumps(payload, default=str)),
-        )
-        self._conn.commit()
+        with self._lock:
+            self._conn.execute(
+                "INSERT OR REPLACE INTO bottleneck_snapshots (as_of, payload) VALUES (?, ?)",
+                (run.as_of.isoformat(), json.dumps(payload, default=str)),
+            )
+            self._conn.commit()
 
     def purge(self, retention_days: int, now: datetime | None = None) -> int:
         now = now or datetime.now(tz=UTC)
         cutoff = (now - timedelta(days=retention_days)).isoformat()
-        cur = self._conn.execute("DELETE FROM bottleneck_snapshots WHERE as_of < ?", (cutoff,))
-        self._conn.commit()
-        return int(cur.rowcount or 0)
+        with self._lock:
+            cur = self._conn.execute("DELETE FROM bottleneck_snapshots WHERE as_of < ?", (cutoff,))
+            self._conn.commit()
+            return int(cur.rowcount or 0)
 
     def count(self) -> int:
-        row = self._conn.execute("SELECT COUNT(*) FROM bottleneck_snapshots").fetchone()
+        with self._lock:
+            row = self._conn.execute("SELECT COUNT(*) FROM bottleneck_snapshots").fetchone()
         return int(row[0]) if row else 0
 
     def latest(
         self, max_age_hours: int, now: datetime | None = None
     ) -> list[BottleneckSignal] | None:
-        row = self._conn.execute(
-            "SELECT as_of, payload FROM bottleneck_snapshots ORDER BY as_of DESC LIMIT 1"
-        ).fetchone()
+        with self._lock:
+            row = self._conn.execute(
+                "SELECT as_of, payload FROM bottleneck_snapshots ORDER BY as_of DESC LIMIT 1"
+            ).fetchone()
         if row is None:
             return None
         as_of = datetime.fromisoformat(row[0])
@@ -359,9 +368,10 @@ class BottleneckStore:
     ) -> list[tuple[date, dict[str, float | None]]]:
         """One entry per snapshot day for ``key`` (oldest → newest), dated strictly before
         ``before`` when given, so today's run never reads its own earlier snapshot twice."""
-        rows = self._conn.execute(
-            "SELECT as_of, payload FROM bottleneck_snapshots ORDER BY as_of ASC"
-        ).fetchall()
+        with self._lock:
+            rows = self._conn.execute(
+                "SELECT as_of, payload FROM bottleneck_snapshots ORDER BY as_of ASC"
+            ).fetchall()
         by_day: dict[date, dict[str, float | None]] = {}
         for as_of_raw, payload in rows:
             day = datetime.fromisoformat(as_of_raw).date()
@@ -373,7 +383,8 @@ class BottleneckStore:
         return sorted(by_day.items())[-limit:]
 
     def close(self) -> None:
-        self._conn.close()
+        with self._lock:
+            self._conn.close()
 
 
 def corpus_summary(corpus: BottleneckCorpus) -> str:

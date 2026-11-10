@@ -11,6 +11,7 @@ from __future__ import annotations
 import hashlib
 import json
 import sqlite3
+import threading
 from collections.abc import Iterable, Sequence
 from pathlib import Path
 
@@ -49,8 +50,14 @@ class KnowledgeStore:
         self.path = Path(path) if path != ":memory:" else None
         if self.path is not None:
             self.path.parent.mkdir(parents=True, exist_ok=True)
-        self._conn = sqlite3.connect(str(path) if self.path is None else str(self.path))
-        self._conn.executescript(_SCHEMA)
+        # W39: one store serves every request thread, so the connection is not bound to the
+        # thread that opened it and every use (including the lazy matrix load) holds the lock
+        self._lock = threading.RLock()
+        self._conn = sqlite3.connect(
+            str(path) if self.path is None else str(self.path), check_same_thread=False, timeout=30
+        )
+        with self._lock:
+            self._conn.executescript(_SCHEMA)
         self._ids: list[str] = []
         self._chunks: list[Chunk] = []
         self._matrix: Vector | None = None
@@ -79,7 +86,7 @@ class KnowledgeStore:
             )
             for i, c in enumerate(chunks)
         ]
-        with self._conn:
+        with self._lock, self._conn:
             self._conn.execute("DELETE FROM chunks")
             self._conn.executemany("INSERT INTO chunks VALUES (?, ?, ?, ?, ?, ?)", rows)
             self._conn.execute("DELETE FROM meta")
@@ -92,49 +99,55 @@ class KnowledgeStore:
                     ("count", str(len(chunks))),
                 ],
             )
-        self._invalidate()
+            self._invalidate()
         return len(rows)
 
     # ------------------------------------------------------------------ reading
     def meta(self) -> dict[str, str]:
-        return dict(self._conn.execute("SELECT key, value FROM meta").fetchall())
+        with self._lock:
+            return dict(self._conn.execute("SELECT key, value FROM meta").fetchall())
 
     def is_current(self, chunks: Sequence[Chunk], embedder: Embedder) -> bool:
         return self.meta().get("fingerprint") == fingerprint(chunks, embedder.name)
 
     def __len__(self) -> int:
-        row = self._conn.execute("SELECT COUNT(*) FROM chunks").fetchone()
+        with self._lock:
+            row = self._conn.execute("SELECT COUNT(*) FROM chunks").fetchone()
         return int(row[0]) if row else 0
 
     def chunks(self) -> list[Chunk]:
-        self._load()
-        return list(self._chunks)
+        with self._lock:
+            self._load()
+            return list(self._chunks)
 
     def get(self, chunk_id: str) -> Chunk | None:
-        self._load()
-        try:
-            return self._chunks[self._ids.index(chunk_id)]
-        except ValueError:
-            return None
+        with self._lock:
+            self._load()
+            try:
+                return self._chunks[self._ids.index(chunk_id)]
+            except ValueError:
+                return None
 
     def dense_scores(self, query_vector: Vector) -> NDArray[np.float32]:
         """Cosine similarity of every stored chunk to a unit query vector (same order as chunks)."""
-        self._load()
-        if self._matrix is None or self._matrix.shape[0] == 0:
+        with self._lock:
+            self._load()
+            matrix = self._matrix
+        if matrix is None or matrix.shape[0] == 0:
             return np.zeros(0, dtype=np.float32)
-        scores: NDArray[np.float32] = (self._matrix @ query_vector.astype(np.float32)).astype(
-            np.float32
-        )
+        scores: NDArray[np.float32] = (matrix @ query_vector.astype(np.float32)).astype(np.float32)
         return scores
 
     def close(self) -> None:
-        self._conn.close()
+        with self._lock:
+            self._conn.close()
 
     # ------------------------------------------------------------------ internals
     def _invalidate(self) -> None:
         self._ids, self._chunks, self._matrix = [], [], None
 
     def _load(self) -> None:
+        """Read every row into memory once (caller holds ``_lock``)."""
         if self._matrix is not None:
             return
         rows = self._conn.execute(

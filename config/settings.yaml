@@ -87,6 +87,8 @@ agent:
   max_explainer_retries: 2
   verifier_number_tolerance: 0.01       # relative tolerance when matching narrative numbers
   checkpoint_retention_days: 7          # threads idle longer than this are deleted when the checkpoint DB opens (0 = keep)
+  api_max_workers: 4                    # API runs (screens, chat turns) executing at once
+  api_max_queued: 8                     # more runs may wait; beyond that the API answers 429
 
 risk:
   stress_shocks: [-0.10, -0.20, -0.30]

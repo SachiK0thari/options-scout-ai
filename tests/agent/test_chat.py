@@ -346,3 +346,62 @@ def test_a_hostile_post_is_shown_as_inert_evidence(session: ChatSession) -> None
     assert f"Rank {nke.rank}:" in screen[0]
     assert "the one to own" not in screen[0]
     assert "NKE ranked first" not in r.turn.text.replace("“", "").split("Evidence behind")[0]
+
+
+# ------------------------------------------------------------------ W9: sessions and restarts
+def test_what_if_thread_ids_do_not_collide_after_a_restart(deps: Deps) -> None:
+    from langgraph.checkpoint.memory import InMemorySaver
+
+    from options_scout.agent.graph import serializer
+
+    saver = InMemorySaver(serde=serializer())
+    first = ChatSession(deps, saver)
+    t = "t-restart"
+    first.send(t, DESCRIBE)
+    first.resume(t, {"risk_profile": "balanced"})
+    r1 = first.send(t, "What if I only had 30k?")
+    assert r1.new_thread_id == "t-restart-2"
+    before = first.graph.get_state({"configurable": {"thread_id": "t-restart-2"}}).values
+
+    second = ChatSession(deps, saver)  # a restart: same checkpointer, nothing in memory
+    assert second.history(t)[-1].role == "assistant"  # what-if #1's reply was persisted
+    assert second.related_threads(t) == ["t-restart-2"]
+    r2 = second.send(t, "What if I only had 50k?")
+    assert r2.new_thread_id == "t-restart-3"
+
+    after = second.graph.get_state({"configurable": {"thread_id": "t-restart-2"}}).values
+    assert after["report"].profile.buying_power == 30_000
+    assert after["report"].run_id == before["report"].run_id
+    assert len(after["candidates"]) == len(before["candidates"])  # nothing appended onto it
+    third = second.graph.get_state({"configurable": {"thread_id": "t-restart-3"}}).values
+    assert third["report"].profile.buying_power == 50_000
+    assert ChatSession(deps, saver).related_threads(t) == ["t-restart-2", "t-restart-3"]
+
+
+def test_a_fresh_session_sees_the_last_assistant_turn(deps: Deps) -> None:
+    from langgraph.checkpoint.memory import InMemorySaver
+
+    from options_scout.agent.graph import serializer, thread_config
+
+    saver = InMemorySaver(serde=serializer())
+    first = ChatSession(deps, saver)
+    r = first.send("t-fresh", "What is assignment?")
+    assert r.status == "completed" and first._pending == {}  # written, not held in memory
+    fresh = ChatSession(deps, saver)
+    assert [h.role for h in fresh.history("t-fresh")] == ["user", "assistant"]
+    assert fresh.history("t-fresh")[-1].text == r.turn.text
+    assert not first.graph.get_state(thread_config("t-fresh")).next  # still reads as finished
+
+
+def test_a_paused_thread_keeps_its_review_turn_in_memory(deps: Deps) -> None:
+    from langgraph.checkpoint.memory import InMemorySaver
+
+    from options_scout.agent.graph import pending_interrupt, serializer
+
+    session = ChatSession(deps, InMemorySaver(serde=serializer()))
+    r = session.send("t-paused", DESCRIBE)
+    assert r.status == "interrupted" and "t-paused" in session._pending
+    assert pending_interrupt(session.graph, "t-paused") is not None  # the interrupt is intact
+    done = session.resume("t-paused", {"risk_profile": "balanced"})
+    assert done.status == "completed"
+    assert [h.role for h in session.history("t-paused")] == ["user", "assistant", "assistant"]

@@ -74,6 +74,10 @@ class ScreenResponse(BaseModel):
 
 class ResumeRequest(BaseModel):
     answer: dict[str, Any]
+    # W39: a run started with the caller's own market-data key resumes on that source. The key
+    # is not kept after a restart (or once the run has waited a long time), so it is sent again
+    # here; it must name the same provider and environment the run started with.
+    market_data: MarketDataAuth | None = None
 
 
 class RunStatus(BaseModel):
@@ -102,6 +106,7 @@ class QualityUniverseResponse(BaseModel):
 class Health(BaseModel):
     status: str
     version: str
+    knowledge_chunks: int | None = None  # W42: 0 means the knowledge base is empty (503)
     # with a valid key only (W37): the deployment's data mode and source health
     data_mode: str | None = None
     llm_mode: str | None = None

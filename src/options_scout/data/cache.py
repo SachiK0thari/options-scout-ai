@@ -15,7 +15,9 @@ class SQLiteCache:
         self.path = Path(path)
         self.path.parent.mkdir(parents=True, exist_ok=True)
         self._lock = threading.Lock()
-        self._conn = sqlite3.connect(str(self.path), check_same_thread=False)
+        # shared by the compose services on one volume: another process's write is waited for
+        # (up to ``timeout``) rather than failing with "database is locked" (W39)
+        self._conn = sqlite3.connect(str(self.path), check_same_thread=False, timeout=30)
         self._conn.execute(
             "CREATE TABLE IF NOT EXISTS cache (key TEXT PRIMARY KEY, value TEXT NOT NULL, "
             "expires_at REAL NOT NULL, created_at REAL NOT NULL)"

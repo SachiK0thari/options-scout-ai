@@ -810,6 +810,17 @@ line 70.
 
 Suggested commit: `fix(chat): follow-on thread ids from the checkpointer; assistant turns persisted`
 
+**Status, 2026-11-10:** done in the working tree, steps 1 to 4 (done with W39). `_new_thread_id`
+probes the checkpointer and `_pending` for the first free `<base>-<n>`, as written. New
+`ChatSession._record` writes an assistant turn to its thread at once with `graph.update_state`
+(checked: the thread's `next` stays empty, so it still reads as finished). A thread paused at an
+interrupt, or one not started yet (`run_handoffs=False`), keeps the turn in `_pending` as before.
+`related_threads` adds what the checkpointer holds to what the session made, so the UI's list
+survives a restart. Tests in `tests/agent/test_chat.py`: two sessions on one `InMemorySaver` get
+`t-restart-2` and `t-restart-3`, and the first follow-on keeps its own report, run id and
+candidate count; a fresh session sees the last assistant turn; a paused thread keeps its review
+turn in memory with the interrupt intact. Against the old `chat.py` the first two fail.
+
 ---
 
 ### W10. Show how old the quote is, not when it was fetched
@@ -1342,6 +1353,27 @@ session-scoped autouse fixture in `tests/conftest.py` points every test at a tem
 `agent.checkpoint_retention_days: 7` prunes idle threads when `sqlite_checkpointer` opens the
 file, new files use `auto_vacuum=INCREMENTAL`, and `PRAGMA incremental_vacuum` runs after a
 prune (`tests/agent/test_checkpointer.py`). Steps 4 and 5 remain open.
+
+**Status, 2026-11-10:** steps 4 and 5 done in the working tree. Measured first on a fixture
+screen: 50 checkpoints (12 in the main graph, 38 inside the specialist agents) plus 621 pending
+writes, 107 MB; the state was 2.9 MB, of which `market_data` was 2.2 MB, and nearly all of that
+was option chains.
+- **Fewer:** `stream_run` and `stream_resume` pass `durability="exit"` (checked in LangGraph
+  1.2.18), and every caller (API, UI, chat, CLI, MCP, evals) goes through them. A run now
+  saves once, when it ends, pauses at `human_review` or raises. Checked: a paused run resumes
+  from a new process, and a run that raises is saved with its remaining nodes, so W39's status
+  reads it as failed. The cost: a process killed mid-run keeps none of that run's steps. The API
+  reports such a thread (token issued, no saved state, nothing running) as `failed`, not 404.
+- **Smaller:** the report node keeps the snapshots in the thread without their chains, which only
+  the screeners read. Risk, holdings, news, MCP and the UI use the quote, IV and dividend fields.
+- **Result:** one checkpoint of 0.7 MB per screen, no pending writes. In the Docker image the API
+  checkpoint file went from 111 MB to 0.75 MB (with its log) after one screen.
+- **PRIVACY.md:** retention was already described (W38); two sentences now say a thread is saved
+  once per screen, turn or pause and that the chains are dropped from it.
+- **Tests:** `tests/agent/test_checkpointer.py` (one checkpoint, no writes, under 3 MB, chains
+  dropped and quotes kept; a paused run resumes in a new process; a run that raises is saved
+  unfinished) and one in `tests/agent/test_api_concurrency.py` (a killed run reports failed).
+  With durability set back to LangGraph's default, the size test fails at 50 checkpoints.
 
 **Acceptance checks.** `make test` leaves `data/checkpoints.sqlite` unchanged. A screen adds a
 few megabytes, not 106.
@@ -2475,6 +2507,69 @@ was restored with `git checkout`.
 
 Suggested commit: `fix(api): locked stores, atomic start, resume on the original source, bounded executor`
 
+**Status, 2026-11-10:** done in the working tree, steps 1 to 6, together with W9 (its dependency).
+- **Stores:** `TrendStore` and `BottleneckStore` hold a `threading.Lock` around every use of their
+  shared connection (the `IVSnapshotStore` pattern) and connect with `timeout=30`, so the
+  scheduler and the API on the shared `scout-data` volume wait on SQLite's file lock instead of
+  failing. `KnowledgeStore` opens with `check_same_thread=False` and an `RLock` that also covers
+  the lazy matrix load and `rebuild`. The lazy builders in `agent/deps.py` take one module-level
+  `RLock`, so the retriever, the bottleneck store and the engine are built once.
+- **Resume:** the source a run started on is recorded in a new `thread_sources` table beside the
+  thread tokens (`server`, `caller:marketdata`, `caller:tradier:sandbox|production`; never the
+  key). A caller-keyed run keeps its graph in memory and resumes on it. After a restart, or once
+  the graph is evicted (1 hour after the run stops), resuming answers 409 and asks for the same
+  `market_data` again; `ResumeRequest.market_data` is new. Another provider or environment gets
+  422, and so does sending a key to resume a run that started on server data. Nothing falls
+  back to another source.
+- **Atomic start:** `start`, `chat` and `resume` check and submit under one registry lock; a
+  busy thread gets 409. Since W37 the server generates every screen's thread id, so "a start on
+  a thread that already holds a report" can only happen through `/v1/chat`, which continues
+  that thread on purpose.
+- **Status from the checkpointer:** `RunRegistry.run_state` reports `running` while the run's
+  future is live, and otherwise reads the saved state: a pending interrupt means `interrupted`,
+  remaining `next` nodes mean `failed` (an error, or a process that died mid-run), and no
+  remaining nodes means `completed`. `/runs/{id}`, `/report`, `/resume`, `/stream` (one `end`
+  event for a run the process no longer remembers) and `/threads/{id}` all use it.
+- **Bounded pool:** a `ThreadPoolExecutor` of `agent.api_max_workers` (4) with up to
+  `agent.api_max_queued` (8) more waiting; past that, 429 with `Retry-After`, and nothing about
+  the refused run is recorded. A finished run's events, status and future are dropped 10 minutes
+  after it ends. The pool is shut down when the app stops.
+- **Tests:** `tests/agent/test_api_concurrency.py`, 12 tests: four thread stress tests marked
+  `slow` (new marker; they still run by default and take a few seconds). Against the old store
+  code they fail with the errors the audit reported (`InterfaceError`; "SQLite objects created in
+  a thread …"). Also: resume on the original graph, a clear 409 without the key and 422 with
+  another provider, a restart keeping status, report, stream and resume working, 409 on a busy
+  thread, exactly one of four simultaneous turns starting, 429 on a full pool, and eviction.
+  Full suite, ruff and mypy pass.
+- **Shared volume (handed over from W42), done the same day.** Fully separate databases would
+  defeat the scheduler, whose snapshots are what the API and UI read, so each file was sorted by
+  who needs it. The knowledge index left the volume: the image builds it at
+  `/app/index/knowledge.sqlite` (new `OPTIONS_SCOUT_RAG_INDEX_DB` override), so an upgrade never
+  reads a stale copy seeded into the volume and the services no longer race to rebuild it.
+  Checkpoints were already per front end. The market cache and the trend, bottleneck and IV
+  snapshot files stay shared: every store locks its connection and waits up to 30 s on SQLite's
+  file lock (`SQLiteCache`, `IVSnapshotStore`, `KnowledgeStore` now too). Their keying is W41's
+  job. The compose file says this in a comment. Tests: four processes write and read all four
+  shared stores at once without an error (`slow`), and the Dockerfile sets the index path
+  before building it with no volume over it. The four-process test also passes on the old 5 s
+  timeout, so a second test reproduces the failure: another process holds the write lock for
+  7 s while each of the four stores writes. On the old code all four fail with "database is
+  locked"; now they wait and succeed. The image was built and run on
+  2026-11-10 (Docker was up): `/healthz` reported 1,076 chunks, a screen completed, and the
+  index was in `/app/index`. The full `docker compose up` with all three services was not run.
+- **W12 leftover, done the same day.** When the report is withheld, the report node also sets
+  the thread's `portfolio` and `goal_plan` to `None`. A later goal turn then counts the balance
+  as cash and says the screen was withheld, holdings analysis uses the unsized candidates, and
+  `/v1/threads` shows no goal plan. Test in `tests/agent/test_compliance_agent.py`; it fails on
+  the old `report.py`.
+- Seen while checking the image: one fixture screen left `checkpoints-api.sqlite` at 105 MB.
+  Fixed the same day under W19 steps 4 and 5 (0.75 MB now).
+- The four-process volume test also passes on the old 5 s timeout, so it was paired with
+  `test_writes_wait_out_another_services_long_write`: one process holds the write lock of all
+  four shared files for 6 s while each store writes in parallel. The old code fails with
+  "database is locked"; the new code waits. It takes about 6 s, so it is marked `slow`, which
+  only allows deselecting it: `make test` and CI still run every `slow` test.
+
 ---
 
 ### W40. Inputs are unbounded and tickers are not validated
@@ -2603,3 +2698,49 @@ in for it.
    step that fails when it drifts.
 
 Suggested commit: `fix(deploy): knowledge base in the image, start-up validation, working live compose`
+
+**Status, 2026-11-10:** done in the working tree, steps 1 to 5 and 7 to 9; step 6 except the
+separate databases. Tests: `tests/agent/test_deployment.py`. Verified on Docker 28.3.2
+(arm64) the same day: the image builds (index of 1,076 chunks), `docker compose up` brings all
+three services up healthy, the container runs as uid 10001, "what is a cash-secured put?"
+through `/v1/chat` cites `cash-secured-put` with compliance passed, the scheduler's first pass
+succeeds (heartbeat written, 1 trend row kept), a bad `OPTIONS_SCOUT_DATA_MODE` plus rate limit
+stops start-up with both named, and live mode with no token serves `/healthz` (200) and answers
+a keyless screen with 422 and the reason.
+Against the old Dockerfile and the old purge, the file-set and trend tests fail as the audit found
+(index of 0 chunks; 0 trend rows).
+- **Image:** `COPY knowledge` and `RUN python -m options_scout.rag.index --no-rules` (the rules
+  docs are committed, so `PRD.md` is not needed in the image). Base images pinned by multi-arch
+  digest (`python:3.12-slim`, `uv:0.8.4`), user `scout` (uid 10001) owns `data/`, runtime
+  dependencies installed with `uv pip install -c requirements.txt .` (90 packages, no dev tools).
+  New `.dockerignore`.
+- **Empty knowledge base:** `KnowledgeRetriever.from_config` raises `KnowledgeBaseEmptyError`
+  unless `rag.allow_empty_corpus: true` (new, default false). The API start-up, the UI and
+  `/healthz` check it through `rag.retriever.ensure_knowledge_base`, which opens and closes its
+  own SQLite connection: a connection opened on a request thread broke the run threads.
+  `/healthz` reports `knowledge_chunks` to everyone and answers 503 at zero.
+- **Start-up validation:** new `options_scout/env.py`. `EnvSettings` (pydantic-settings) parses
+  every `OPTIONS_SCOUT_*` variable: case and spaces normalised, empty means unset, rate limit
+  1 to 100,000, flags exactly `0`/`1`. `check_startup()` also loads the YAML config. It runs in
+  the API lifespan, the UI, the CLI, the MCP server and all three jobs, and one message names
+  every bad variable. The call sites also normalise case themselves, and a bad rate limit no
+  longer crashes the API import (it falls back to 30, then start-up refuses).
+- **Live mode without a key:** `Deps.from_config` falls back to `MarketData.unavailable`
+  (`UnavailableSource`, which raises `MarketDataError` with the reason on any quote).
+  `/healthz` stays up; a request that brings a key gets its own source; one that needs quotes
+  and brings none gets 422 with the reason.
+- **Compose:** `MARKETDATA_TOKEN`, `TRADIER_API_KEY` and `OPTIONS_SCOUT_MARKET_PROVIDER` reach
+  every service (a shared `x-common-env` block); `restart: unless-stopped` and a healthcheck on
+  all three (UI: `/_stcore/health`; scheduler: a heartbeat touched only when every job of the
+  daily pass succeeded). UI stays on `127.0.0.1`. **Not done:** separate databases or a single
+  writer. The services still share the `scout-data` volume; left to W39, which owns store
+  concurrency.
+- **Scheduler:** `|| true` removed; a failed job is logged with its exit code. The trend job
+  purges against the run's own `as_of` (the fixture clock in fixture mode), as the trend node
+  already did.
+- **`.gitignore`:** `data/*.sqlite-wal` and `data/*.sqlite-shm`.
+- **Lock:** `scripts/export_requirements.py --match-env PYTHON` re-pinned `requirements.txt` to
+  the tested `.venv` (two passes, so no temp path reaches the annotations). `make install` now
+  installs with `-c requirements.txt`, and CI runs the new `make requirements-check` (re-export,
+  then `git diff --exit-code`). A plain re-export reproduces the file byte for byte.
+- **README:** `/healthz`, start-up validation, live compose and the CI steps updated.
