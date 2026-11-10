@@ -1,8 +1,12 @@
 """Structured logging, per-node timing and tracing (LangSmith if configured, else OTel console).
 
 * ``structlog`` JSON logs keyed by ``thread_id``.
-* LangSmith: LangGraph traces automatically when ``LANGSMITH_API_KEY`` is set and
-  ``LANGSMITH_TRACING=true``; we only set the project name.
+* LangSmith: opt-in only. Tracing needs ``OPTIONS_SCOUT_TRACING=langsmith`` as well as
+  ``LANGSMITH_API_KEY``, and then sends ids, timings and token counts with inputs and outputs
+  hidden (W38). A key alone turns nothing on.
+* ``redact`` removes credentials from any string that leaves the process: log lines (structlog
+  and stdlib), and every entry of the run's ``errors`` and ``data_source_status`` (the state
+  reducers call it), which the API, the reports and the checkpoint file all read.
 * Otherwise an OpenTelemetry tracer with a console (JSON) exporter emits one span per node.
 """
 
@@ -10,6 +14,7 @@ from __future__ import annotations
 
 import logging
 import os
+import re
 import sys
 import time
 from collections.abc import Callable, Iterator
@@ -22,6 +27,67 @@ from langgraph.errors import GraphInterrupt
 
 _configured = False
 
+REDACTED = "[redacted]"
+# query-string and form parameters that carry a credential (``apikey=…``, ``token=…`` and so on)
+_SECRET_PARAM = re.compile(
+    r"(?i)\b((?:api[_-]?key|apikey|access[_-]?token|token|client[_-]?secret|secret|password)"
+    r"[\"']?\s*[=:]\s*[\"']?)[^\s&\"',;)}\]]+"
+)
+_AUTH_HEADER = re.compile(
+    r"(?i)\b(authorization[\"']?\s*[:=]\s*[\"']?)(?:bearer\s+|basic\s+|token\s+)?[^\s\"',;)}\]]+"
+)
+_BEARER = re.compile(r"(?i)\b(bearer\s+)[A-Za-z0-9._~+/=-]{8,}")
+_SECRET_ENV = re.compile(r"(?:KEY|TOKEN|SECRET|PASSWORD)$")
+_QUIET_LOGGERS = ("httpx", "httpcore", "urllib3", "praw", "prawcore")
+
+
+def _secret_env_values() -> list[str]:
+    """Values of credential-looking environment variables, longest first (8+ characters)."""
+    vals = {v for k, v in os.environ.items() if _SECRET_ENV.search(k.upper()) and len(v) >= 8}
+    return sorted(vals, key=len, reverse=True)
+
+
+def redact(text: str) -> str:
+    """``text`` with credentials removed: any value of a ``*_KEY`` / ``*_TOKEN`` / ``*_SECRET``
+    environment variable, ``apikey=``-style parameters and ``Authorization`` / bearer values."""
+    if not text:
+        return text
+    for v in _secret_env_values():
+        if v in text:
+            text = text.replace(v, REDACTED)
+    text = _AUTH_HEADER.sub(lambda m: m.group(1) + REDACTED, text)
+    text = _BEARER.sub(lambda m: m.group(1) + REDACTED, text)
+    return _SECRET_PARAM.sub(lambda m: m.group(1) + REDACTED, text)
+
+
+def redact_value(value: Any) -> Any:
+    """``redact`` applied to every string inside lists, tuples and dict values."""
+    if isinstance(value, str):
+        return redact(value)
+    if isinstance(value, list | tuple):
+        return type(value)(redact_value(v) for v in value)
+    if isinstance(value, dict):
+        return {k: redact_value(v) for k, v in value.items()}
+    return value
+
+
+def _redact_event(_logger: Any, _name: str, event: dict[str, Any]) -> dict[str, Any]:
+    return {k: redact_value(v) for k, v in event.items()}
+
+
+class RedactingFilter(logging.Filter):
+    """Stdlib logging filter: the formatted message is redacted before any handler writes it."""
+
+    def filter(self, record: logging.LogRecord) -> bool:
+        try:
+            msg = record.getMessage()
+        except Exception:
+            return True
+        clean = redact(msg)
+        if clean != msg:
+            record.msg, record.args = clean, None
+        return True
+
 
 def configure_logging(level: str | None = None) -> None:
     global _configured
@@ -29,9 +95,15 @@ def configure_logging(level: str | None = None) -> None:
         return
     level = level or os.environ.get("OPTIONS_SCOUT_LOG_LEVEL", "INFO")
     logging.basicConfig(level=level, stream=sys.stderr, format="%(message)s")
+    for name in _QUIET_LOGGERS:  # httpx logs every full URL, query-string keys included, at INFO
+        logging.getLogger(name).setLevel(logging.WARNING)
+    for handler in logging.getLogger().handlers:
+        if not any(isinstance(f, RedactingFilter) for f in handler.filters):
+            handler.addFilter(RedactingFilter())
     structlog.configure(
         processors=[
             structlog.contextvars.merge_contextvars,
+            _redact_event,
             structlog.processors.add_log_level,
             structlog.processors.TimeStamper(fmt="iso", utc=True),
             structlog.processors.JSONRenderer(sort_keys=True),
@@ -48,11 +120,22 @@ def get_logger(**bind: Any) -> Any:
     return structlog.get_logger().bind(**bind)
 
 
+_TRACING_FLAGS = ("LANGSMITH_TRACING", "LANGSMITH_TRACING_V2", "LANGCHAIN_TRACING_V2")
+
+
 def tracing_backend() -> str:
-    if os.environ.get("LANGSMITH_API_KEY"):
-        os.environ.setdefault("LANGSMITH_TRACING", "true")
+    """LangSmith only on an explicit ``OPTIONS_SCOUT_TRACING=langsmith`` with a key, and then
+    with run inputs and outputs hidden. Otherwise every LangSmith/LangChain tracing flag is forced
+    off, so a key left in the environment never uploads run state (profile, holdings)."""
+    opted_in = os.environ.get("OPTIONS_SCOUT_TRACING", "").strip().lower() == "langsmith"
+    if opted_in and os.environ.get("LANGSMITH_API_KEY"):
+        os.environ["LANGSMITH_TRACING"] = "true"
+        os.environ["LANGSMITH_HIDE_INPUTS"] = "true"
+        os.environ["LANGSMITH_HIDE_OUTPUTS"] = "true"
         os.environ.setdefault("LANGSMITH_PROJECT", "options-scout-ai")
         return "langsmith"
+    for flag in _TRACING_FLAGS:
+        os.environ[flag] = "false"
     return "otel-console"
 
 
@@ -106,7 +189,7 @@ def timed_node(name: str, fn: Callable[..., dict[str, Any]]) -> Callable[..., di
             except GraphInterrupt:
                 raise  # human-in-the-loop pause, not a failure
             except Exception as exc:
-                log.error("node_failed", error=str(exc))
+                log.error("node_failed", error=redact(str(exc)))
                 raise
         ms = (time.perf_counter() - t0) * 1000.0
         log.info("node_done", latency_ms=round(ms, 1))
@@ -142,7 +225,7 @@ def timed_agent(name: str, fn: AgentFn) -> AgentFn:
                 log.info("agent.end", status="interrupted")
                 raise  # human-in-the-loop pause, not a failure
             except Exception as exc:
-                log.error("agent.end", status="failed", error=str(exc))
+                log.error("agent.end", status="failed", error=redact(str(exc)))
                 raise
         ms = (time.perf_counter() - t0) * 1000.0
         log.info("agent.end", status="ok", latency_ms=round(ms, 1))

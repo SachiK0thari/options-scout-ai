@@ -24,3 +24,15 @@ def test_memory_cache_expires() -> None:
     c.set("k", [1], ttl_seconds=0)
     time.sleep(0.01)
     assert c.get("k") is None
+
+
+def test_expired_rows_are_purged_when_the_cache_opens(tmp_path: Path) -> None:
+    import sqlite3
+
+    path = tmp_path / "c.sqlite"
+    c = SQLiteCache(path)
+    c.set("old", {"x": 1}, ttl_seconds=-1)
+    c.set("fresh", {"x": 2}, ttl_seconds=600)
+    SQLiteCache(path)  # reopening deletes what has expired
+    keys = [k for (k,) in sqlite3.connect(path).execute("SELECT key FROM cache")]
+    assert keys == ["fresh"]

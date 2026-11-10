@@ -2262,6 +2262,35 @@ else. `PRIVACY.md` is wrong on several points:
 
 Suggested commit: `fix(privacy): keys redacted from logs, errors and reports; tracing opt-in; PRIVACY.md corrected`
 
+**Status, 2026-11-10:** done in the working tree, steps 1 to 6. Step 7 (rotating the key) is the
+user's to do. Before the fix, a probe with canary keys and every HTTP call answering 401
+reproduced the finding exactly: the Alpha Vantage key in 24 log lines, run state, the report and
+`ck.sqlite` with its WAL, and the FRED key in 11 log lines.
+- **Redaction:** `observability.redact` strips key-like parameters, `Authorization` and bearer
+  values, and the literal value of any `*KEY`/`*TOKEN`/`*SECRET`/`*PASSWORD` environment variable.
+  It runs in the structlog chain, in a stdlib `RedactingFilter` on the root handlers, and in the new
+  `errors` (`add_redacted`) and `data_source_status` (`merge_redacted`) state reducers. Every
+  node's strings pass through those reducers, which is the plan's single entry point;
+  `reducer_kinds` knows the new reducers.
+- **HTTP loggers:** `httpx`, `httpcore`, `urllib3`, `praw` and `prawcore` are set to WARNING.
+- **Provider errors:** the Alpha Vantage and FRED adapters raise "HTTP n from host" and turn
+  transport errors into URL-free messages.
+- **Tracing:** needs `OPTIONS_SCOUT_TRACING=langsmith` plus the key. It then sets
+  `LANGSMITH_HIDE_INPUTS`/`_OUTPUTS`; otherwise every LangSmith/LangChain tracing flag is forced
+  to false.
+- **Cache:** `SQLiteCache` now purges expired rows on open; `purge_expired` existed but nothing
+  called it.
+- **Policy text:** `PRIVACY.md` sections 2, 3, 4.1, 4.2 and 5 now say what the checkpoint file
+  holds and that threads go after 7 days idle (W19). The Setup tab sentence is corrected.
+
+Tests: `tests/agent/test_privacy_canary.py` runs a live-mode chat screen with no network, fails
+on the old code (every leak above) and passes now. It switches off the by-value backstop so the
+patterns and adapters are what it tests. `tests/unit/test_privacy.py` (12 tests) and a cache purge
+test cover the rest. Full suite passes; mypy unchanged at 28. Side note: the first probe used the
+real data paths and wrote a live "no data" row into `data/bottleneck_snapshots.sqlite`, which
+broke a UI test until that one row was deleted; the probe also touched `data/trends.sqlite`, which
+was restored with `git checkout`.
+
 ---
 
 ### W39. Shared state breaks under concurrent requests

@@ -118,11 +118,21 @@ class AlphaVantageNewsAdapter:
         last: Exception | None = None
         with httpx.Client(timeout=20.0, transport=self._transport) as client:
             for attempt in range(1, self.cfg.max_attempts + 1):
-                resp = client.get(API_URL, params=params)
+                try:
+                    resp = client.get(API_URL, params=params)
+                except httpx.HTTPError as exc:  # the message may quote the URL, key included
+                    raise RuntimeError(
+                        f"{type(exc).__name__}: request to {httpx.URL(API_URL).host} failed"
+                    ) from None
                 if resp.status_code == 429 or resp.status_code >= 500:
                     last = RuntimeError(f"HTTP {resp.status_code}")
                 else:
-                    resp.raise_for_status()
+                    if resp.status_code >= 400:
+                        # status and host only: raise_for_status() would quote the full URL,
+                        # and the key travels in its query string (W38)
+                        raise RuntimeError(
+                            f"HTTP {resp.status_code} from {httpx.URL(API_URL).host}"
+                        )
                     body = resp.json()
                     limited = next((k for k in RATE_LIMIT_KEYS if k in body), None)
                     if limited is None:

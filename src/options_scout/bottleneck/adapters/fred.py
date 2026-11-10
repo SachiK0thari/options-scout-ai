@@ -114,7 +114,11 @@ class FredSeriesAdapter:
         last: Exception | None = None
         with httpx.Client(timeout=self.cfg.timeout_seconds, transport=self._transport) as client:
             for attempt in range(1, self.cfg.max_attempts + 1):
-                resp = client.get(self.cfg.base_url, params=params)
+                try:
+                    resp = client.get(self.cfg.base_url, params=params)
+                except httpx.HTTPError as exc:  # the message may quote the URL, key included
+                    host = httpx.URL(self.cfg.base_url).host
+                    raise RuntimeError(f"{type(exc).__name__}: request to {host} failed") from None
                 if resp.status_code in _RETRY_STATUS:
                     last = RuntimeError(f"HTTP {resp.status_code}")
                     if attempt < self.cfg.max_attempts:

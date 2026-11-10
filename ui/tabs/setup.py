@@ -179,7 +179,10 @@ def render(view: session.View) -> None:
         if view.interrupt is not None:
             st.info("The run is waiting for you to confirm the profile on the Scout tab.")
         else:
-            st.info("Results will appear here. Nothing is persisted between sessions.")
+            st.info(
+                "Results will appear here. Conversations are saved on this machine for 7 days "
+                "after their last activity (see PRIVACY.md); a market-data key is never saved."
+            )
         return
     prof = report.profile
     kept = [q for q in report.quality if q.passed]

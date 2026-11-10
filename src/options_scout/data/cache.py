@@ -21,6 +21,7 @@ class SQLiteCache:
             "expires_at REAL NOT NULL, created_at REAL NOT NULL)"
         )
         self._conn.commit()
+        self.purge_expired()  # PRIVACY.md section 3: expired rows do not outlive the next open
 
     def get(self, key: str) -> Any | None:
         now = time.time()

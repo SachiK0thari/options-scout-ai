@@ -50,6 +50,7 @@ from options_scout.core.models import (
     UserProfile,
     VerificationResult,
 )
+from options_scout.observability import redact
 from options_scout.rag.models import Chunk, RetrievalResult
 
 
@@ -57,6 +58,23 @@ def merge_dicts(a: dict[str, Any] | None, b: dict[str, Any] | None) -> dict[str,
     out = dict(a or {})
     out.update(b or {})
     return out
+
+
+def add_redacted(a: list[str] | None, b: list[str] | None) -> list[str]:
+    """Append reducer for ``errors``: every string that enters the run's error list passes
+    through ``observability.redact`` first (W38), so a provider message that quotes a URL with
+    a key never reaches the API, the reports or the checkpoint file."""
+    return [*(a or []), *(redact(str(e)) for e in (b or []))]
+
+
+def merge_redacted(a: dict[str, str] | None, b: dict[str, str] | None) -> dict[str, str]:
+    """Merge reducer for ``data_source_status``, with each new value redacted."""
+    out = dict(a or {})
+    out.update({k: redact(str(v)) for k, v in (b or {}).items()})
+    return out
+
+
+_APPEND_REDUCERS: tuple[Any, ...] = (operator.add, add_redacted)
 
 
 class AgentState(TypedDict, total=False):
@@ -122,13 +140,13 @@ class AgentState(TypedDict, total=False):
     audit_log: Annotated[list[ComplianceReport], operator.add]
     # bookkeeping
     retries: Annotated[dict[str, int], merge_dicts]
-    errors: Annotated[list[str], operator.add]
+    errors: Annotated[list[str], add_redacted]
     nodes_visited: Annotated[list[str], operator.add]
     node_latency_ms: Annotated[dict[str, float], merge_dicts]
     agents_visited: Annotated[list[str], operator.add]  # Phase 10: one entry per specialist run
     agent_latency_ms: Annotated[dict[str, float], merge_dicts]  # Phase 10: summed over retries
     token_usage: Annotated[list[TokenUsage], operator.add]
-    data_source_status: Annotated[dict[str, str], merge_dicts]
+    data_source_status: Annotated[dict[str, str], merge_redacted]
     run_id: str
     started_at: str
     report: ScreeningReport | None
@@ -306,7 +324,7 @@ def reducer_kinds() -> dict[str, ReducerKind]:
         kind: ReducerKind = "last"
         if get_origin(hint) is Annotated:
             reducer = get_args(hint)[1]
-            kind = "add" if reducer is operator.add else "merge"
+            kind = "add" if reducer in _APPEND_REDUCERS else "merge"
         kinds[key] = kind
     return kinds
 
