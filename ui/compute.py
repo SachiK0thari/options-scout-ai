@@ -85,6 +85,7 @@ def stress_by_position(
             snapshots,
             shocks=cfg.settings.risk.stress_shocks,
             iv_shock=cfg.settings.risk.stress_iv_shock,
+            iv_shock_ref_dte=cfg.settings.risk.stress_iv_shock_ref_dte,
             r=report.regime.risk_free_rate,
             today=today,
             account_value=report.profile.account_value,

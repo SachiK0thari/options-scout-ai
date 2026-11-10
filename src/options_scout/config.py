@@ -210,6 +210,9 @@ class AgentSettings(_Strict):
 class RiskSettings(_Strict):
     stress_shocks: list[float]
     stress_iv_shock: float
+    # The IV shock applies in full at this tenor (days to expiry) and shrinks as
+    # sqrt(ref / DTE) beyond it. Default keeps older settings files loading (W2).
+    stress_iv_shock_ref_dte: int = Field(default=30, ge=1)
 
 
 class Settings(_Strict):

@@ -106,6 +106,7 @@ def run_deterministic_pipeline(
         snapshots,
         shocks=cfg.settings.risk.stress_shocks,
         iv_shock=cfg.settings.risk.stress_iv_shock,
+        iv_shock_ref_dte=cfg.settings.risk.stress_iv_shock_ref_dte,
         r=r,
         today=today,
         account_value=profile.account_value,

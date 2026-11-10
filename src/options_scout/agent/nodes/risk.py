@@ -30,6 +30,7 @@ def make(deps: Deps) -> Callable[[AgentState], dict[str, Any]]:
             state.get("market_data", {}),
             shocks=deps.cfg.settings.risk.stress_shocks,
             iv_shock=deps.cfg.settings.risk.stress_iv_shock,
+            iv_shock_ref_dte=deps.cfg.settings.risk.stress_iv_shock_ref_dte,
             r=regime.risk_free_rate,
             today=deps.md.today(),
             account_value=profile.account_value,

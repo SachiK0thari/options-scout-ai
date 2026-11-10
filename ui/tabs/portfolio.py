@@ -241,8 +241,12 @@ def render(view: session.View) -> None:
         )
         theme.show(
             charts.stress_bars(report.risk.stress),
-            "Instant move in every underlying, repriced with Black-Scholes-Merton and implied "
-            "volatility up 50% on down moves. P&L for the whole portfolio.",
+            "Instant move in every underlying, each leg repriced with Black-Scholes-Merton before "
+            f"and after. Implied volatility up {CFG.settings.risk.stress_iv_shock:.0%} on down "
+            f"moves for legs of {CFG.settings.risk.stress_iv_shock_ref_dte} days or fewer; "
+            "longer-dated legs get a smaller shock, scaled by the square root of "
+            f"{CFG.settings.risk.stress_iv_shock_ref_dte} / days to expiry. P&L for the whole "
+            "portfolio.",
         )
 
     if port.positions:

@@ -169,7 +169,7 @@ def stress_bars(stress: Sequence[StressResult]) -> go.Figure:
     fig.update_xaxes(type="category")
     return theme.style(
         fig,
-        "Portfolio stress test (IV +50% on down moves)",
+        "Portfolio stress test (IV shock on down moves, scaled by tenor)",
         "Instant market move",
         "P&L ($)",
         legend=False,

@@ -15,8 +15,10 @@ blended scores) and once more in step 11.4, which adds the "Bottleneck board (se
 a bottleneck paragraph to the Explanation and the ``bottleneck`` source status. The 11.4 re-record
 changes **scores and sections, never the order**: the fixture tickers carry no bottleneck exposure
 (MSFT is a customer in the theme map and customers are never scored), so every candidate takes the
-neutral 50 and ``test_fixture_tickers_rank_as_before`` asserts the order is unchanged. Re-record
-only when the report *content* is meant to change:
+neutral 50 and ``test_fixture_tickers_rank_as_before`` asserts the order is unchanged. The W2
+re-record (2026-11-09) changes only the stress-test rows and their title: each leg is now priced
+before and after with the same model, with the vol shock scaled by tenor, so the losses deepen.
+Re-record only when the report *content* is meant to change:
 ``OPTIONS_SCOUT_RECORD_GOLDEN=1 pytest tests/agent/test_agents.py -k golden``.
 """
 

@@ -2,17 +2,27 @@
 
 from __future__ import annotations
 
+import math
 from collections import Counter
-from datetime import UTC, datetime
+from datetime import UTC, date, datetime, timedelta
 
 import pytest
 from hypothesis import given, settings
 from hypothesis import strategies as st
 
 from options_scout.config import AppConfig
-from options_scout.core import ranking, risk, screeners, sizing
+from options_scout.core import pricing, ranking, risk, screeners, sizing
 from options_scout.core.allocation import allocate
-from options_scout.core.models import MarketRegime, OptionCandidate, RankedCandidate, UserProfile
+from options_scout.core.models import (
+    MarketRegime,
+    OptionCandidate,
+    OptionKind,
+    PortfolioTotals,
+    RankedCandidate,
+    SizedPortfolio,
+    SizedPosition,
+    UserProfile,
+)
 from options_scout.data.fixtures import DEMO_TICKERS
 from options_scout.data.market import MarketData
 
@@ -329,3 +339,160 @@ def test_sizing_never_violates_constraints_property(
     failed = [c for c in risk.check_constraints(port, profile, limits) if not c.passed]
     assert not failed, failed
     assert port.totals.capital_used <= bp * (alloc.csp_pct + alloc.leaps_pct) * scale + 1e-6
+
+
+# ------------------------------------------------------------------ W2: stress anchoring
+_TODAY = date(2026, 10, 27)
+_R = 0.04
+
+
+def _leg(
+    kind: OptionKind, *, spot: float, strike: float, dte: int, iv: float, mid: float
+) -> OptionCandidate:
+    """A bare candidate for the stress test; only the pricing fields matter to it."""
+    strategy = "csp" if kind == "put" else "leaps"
+    return OptionCandidate(
+        id=f"{strategy.upper()}-T-{strike:g}{kind[0].upper()}",
+        strategy=strategy,
+        ticker="T",
+        sector="Technology",
+        spot=spot,
+        expiry=_TODAY + timedelta(days=dte),
+        dte=dte,
+        strike=strike,
+        kind=kind,
+        bid=max(mid - 0.05, 0.0),
+        ask=mid + 0.05,
+        mid=mid,
+        spread_pct=0.0,
+        open_interest=100,
+        iv=iv,
+        iv_rank_source="none",
+        delta=0.5 if kind == "call" else -0.3,
+        gamma=0.0,
+        theta=0.0,
+        vega=0.0,
+        prob_otm=0.5,
+        breakeven=strike,
+        earnings_before_expiry=False,
+    )
+
+
+def _single(cand: OptionCandidate, contracts: int = 1) -> SizedPortfolio:
+    short = cand.kind == "put"
+    pos = SizedPosition(
+        candidate_id=cand.id,
+        strategy=cand.strategy,
+        ticker=cand.ticker,
+        sector=cand.sector,
+        contracts=contracts,
+        strike=cand.strike,
+        expiry=cand.expiry,
+        mid=cand.mid,
+        delta=cand.delta,
+        notional=cand.strike * 100 * contracts,
+        capital_used=cand.strike * 100 * contracts if short else cand.mid * 100 * contracts,
+        margin_used=0.0,
+        realistic_loss=0.0,
+        dollar_delta=cand.delta * cand.spot * 100 * contracts,
+        premium=cand.mid * 100 * contracts * (1 if short else -1),
+    )
+    totals = PortfolioTotals(
+        short_put_notional=pos.notional if short else 0.0,
+        capital_used=pos.capital_used,
+        margin_used=0.0,
+        leaps_cost=0.0 if short else pos.capital_used,
+        realistic_loss=0.0,
+        dollar_delta=pos.dollar_delta,
+        premium_income=pos.premium,
+        cash_reserve=0.0,
+        buying_power_used_pct=0.0,
+    )
+    return SizedPortfolio(positions=[pos], totals=totals)
+
+
+def _stress(cand: OptionCandidate, **kw: object) -> dict[float, float]:
+    args: dict[str, object] = {
+        "shocks": [-0.10, -0.20, -0.30],
+        "iv_shock": 0.0,
+        "r": _R,
+        "today": _TODAY,
+        "account_value": 100_000.0,
+    }
+    args.update(kw)
+    res = risk.stress_test(_single(cand), {cand.id: cand}, {}, **args)  # type: ignore[arg-type]
+    return {s.shock: s.pnl for s in res}
+
+
+@settings(max_examples=200, deadline=None)
+@given(
+    kind=st.sampled_from(["call", "put"]),
+    iv=st.floats(min_value=0.05, max_value=1.5),
+    mid=st.floats(min_value=0.01, max_value=500.0),
+    moneyness=st.floats(min_value=0.5, max_value=1.5),
+    dte=st.integers(min_value=7, max_value=900),
+)
+def test_stress_sign_is_independent_of_the_quoted_mid(
+    kind: OptionKind, iv: float, mid: float, moneyness: float, dte: int
+) -> None:
+    """W2: with no vol shock a long call loses and a short put loses on every down move,
+    whatever vol is stored and whatever the market mid is. The old formula subtracted the mid
+    from a model price, so a stored vol above the mid's implied vol turned a crash into a gain."""
+    cand = _leg(kind, spot=100.0, strike=100.0 * moneyness, dte=dte, iv=iv, mid=mid)
+    pnls = _stress(cand, iv_shock=0.0)
+    for shock, pnl in pnls.items():
+        assert pnl <= 1e-9, (kind, shock, pnl)
+    # and deeper drops hurt at least as much (a worthless deep-OTM put rounds to 0 either way)
+    assert pnls[-0.10] >= pnls[-0.20] - 1e-6 >= pnls[-0.30] - 2e-6
+
+
+def test_stress_regression_aapl_leaps_loses_in_a_crash() -> None:
+    """The plan's AAPL 2028-12-15 230C: provider vol 0.467 prices the call at ~158 against a
+    146.30 mid. Model-minus-mid showed +$1,190 at −10%; model-minus-model is a loss."""
+    dte = (date(2028, 12, 15) - _TODAY).days
+    cand = _leg("call", spot=347.10, strike=230.0, dte=dte, iv=0.467, mid=146.30)
+    T = pricing.years_to_expiry(dte)
+    base = pricing.bsm_price(347.10, 230.0, T, _R, 0.0, 0.467, "call")
+    assert base > cand.mid + 5, "the fixture's situation: stored vol prices the leg above the mid"
+    old_formula = (
+        pricing.bsm_price(347.10 * 0.9, 230.0, T, _R, 0.0, 0.467 * 1.5, "call") - cand.mid
+    ) * 100
+    assert old_formula > 0, "the bug this test pins: the old formula reports a gain"
+    pnls = _stress(cand, iv_shock=0.5, iv_shock_ref_dte=None)
+    assert pnls[-0.10] < 0 and pnls[-0.20] < pnls[-0.10] and pnls[-0.30] < pnls[-0.20]
+    scaled = _stress(cand, iv_shock=0.5, iv_shock_ref_dte=30)
+    assert scaled[-0.10] < pnls[-0.10], "tenor scaling removes most of the LEAPS vega cushion"
+
+
+def test_tenor_scale() -> None:
+    assert risk.tenor_scale(10, 30) == 1.0
+    assert risk.tenor_scale(30, 30) == 1.0
+    assert risk.tenor_scale(120, 30) == pytest.approx(0.5)
+    assert risk.tenor_scale(0, 30) == 1.0  # expiry day: never divides by zero
+    assert risk.tenor_scale(780, None) == 1.0
+
+
+def test_stress_golden_numbers() -> None:
+    """W33 step 3: hand-computed stress P&L for one short put and one long call at −20%, with
+    and without the vol shock, so the shock is pinned by a unit test and not by the snapshot.
+
+    Figures from an independent Black-Scholes (erf-based) at r = 4%, q = 0, spot 100:
+    * short put K=95, 30 DTE, IV 30%: price 1.3332 → 14.7589 at −20% (15.1916 with IV ×1.5)
+    * long call K=90, 365 DTE, IV 25%: price 17.5530 → 5.4397 at −20%; 9.4063 at IV ×1.5
+      (uniform shock); 6.5693 at IV ×(1 + 0.5·sqrt(30/365)) (tenor-scaled shock)
+    """
+    put = _leg("put", spot=100.0, strike=95.0, dte=30, iv=0.30, mid=1.33)
+    call = _leg("call", spot=100.0, strike=90.0, dte=365, iv=0.25, mid=17.55)
+    # no vol shock
+    assert _stress(put, shocks=[-0.20])[-0.20] == pytest.approx(-1342.566, abs=0.01)
+    assert _stress(call, shocks=[-0.20])[-0.20] == pytest.approx(-1211.333, abs=0.01)
+    # uniform +50% vol shock
+    assert _stress(put, shocks=[-0.20], iv_shock=0.5)[-0.20] == pytest.approx(-1385.836, abs=0.01)
+    assert _stress(call, shocks=[-0.20], iv_shock=0.5)[-0.20] == pytest.approx(-814.672, abs=0.01)
+    # tenor-scaled shock: the 30-day put gets the full shock, the one-year call 0.5·sqrt(30/365)
+    kw = {"shocks": [-0.20], "iv_shock": 0.5, "iv_shock_ref_dte": 30}
+    assert _stress(put, **kw)[-0.20] == pytest.approx(-1385.836, abs=0.01)
+    assert _stress(call, **kw)[-0.20] == pytest.approx(-1098.372, abs=0.01)
+    # an up move carries no vol shock and the long call gains
+    assert _stress(call, shocks=[0.10], iv_shock=0.5)[0.10] > 0
+    assert math.isclose(risk.tenor_scale(365, 30), math.sqrt(30 / 365))

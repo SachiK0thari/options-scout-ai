@@ -213,13 +213,13 @@ _Headlines never change the ranking; they flag what to read before trading._
 | max_per_sector | 0.043 | 0.300 | PASS |
 | dollar_delta_x | 0.045 | 1.000 | PASS |
 
-**Stress test (instant move, repriced with BSM):**
+**Stress test (instant move, each leg repriced with BSM before and after; the IV shock is the figure for a 30-day option and shrinks as √(30 / DTE) for longer-dated legs):**
 
 | Market move | IV shock | P&L | % of account |
 |---|---|---|---|
-| -10% | +50% | -621 | -0.6% |
-| -20% | +50% | -1,650 | -1.7% |
-| -30% | +50% | -2,933 | -2.9% |
+| -10% | +50% | -876 | -0.9% |
+| -20% | +50% | -1,901 | -1.9% |
+| -30% | +50% | -3,176 | -3.2% |
 
 - ⚠️ CSP-NKE-2026-11-20-35P: IV rank is an HV proxy (fewer than 30 IV snapshots stored).
 - ⚠️ LEAPS-NKE-2028-12-15-20C: IV rank is an HV proxy (fewer than 30 IV snapshots stored).
@@ -242,7 +242,7 @@ _Headlines never change the ranking; they flag what to read before trading._
 
 **Sized positions.** CSP-NKE-2026-11-20-35P: 3 contract(s) of the csp with strike 35.0 expiring 2026-11-20, using 1655 of capital with a realistic loss of 2443 if the underlying falls 30%. Breakeven at expiry 34.44, maximum loss 10330. LEAPS-NKE-2028-12-15-20C: 1 contract(s) of the leaps with strike 20.0 expiring 2028-12-15, using 1808 of capital with a realistic loss of 1808 if the underlying falls 30%. Breakeven at expiry 38.09, maximum loss 1808. It is paired with short call PMCCSC-NKE-2026-11-20-40C.
 
-**Risk.** 6 of 6 constraint checks pass. Stress test with an instant move and an IV shock: a -10% move gives -621; a -20% move gives -1650; a -30% move gives -2933. The combined loss at a 30% drop across all positions is 4251.
+**Risk.** 6 of 6 constraint checks pass. Stress test with an instant move and an IV shock: a -10% move gives -876; a -20% move gives -1901; a -30% move gives -3176. The combined loss at a 30% drop across all positions is 4251.
 
 **Warnings and limitations.** CSP-NKE-2026-11-20-35P: IV rank is an HV proxy (fewer than 30 IV snapshots stored). LEAPS-NKE-2028-12-15-20C: IV rank is an HV proxy (fewer than 30 IV snapshots stored). Margin account: Reg T requirement is $1,655 but the loss at a -30% move is $4,251. Brokers can raise requirements at any time, especially in volatile markets.
 

@@ -178,7 +178,11 @@ def _values_3_6(cfg: AppConfig) -> str:
     shocks = ", ".join(_pct(x) for x in s.risk.stress_shocks)
     return (
         f"Stress test shocks applied to every sized portfolio: {shocks} on the underlying with "
-        f"implied volatility raised by {_pct(s.risk.stress_iv_shock)} on down moves.\n\n"
+        f"implied volatility raised by {_pct(s.risk.stress_iv_shock)} on down moves. The vol "
+        f"shock applies in full to legs of {s.risk.stress_iv_shock_ref_dte} days or fewer to "
+        f"expiry and shrinks as the square root of {s.risk.stress_iv_shock_ref_dte} / DTE for "
+        f"longer-dated legs, since long-dated vol moves less in a selloff. Each leg is priced "
+        f"before and after with the same model, so the P&L is model-after minus model-before.\n\n"
         f"The compliance check matches every number in a narrative against the computed payload "
         f"with a relative tolerance of {s.agent.verifier_number_tolerance:g}."
     )

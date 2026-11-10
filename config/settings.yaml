@@ -90,7 +90,8 @@ agent:
 
 risk:
   stress_shocks: [-0.10, -0.20, -0.30]
-  stress_iv_shock: 0.50                 # IV +50% on down moves
+  stress_iv_shock: 0.50                 # IV +50% on down moves, in full at the tenor below
+  stress_iv_shock_ref_dte: 30           # shock shrinks as sqrt(30 / DTE) for longer-dated legs
 
 disclaimer: >-
   Educational screening tool. Not investment, tax or legal advice. Options involve

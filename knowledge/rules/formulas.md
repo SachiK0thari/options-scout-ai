@@ -5,7 +5,7 @@ source: PRD.md section 3.6 and config/settings.yaml
 url: PRD.md#36-formulas-implement-exactly-test-with-golden-values
 kind: rules
 level: intermediate
-as_of: '2026-11-03'
+as_of: '2026-11-09'
 ---
 
 # Rule 3.6 Formulas (implement exactly, test with golden values)
@@ -40,6 +40,6 @@ Golden-value tests: use at least these, verified with an independent calculator 
 
 ## Values in force (config/settings.yaml)
 
-Stress test shocks applied to every sized portfolio: -10%, -20%, -30% on the underlying with implied volatility raised by 50% on down moves.
+Stress test shocks applied to every sized portfolio: -10%, -20%, -30% on the underlying with implied volatility raised by 50% on down moves. The vol shock applies in full to legs of 30 days or fewer to expiry and shrinks as the square root of 30 / DTE for longer-dated legs, since long-dated vol moves less in a selloff. Each leg is priced before and after with the same model, so the P&L is model-after minus model-before.
 
 The compliance check matches every number in a narrative against the computed payload with a relative tolerance of 0.01.

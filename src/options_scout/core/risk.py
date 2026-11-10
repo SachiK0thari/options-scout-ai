@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import math
 from collections.abc import Mapping, Sequence
 from datetime import date
 
@@ -104,6 +105,19 @@ def check_constraints(
     return checks
 
 
+def tenor_scale(dte: int, ref_dte: int | None) -> float:
+    """How much of the volatility shock a leg with ``dte`` days to expiry receives.
+
+    The full shock applies at ``ref_dte`` days and shorter; beyond it the shock shrinks as
+    sqrt(ref_dte / dte), since long-dated implied vol moves far less than short-dated vol in a
+    selloff. ``None`` disables the scaling and every leg gets the full shock (W2, decision
+    2026-11-09: adopted).
+    """
+    if ref_dte is None:
+        return 1.0
+    return min(1.0, math.sqrt(ref_dte / max(dte, 1)))
+
+
 def stress_test(
     portfolio: SizedPortfolio,
     candidates: Mapping[str, OptionCandidate],
@@ -114,12 +128,23 @@ def stress_test(
     r: float,
     today: date,
     account_value: float,
+    iv_shock_ref_dte: int | None = None,
 ) -> list[StressResult]:
-    """Instantaneous spot shocks with an IV shock, repriced with BSM. Returns P&L per scenario."""
+    """Instantaneous spot shocks with an IV shock, repriced with BSM. Returns P&L per scenario.
+
+    Every leg is priced before and after the shock with the same model (BSM at the candidate's
+    stored vol), so the P&L is model-after minus model-before. Subtracting the market mid
+    instead let a long call "gain" in a crash whenever the stored vol priced the option above
+    its mid (W2). After W1 the model price equals the mid for solved candidates, so the two
+    agree there; for provider-vol fallbacks only this form keeps the sign right.
+
+    ``iv_shock`` is the relative rise in implied vol on down moves for a leg of
+    ``iv_shock_ref_dte`` days or fewer; longer-dated legs get the shock scaled by
+    :func:`tenor_scale`. ``StressResult.iv_shock`` reports the headline figure.
+    """
     out: list[StressResult] = []
     for shock in shocks:
         pnl = 0.0
-        iv_mult = 1.0 + (iv_shock if shock < 0 else 0.0)
         for p in portfolio.positions:
             legs: list[tuple[OptionCandidate, int, bool]] = []
             main = candidates.get(p.candidate_id)
@@ -131,12 +156,16 @@ def stress_test(
             for leg, n, short in legs:
                 snap = snapshots.get(leg.ticker)
                 q = snap.dividend_yield if snap else 0.0
-                S_new = leg.spot * (1.0 + shock)
-                T = pricing.years_to_expiry((leg.expiry - today).days)
+                dte = (leg.expiry - today).days
+                T = pricing.years_to_expiry(dte)
+                iv_mult = 1.0
+                if shock < 0:
+                    iv_mult += iv_shock * tenor_scale(dte, iv_shock_ref_dte)
+                base = pricing.bsm_price(leg.spot, leg.strike, T, r, q, leg.iv, leg.kind)
                 new_price = pricing.bsm_price(
-                    S_new, leg.strike, T, r, q, leg.iv * iv_mult, leg.kind
+                    leg.spot * (1.0 + shock), leg.strike, T, r, q, leg.iv * iv_mult, leg.kind
                 )
-                move = (new_price - leg.mid) * 100 * n
+                move = (new_price - base) * 100 * n
                 pnl += -move if short else move
         out.append(
             StressResult(

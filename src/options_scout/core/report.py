@@ -426,7 +426,10 @@ def render_risk(r: RiskReport) -> str:
     )
     warn = "\n".join(f"- ⚠️ {w}" for w in r.warnings) if r.warnings else "_No warnings._"
     status = "**All constraints pass.**" if r.passed else "**Constraint failures present.**"
-    stress_title = "**Stress test (instant move, repriced with BSM):**"
+    stress_title = (
+        "**Stress test (instant move, each leg repriced with BSM before and after; the IV shock "
+        "is the figure for a 30-day option and shrinks as √(30 / DTE) for longer-dated legs):**"
+    )
     return f"{status}\n\n{checks}\n\n{stress_title}\n\n{stress}\n\n{warn}"
 
 

@@ -296,6 +296,16 @@ The per-position stress chart on the Portfolio tab would draw these as green bar
 
 Suggested commit: `fix(risk): stress P&L as model-after minus model-before; tenor-scaled vol shock`
 
+**Status, 2026-11-09:** done in the working tree, all four steps including the tenor scaling
+(`stress_iv_shock_ref_dte: 30`). Four new tests in `tests/unit/test_ranking_sizing_risk.py`: the
+hypothesis sign property, the AAPL regression, `tenor_scale`, and the W33 step 3 golden numbers
+(short put and long call at −20% with and without the shock). The Phase 9 golden report was
+re-recorded; only the stress rows and their title changed. Acceptance on the current fixtures
+(the plan's table predates the W1 re-solve, so the baseline figures differ): the AAPL
+2029-01-19 260C row is negative at every shock on its own (−2,364 / −4,927 / −7,219 at $500k
+balanced cash) and the aggregate −10% row for that run went from −4,096 to −8,034. The tenor
+scaling also turned the NKE 2028-12-15 20C row at −10% from +388 to −1,651.
+
 ---
 
 ### W3. Rank LEAPS on carry, not on raw extrinsic value
@@ -1924,7 +1934,8 @@ case per check).
    by hand that violates exactly one rule and assert that check, and only that check, fails.
 3. **Stress test values.** Add a golden test with hand-computed numbers for one short put and
    one long call at a −20% shock with and without the volatility shock, so the shock is pinned
-   by a unit test and not by the snapshot. Do this together with W2.
+   by a unit test and not by the snapshot. Do this together with W2. _(Done with W2 on
+   2026-11-09: `test_stress_golden_numbers`.)_
 4. **Keep it from regressing.** Add `mutmut` or `cosmic-ray` as a dev dependency, scoped to
    `core/sizing.py`, `core/risk.py`, `core/screeners.py` and `core/compliance.py`, with a
    `make mutation` target. Run it before a release, not on every push.
