@@ -79,3 +79,86 @@ def test_config_points_tests_at_a_temporary_database(config: Any) -> None:
     assert config.paths.checkpoint_db != repo_db
     assert "ckpt" in str(config.paths.checkpoint_db)
     assert config.settings.agent.checkpoint_retention_days == 7
+
+
+# ------------------------------------------------------- step 4: fewer and smaller checkpoints
+def _screen_deps(config: Any, tmp_path: Path) -> Any:
+    from options_scout.agent.deps import Deps
+    from options_scout.bottleneck.engine import BottleneckStore
+    from options_scout.social.pipeline import TrendStore
+
+    deps = Deps.from_config(config)
+    deps.trend_store = TrendStore(tmp_path / "trends.sqlite")
+    deps.bottleneck_store = BottleneckStore(tmp_path / "bottlenecks.sqlite")
+    return deps
+
+
+def _size(path: Path) -> int:
+    """The database with its write-ahead log, which holds recent pages until a checkpoint."""
+    return sum(p.stat().st_size for p in path.parent.glob(path.name + "*"))
+
+
+def test_a_screen_writes_one_small_checkpoint(config: Any, tmp_path: Path) -> None:
+    """Measured 2026-11-10: 50 checkpoints and 107 MB before; one checkpoint of 0.7 MB after."""
+    from options_scout.agent.graph import build_graph, initial_state, stream_run, thread_config
+
+    path = tmp_path / "ckpt.sqlite"
+    saver: Any = sqlite_checkpointer(path)
+    graph = build_graph(_screen_deps(config, tmp_path), saver)
+    before = _size(path)
+    for _ in stream_run(
+        graph, initial_state("$100k margin account, balanced. CSPs and LEAPS."), "s"
+    ):
+        pass
+    assert saver.conn.execute("SELECT COUNT(*) FROM checkpoints").fetchone()[0] == 1
+    assert saver.conn.execute("SELECT COUNT(*) FROM writes").fetchone()[0] == 0
+    assert _size(path) - before < 3_000_000
+    values = graph.get_state(thread_config("s")).values
+    assert values["report"] is not None and values["market_data"]
+    # the chains are gone from the thread; the quote fields every later reader uses remain
+    assert all(not s.chains and s.spot.price > 0 for s in values["market_data"].values())
+
+
+def test_a_paused_run_is_saved_and_resumes_in_a_new_process(config: Any, tmp_path: Path) -> None:
+    from options_scout.agent.graph import (
+        build_graph,
+        initial_state,
+        pending_interrupt,
+        stream_resume,
+        stream_run,
+        thread_config,
+    )
+
+    path = tmp_path / "ckpt.sqlite"
+    deps = _screen_deps(config, tmp_path)
+    first = build_graph(deps, sqlite_checkpointer(path))
+    for _ in stream_run(first, initial_state("help me find income ideas"), "p"):
+        pass
+    assert pending_interrupt(first, "p") is not None
+    second = build_graph(deps, sqlite_checkpointer(path))  # a restart
+    answer = {"buying_power": 50000, "account_value": 50000, "account_type": "cash"}
+    for _ in stream_resume(second, "p", {**answer, "risk_profile": "balanced"}):
+        pass
+    snap = second.get_state(thread_config("p"))
+    assert snap.values["report"] is not None and not snap.next
+
+
+def test_a_run_that_raises_is_saved_with_its_remaining_steps(
+    config: Any, tmp_path: Path, monkeypatch: Any
+) -> None:
+    """Exit durability also saves on an error, so the API reports the run as failed."""
+    import pytest
+
+    from options_scout.agent.graph import build_graph, initial_state, stream_run, thread_config
+    from options_scout.core import screeners
+
+    def boom(*_a: Any, **_k: Any) -> Any:
+        raise RuntimeError("screener broke")
+
+    monkeypatch.setattr(screeners, "screen_csp", boom)
+    graph = build_graph(_screen_deps(config, tmp_path), sqlite_checkpointer(tmp_path / "c.sqlite"))
+    with pytest.raises(RuntimeError, match="screener broke"):
+        for _ in stream_run(graph, initial_state("$50k cash account, balanced. CSPs only."), "e"):
+            pass
+    snap = graph.get_state(thread_config("e"))
+    assert snap.values and snap.next  # saved, and not finished

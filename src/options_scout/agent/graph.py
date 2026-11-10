@@ -491,10 +491,24 @@ def _flatten(stream: Iterator[tuple[tuple[str, ...], dict[str, Any]]]) -> Iterat
             yield update
 
 
+# W19: checkpoint when a run ends, pauses at an interrupt or raises, not after every step. Each
+# step used to save the whole state again (50 checkpoints and 107 MB for one fixture screen); a
+# run now saves one. A resume, a failed run's status and the next chat turn need only that one.
+# What is lost: the steps of a run whose process is killed outright. The API reports such a run
+# as failed (see ``RunRegistry.run_state``) and it is started again.
+DURABILITY = "exit"
+
+
 def stream_run(graph: Any, state: AgentState, thread_id: str) -> Iterator[dict[str, Any]]:
     """Yield node updates ``{node_name: partial_state}`` until the graph ends or interrupts."""
     yield from _flatten(
-        graph.stream(state, thread_config(thread_id), stream_mode="updates", subgraphs=True)
+        graph.stream(
+            state,
+            thread_config(thread_id),
+            stream_mode="updates",
+            subgraphs=True,
+            durability=DURABILITY,
+        )
     )
 
 
@@ -505,6 +519,7 @@ def stream_resume(graph: Any, thread_id: str, answer: dict[str, Any]) -> Iterato
             thread_config(thread_id),
             stream_mode="updates",
             subgraphs=True,
+            durability=DURABILITY,
         )
     )
 

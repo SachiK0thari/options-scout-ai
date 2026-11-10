@@ -20,8 +20,9 @@ provider the user selected, and is never logged, cached, written to disk, or inc
 The other values **are** stored. Every conversation is saved as a thread in a local SQLite file
 (`data/checkpoints.sqlite` for the web UI, `data/checkpoints-api.sqlite` for the API), so that a follow-up question can refer to the earlier screen. A thread
 holds what was typed, the profile (buying power, account type, risk settings, ticker lists), any
-holdings and goal entered, the chat history, the screen's market snapshots and candidates, the
-trend evidence of section 4, and the report. The file is not encrypted. A thread is deleted
+holdings and goal entered, the chat history, the screen's quotes and candidates, the trend
+evidence of section 4, and the report. A thread is saved once per screen, chat turn or pause for
+review, not after every step, so one screen adds well under a megabyte, not a hundred. The file is not encrypted. A thread is deleted
 **7 days** after its last activity, when the database next opens
 (`agent.checkpoint_retention_days` in `config/settings.yaml`; `0` keeps every thread). To delete
 everything at once, stop the app and delete both files with their `-wal` and `-shm` companions.
@@ -32,8 +33,9 @@ the web UI has no login, so it is meant to run on the operator's own machine.
 Delayed quotes, option chains and price history come from public or user-authorised providers. They are
 cached locally (`data/cache.sqlite`) for at most 15 minutes for option chains and 24 hours for
 earnings and dividend data; an expired entry is never served and is deleted the next time the cache
-opens. The quotes and chains a screen used are also kept inside that conversation's thread (section
-2) for the thread's lifetime. Market data contains no personal information.
+opens. The quotes a screen used (spot, implied volatility, dividend yield, earnings date) are also
+kept inside that conversation's thread (section 2) for the thread's lifetime; the option chains are
+dropped from the thread once the screen has finished. Market data contains no personal information.
 
 ## 4. Public social, news and filings data
 The "consumer-trend" tiebreaker reads up to five public sources: public Reddit submissions, public X

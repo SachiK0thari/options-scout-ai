@@ -250,7 +250,7 @@ def make(deps: Deps) -> Callable[[AgentState], dict[str, Any]]:
             withheld=withheld,
             withheld_reasons=withheld_reason_codes(compliance) if withheld else [],
         )
-        return {
+        out: dict[str, Any] = {
             "report": rep,
             "report_markdown": render_markdown(rep),
             "narrative": narrative,
@@ -259,5 +259,19 @@ def make(deps: Deps) -> Callable[[AgentState], dict[str, Any]]:
             "compliance": compliance,
             "audit_log": audit_log[len(state.get("audit_log") or []) :],
         }
+        # W19: the option chains were for the screeners, which have run. Every later reader (risk,
+        # holdings, news, the UI) uses the quote, IV and dividend fields, so the thread keeps the
+        # snapshots without their chains: about 2 MB less in every checkpoint of the thread.
+        snapshots = state.get("market_data") or {}
+        if any(s.chains for s in snapshots.values()):
+            out["market_data"] = {
+                t: s.model_copy(update={"chains": []}) for t, s in snapshots.items()
+            }
+        if withheld:
+            # W12/W39: the thread state drops what the gate refused, as the report does, so a
+            # later goal or holdings turn (or /v1/threads) never reads the sized positions
+            out["portfolio"] = None
+            out["goal_plan"] = None
+        return out
 
     return report_node

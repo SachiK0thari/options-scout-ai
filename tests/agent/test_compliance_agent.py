@@ -315,3 +315,23 @@ def test_chat_turn_for_a_withheld_screen_is_the_notice(
     assert r.turn.text.startswith(WITHHELD_NOTICE) and "Screen complete" not in r.turn.text
     assert "loss_over_limit" in r.turn.text
     assert r.turn.compliance is not None and r.turn.compliance.passed  # the notice itself
+
+
+def test_a_withheld_thread_drops_the_refused_positions_from_its_state(
+    deps: Deps, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """The W12 leftover: a later goal turn on a withheld thread must not read the sized
+    portfolio the gate refused."""
+    from options_scout.agent.chat import ChatSession
+
+    _unsuitable(monkeypatch)
+    session = ChatSession(deps)
+    t = "t-withheld-goal"
+    session.send(t, REQUEST)
+    values = session.graph.get_state({"configurable": {"thread_id": t}}).values
+    assert values["report"].withheld
+    assert values.get("portfolio") is None and values.get("goal_plan") is None
+    r = session.send(t, "Can I make $400 a month from this account?")
+    assert r.turn.intent == "goal"
+    plan = session.graph.get_state({"configurable": {"thread_id": t}}).values["goal_plan"]
+    assert any("withheld" in a for a in plan.assumptions)

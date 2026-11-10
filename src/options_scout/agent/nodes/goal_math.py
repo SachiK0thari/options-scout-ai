@@ -55,10 +55,17 @@ def make(deps: Deps) -> Callable[[AgentState], dict[str, Any]]:
         portfolio = state.get("portfolio")
         if portfolio is None:
             portfolio = cash_only_portfolio(goal.start_balance or profile.buying_power)
-            notes.append(
-                "no screen on this thread: the balance is treated as cash at the T-bill rate; "
-                "run a screen to see what the current candidates would yield"
-            )
+            rep = state.get("report")
+            if rep is not None and rep.withheld:
+                notes.append(
+                    "this thread's screen was withheld, so its positions are not used: the "
+                    "balance is treated as cash at the T-bill rate"
+                )
+            else:
+                notes.append(
+                    "no screen on this thread: the balance is treated as cash at the T-bill "
+                    "rate; run a screen to see what the current candidates would yield"
+                )
         regime = state.get("regime")
         try:
             if regime is not None:
