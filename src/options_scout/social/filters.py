@@ -11,6 +11,19 @@ from options_scout.config import SocialFilters
 from options_scout.core.models import SocialPost
 
 _WORD = re.compile(r"[a-z0-9$']+")
+_MARKUP_OR_CONTROL = re.compile(r"[<>\x00-\x08\x0b\x0c\x0e-\x1f\x7f]")
+
+
+def inert_text(text: str, max_chars: int | None = None) -> str:
+    """Third-party text made safe to quote (W13): angle brackets and control characters removed,
+    so a post or headline can never carry markup into a prompt or a sources block, then cut to
+    ``max_chars`` with an ellipsis. Escaping at render time is the main defence; this one keeps
+    the stored excerpt itself plain. Over ``max_chars`` the text keeps ``max_chars`` characters
+    plus the ellipsis."""
+    clean = _MARKUP_OR_CONTROL.sub("", text).strip()
+    if max_chars is not None and len(clean) > max_chars:
+        return clean[:max_chars] + "…"
+    return clean
 
 
 @dataclass

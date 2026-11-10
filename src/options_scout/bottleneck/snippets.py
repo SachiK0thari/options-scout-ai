@@ -17,7 +17,7 @@ from collections.abc import Iterable, Sequence
 from datetime import date
 
 from options_scout.core.models import FilingSnippet, NewsItem, SocialPost
-from options_scout.social.filters import shingles
+from options_scout.social.filters import inert_text, shingles
 
 SNIPPET_MAX_CHARS = 400
 DEFAULT_DEDUPE_THRESHOLD = 0.8
@@ -128,7 +128,7 @@ def make_snippet(
     theme_id: str | None = None,
     layer_id: str | None = None,
 ) -> FilingSnippet:
-    body = normalise_text(text)[:SNIPPET_MAX_CHARS]
+    body = inert_text(normalise_text(text))[:SNIPPET_MAX_CHARS]  # no markup into prompts (W13)
     filer = filer_ticker.strip().upper() or None if filer_ticker else None
     return FilingSnippet(
         id=snippet_id(source, body, filer, day),

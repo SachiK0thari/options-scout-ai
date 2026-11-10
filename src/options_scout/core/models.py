@@ -559,7 +559,7 @@ class Citation(Model):
     title: str
     url: str
     quote: str
-    kind: str = "concepts"  # concepts | rules | filings | evidence
+    kind: str = "concepts"  # concepts | basics | tax | rules | filings | evidence | run
     tag: str = ""  # "S1"… once numbered for a narrative
     as_of: date | None = None  # the source document's date (freshness check)
 

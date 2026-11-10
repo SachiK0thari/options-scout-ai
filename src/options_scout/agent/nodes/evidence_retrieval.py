@@ -99,7 +99,7 @@ def bottleneck_evidence_chunks(signals: Sequence[BottleneckSignal]) -> list[Chun
 
 
 def board_facts_chunk(signals: Sequence[BottleneckSignal]) -> Chunk | None:
-    """One ``evidence`` chunk with the board's computed numbers (layer scores, thesis state,
+    """One ``run`` chunk with the board's computed numbers (layer scores, thesis state,
     curated-supplier company scores and flags), so a ``why`` answer can report them."""
     layers = [s for s in signals if s.ticker is None]
     if not layers:
@@ -132,7 +132,7 @@ def board_facts_chunk(signals: Sequence[BottleneckSignal]) -> Chunk | None:
         id=f"{BOARD_DOC_ID}#0",
         doc_id=BOARD_DOC_ID,
         n=0,
-        kind="evidence",
+        kind="run",  # reserved: computed numbers, not third-party text
         title=BOARD_FACTS_TITLE,
         url="",
         source=f"bottleneck engine snapshot {as_of:%Y-%m-%d}",

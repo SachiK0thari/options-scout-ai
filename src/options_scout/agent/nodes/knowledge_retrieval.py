@@ -209,7 +209,7 @@ def run_facts_chunk(rep: ScreeningReport) -> Chunk:
         id="run-report#0",
         doc_id="run-report",
         n=0,
-        kind="evidence",
+        kind="run",  # reserved: the answerers find the run facts by kind, never by title
         title=RUN_FACTS_TITLE,
         url="",
         source=f"computed results of run {rep.run_id}",

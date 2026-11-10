@@ -6,6 +6,7 @@ they are NOT meant to match a real model's quality.
 
 from __future__ import annotations
 
+import html
 import json
 import re
 from collections.abc import Callable
@@ -512,9 +513,17 @@ _SOURCE_BLOCK = re.compile(
 
 
 def parse_sources_block(text: str) -> list[dict[str, str]]:
-    """Sources as rendered by ``render_sources_block``: ``[{"tag", "title", "url", "kind", "text"}]``."""
+    """Sources as rendered by ``render_sources_block``: ``[{"tag", "title", "url", "kind", "text"}]``.
+    The renderer escapes every field, so a block ends only where the renderer ended it; the
+    fields are unescaped after the split."""
     return [
-        {"tag": tag, "title": title, "url": url, "kind": kind, "text": body.strip()}
+        {
+            "tag": tag,
+            "title": html.unescape(title),
+            "url": html.unescape(url),
+            "kind": kind,
+            "text": html.unescape(body.strip()),
+        }
         for tag, title, url, kind, body in _SOURCE_BLOCK.findall(text)
     ]
 
@@ -731,19 +740,16 @@ def _question_terms(question: str) -> list[str]:
 
 def is_run_data(source: dict[str, str]) -> bool:
     """Run facts and the run's evidence posts are data about *this* screen, never education."""
-    return source.get("kind") == "evidence" or source["title"].startswith("This run's screen")
+    return source.get("kind") in ("evidence", "run")
 
 
 def why_paragraphs(sources: list[dict[str, str]], question: str) -> list[Paragraph]:
     """``why`` answers: the run-facts source lines that mention a term of the question, reported
     as ``screen_result`` (run data may not appear in an education paragraph), then any evidence
     posts behind the trend signal."""
-    facts = [
-        s
-        for s in sources
-        if s["title"].startswith("This run's screen") or s["title"].startswith("Bottleneck board")
-    ]
-    posts = [s for s in sources if s.get("kind") == "evidence" and s not in facts]
+    # the facts are found by their reserved kind; a title is text a post can imitate (W13)
+    facts = [s for s in sources if s.get("kind") == "run"]
+    posts = [s for s in sources if s.get("kind") == "evidence"]
     if not facts and not posts:
         return []
     terms = {t.lower() for t in _question_terms(question)}

@@ -11,7 +11,11 @@ from pydantic import BaseModel, ConfigDict, Field
 
 from options_scout.core.models import Citation
 
-Kind = Literal["concepts", "basics", "tax", "rules", "filings", "evidence"]
+# ``run`` is reserved for facts this app computed (the run-facts and bottleneck-board chunks). Only
+# ``knowledge_retrieval.run_facts_chunk`` and ``evidence_retrieval.board_facts_chunk`` assign it;
+# no corpus collection has that name, and retrieved text cannot claim it (the sources block
+# escapes every chunk's text, W13).
+Kind = Literal["concepts", "basics", "tax", "rules", "filings", "evidence", "run"]
 Level = Literal["beginner", "intermediate", "advanced"]
 LEVELS: tuple[Level, ...] = ("beginner", "intermediate", "advanced")
 DEFAULT_LEVEL: Level = "intermediate"

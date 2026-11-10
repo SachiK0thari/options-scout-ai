@@ -10,6 +10,7 @@ from __future__ import annotations
 
 import json
 from collections.abc import Callable, Sequence
+from html import escape
 from typing import Any
 
 from options_scout.agent.deps import Deps
@@ -132,13 +133,16 @@ def sources_payload(sources: Sequence[Chunk]) -> list[dict[str, str]]:
 
 def render_sources_block(sources: Sequence[Chunk]) -> str:
     """The numbered ``<source id="Sn" …>`` block handed to the prompts (and parsed by the
-    rule-based stand-ins). Titles and urls are attribute-quoted; text is data."""
+    rule-based stand-ins). Text, title and url are HTML-escaped, so retrieved text (a social
+    post, a headline) can neither close its own block nor open a forged one (W13); the kind is
+    assigned by this app, and ``run`` marks the facts it computed."""
     parts = []
     for i, c in enumerate(sources, start=1):
-        title = c.title.replace('"', "'")
-        url = c.url.replace('"', "%22")
+        title = escape(c.title, quote=True)
+        url = escape(c.url, quote=True)
+        text = escape(c.text, quote=False)
         parts.append(
-            f'<source id="S{i}" title="{title}" url="{url}" kind="{c.kind}">\n{c.text}\n</source>'
+            f'<source id="S{i}" title="{title}" url="{url}" kind="{c.kind}">\n{text}\n</source>'
         )
     return "\n".join(parts)
 

@@ -219,7 +219,7 @@ class TrendScout:
             p = posts.get(pid)
             if p is None:
                 continue
-            excerpt = (p.title + (": " + p.body if p.body else "")).strip()
+            excerpt = filters.inert_text(p.title + (": " + p.body if p.body else ""), 197)
             items.append(
                 EvidenceItem(
                     post_id=p.id,
@@ -227,7 +227,7 @@ class TrendScout:
                     subreddit=p.subreddit,
                     score=p.score,
                     date=p.created_at.date(),
-                    excerpt=excerpt[:197] + ("…" if len(excerpt) > 197 else ""),
+                    excerpt=excerpt,
                     url=p.url,
                 )
             )

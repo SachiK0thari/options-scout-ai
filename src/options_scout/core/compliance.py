@@ -152,6 +152,50 @@ def resolve_citations(narrative: Narrative, sources: list[Citation]) -> list[Cit
     return [by_tag[tag].model_copy(update={"tag": tag}) for tag in by_tag if tag in used]
 
 
+_VERBATIM_QUOTE = re.compile(r'“([^”]+)”|"([^"]+)"')
+
+
+def _evidence_texts(payload: dict[str, Any]) -> list[str]:
+    return [
+        " ".join(str(src.get("text", "")).split())
+        for src in payload.get("sources") or []
+        if isinstance(src, dict) and src.get("kind") == "evidence"
+    ]
+
+
+def _without_evidence_text(payload: dict[str, Any]) -> dict[str, Any]:
+    """The payload minus the text of third-party sources (posts, headlines, filing excerpts):
+    a number someone else wrote must not ground a claim (W13). Knowledge-base and run-facts
+    sources keep their text."""
+    sources = payload.get("sources")
+    if not isinstance(sources, list):
+        return payload
+    kept = [
+        {k: v for k, v in src.items() if k != "text"}
+        if isinstance(src, dict) and src.get("kind") == "evidence"
+        else src
+        for src in sources
+    ]
+    return {**payload, "sources": kept}
+
+
+def _without_verbatim_quotes(narrative: str, payload: dict[str, Any]) -> str:
+    """``narrative`` with every quotation that is copied verbatim from an evidence source blanked
+    out: quoting a post accurately states what the post says, not a computed figure, so its
+    numbers are not claims. A paraphrase or an altered quote stays in and is checked."""
+    texts = _evidence_texts(payload)
+    if not texts:
+        return narrative
+
+    def blank(m: re.Match[str]) -> str:
+        quoted = " ".join((m.group(1) or m.group(2) or "").split()).rstrip("….").strip()
+        if len(quoted) >= 12 and any(quoted in t for t in texts):
+            return " "
+        return m.group(0)
+
+    return _VERBATIM_QUOTE.sub(blank, narrative)
+
+
 def verify_narrative(
     narrative: str,
     payload: dict[str, Any],
@@ -166,8 +210,8 @@ def verify_narrative(
     ``source_count`` is the number of ``[Sn]`` sources the text was allowed to cite (defaults to
     ``len(payload["sources"])``); a tag outside that range fails the check.
     """
-    allowed = collect_payload_numbers(payload)
-    found = extract_narrative_numbers(narrative)
+    allowed = collect_payload_numbers(_without_evidence_text(payload))
+    found = extract_narrative_numbers(_without_verbatim_quotes(narrative, payload))
     if source_count is None:
         source_count = len(payload.get("sources") or [])
     unknown = unknown_source_tags(narrative, source_count)

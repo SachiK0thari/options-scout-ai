@@ -996,6 +996,26 @@ contains one "What the screen recorded" paragraph with rank 7.
 
 Suggested commit: `fix(rag): escape source text; run facts identified by a reserved kind, not a title`
 
+**Status, 2026-11-09:** done in the working tree, steps 1, 2, 3, 5 and 6; step 4 deliberately
+not done. `render_sources_block` HTML-escapes text, title and url, and `parse_sources_block`
+unescapes after the split. A new reserved chunk kind `run` (in `rag/models.py:Kind`; no corpus
+collection has that name) marks the run-facts chunk and the bottleneck board-facts chunk;
+`llm/rules.py` finds the facts by kind, never by title, and `prompts/answer_concept.md` (now
+1.3.0) tells the model to do the same and to treat evidence text as quotation. Ingestion:
+`social/filters.inert_text` strips angle brackets and control characters from post excerpts
+(`social/pipeline.py`) and from every bottleneck snippet (`make_snippet`). Grounding:
+`verify_narrative` no longer counts numbers from `evidence` sources as grounded, except inside a
+quotation copied verbatim from a cited evidence source (quoting a post is not a claim; an altered
+quote is still checked). This is a narrow piece of W14 step 4, which remains open for the user's
+question and the other paths. Step 4 skipped because the rule-based writers stand in for the LLM
+and must read the same rendered prompt; with escaping the block can no longer be forged, so
+passing `list[Chunk]` would add a second path without closing anything. Tests: four in
+`tests/agent/test_verifier.py` (the step 1 test, kind not title, evidence numbers, ingestion)
+and the end-to-end repro in `tests/agent/test_chat.py`, which fails on the old code (two "What
+the screen recorded" paragraphs, one forged) and passes now with one paragraph at rank 7. The
+Phase 9 golden report was re-recorded for the prompt-version line only. Full suite passes; mypy
+unchanged at 28 pre-existing errors.
+
 ---
 
 ### W14. Number grounding is membership in a bag of about 110 numbers
