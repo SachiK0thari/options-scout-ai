@@ -6,6 +6,7 @@ from typing import Any
 
 import streamlit as st
 
+from options_scout.agent.nodes.audit import FALLBACK_SENTENCE
 from options_scout.core.models import ChatTurn
 from ui import session
 from ui.compute import profile_from_interrupt
@@ -20,7 +21,11 @@ EXAMPLES = (
 
 def _turn(turn: ChatTurn, idx: int) -> None:
     with st.chat_message(turn.role):
-        st.markdown(turn.text)
+        released = turn.role != "assistant" or (
+            turn.compliance is not None and turn.compliance.passed
+        )
+        # W12: an assistant turn's text is shown only when Compliance passed it
+        st.markdown(turn.text if released else FALLBACK_SENTENCE)
         if turn.role == "assistant":
             if turn.intent:
                 st.caption(

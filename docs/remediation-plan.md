@@ -941,6 +941,26 @@ A suitability failure is about facts, so rewriting the text can never fix it.
 
 Suggested commit: `fix(compliance): a failing report is withheld, not released with a FAIL line`
 
+**Status, 2026-11-09:** done in the working tree, steps 1 to 6. `core/compliance.py` gains
+`WITHHELD_NOTICE`, `withheld_narrative`, `fact_suitability_codes` and `withheld_reason_codes`;
+`ScreeningReport` gains `withheld` and `withheld_reasons`. `report_node` withholds whenever the
+final compliance report fails: the narrative becomes the notice with reason codes and failed
+check names, the portfolio is replaced by an empty one (zero totals, one `withheld: …` skipped
+line), the goal plan is dropped, and the Markdown "Sized portfolio" section prints the notice.
+Step 5: the router sends a fact-based suitability failure straight to `report_node`, skipping the
+rewrites and the template fallback. `earnings_unflagged_conservative` is the exception; it
+depends on wording, so it keeps the retry. Callers: `GET /v1/runs/{id}` reports `withheld` and
+leaves out the portfolio; `/report` answers 409 with `{status, notice, reason_codes,
+failed_checks, audit_id}` in both formats; MCP `screen_options` returns a tool error;
+`ChatSession._finish` turns a withheld screen into the notice (checked, passes); the Scout tab
+shows an assistant turn's text only when its badge passes; the Portfolio tab shows the notice.
+PRD 13.1 and `docs/compliance.md` describe the behaviour; the docs-example table needed no
+change. Tests: four in `tests/agent/test_compliance_agent.py` (graph, text-only code, API 409,
+chat) and one in `tests/agent/test_mcp.py`, driven by a patched `suitability_facts` with a 50%
+position loss. Full suite passes; mypy unchanged at 28. Left open: the thread state still holds
+the sized `portfolio`, so a later holdings or goal turn on a withheld thread reads it. That is
+worth closing with W39 or a follow-up.
+
 ---
 
 ### W13. One hostile post can forge a "This run's screen" source

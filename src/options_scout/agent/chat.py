@@ -37,7 +37,7 @@ from options_scout.agent.graph import (
     stream_run,
     thread_config,
 )
-from options_scout.core.compliance import run_compliance
+from options_scout.core.compliance import WITHHELD_NOTICE, run_compliance
 from options_scout.core.models import (
     ChatTurn,
     ComplianceReport,
@@ -278,6 +278,14 @@ class ChatSession:
             text = answer.markdown
             report = values.get("compliance")
             citations = list(values.get("citations") or [])
+        elif rep is not None and (
+            rep.withheld or rep.compliance is None or not rep.compliance.passed
+        ):
+            # W12: the screen failed the gate; the turn carries the fixed notice, never a summary
+            # of the positions the gate refused
+            text = (prefix + "\n\n" if prefix else "") + withheld_summary(rep)
+            report = self._check(text, values, extra={"prefix": prefix})
+            citations = []
         elif rep is not None:
             drop = round(self.deps.cfg.risk.realistic_loss_drop * 100)
             text = (prefix + "\n\n" if prefix else "") + screen_summary(rep, drop)
@@ -370,6 +378,20 @@ def screen_summary(rep: ScreeningReport, drop_pct: int = 30) -> str:
         f"Portfolio tabs for the tables and the Explanation for the cited narrative. Market data "
         f"is delayed.\n\n"
         f"{rep.disclaimer}"
+    )
+
+
+def withheld_summary(rep: ScreeningReport) -> str:
+    """The chat turn for a withheld screen (W12): the fixed notice and its reason codes."""
+    reasons = rep.withheld_reasons or (
+        [c.name for c in rep.compliance.failed_checks]
+        if rep.compliance
+        else ["no compliance report"]
+    )
+    return (
+        f"{WITHHELD_NOTICE} Reason codes: {', '.join(reasons)}. The Candidates tab still shows the "
+        "screened candidates and the constraint checks; no position is proposed for this "
+        f"profile. Market data is delayed.\n\n{rep.disclaimer}"
     )
 
 

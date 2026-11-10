@@ -74,7 +74,7 @@ class ResumeRequest(BaseModel):
 
 class RunStatus(BaseModel):
     thread_id: str
-    status: Literal["running", "interrupted", "completed", "failed", "unknown"]
+    status: Literal["running", "interrupted", "completed", "withheld", "failed", "unknown"]
     current_node: str | None
     nodes_visited: list[str]
     interrupt: dict[str, Any] | None

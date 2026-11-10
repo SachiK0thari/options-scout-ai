@@ -13,8 +13,23 @@ from options_scout.agent.nodes.compliance import evaluate
 from options_scout.agent.nodes.explainer import render_sources_block, rule_prompt
 from options_scout.agent.state import AgentState
 from options_scout.core import report as md
-from options_scout.core.compliance import resolve_citations
-from options_scout.core.models import Citation, Narrative, RunMetadata, ScreeningReport, utcnow
+from options_scout.core.compliance import (
+    WITHHELD_NOTICE,
+    fact_suitability_codes,
+    resolve_citations,
+    withheld_narrative,
+    withheld_reason_codes,
+)
+from options_scout.core.models import (
+    Citation,
+    ComplianceReport,
+    Narrative,
+    PortfolioTotals,
+    RunMetadata,
+    ScreeningReport,
+    SizedPortfolio,
+    utcnow,
+)
 from options_scout.llm.prompts import prompt_versions
 from options_scout.llm.rules import rule_explain
 from options_scout.rag.models import citation_of
@@ -65,7 +80,11 @@ def render_markdown(rep: ScreeningReport) -> str:
         md.render_leaps(rep.leaps_candidates, pairs),
         "",
         "## Sized portfolio",
-        md.render_portfolio(rep.portfolio, rep.ranked),
+        (
+            f"{WITHHELD_NOTICE} Reason codes: {', '.join(rep.withheld_reasons)}."
+            if rep.withheld
+            else md.render_portfolio(rep.portfolio, rep.ranked)
+        ),
         "",
         "## Risk",
         md.render_risk(rep.risk),
@@ -109,6 +128,23 @@ def render_markdown(rep: ScreeningReport) -> str:
     return "\n".join(parts)
 
 
+def _withheld_portfolio(portfolio: SizedPortfolio, compliance: ComplianceReport) -> SizedPortfolio:
+    """No positions and zero totals: the sized portfolio is what the gate refused to release."""
+    zero = PortfolioTotals(
+        short_put_notional=0.0,
+        capital_used=0.0,
+        margin_used=0.0,
+        leaps_cost=0.0,
+        realistic_loss=0.0,
+        dollar_delta=0.0,
+        premium_income=0.0,
+        cash_reserve=0.0,
+        buying_power_used_pct=0.0,
+    )
+    note = f"withheld: {', '.join(withheld_reason_codes(compliance))}"
+    return SizedPortfolio(positions=[], totals=zero, skipped=[note], attempt=portfolio.attempt)
+
+
 def make(deps: Deps) -> Callable[[AgentState], dict[str, Any]]:
     def report_node(state: AgentState) -> dict[str, Any]:
         profile, regime, alloc = state["profile"], state["regime"], state["allocation"]
@@ -122,7 +158,8 @@ def make(deps: Deps) -> Callable[[AgentState], dict[str, Any]]:
         source_cites: list[Citation] = [citation_of(c) for c in sources]
         compliance = state.get("compliance")
         audit_log = list(state.get("audit_log") or [])
-        if not verification.passed:
+        withheld = False
+        if not verification.passed and not fact_suitability_codes(compliance):
             # Final fallback (13.1): deterministic narrative that only echoes payload numbers and
             # quotes the retrieved sources verbatim, checked again so the audit log stays honest.
             narrative = rule_explain(rule_prompt(payload, render_sources_block(sources)))
@@ -137,6 +174,16 @@ def make(deps: Deps) -> Callable[[AgentState], dict[str, Any]]:
             audit_log.append(recheck)
         if compliance is None or not audit_log:
             raise RuntimeError("report assembled without a ComplianceReport")  # 13.1 invariant
+        if not compliance.passed:
+            # W12: nothing the gate failed is released. The narrative becomes the fixed notice
+            # and the sized positions are dropped; the failing report stays attached and on the
+            # audit log, so the run says exactly why it was withheld.
+            withheld = True
+            narrative = withheld_narrative(compliance, deps.cfg.settings.disclaimer)
+            errors.append(
+                f"report: withheld ({', '.join(withheld_reason_codes(compliance))}); "
+                f"{WITHHELD_NOTICE}"
+            )
         started = (
             datetime.fromisoformat(state["started_at"]) if state.get("started_at") else utcnow()
         )
@@ -183,7 +230,7 @@ def make(deps: Deps) -> Callable[[AgentState], dict[str, Any]]:
             leaps_candidates=[c for c in cands if c.strategy == "leaps"],
             pmcc_candidates=pairs,
             ranked=ranked,
-            portfolio=portfolio,
+            portfolio=_withheld_portfolio(portfolio, compliance) if withheld else portfolio,
             risk=risk,
             narrative=narrative,
             narrative_markdown=narrative.markdown,
@@ -191,13 +238,15 @@ def make(deps: Deps) -> Callable[[AgentState], dict[str, Any]]:
             verification=verification,
             compliance=compliance,
             audit_log=audit_log,
-            goal_plan=state.get("goal_plan"),
+            goal_plan=None if withheld else state.get("goal_plan"),  # built on the positions
             news_briefs=list(state.get("news_briefs") or []),
             news_flags=list(state.get("news_flags") or []),
             bottlenecks=list(state.get("bottlenecks") or []),
             errors=sorted(set(errors)),
             metadata=meta,
             disclaimer=deps.cfg.settings.disclaimer,
+            withheld=withheld,
+            withheld_reasons=withheld_reason_codes(compliance) if withheld else [],
         )
         return {
             "report": rep,

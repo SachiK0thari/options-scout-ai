@@ -56,6 +56,7 @@ from options_scout.agent.graph import (
 )
 from options_scout.config import get_config, load_env
 from options_scout.core import margin, payoff, pricing
+from options_scout.core.compliance import WITHHELD_NOTICE
 from options_scout.core.models import (
     AccountType,
     Citation,
@@ -409,6 +410,12 @@ def screen_options_sync(rt: Runtime, profile: UserProfile) -> ScreenResult:
         raise ToolError(f"screen did not complete: {errors}")
     if rep.compliance is None or not rep.audit_log:  # PRD 13.1
         raise RuntimeError("report has no compliance audit entry; refusing to return it")
+    if rep.withheld or not rep.compliance.passed:  # W12: a failing report is never released
+        failed = ", ".join(c.name for c in rep.compliance.failed_checks) or "none"
+        raise ToolError(
+            f"{WITHHELD_NOTICE} Reason codes: {', '.join(rep.withheld_reasons) or failed}. "
+            f"Failed checks: {failed}. Audit id {rep.compliance.audit_id}."
+        )
     drop = round(rt.deps.cfg.risk.realistic_loss_drop * 100)
     return ScreenResult(
         thread_id=thread_id,

@@ -42,6 +42,7 @@ from options_scout.api.schemas import (
     ThreadStatus,
 )
 from options_scout.config import get_config, load_env
+from options_scout.core.compliance import WITHHELD_NOTICE
 from options_scout.core.models import ScreeningReport, UserProfile
 from options_scout.data.market import MarketData, MarketDataError
 from options_scout.observability import configure_logging, get_logger
@@ -322,8 +323,15 @@ def run_status(thread_id: str) -> RunStatus:
         raise HTTPException(404, "unknown thread")
     values = reg.state(thread_id)
     visited = list(values.get("nodes_visited", []))
+    rep = values.get("report")
+    withheld = status == "completed" and isinstance(rep, ScreeningReport) and rep.withheld
+    if withheld:
+        status = "withheld"  # W12: finished, but the gate refused the narrative and positions
     partial: dict[str, Any] = {}
-    for key in ("profile", "regime", "allocation", "portfolio", "risk", "verification"):
+    keys = ("profile", "regime", "allocation", "portfolio", "risk", "verification")
+    for key in keys:
+        if withheld and key == "portfolio":
+            continue
         v = values.get(key)
         if v is not None:
             partial[key] = v.model_dump(mode="json") if hasattr(v, "model_dump") else v
@@ -376,6 +384,18 @@ def resume(thread_id: str, req: ResumeRequest) -> ScreenResponse:
     return ScreenResponse(thread_id=thread_id, status="running")
 
 
+def withheld_detail(rep: ScreeningReport) -> dict[str, Any]:
+    """The 409 body for a withheld run: the notice, its reason codes and the failed checks."""
+    failed = [c.name for c in rep.compliance.failed_checks] if rep.compliance else []
+    return {
+        "status": "withheld",
+        "notice": WITHHELD_NOTICE,
+        "reason_codes": rep.withheld_reasons or failed,
+        "failed_checks": failed,
+        "audit_id": rep.compliance.audit_id if rep.compliance else None,
+    }
+
+
 @app.get("/v1/runs/{thread_id}/report", dependencies=[Depends(_auth)])
 def report(thread_id: str, format: str = "json") -> Any:
     reg = registry()
@@ -387,6 +407,8 @@ def report(thread_id: str, format: str = "json") -> Any:
         raise HTTPException(404, "report not available")
     if rep.compliance is None or not rep.audit_log:  # 13.1: no text leaves without an audit entry
         raise HTTPException(500, "report has no compliance audit entry")
+    if rep.withheld or not rep.compliance.passed:  # W12: a failing report is never released
+        raise HTTPException(409, withheld_detail(rep))
     if format == "md":
         return PlainTextResponse(values.get("report_markdown") or "", media_type="text/markdown")
     return rep.model_dump(mode="json")

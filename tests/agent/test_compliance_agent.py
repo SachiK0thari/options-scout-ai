@@ -199,3 +199,114 @@ def test_api_report_endpoint_requires_an_audit_entry(
     monkeypatch.setattr(reg, "state", lambda t: {"report": stripped, "report_markdown": "x"})
     assert client.get(f"/v1/runs/{thread}/report").status_code == 500
     api._registry = None
+
+
+# ------------------------------------------------------------ W12: unsuitable runs are withheld
+def _unsuitable(monkeypatch: pytest.MonkeyPatch) -> None:
+    """Make the Risk agent's suitability facts fail on facts (a position losing half the account),
+    which no rewrite of the narrative can fix."""
+    from options_scout.core import risk as risk_core
+
+    real = risk_core.suitability_facts
+
+    def bad(*a: Any, **k: Any) -> Any:
+        return real(*a, **k).model_copy(update={"max_position_loss_pct": 0.5})
+
+    monkeypatch.setattr(risk_core, "suitability_facts", bad)
+
+
+def test_an_unsuitable_screen_is_withheld_without_rewrites(
+    deps: Deps, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    from options_scout.core.compliance import WITHHELD_NOTICE
+
+    _unsuitable(monkeypatch)
+    visited, final = _run(deps, REQUEST, "t-comp-unsuitable")
+    rep: ScreeningReport = final["report"]
+    assert rep.withheld and rep.withheld_reasons == ["loss_over_limit"]
+    # a fact failure goes straight to the withheld path: one evaluation, no rewrites
+    assert visited.count("compliance_node") == 1 and visited.count("explainer_node") == 1
+    assert rep.compliance is not None and not rep.compliance.passed
+    assert "check_suitability" in {c.name for c in rep.compliance.failed_checks}
+    # the narrative is the fixed notice; the sized positions and their goal plan are gone
+    assert rep.narrative_markdown.startswith(WITHHELD_NOTICE)
+    assert "loss_over_limit" in rep.narrative_markdown
+    assert rep.portfolio.positions == [] and rep.goal_plan is None
+    # the deterministic tables stay: candidates and the constraint checks
+    assert rep.csp_candidates and rep.risk.checks
+    md = final["report_markdown"]
+    assert "## Sized portfolio\n" + WITHHELD_NOTICE in md.replace("\n\n", "\n")
+    assert "FAIL" in md
+
+
+def test_a_text_only_suitability_failure_still_gets_a_rewrite() -> None:
+    from options_scout.core.compliance import fact_suitability_codes
+    from options_scout.core.models import ComplianceCheck, VerificationResult
+
+    def report(codes: list[str]) -> ComplianceReport:
+        return ComplianceReport(
+            passed=False,
+            checks=[
+                ComplianceCheck(name="check_suitability", passed=False, locations=codes),
+            ],
+            audit_id="x",
+            verification=VerificationResult(
+                passed=False,
+                numbers_checked=0,
+                ungrounded_numbers=[],
+                banned_phrases_found=[],
+                disclaimer_present=True,
+                cited_candidate_ids=[],
+                attempts=1,
+            ),
+        )
+
+    assert fact_suitability_codes(report(["earnings_unflagged_conservative"])) == []
+    assert fact_suitability_codes(
+        report(["margin_on_cash", "earnings_unflagged_conservative"])
+    ) == ["margin_on_cash"]
+
+
+def test_api_withholds_an_unsuitable_report_with_409(
+    monkeypatch: pytest.MonkeyPatch, tmp_path_factory: pytest.TempPathFactory
+) -> None:
+    import time
+
+    from options_scout.api import main as api
+    from options_scout.social.pipeline import TrendStore
+
+    _unsuitable(monkeypatch)
+    api._registry = None
+    monkeypatch.setattr(api, "_RATE_LIMIT_PER_MIN", 10_000)
+    api._hits.clear()
+    client = TestClient(api.app)
+    reg = api.registry()
+    reg.deps.trend_store = TrendStore(tmp_path_factory.mktemp("api-withheld") / "t.sqlite")
+    thread = client.post("/v1/screen", json={"request_text": REQUEST}).json()["thread_id"]
+    for _ in range(600):
+        if client.get(f"/v1/runs/{thread}").json()["status"] in ("withheld", "completed", "failed"):
+            break
+        time.sleep(0.1)
+    status = client.get(f"/v1/runs/{thread}").json()
+    assert status["status"] == "withheld" and "portfolio" not in status["partial"]
+    for fmt in ("json", "md"):
+        r = client.get(f"/v1/runs/{thread}/report", params={"format": fmt})
+        assert r.status_code == 409
+        body = r.json()["detail"]
+        assert body["status"] == "withheld" and body["reason_codes"] == ["loss_over_limit"]
+        assert "check_suitability" in body["failed_checks"]
+    api._registry = None
+
+
+def test_chat_turn_for_a_withheld_screen_is_the_notice(
+    deps: Deps, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    from options_scout.agent.chat import ChatSession
+    from options_scout.core.compliance import WITHHELD_NOTICE
+
+    _unsuitable(monkeypatch)
+    r = ChatSession(deps).send("t-chat-withheld", REQUEST)
+    assert r.status == "completed"
+    assert r.turn.text.startswith(WITHHELD_NOTICE) and "Screen complete" not in r.turn.text
+    assert "loss_over_limit" in r.turn.text
+    assert r.turn.compliance is not None and r.turn.compliance.passed  # the notice itself

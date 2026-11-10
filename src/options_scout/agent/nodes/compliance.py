@@ -15,7 +15,7 @@ from typing import Any
 
 from options_scout.agent.deps import Deps
 from options_scout.agent.state import AgentState
-from options_scout.core.compliance import run_compliance
+from options_scout.core.compliance import fact_suitability_codes, run_compliance
 from options_scout.core.models import ComplianceReport, Narrative, TextKind
 from options_scout.observability import get_logger
 from options_scout.rag.models import citation_of
@@ -98,6 +98,10 @@ def make_router(deps: Deps) -> Callable[[AgentState], str]:
     def route_after_compliance(state: AgentState) -> str:
         v = state.get("verification")
         n = int((state.get("retries") or {}).get("explainer", 0))
+        if fact_suitability_codes(state.get("compliance")):
+            # W12: the sized portfolio does not suit the account; rewriting the prose cannot
+            # change that, so go straight to the report node's withheld path
+            return "report_node"
         if v is not None and not v.passed and n < deps.cfg.settings.agent.max_explainer_retries + 1:
             return "explainer_node"
         return "report_node"

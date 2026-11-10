@@ -491,3 +491,21 @@ def test_stdio_entry_point_serves_the_same_tools() -> None:
     assert names == list(TOOL_NAMES)
     assert not result.is_error
     assert result.structured_content["price"] == pytest.approx(5.5735, abs=1e-3)  # golden put
+
+
+def test_screen_options_refuses_a_withheld_screen(
+    server: MCPServer[None], monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """W12: an unsuitable screen is not handed to an MCP client."""
+    from options_scout.core import risk as risk_core
+
+    real = risk_core.suitability_facts
+    monkeypatch.setattr(
+        risk_core,
+        "suitability_facts",
+        lambda *a, **k: real(*a, **k).model_copy(update={"max_position_loss_pct": 0.5}),
+    )
+    r = _call(server, "screen_options", {"buying_power": 40000, "strategy": "csp"})
+    assert r.is_error
+    text = " ".join(getattr(c, "text", "") for c in r.content)
+    assert "withheld" in text and "loss_over_limit" in text

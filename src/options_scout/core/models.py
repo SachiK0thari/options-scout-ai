@@ -1052,3 +1052,9 @@ class ScreeningReport(Model):
     errors: list[str]
     metadata: RunMetadata
     disclaimer: str
+    # W12: the gate would not release the narrative. The narrative is then the fixed withheld
+    # notice, ``portfolio`` holds no positions and there is no goal plan; the candidate tables and
+    # the constraint checks stay, because they are computed facts. ``withheld_reasons`` are the
+    # suitability reason codes (or the failed check names) the notice prints.
+    withheld: bool = False
+    withheld_reasons: list[str] = Field(default_factory=list)

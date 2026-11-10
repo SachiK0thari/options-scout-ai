@@ -404,6 +404,47 @@ _EARNINGS_UNKNOWN_WORDS = re.compile(
 _EASING_WORDS = re.compile(r"\b(?:easing|weakening|new supply)\b|bottleneck_easing", re.IGNORECASE)
 
 
+# Suitability codes that describe the sized portfolio itself. A rewrite of the narrative cannot
+# change them, so a run that fails on one is withheld at once (W12). The one text-only code,
+# ``earnings_unflagged_conservative``, is fixed by saying "earnings" in the sentence, so it
+# keeps the normal retry.
+TEXT_SUITABILITY_CODES = frozenset({"earnings_unflagged_conservative"})
+WITHHELD_NOTICE = "This screen was withheld: the sized portfolio does not suit the stated account."
+
+
+def fact_suitability_codes(report: ComplianceReport | None) -> list[str]:
+    """Reason codes of a failed ``check_suitability`` that no rewrite can fix, in order."""
+    if report is None:
+        return []
+    out: list[str] = []
+    for c in report.checks:
+        if c.name == "check_suitability" and not c.passed:
+            out += [code for code in c.locations if code not in TEXT_SUITABILITY_CODES]
+    return list(dict.fromkeys(out))
+
+
+def withheld_reason_codes(report: ComplianceReport) -> list[str]:
+    """What a withheld notice names: the fact codes, else the names of the failed checks."""
+    return fact_suitability_codes(report) or [c.name for c in report.failed_checks]
+
+
+def withheld_narrative(report: ComplianceReport, disclaimer: str) -> Narrative:
+    """The fixed text that replaces a narrative the gate would not release (W12, PRD 13.1)."""
+    codes = withheld_reason_codes(report)
+    failed = ", ".join(c.name for c in report.failed_checks) or "none"
+    return Narrative(
+        paragraphs=[
+            Paragraph(
+                mode="notice",
+                text=f"{WITHHELD_NOTICE} Reason codes: {', '.join(codes)}. Failed checks: "
+                f"{failed}. The candidate tables and the constraint checks are computed facts and "
+                "are shown; the sized positions and the explanation are not.",
+            ),
+            Paragraph(mode="notice", text=disclaimer),
+        ]
+    )
+
+
 def suitability_problems(
     facts: SuitabilityFacts, text: str, cfg: ComplianceConfig
 ) -> list[tuple[str, str]]:

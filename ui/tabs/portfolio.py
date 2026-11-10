@@ -5,6 +5,7 @@ from __future__ import annotations
 import pandas as pd
 import streamlit as st
 
+from options_scout.core.compliance import WITHHELD_NOTICE
 from ui import charts, compute, session, theme
 from ui.session import CFG, md, money, pct
 
@@ -120,6 +121,13 @@ def render(view: session.View) -> None:
     if report is None:
         st.info("Run a screen to see how candidates fit your buying power and risk limits.")
         return
+    if report.withheld:
+        st.error(
+            md(
+                f"{WITHHELD_NOTICE} Reason codes: {', '.join(report.withheld_reasons)}. The risk "
+                "limit checks below are computed facts; no position is proposed."
+            )
+        )
     a = report.allocation
     port = report.portfolio
     t = port.totals
@@ -171,7 +179,7 @@ def render(view: session.View) -> None:
                     "Dollar delta": st.column_config.NumberColumn(format="dollar"),
                 },
             )
-        else:
+        elif not report.withheld:
             st.warning("No position fit inside the risk limits for this buying power.")
         m1, m2, m3, m4 = st.columns(4)
         m1.metric(
