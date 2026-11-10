@@ -244,3 +244,90 @@ def test_tradier_uses_marketdata_as_index_fallback_when_token_present(
     monkeypatch.delenv("MARKETDATA_TOKEN")
     md = MarketData.from_config(config, mode="live", provider="tradier", api_key="t-key")
     assert isinstance(md.source, TradierSource) and md.source._fallback is None
+
+
+# --------------------------------------------------- missing data fails closed (W5)
+def _failing(path_fragment: str, status: int, calls: dict[str, int]) -> object:
+    def handler(request: httpx.Request) -> httpx.Response:
+        if path_fragment in request.url.path and (
+            path_fragment != "/candles/" or request.url.params.get("adjustdividends") == "false"
+        ):
+            calls["n"] += 1
+            return httpx.Response(status, json={"s": "error", "errmsg": "nope"})
+        return _routes(request)
+
+    return handler
+
+
+@pytest.mark.parametrize("status", [402, 500])
+def test_earnings_failure_is_recorded_not_cached_and_fails_the_put_screen(
+    status: int, config: AppConfig
+) -> None:
+    from options_scout.core import screeners
+    from options_scout.data.cache import MemoryCache
+
+    calls = {"n": 0}
+    src = MarketDataAppSource(
+        TOKEN, strike_limit=40, http_client=_client(_failing("/stocks/earnings/", status, calls))
+    )
+    src._fetch.retry.sleep = lambda *_: None  # type: ignore[attr-defined]
+    with pytest.raises((MarketDataError, httpx.HTTPStatusError)):
+        src.get_earnings_date("AAPL")
+    md = MarketData(src, MemoryCache(), config.settings.cache_ttl_seconds.model_dump())
+    snap = md.build_snapshot("AAPL", expiries=[EXP])
+    assert snap.earnings_known is False and snap.earnings_date is None
+    assert any(e.startswith("earnings: lookup failed") for e in snap.source_errors)
+    assert snap.dividend_yield_known is True
+    before = calls["n"]
+    md.build_snapshot("AAPL", expiries=[EXP])
+    assert calls["n"] > before, "a failed earnings lookup must not be cached"
+    assert screeners.earnings_unknown(snap)
+    out = screeners.screen_csp(snap, config.rules.csp, today=TODAY, r=0.04, realistic_loss_drop=0.3)
+    assert out == []
+
+
+def test_successful_earnings_lookup_is_cached(config: AppConfig) -> None:
+    from options_scout.data.cache import MemoryCache
+
+    calls = {"n": 0}
+
+    def counting(request: httpx.Request) -> httpx.Response:
+        if "/stocks/earnings/" in request.url.path:
+            calls["n"] += 1
+        return _routes(request)
+
+    src = MarketDataAppSource(TOKEN, strike_limit=40, http_client=_client(counting))
+    md = MarketData(src, MemoryCache(), config.settings.cache_ttl_seconds.model_dump())
+    assert md.get_earnings_date("AAPL") == NEXT_EARNINGS
+    assert md.get_earnings_date("AAPL") == NEXT_EARNINGS
+    assert calls["n"] == 1
+
+
+def test_dividend_failure_marks_the_yield_unknown(config: AppConfig) -> None:
+    from options_scout.data.cache import MemoryCache
+
+    calls = {"n": 0}
+    src = MarketDataAppSource(
+        TOKEN, strike_limit=40, http_client=_client(_failing("/candles/", 402, calls))
+    )
+    with pytest.raises(MarketDataError):
+        src.get_dividend_yield("AAPL")
+    md = MarketData(src, MemoryCache(), config.settings.cache_ttl_seconds.model_dump())
+    snap = md.build_snapshot("AAPL", expiries=[EXP])
+    assert snap.dividend_yield_known is False and snap.dividend_yield == 0.0
+    assert any(e.startswith("dividend: lookup failed") for e in snap.source_errors)
+    assert snap.earnings_known is True
+
+
+def test_dividend_series_mismatch_raises() -> None:
+    def short_raw(request: httpx.Request) -> httpx.Response:
+        resp = _routes(request)
+        if "/candles/" in request.url.path and request.url.params.get("adjustdividends") == "false":
+            body = resp.json()
+            body["c"] = body["c"][:-1]
+            return httpx.Response(200, json=body)
+        return resp
+
+    src = MarketDataAppSource(TOKEN, strike_limit=40, http_client=_client(short_raw))
+    with pytest.raises(MarketDataError, match="dividend series mismatch"):
+        src.get_dividend_yield("AAPL")

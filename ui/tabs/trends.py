@@ -316,7 +316,7 @@ def _news_board(view: session.View) -> None:
                     {
                         "Candidate": f.candidate_id,
                         "Flag": f.flag.replace("_", " "),
-                        "Event date": f.event_date.isoformat(),
+                        "Event date": f.event_date.isoformat() if f.event_date else "unknown",
                         "Detail": f.detail,
                     }
                     for f in flags

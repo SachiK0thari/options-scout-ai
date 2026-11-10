@@ -134,6 +134,10 @@ def _values_3_3(cfg: AppConfig) -> str:
             "Earnings before expiry",
             "excluded" if r.exclude_earnings_before_expiry else "flagged only",
         ),
+        (
+            "Earnings date unknown (single stocks)",
+            "excluded" if r.exclude_when_earnings_unknown else "flagged `earnings_unknown`",
+        ),
         ("Underlying price", f"≥ ${r.min_underlying_price:g}"),
         ("Average volume", f"≥ {r.min_avg_volume:,} shares/day"),
         ("IV rank", f"prefer ≥ {_pct(r.preferred_iv_rank_min)} (soft score, not a filter)"),

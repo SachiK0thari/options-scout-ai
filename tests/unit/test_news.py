@@ -166,3 +166,25 @@ def test_event_flags_for_short_options(config: AppConfig) -> None:
         capture_window_days=5,
     )
     assert past == []
+    # W5: a single stock with no confirmed date is flagged on short options, not on LEAPS
+    unknown = news.event_flags(
+        csp,
+        as_of=as_of,
+        earnings_date=None,
+        ex_dividend_date=None,
+        capture_window_days=5,
+        earnings_unknown=True,
+    )
+    assert [f.flag for f in unknown] == ["earnings_date_unknown"]
+    assert unknown[0].event_date is None
+    assert (
+        news.event_flags(
+            leaps,
+            as_of=as_of,
+            earnings_date=None,
+            ex_dividend_date=None,
+            capture_window_days=5,
+            earnings_unknown=True,
+        )
+        == []
+    )

@@ -143,8 +143,10 @@ class TickerSnapshot(Model):
     spot: SpotQuote
     chains: list[OptionChain]
     earnings_date: date | None
+    earnings_known: bool = True  # False when the lookup failed (the date is then meaningless)
     hv30: float | None = Field(default=None, ge=0)
     dividend_yield: float = Field(default=0.0, ge=0)
+    dividend_yield_known: bool = True  # False when the lookup failed (the yield is then 0.0)
     atm_iv: float | None = Field(default=None, ge=0)
     iv_rank: float | None = Field(default=None, ge=0, le=1)
     iv_rank_source: IVRankSource = "none"
@@ -648,6 +650,8 @@ class SuitabilityFacts(Model):
     position_count: int
     max_positions: int
     earnings_flagged: list[str] = Field(default_factory=list)  # candidate ids
+    # W5: sized ids whose underlying's earnings date is unknown; the narrative must name each
+    earnings_unknown_ids: list[str] = Field(default_factory=list)
     hv_proxy_ids: list[str] = Field(default_factory=list)
     pmcc_present: bool = False
     leaps_requested: bool = False
@@ -835,8 +839,13 @@ class NewsClassificationBatch(Model):
 class NewsFlag(Model):
     candidate_id: str
     ticker: str
-    flag: Literal["earnings_within_dte", "ex_dividend_before_expiry", "ex_dividend_capture_window"]
-    event_date: date
+    flag: Literal[
+        "earnings_within_dte",
+        "earnings_date_unknown",
+        "ex_dividend_before_expiry",
+        "ex_dividend_capture_window",
+    ]
+    event_date: date | None = None  # None only for earnings_date_unknown
     detail: str
 
 

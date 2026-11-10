@@ -678,6 +678,12 @@ def rule_explain(user_prompt: str) -> Narrative:
                     if p.get("pmcc_short_call_id")
                     else ""
                 )
+                + (
+                    f" The earnings date for {p.get('candidate_id')} is unknown and could fall "
+                    "before expiry."
+                    if p.get("earnings_unknown")
+                    else ""
+                )
             )
         result("**Sized positions.** " + " ".join(lines))
     else:

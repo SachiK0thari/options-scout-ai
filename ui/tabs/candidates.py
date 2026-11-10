@@ -41,6 +41,13 @@ def _other_flags(flags: list[str]) -> str:
     return ", ".join(f for f in flags if f not in HIDDEN_FLAGS)
 
 
+def _earnings_mark(c: OptionCandidate) -> str:
+    """⚠️ earnings before expiry, ❓ date unknown (W5), blank when clear."""
+    if c.earnings_before_expiry:
+        return "⚠️"
+    return "❓" if "earnings_unknown" in c.flags else ""
+
+
 def _csp_rows(cands: list[OptionCandidate], flagged: set[str] | None = None) -> pd.DataFrame:
     flagged = flagged or set()
     return pd.DataFrame(
@@ -58,7 +65,7 @@ def _csp_rows(cands: list[OptionCandidate], flagged: set[str] | None = None) -> 
                 "Delta": round(c.delta, 2),
                 "Open interest": c.open_interest,
                 **_greek_cells(c),
-                "Earnings before expiry": "⚠️" if c.earnings_before_expiry else "",
+                "Earnings before expiry": _earnings_mark(c),
                 "News": "📰" if c.id in flagged else "",  # Phase 12: a News Desk calendar flag
                 "Supply constraint": supply_constraint_text(c.flags),  # Phase 11: the 4A.8 flags
                 "Flags": _other_flags(c.flags),

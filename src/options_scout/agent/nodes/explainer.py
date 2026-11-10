@@ -220,6 +220,17 @@ def build_explain_payload(
                     )
                     if f in BOTTLENECK_FLAGS
                 ],
+                # W5: the position or its short call has no confirmed earnings date
+                "earnings_unknown": any(
+                    "earnings_unknown" in c.flags
+                    for c in (
+                        candidates.get(p.candidate_id),
+                        pairs[p.pmcc_short_call_id].short_call
+                        if p.pmcc_short_call_id in pairs
+                        else None,
+                    )
+                    if c is not None
+                ),
             }
             for p in portfolio.positions
         ],

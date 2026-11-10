@@ -28,6 +28,9 @@ BOTTLENECK_FLAGS = (FLAG_BOTTLENECK_SUPPORT, FLAG_BOTTLENECK_EASING, FLAG_CATALY
 # W1: implied-vol provenance flags
 FLAG_IV_FROM_PROVIDER = "iv_from_provider"  # no vol reproduces the mid; provider figure used
 FLAG_IV_DISAGREES = "iv_disagrees"  # provider and solved figures differ by more than the tolerance
+# W5: missing inputs fail closed
+FLAG_EARNINGS_UNKNOWN = "earnings_unknown"  # single stock with no known earnings date
+FLAG_DIVIDEND_UNKNOWN = "dividend_unknown"  # dividend lookup failed; yield assumed 0.0
 _DEFAULT_IV_RULES = ImpliedVolRules()
 
 
@@ -41,6 +44,16 @@ def _fmt_strike(k: float) -> str:
 
 def earnings_before_expiry(earnings: date | None, today: date, expiry: date) -> bool:
     return earnings is not None and today <= earnings <= expiry
+
+
+def earnings_unknown(snap: TickerSnapshot) -> bool:
+    """True when a single stock's next earnings date is not known (W5).
+
+    A failed lookup is unknown. So is a successful "no date" on a non-ETF: every listed company
+    reports within the provider's 180-day horizon, so an empty answer is a data gap, not a
+    clean calendar. ETFs have no earnings and are never unknown.
+    """
+    return snap.spot.sector != "ETF" and (snap.earnings_date is None or not snap.earnings_known)
 
 
 def _base_candidate(
@@ -167,6 +180,10 @@ def _csp_pass(
                 c.flags.append("earnings_before_expiry")
                 if rules.exclude_earnings_before_expiry:
                     continue
+            if earnings_unknown(snap):
+                c.flags.append(FLAG_EARNINGS_UNKNOWN)
+                if rules.exclude_when_earnings_unknown:
+                    continue
             c.collateral = margin.csp_collateral(c.strike, c.mid)
             c.margin_req = margin.reg_t_put_margin(snap.spot.price, c.strike, c.mid)
             c.annualized_return = margin.csp_annualized_return(c.strike, c.mid, c.dte)
@@ -269,6 +286,8 @@ def screen_leaps(
                 c.flags.append("high_iv_rank")
             if c.iv_rank_source == "hv_proxy":
                 c.flags.append("iv_rank_is_hv_proxy")
+            if not snap.dividend_yield_known:
+                c.flags.append(FLAG_DIVIDEND_UNKNOWN)  # delta and extrinsic assume no dividend
             # earnings_before_expiry is always true for a multi-year option; not flagged for LEAPS
             out.append(c)
     # lower extrinsic per year is better; prefer longer DTE on ties
@@ -359,6 +378,8 @@ def _pmcc_matches(
                     continue  # safety rule: short strike >= LEAPS strike + net debit paid
                 if sc.earnings_before_expiry:
                     sc.flags.append("earnings_before_expiry")
+                if earnings_unknown(snap):
+                    sc.flags.append(FLAG_EARNINGS_UNKNOWN)  # flag only (W5); W23 decides exclusion
                 if fallback:
                     sc.flags.append("dte_outside_preferred")
                 matches.append(

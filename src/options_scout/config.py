@@ -279,6 +279,7 @@ class CSPRules(_Strict):
     max_spread_pct: float
     min_bid: float
     exclude_earnings_before_expiry: bool
+    exclude_when_earnings_unknown: bool = True  # W5: fail closed on a missing earnings date
     min_underlying_price: float
     min_avg_volume: int
     preferred_iv_rank_min: float

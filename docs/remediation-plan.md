@@ -527,6 +527,26 @@ Two inputs break that rule.
 
 Suggested commit: `fix(data): unknown earnings and dividends fail closed; failures are not cached`
 
+**Status, 2026-11-09:** done in the working tree, steps 1 to 10. Both sources now let earnings and
+dividend errors propagate; the MarketData.app dividend estimate also raises on a series mismatch,
+on too little history and on an implied yield above 20% (a small negative is clamped to 0). The
+facade caches only successful earnings lookups and `build_snapshot` records
+`earnings: lookup failed (...)` / `dividend: lookup failed (...)` and sets `earnings_known` /
+`dividend_yield_known`. `screeners.earnings_unknown` drives the CSP exclusion
+(`exclude_when_earnings_unknown: true`), the PMCC short-call flag (flag only; W23 does the
+exclusion) and the new `earnings_date_unknown` News Desk flag (`NewsFlag.event_date` is now
+optional). LEAPS get `dividend_unknown`; W3 should skip its carry figure on that flag. Report and
+UI show yes / no / unknown (❓ in the UI, explained in the glossary tooltip). Compliance adds
+`earnings_unknown_unflagged` for every profile, and the rule-based writer names the position.
+The rules doc for 3.3 gained a row (`make index` re-run). Tests: four screener tests in
+`test_screeners.py` (the synthetic snapshot now defaults to a known date 90 days out), four in
+`test_marketdata_source.py`, two parametrised in `test_tradier_source.py`, plus news and
+compliance cases. Acceptance: the mocked 402/500 earnings test builds the snapshot, records the
+lookup failure, re-fetches on the next build and lists no put; the full suite and the Phase 9
+golden report pass unchanged. Side effect to know about: a Tradier key without beta fundamentals
+access now shows every single stock as earnings unknown, so the put screen lists only ETFs on
+that plan.
+
 ---
 
 ### W6. Make the sizer explain itself

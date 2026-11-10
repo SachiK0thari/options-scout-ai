@@ -12,6 +12,9 @@ csp:
   max_spread_pct: 0.10
   min_bid: 0.10
   exclude_earnings_before_expiry: true
+  # W5: a single stock whose earnings date is unknown (lookup failed, or none reported) is
+  # excluded; false keeps it with the `earnings_unknown` flag. ETFs are unaffected.
+  exclude_when_earnings_unknown: true
   min_underlying_price: 10.0
   min_avg_volume: 1000000
   preferred_iv_rank_min: 0.30         # soft score, not a hard filter

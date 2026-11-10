@@ -13,6 +13,9 @@ from options_scout.data.market import MarketData
 
 TODAY = date(2026, 10, 27)
 R = 0.04
+# a known report date after the near expiry (38 DTE) and before the LEAPS; since W5 a single stock
+# with no date at all is "earnings unknown" and fails the put screen
+CLEAR_EARNINGS = TODAY + timedelta(days=90)
 
 
 def _quote(
@@ -34,7 +37,12 @@ def _quote(
 
 
 def _snapshot(
-    S: float = 100.0, earnings: date | None = None, avg_volume: float = 5e6
+    S: float = 100.0,
+    earnings: date | None = CLEAR_EARNINGS,
+    avg_volume: float = 5e6,
+    sector: str = "Tech",
+    earnings_known: bool = True,
+    dividend_yield_known: bool = True,
 ) -> TickerSnapshot:
     near = TODAY + timedelta(days=38)
     far = TODAY + timedelta(days=600)
@@ -57,10 +65,12 @@ def _snapshot(
         ticker="TEST",
         as_of=datetime.now(tz=UTC),
         spot=SpotQuote(
-            ticker="TEST", price=S, avg_volume=avg_volume, as_of=datetime.now(tz=UTC), sector="Tech"
+            ticker="TEST", price=S, avg_volume=avg_volume, as_of=datetime.now(tz=UTC), sector=sector
         ),
         chains=[near_chain, far_chain],
         earnings_date=earnings,
+        earnings_known=earnings_known,
+        dividend_yield_known=dividend_yield_known,
         hv30=0.25,
         dividend_yield=0.0,
         atm_iv=0.31,
@@ -302,6 +312,42 @@ def test_csp_excludes_earnings_before_expiry(config: AppConfig) -> None:
     assert flagged and all("earnings_before_expiry" in c.flags for c in flagged)
 
 
+# --------------------------------------------------- missing data fails closed (W5)
+@pytest.mark.parametrize(
+    "kwargs",
+    [{"earnings": None}, {"earnings": CLEAR_EARNINGS, "earnings_known": False}],
+    ids=["no-date", "lookup-failed"],
+)
+def test_csp_unknown_earnings_fails_closed(config: AppConfig, kwargs: dict) -> None:
+    snap = _snapshot(**kwargs)
+    assert screeners.earnings_unknown(snap)
+    out = screeners.screen_csp(snap, config.rules.csp, today=TODAY, r=R, realistic_loss_drop=0.3)
+    assert out == []
+    rules = config.rules.csp.model_copy(update={"exclude_when_earnings_unknown": False})
+    kept = screeners.screen_csp(snap, rules, today=TODAY, r=R, realistic_loss_drop=0.3)
+    assert kept and all(screeners.FLAG_EARNINGS_UNKNOWN in c.flags for c in kept)
+    assert not any(c.earnings_before_expiry for c in kept)
+
+
+def test_etf_without_earnings_date_is_unaffected(config: AppConfig) -> None:
+    snap = _snapshot(earnings=None, sector="ETF")
+    assert not screeners.earnings_unknown(snap)
+    out = screeners.screen_csp(snap, config.rules.csp, today=TODAY, r=R, realistic_loss_drop=0.3)
+    assert out and not any(screeners.FLAG_EARNINGS_UNKNOWN in c.flags for c in out)
+
+
+def test_pmcc_short_call_flags_unknown_earnings_and_leaps_flag_unknown_dividend(
+    config: AppConfig,
+) -> None:
+    snap = _snapshot(earnings=None, dividend_yield_known=False)
+    leaps = screeners.screen_leaps(snap, config.rules.leaps, today=TODAY, r=R)
+    assert leaps and all(screeners.FLAG_DIVIDEND_UNKNOWN in c.flags for c in leaps)
+    pairs = screeners.pair_pmcc(leaps, snap, config.rules.pmcc, today=TODAY, r=R)
+    assert pairs and all(screeners.FLAG_EARNINGS_UNKNOWN in p.short_call.flags for p in pairs)
+    known = screeners.screen_leaps(_snapshot(), config.rules.leaps, today=TODAY, r=R)
+    assert not any(screeners.FLAG_DIVIDEND_UNKNOWN in c.flags for c in known)
+
+
 def test_csp_liquidity_filters(config: AppConfig) -> None:
     assert (
         screeners.screen_csp(
@@ -421,7 +467,7 @@ def _row(ticker: str, score: float, flags: list[str], catalyst_days: int | None 
     )
 
 
-def _screened(config: AppConfig, earnings: date | None = None):
+def _screened(config: AppConfig, earnings: date | None = CLEAR_EARNINGS):
     snap = _snapshot(earnings=earnings)
     csp = screeners.screen_csp(snap, config.rules.csp, today=TODAY, r=R, realistic_loss_drop=0.30)
     leaps = screeners.screen_leaps(snap, config.rules.leaps, today=TODAY, r=R)

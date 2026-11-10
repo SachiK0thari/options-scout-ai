@@ -5,7 +5,7 @@ source: PRD.md section 3.3 and config/screener_rules.yaml
 url: PRD.md#33-csp-screener-rules
 kind: rules
 level: intermediate
-as_of: '2026-11-03'
+as_of: '2026-11-09'
 ---
 
 # Rule 3.3 CSP screener rules
@@ -35,6 +35,7 @@ This document is generated from PRD.md section 3.3 and `config/screener_rules.ya
 | Bid-ask spread | ≤ 10% of mid |
 | Bid | > $0.10 |
 | Earnings before expiry | excluded |
+| Earnings date unknown (single stocks) | excluded |
 | Underlying price | ≥ $10 |
 | Average volume | ≥ 1,000,000 shares/day |
 | IV rank | prefer ≥ 30% (soft score, not a filter) |

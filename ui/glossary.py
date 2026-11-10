@@ -73,7 +73,7 @@ TERMS: dict[str, Term] = {
     "Earnings before expiry": Term(
         "earnings-risk",
         "⚠️ marks an earnings announcement scheduled before the option expires, when the stock "
-        "can gap.",
+        "can gap. ❓ means the date could not be confirmed, so it may fall before expiry.",
     ),
     "Cost per contract": Term(
         "leaps", "Price × 100 shares: what one long call costs, and the most it can lose."

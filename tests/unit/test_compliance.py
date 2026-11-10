@@ -215,6 +215,17 @@ def test_check_education_only_requires_realistic_loss_for_short_options() -> Non
             "CSP-HON-2026-12-18-200P met the criteria.",
             None,
         ),
+        (  # W5: any profile must be told a sized position's earnings date is unknown
+            {"earnings_unknown_ids": ["PMCC-NKE-2028-01-21-60C-2026-12-18-80C"]},
+            "PMCC-NKE-2028-01-21-60C-2026-12-18-80C met the criteria.",
+            "earnings_unknown_unflagged",
+        ),
+        (
+            {"earnings_unknown_ids": ["PMCC-NKE-2028-01-21-60C-2026-12-18-80C"]},
+            "PMCC-NKE-2028-01-21-60C-2026-12-18-80C met the criteria. The earnings date for "
+            "PMCC-NKE-2028-01-21-60C-2026-12-18-80C is unknown and could fall before expiry.",
+            None,
+        ),
         ({"account_type": "cash", "margin_used": 0.0}, "This naked put…", "naked_language_on_cash"),
         ({}, "This naked put…", None),
         (

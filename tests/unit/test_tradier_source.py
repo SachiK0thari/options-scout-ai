@@ -189,3 +189,53 @@ def test_sandbox_vs_production_urls() -> None:
     client = httpx.Client(transport=httpx.MockTransport(_routes))
     assert _mk(sandbox=True, http_client=client).base_url.startswith("https://sandbox.")
     assert _mk(sandbox=False, http_client=client).base_url.startswith("https://api.")
+
+
+# --------------------------------------------------- missing data fails closed (W5)
+def _failing_src(fragment: str, status: int, calls: dict[str, int]) -> TradierSource:
+    def handler(request: httpx.Request) -> httpx.Response:
+        if fragment in request.url.path:
+            calls["n"] += 1
+            return httpx.Response(status, json={"fault": "not on this plan"})
+        return _routes(request)
+
+    client = httpx.Client(
+        transport=httpx.MockTransport(handler),
+        base_url=TradierSource.SANDBOX_URL,
+        headers={"Authorization": f"Bearer {KEY}", "Accept": "application/json"},
+    )
+    src = TradierSource(KEY, sandbox=True, http_client=client)
+    src._get.retry.sleep = lambda *_: None  # type: ignore[attr-defined]
+    return src
+
+
+@pytest.mark.parametrize("status", [402, 403, 503])
+def test_earnings_failure_is_recorded_and_not_cached(status: int, config: AppConfig) -> None:
+    from options_scout.data.cache import MemoryCache
+
+    calls = {"n": 0}
+    src = _failing_src("fundamentals/calendars", status, calls)
+    with pytest.raises((MarketDataError, httpx.HTTPStatusError)):
+        src.get_earnings_date("AAPL")
+    md = MarketData(src, MemoryCache(), config.settings.cache_ttl_seconds.model_dump())
+    exp = date.fromisoformat(EXP)
+    snap = md.build_snapshot("AAPL", expiries=[exp])
+    assert snap.earnings_known is False and snap.earnings_date is None
+    assert any(e.startswith("earnings: lookup failed") for e in snap.source_errors)
+    before = calls["n"]
+    md.build_snapshot("AAPL", expiries=[exp])
+    assert calls["n"] > before, "a failed earnings lookup must not be cached"
+
+
+@pytest.mark.parametrize("status", [402, 403, 503])
+def test_dividend_failure_marks_the_yield_unknown(status: int, config: AppConfig) -> None:
+    from options_scout.data.cache import MemoryCache
+
+    src = _failing_src("fundamentals/dividends", status, {"n": 0})
+    with pytest.raises((MarketDataError, httpx.HTTPStatusError)):
+        src.get_dividend_yield("AAPL")
+    md = MarketData(src, MemoryCache(), config.settings.cache_ttl_seconds.model_dump())
+    snap = md.build_snapshot("AAPL", expiries=[date.fromisoformat(EXP)])
+    assert snap.dividend_yield_known is False and snap.dividend_yield == 0.0
+    assert any(e.startswith("dividend: lookup failed") for e in snap.source_errors)
+    assert snap.earnings_known is True

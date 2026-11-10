@@ -176,6 +176,7 @@ def event_flags(
     earnings_date: date | None,
     ex_dividend_date: date | None,
     capture_window_days: int,
+    earnings_unknown: bool = False,
 ) -> list[NewsFlag]:
     """Calendar events that touch a short option before it expires. Earnings matter to every
     short option (CSP and the PMCC short call); an ex-dividend date matters to a short call,
@@ -183,7 +184,20 @@ def event_flags(
     flags: list[NewsFlag] = []
     if candidate.strategy == "leaps":
         return flags
-    if earnings_date is not None and as_of <= earnings_date <= candidate.expiry:
+    if earnings_unknown:  # W5: a single stock with no known date may report before expiry
+        flags.append(
+            NewsFlag(
+                candidate_id=candidate.id,
+                ticker=candidate.ticker,
+                flag="earnings_date_unknown",
+                event_date=None,
+                detail=(
+                    "the earnings date could not be confirmed; it may fall before the "
+                    f"{candidate.expiry.isoformat()} expiry"
+                ),
+            )
+        )
+    elif earnings_date is not None and as_of <= earnings_date <= candidate.expiry:
         flags.append(
             NewsFlag(
                 candidate_id=candidate.id,

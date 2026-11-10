@@ -151,7 +151,8 @@ class MarketDataAppSource:
     What MarketData.app does not have:
 
     * dividends: the yield is derived from the gap between the dividend-adjusted and the
-      split-only daily candle series over the last year (``0.0`` when that fails);
+      split-only daily candle series over the last year (raises when that fails, so the
+      facade marks the yield unknown rather than assuming none, W5);
     * ^IRX (13-week T-bill): :meth:`get_index_last` raises, and the facade falls back to
       :data:`RISK_FREE_FALLBACK`;
     * sector: quotes carry none; the curated universe supplies it.
@@ -331,19 +332,19 @@ class MarketDataAppSource:
         )
 
     def get_earnings_date(self, ticker: str) -> date | None:
-        """Next projected report date from /stocks/earnings; None when nothing is scheduled."""
+        """Next projected report date from /stocks/earnings; None when nothing is scheduled.
+
+        A provider error propagates (W5): the facade records it and marks the date unknown, so
+        a failed lookup never reads as "no earnings before expiry".
+        """
         today = datetime.now(tz=UTC).date()
-        try:
-            body = self._get(
-                f"/stocks/earnings/{ticker.upper()}/",
-                **{
-                    "from": today.isoformat(),
-                    "to": (today + timedelta(days=self.EARNINGS_HORIZON_DAYS)).isoformat(),
-                },
-            )
-        except MarketDataError as exc:
-            log.info("marketdata earnings unavailable for %s: %s", ticker, exc)
-            return None
+        body = self._get(
+            f"/stocks/earnings/{ticker.upper()}/",
+            **{
+                "from": today.isoformat(),
+                "to": (today + timedelta(days=self.EARNINGS_HORIZON_DAYS)).isoformat(),
+            },
+        )
         upcoming: list[date] = []
         for raw in self._col(body, "reportDate") or self._col(body, "date"):
             d = _as_date(raw)
@@ -360,19 +361,22 @@ class MarketDataAppSource:
         MarketData.app has no dividends endpoint. Its daily candles are dividend-adjusted by
         default; the split-only series is the raw price. Over one year the ratio of the two
         oldest closes is the product of (1 - D/P) over every ex-date, i.e. ~ the trailing yield.
+
+        Provider errors and series that cannot support the estimate raise (W5) rather than
+        returning 0.0, so the facade can mark the yield unknown instead of assuming none.
         """
         sym = ticker.upper()
         days = self.DIVIDEND_LOOKBACK_DAYS
-        try:
-            adjusted = self._closes("stocks", sym, days)
-            raw = self._closes("stocks", sym, days, adjustsplits="true", adjustdividends="false")
-        except Exception as exc:
-            log.info("marketdata dividend series unavailable for %s: %s", sym, type(exc).__name__)
-            return 0.0
-        if len(adjusted) < MIN_IV_HISTORY or len(adjusted) != len(raw) or raw[0] <= 0:
-            return 0.0
+        adjusted = self._closes("stocks", sym, days)
+        raw = self._closes("stocks", sym, days, adjustsplits="true", adjustdividends="false")
+        if len(adjusted) != len(raw):
+            raise MarketDataError(f"{sym}: dividend series mismatch")
+        if len(adjusted) < MIN_IV_HISTORY or raw[0] <= 0:
+            raise MarketDataError(f"{sym}: too little price history to infer a dividend yield")
         implied = 1.0 - adjusted[0] / raw[0]
-        return implied if 0.0 <= implied <= 0.20 else 0.0
+        if implied > 0.20:
+            raise MarketDataError(f"{sym}: implausible implied dividend yield {implied:.1%}")
+        return max(implied, 0.0)  # a tiny negative is rounding on a non-payer
 
     def get_index_history(self, symbol: str, days: int) -> list[float]:
         mapped = self._INDEX_SYMBOLS.get(symbol.upper())
@@ -517,12 +521,11 @@ class TradierSource:
         )
 
     def get_earnings_date(self, ticker: str) -> date | None:
-        """Best effort via the beta fundamentals calendar; None when the plan lacks access."""
-        try:
-            data = self._get("/beta/markets/fundamentals/calendars", symbols=ticker.upper())
-        except Exception as exc:
-            log.info("tradier earnings unavailable for %s: %s", ticker, type(exc).__name__)
-            return None
+        """Next report date via the beta fundamentals calendar; None when nothing is scheduled.
+
+        Errors (including a plan without fundamentals access) propagate (W5).
+        """
+        data = self._get("/beta/markets/fundamentals/calendars", symbols=ticker.upper())
         today = datetime.now(tz=UTC).date()
         upcoming: list[date] = []
         for result in self._as_list(data):
@@ -555,13 +558,14 @@ class TradierSource:
         return closes[-days:]
 
     def get_dividend_yield(self, ticker: str) -> float:
-        """Trailing 12-month cash dividends / price via the beta fundamentals endpoint; else 0."""
-        try:
-            data = self._get("/beta/markets/fundamentals/dividends", symbols=ticker.upper())
-            price = self.get_spot(ticker).price
-        except Exception as exc:
-            log.info("tradier dividends unavailable for %s: %s", ticker, type(exc).__name__)
-            return 0.0
+        """Trailing 12-month cash dividends / price via the beta fundamentals endpoint.
+
+        Errors propagate (W5); 0.0 only for a successful response with no recent dividends.
+        """
+        data = self._get("/beta/markets/fundamentals/dividends", symbols=ticker.upper())
+        price = self.get_spot(ticker).price
+        if price <= 0:
+            raise MarketDataError(f"Tradier quote for {ticker} has no price")
         cutoff = datetime.now(tz=UTC).date() - timedelta(days=365)
         total = 0.0
         for result in self._as_list(data):
@@ -573,7 +577,7 @@ class TradierSource:
                         total += _f(div.get("cash_amount"))
                 except ValueError:
                     continue
-        return total / price if price > 0 else 0.0
+        return total / price
 
     def get_index_history(self, symbol: str, days: int) -> list[float]:
         mapped = self._INDEX_SYMBOLS.get(symbol.upper())
@@ -770,7 +774,7 @@ class MarketData:
         hit = self.cache.get(key)
         if hit is not None:
             return date.fromisoformat(hit) if hit != "none" else None
-        value = self.source.get_earnings_date(ticker)
+        value = self.source.get_earnings_date(ticker)  # raises on failure: nothing is cached
         self.cache.set(key, value.isoformat() if value else "none", self.ttl["earnings"])
         return value
 
@@ -845,20 +849,24 @@ class MarketData:
             except Exception as exc:
                 errors.append(f"chain {e}: {exc}")
         earnings: date | None = None
+        earnings_known = True
         try:
             earnings = self.get_earnings_date(ticker)
         except Exception as exc:
-            errors.append(f"earnings: {exc}")
+            errors.append(f"earnings: lookup failed ({exc})")
+            earnings_known = False
         hv30: float | None = None
         try:
             hv30 = self.get_hist_vol(ticker, 30)
         except Exception as exc:
             errors.append(f"hv30: {exc}")
         divy = 0.0
+        dividend_yield_known = True
         try:
             divy = self.get_dividend_yield(ticker)
         except Exception as exc:
-            errors.append(f"dividend: {exc}")
+            errors.append(f"dividend: lookup failed ({exc})")
+            dividend_yield_known = False
 
         atm_iv = atm_implied_vol(chains, spot.price, now.date(), self.near_dte)
         iv_rank, iv_source = self._iv_rank(ticker, atm_iv, hv30)
@@ -869,8 +877,10 @@ class MarketData:
             spot=spot,
             chains=chains,
             earnings_date=earnings,
+            earnings_known=earnings_known,
             hv30=hv30,
             dividend_yield=divy,
+            dividend_yield_known=dividend_yield_known,
             atm_iv=atm_iv,
             iv_rank=iv_rank,
             iv_rank_source=iv_source,

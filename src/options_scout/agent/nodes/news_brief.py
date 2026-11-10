@@ -25,6 +25,7 @@ from options_scout.core.models import (
     Paragraph,
 )
 from options_scout.core.news import build_brief, event_flags
+from options_scout.core.screeners import earnings_unknown
 from options_scout.llm.rules import education_paragraphs
 from options_scout.rag.models import Chunk, RetrievalResult, citation_of
 
@@ -75,7 +76,7 @@ def news_payload(
                 {
                     "ticker": f.ticker,
                     "flag": f.flag,
-                    "event_date": f.event_date.isoformat(),
+                    "event_date": f.event_date.isoformat() if f.event_date else None,
                     "strike": cands[f.candidate_id].strike if f.candidate_id in cands else None,
                     "expiry": cands[f.candidate_id].expiry.isoformat()
                     if f.candidate_id in cands
@@ -129,7 +130,8 @@ def news_narrative(payload: dict[str, Any], sources: list[Chunk], disclaimer: st
                 if f["strike"] is not None
                 else f["ticker"]
             )
-            parts.append(f"{where}: {f['flag'].replace('_', ' ')} on {f['event_date']}")
+            when = f" on {f['event_date']}" if f["event_date"] else ""
+            parts.append(f"{where}: {f['flag'].replace('_', ' ')}{when}")
         paras.append(
             Paragraph(
                 mode="screen_result",
@@ -169,6 +171,7 @@ def make(deps: Deps) -> Callable[[AgentState], dict[str, Any]]:
                     earnings_date=snap.earnings_date if snap is not None else None,
                     ex_dividend_date=None,  # no provider in this repo exposes ex-dividend dates
                     capture_window_days=cfg.capture_window_days,
+                    earnings_unknown=snap is not None and earnings_unknown(snap),
                 )
             )
         tickers = sorted(by_ticker) or sorted({c.ticker for c in short_option_candidates(state)})

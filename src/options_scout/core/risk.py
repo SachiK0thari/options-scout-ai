@@ -254,6 +254,15 @@ def suitability_facts(
         for p in portfolio.positions
         if (c := candidates.get(p.candidate_id)) is not None and c.iv_rank_source == "hv_proxy"
     )
+    unknown = sorted(  # W5: the position, or its PMCC short call, has no known earnings date
+        p.candidate_id
+        for p in portfolio.positions
+        if any(
+            (c := candidates.get(cid)) is not None and "earnings_unknown" in c.flags
+            for cid in (p.candidate_id, p.pmcc_short_call_id)
+            if cid
+        )
+    )
     easing = sorted(  # Phase 11 (4A.8): short puts on a supplier whose bottleneck is easing
         p.candidate_id
         for p in portfolio.positions
@@ -275,6 +284,7 @@ def suitability_facts(
         position_count=len(portfolio.positions),
         max_positions=profile.max_positions,
         earnings_flagged=flagged,
+        earnings_unknown_ids=unknown,
         hv_proxy_ids=hv_proxy,
         pmcc_present="pmcc" in present,
         leaps_requested="leaps" in profile.strategies or "pmcc" in profile.strategies,

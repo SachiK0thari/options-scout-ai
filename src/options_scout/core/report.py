@@ -245,6 +245,13 @@ def render_quality(checks: Sequence[QualityCheck]) -> str:
     return "\n\n".join(parts)
 
 
+def earnings_cell(c: OptionCandidate) -> str:
+    """Earnings column: yes, no or unknown (W5: a missing date is never shown as "no")."""
+    if c.earnings_before_expiry:
+        return "yes"
+    return "unknown" if "earnings_unknown" in c.flags else "no"
+
+
 def render_csp(cands: Sequence[OptionCandidate], limit: int = 15) -> str:
     if not cands:
         return "_No CSP candidates met the criteria._"
@@ -262,7 +269,7 @@ def render_csp(cands: Sequence[OptionCandidate], limit: int = 15) -> str:
             pct(c.prob_otm, 0),
             f"{c.open_interest:,}/{pct(c.spread_pct, 0)}",
             pct(c.iv_rank, 0) + ("*" if c.iv_rank_source == "hv_proxy" else ""),
-            "yes" if c.earnings_before_expiry else "no",
+            earnings_cell(c),
             ", ".join(f for f in c.flags if f not in {"iv_rank_is_hv_proxy"}),
         ]
         for c in cands[:limit]
@@ -455,7 +462,15 @@ def render_news(briefs: Sequence[NewsBrief], flags: Sequence[NewsFlag]) -> str:
         lines.append(
             _table(
                 ["Candidate", "Flag", "Event date", "Detail"],
-                [[f.candidate_id, f.flag, f.event_date.isoformat(), f.detail] for f in flags],
+                [
+                    [
+                        f.candidate_id,
+                        f.flag,
+                        f.event_date.isoformat() if f.event_date else "unknown",
+                        f.detail,
+                    ]
+                    for f in flags
+                ],
             )
         )
     lines.append("")
