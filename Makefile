@@ -4,7 +4,7 @@ UV        ?= uv
 PORT_API  ?= 8000
 PORT_UI   ?= 8501
 
-.PHONY: help install test test-cov test-live lint fmt eval bench requirements api ui mcp demo demo-core bottlenecks index clean check
+.PHONY: help install test test-cov test-live mutation lint fmt eval bench requirements api ui mcp demo demo-core bottlenecks index clean check
 
 help:
 	@grep -E '^[a-zA-Z_-]+:.*?## ' $(MAKEFILE_LIST) | awk 'BEGIN {FS = ":.*?## "}; {printf "  %-12s %s\n", $$1, $$2}'
@@ -24,6 +24,10 @@ test-cov: ## offline tests with coverage; fails below 85% on core/, rag/, agent/
 
 test-live: ## integration tests that hit the network
 	$(PY) -m pytest -m live --override-ini="addopts=-q --strict-markers"
+
+mutation: ## mutation testing on sizing, risk, screeners and compliance (slow; run before a release, not on every push)
+	$(PY) -m mutmut run
+	$(PY) -m mutmut results
 
 lint: ## ruff + mypy (strict on core/)
 	$(PY) -m ruff check src tests evals ui

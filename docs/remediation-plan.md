@@ -2090,6 +2090,38 @@ test.
 
 Suggested commit: `test(risk): a binding case for every sizing cap and a failing case for every check`
 
+**Status, 2026-11-10:** done in the working tree, steps 1, 2, 4 and 5 (step 3 was done with W2).
+No source change; tests, config and tooling only.
+- **Binding caps:** `test_the_{per_sector,per_ticker,dollar_delta,short_put_notional,margin_usage}_cap_binds`
+  build hand-made candidates (`_put`, `_call`) against `_LOOSE` limits with one limit tightened,
+  and assert the exact contract counts, the totals at the limit and the skip reason.
+- **Failing checks:** `_book()` is a hand-built margin book with holdings whose nine check values
+  are all distinct (worked out in its docstring). `test_each_check_fails_alone_when_its_limit_is_broken`
+  is parametrised over all nine checks, the six in the table plus `portfolio_loss`,
+  `assignment_cash_x` (W24) and the concentration check: equal to its limit passes, 1% under
+  fails that check alone, and the report fails.
+- **Property test:** `test_sizing_never_violates_constraints_on_synthetic_worlds` draws 1 to 12
+  candidates over six tickers, four sectors and five price levels, with every limit drawn tight.
+- **Acceptance:** every mutant in the table, the "all five caps" mutant and a never-fails mutant
+  for each of the nine checks were applied to the source one at a time. All 15 are killed, each
+  by its named test.
+- **Mutation tooling:** `mutmut==3.8.0` (dev), `[tool.mutmut]` in `pyproject.toml` and `make mutation`.
+  `mutants/` is ignored. The first full run gave killed/survived (incl. "no tests") of sizing
+  536/184, risk 422/249, screeners 530/153, compliance 974/403.
+- **Survivor triage (2026-11-10):** every survivor was read. Real gaps got tests in
+  `tests/unit/test_mutation_{sizing,risk,screeners,compliance}.py` (exact values, hand-built
+  inputs). Equivalent mutants got `# pragma: no mutate (<reason>)` where mutmut honours it
+  (end of a statement, or a `start`/`end` range in risk.py); source code is otherwise unchanged.
+  No bugs were found. Now (about 4 minutes): killed/survived sizing 701/19, risk 614/4,
+  screeners 665/10, compliance 1349/19, i.e. 3,329 killed and 52 surviving (98.5%).
+- **The 52 survivors are all equivalent**, each on a line that also has a mutant the tests kill,
+  so a pragma would hide that kill. Examples: `limit < 0` vs `<= 0` in `_floor_div`; `is_csp=None`
+  vs `False`; the unreachable `if profile.buying_power` / `if av` guards on positive floats; the
+  solver seed dropped from `implied_vol`; `round(x, None)` vs `round(x)`. The list is
+  `mutmut results` after `make mutation`; a new survivor beyond these 52 is a gap to look at.
+- **Test selection stays `tests/unit/`.** Adding `tests/agent/` makes each mutant take minutes,
+  and the new unit tests cover what only `tests/agent/` used to catch.
+
 ---
 
 ### W34. The headline accuracy numbers are in-sample

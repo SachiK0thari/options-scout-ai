@@ -89,7 +89,7 @@ def _base_candidate(
     S = snap.spot.price
     # seed the solver with the provider's figure (or the ticker's ATM vol) so Newton converges
     # in a few steps; the answer is the same as the plain bisection, only cheaper
-    guess = q.iv if q.iv > 0 else snap.atm_iv
+    guess = q.iv if q.iv > 0 else snap.atm_iv  # pragma: no mutate (solver seed; same vol)
     solved = (
         pricing.implied_vol(mid, S, q.strike, T, r, snap.dividend_yield, q.kind, guess=guess)
         if iv_rules.solve_from_mid
@@ -179,11 +179,11 @@ def _csp_pass(
             if c.earnings_before_expiry:
                 c.flags.append("earnings_before_expiry")
                 if rules.exclude_earnings_before_expiry:
-                    continue
+                    continue  # pragma: no mutate (same expiry: every later put is excluded too)
             if earnings_unknown(snap):
                 c.flags.append(FLAG_EARNINGS_UNKNOWN)
                 if rules.exclude_when_earnings_unknown:
-                    continue
+                    continue  # pragma: no mutate (per ticker: every later put is excluded too)
             c.collateral = margin.csp_collateral(c.strike, c.mid)
             c.margin_req = margin.reg_t_put_margin(snap.spot.price, c.strike, c.mid)
             c.annualized_return = margin.csp_annualized_return(c.strike, c.mid, c.dte)
@@ -325,7 +325,7 @@ def pair_pmcc(
 ) -> list[PMCCCandidate]:
     out: list[PMCCCandidate] = []
     for lp in leaps:
-        matches: list[PMCCCandidate] = []
+        matches: list[PMCCCandidate] = []  # pragma: no mutate (rebound by the first window)
         windows = [(rules.dte_min, rules.dte_max, False)]
         if rules.dte_fallback_max > rules.dte_fallback_min:
             windows.append((rules.dte_fallback_min, rules.dte_fallback_max, True))

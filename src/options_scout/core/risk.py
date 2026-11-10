@@ -34,6 +34,7 @@ def check_constraints(
     t = portfolio.totals
     checks: list[ConstraintCheck] = []
 
+    # pragma: no mutate start (the 1e-9 epsilon only absorbs float noise)
     def add(name: str, value: float, limit: float, detail: str) -> None:
         checks.append(
             ConstraintCheck(
@@ -41,6 +42,7 @@ def check_constraints(
             )
         )
 
+    # pragma: no mutate end
     add(
         "short_put_notional_x",
         t.short_put_notional / av,
@@ -112,7 +114,7 @@ def check_constraints(
                 f"{worst_c[0]} would be ${worst_c[1]:,.0f} of ${base:,.0f} (holdings + buying "
                 "power) if every put on it were assigned"
             )
-            value = worst_c[1] / base if base > 0 else 0.0
+            value = worst_c[1] / base if base > 0 else 0.0  # pragma: no mutate (base > 0 always)
         else:
             detail, value = "no cash-secured put on a ticker; nothing to assign", 0.0
         add(
@@ -134,7 +136,7 @@ def tenor_scale(dte: int, ref_dte: int | None) -> float:
     """
     if ref_dte is None:
         return 1.0
-    return min(1.0, math.sqrt(ref_dte / max(dte, 1)))
+    return min(1.0, math.sqrt(ref_dte / max(dte, 1)))  # pragma: no mutate (dte <= 1: full shock)
 
 
 def stress_test(
@@ -218,7 +220,7 @@ def sizing_warnings(
     """
     out: list[tuple[str, str]] = []
     detail = {d.candidate_id: d for d in portfolio.skipped_detail}
-    order = top_tickers(ranked, profile, len(ranked) or 1)
+    order = top_tickers(ranked, profile, len(ranked) or 1)  # pragma: no mutate (n moot if empty)
     sized = {p.ticker for p in portfolio.positions}
     first = next((r for r in ranked if r.candidate.ticker in order), None)  # the rank-1 candidate
     top = first if first is not None and first.candidate.id in detail else None  # ...if skipped
@@ -266,7 +268,9 @@ def sizing_warnings(
             allocation.leaps_dollars if {"leaps", "pmcc"} & profile.strategies else 0.0
         )
         used = portfolio.totals.capital_used
+        # pragma: no mutate start (wanted and used are never negative: wanted > 0 is the guard)
         if wanted > 0 and used < reporting.low_deployment_pct * wanted:
+            # pragma: no mutate end
             out.append(
                 (
                     "low_deployment",
@@ -298,7 +302,7 @@ def build_risk_report(
         base = concentration_base(holdings, profile.buying_power)
         cap = limits.max_ticker_concentration_after_assignment
         for hp in holdings.positions:
-            if base > 0 and hp.market_value / base > cap:
+            if base > 0 and hp.market_value / base > cap:  # pragma: no mutate (base > 0 always)
                 warnings.append(
                     f"{hp.ticker} is already {hp.market_value / base:.0%} of holdings plus buying "
                     f"power, above the {cap:.0%} concentration cap; no put on it was sized"

@@ -66,7 +66,7 @@ _CODE_SPAN = re.compile(r"`[^`\n]*`")  # run ids, thread ids, config keys: ident
 def _to_float(token: str) -> tuple[float, bool] | None:
     t = token.replace("−", "-").replace("$", "").replace(",", "").replace(" ", "")
     pct = t.endswith("%")
-    t = t.rstrip("%")
+    t = t.rstrip("%")  # pragma: no mutate (tokens from _NUMBER never end in X)
     try:
         return float(t), pct
     except ValueError:
@@ -118,7 +118,7 @@ def extract_narrative_numbers(text: str) -> list[tuple[str, float, bool]]:
         tok = m.group(0).strip()
         parsed = _to_float(tok)
         if parsed is None:
-            continue
+            continue  # pragma: no mutate (a _NUMBER token always parses)
         val, pct = parsed
         if _YEAR.fullmatch(tok.strip("$ ")) and 1990 <= val <= 2100:
             continue  # bare years are not claims
@@ -293,7 +293,7 @@ def check_citations(narrative: Narrative, sources: Sequence[Citation]) -> Compli
         unknown += [t for t in p.citations if t not in unknown and int(t[1:]) > len(sources)]
     if unknown:
         problems.append(f"tags not in sources: {', '.join(sorted(set(unknown)))}")
-        locations += sorted(set(unknown))
+        locations += sorted(set(unknown))  # pragma: no mutate (locations is empty here)
     for i, p in enumerate(narrative.paragraphs):
         if p.mode == "education" and not _is_cited(p):
             problems.append(f"{_loc(i)}: education paragraph without a citation")

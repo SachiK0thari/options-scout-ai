@@ -10,10 +10,13 @@ import pytest
 from hypothesis import given, settings
 from hypothesis import strategies as st
 
-from options_scout.config import AppConfig
+from options_scout.config import AppConfig, Constraints
 from options_scout.core import pricing, ranking, risk, screeners, sizing
 from options_scout.core.allocation import allocate
 from options_scout.core.models import (
+    AllocationPlan,
+    HoldingsAnalysis,
+    HoldingValue,
     MarketRegime,
     OptionCandidate,
     OptionKind,
@@ -775,3 +778,437 @@ def test_portfolio_limits_bind_in_the_sizer(world: dict[str, object]) -> None:
     )
     assert port2.totals.assignment_cash <= 0.2 * profile.buying_power + 1e-6
     assert any("assignment cash" in s for s in port2.skipped)
+
+
+# ------------------------------------------------- W33: a binding case for every sizing cap
+# Hand-built candidates, not fixtures, so in each test exactly one cap is the one that stops
+# the fill. Every limit not under test is set far out of reach.
+_LOOSE = Constraints(
+    max_short_put_notional_x=1e6,
+    max_margin_usage=1e6,
+    max_loss_per_position=1.0,
+    max_exposure_per_ticker=1e6,
+    max_per_sector=1e6,
+    max_dollar_delta_x=1e6,
+    max_portfolio_loss=1.0,
+    max_assignment_cash_x=1e6,
+)
+_DROP = 0.30
+
+
+def _put(
+    ticker: str,
+    *,
+    sector: str = "Technology",
+    spot: float = 100.0,
+    strike: float = 100.0,
+    mid: float = 2.0,
+    delta: float = -0.30,
+) -> OptionCandidate:
+    """A short put. At the defaults one contract is: loss at -30% $2,800, notional $10,000,
+    collateral $9,800, Reg T $2,200, dollar delta +$3,000."""
+    return OptionCandidate(
+        id=f"CSP-{ticker}-{strike:g}P",
+        strategy="csp",
+        ticker=ticker,
+        sector=sector,
+        spot=spot,
+        expiry=_TODAY + timedelta(days=30),
+        dte=30,
+        strike=strike,
+        kind="put",
+        bid=mid - 0.05,
+        ask=mid + 0.05,
+        mid=mid,
+        spread_pct=0.05,
+        open_interest=1_000,
+        iv=0.30,
+        iv_rank_source="none",
+        delta=delta,
+        gamma=0.0,
+        theta=0.0,
+        vega=0.0,
+        prob_otm=0.7,
+        breakeven=strike - mid,
+        earnings_before_expiry=False,
+    )
+
+
+def _call(ticker: str, *, sector: str = "Technology", mid: float = 30.0) -> OptionCandidate:
+    """A LEAPS call; one contract costs (and can lose) ``mid`` x 100."""
+    return _put(ticker, sector=sector).model_copy(
+        update={
+            "id": f"LEAPS-{ticker}-80C",
+            "strategy": "leaps",
+            "kind": "call",
+            "strike": 80.0,
+            "mid": mid,
+            "bid": mid - 0.05,
+            "ask": mid + 0.05,
+            "delta": 0.80,
+            "expiry": _TODAY + timedelta(days=500),
+            "dte": 500,
+        }
+    )
+
+
+def _ranked(cands: list[OptionCandidate]) -> list[RankedCandidate]:
+    n = len(cands)
+    return [
+        RankedCandidate(
+            candidate=c, option_quality=0.5, social_score=50, final_score=1 - i / n, rank=i + 1
+        )
+        for i, c in enumerate(cands)
+    ]
+
+
+def _fill(
+    cands: list[OptionCandidate],
+    limits: Constraints,
+    *,
+    account: str = "cash",
+    av: float = 1_000_000,
+    bp: float | None = None,
+) -> SizedPortfolio:
+    bp = av if bp is None else bp
+    profile = UserProfile(
+        buying_power=bp,
+        account_value=av,
+        account_type=account,  # type: ignore[arg-type]
+        risk_profile="balanced",
+    )
+    alloc = AllocationPlan(
+        risk_profile="balanced",
+        account_type=account,  # type: ignore[arg-type]
+        buying_power=bp,
+        csp_pct=0.5,
+        leaps_pct=0.5,
+        cash_pct=0.0,
+        csp_dollars=bp * 0.5,
+        leaps_dollars=bp * 0.5,
+        cash_dollars=0.0,
+        tilt="none",
+        rationale=[],
+    )
+    return sizing.size_portfolio(_ranked(cands), profile, alloc, limits, realistic_loss_drop=_DROP)
+
+
+def _skip_reasons(port: SizedPortfolio) -> dict[str, str]:
+    return {d.candidate_id: d.reason for d in port.skipped_detail}
+
+
+def test_the_per_sector_cap_binds() -> None:
+    # $10k per position and per ticker (3 contracts each), $20k per sector: the third
+    # Technology put is cut to 1 contract, the fourth and fifth do not fit; Health is untouched
+    limits = _LOOSE.model_copy(
+        update={
+            "max_loss_per_position": 0.01,
+            "max_exposure_per_ticker": 0.01,
+            "max_per_sector": 0.02,
+        }
+    )
+    tech = [_put(t) for t in ("AAA", "BBB", "CCC", "DDD", "EEE")]
+    port = _fill([*tech, _put("HHH", sector="Health")], limits)
+    by = {p.ticker: p.contracts for p in port.positions}
+    assert by == {"AAA": 3, "BBB": 3, "CCC": 1, "HHH": 3}
+    tech_loss = sum(p.realistic_loss for p in port.positions if p.sector == "Technology")
+    assert tech_loss == pytest.approx(19_600) and tech_loss <= 20_000
+    assert _skip_reasons(port) == {
+        "CSP-DDD-100P": "per-sector exposure",
+        "CSP-EEE-100P": "per-sector exposure",
+    }
+    failed = [c.name for c in risk.check_constraints(port, _profile_for(1_000_000), limits)]
+    assert all(c.passed for c in risk.check_constraints(port, _profile_for(1_000_000), limits)), (
+        failed
+    )
+
+
+def test_the_per_ticker_cap_binds() -> None:
+    # $3k per position, $5k per ticker: the AAA put (2,800) fits, the AAA LEAPS (3,000) would
+    # take the ticker to 5,800, so it is skipped; the same LEAPS on BBB fits
+    limits = _LOOSE.model_copy(
+        update={"max_loss_per_position": 0.003, "max_exposure_per_ticker": 0.005}
+    )
+    port = _fill([_put("AAA"), _call("AAA"), _call("BBB")], limits)
+    assert [(p.ticker, p.strategy, p.contracts) for p in port.positions] == [
+        ("AAA", "csp", 1),
+        ("BBB", "leaps", 1),
+    ]
+    assert _skip_reasons(port) == {"LEAPS-AAA-80C": "per-ticker exposure"}
+
+
+def test_the_dollar_delta_cap_binds() -> None:
+    # far-OTM puts: $100 loss but +$2,500 dollar delta per contract; the delta cap is $150k, so
+    # 50 + 10 contracts fit and the third put does not (the $500k budget would allow 70)
+    limits = _LOOSE.model_copy(update={"max_dollar_delta_x": 0.15})
+    cands = [_put(t, strike=72.0, mid=1.0, delta=-0.25) for t in ("AAA", "BBB", "CCC")]
+    port = _fill(cands, limits)
+    assert [p.contracts for p in port.positions] == [50, 10]
+    assert port.totals.dollar_delta == pytest.approx(150_000)
+    assert _skip_reasons(port) == {"CSP-CCC-72P": "dollar delta"}
+
+
+def test_the_short_put_notional_cap_binds() -> None:
+    # margin account: Reg T is $2,200 a contract, so the budget allows 227; notional is capped at
+    # 0.3 x $1M = $300k = 30 contracts at $10k, and the second put does not fit
+    limits = _LOOSE.model_copy(update={"max_short_put_notional_x": 0.3})
+    port = _fill([_put("AAA"), _put("BBB")], limits, account="margin")
+    assert [p.contracts for p in port.positions] == [30]
+    assert port.totals.short_put_notional == pytest.approx(300_000)
+    assert _skip_reasons(port) == {"CSP-BBB-100P": "short-put notional"}
+
+
+def test_the_margin_usage_cap_binds() -> None:
+    # buying power $100k against a $1M account: notional (vs account value) has room for 100
+    # contracts and the $50k budget for 22, but margin is capped at 0.4 x $100k = $40k, which is
+    # 18 contracts at $2,200
+    limits = _LOOSE.model_copy(update={"max_margin_usage": 0.4, "max_short_put_notional_x": 1.0})
+    port = _fill([_put("AAA"), _put("BBB")], limits, account="margin", bp=100_000)
+    assert [p.contracts for p in port.positions] == [18]
+    assert port.totals.margin_used == pytest.approx(39_600) and port.totals.margin_used <= 40_000
+    assert port.totals.short_put_notional < 1.0 * 1_000_000
+    assert _skip_reasons(port) == {"CSP-BBB-100P": "margin usage"}
+
+
+def _profile_for(av: float, account: str = "cash") -> UserProfile:
+    return UserProfile(
+        buying_power=av,
+        account_value=av,
+        account_type=account,  # type: ignore[arg-type]
+        risk_profile="balanced",
+    )
+
+
+# ----------------------------------------------- W33: a failing case for every risk check
+def _pos(
+    cid: str,
+    strategy: str,
+    ticker: str,
+    sector: str,
+    *,
+    notional: float,
+    margin_used: float,
+    loss: float,
+    ddelta: float,
+) -> SizedPosition:
+    return SizedPosition(
+        candidate_id=cid,
+        strategy=strategy,  # type: ignore[arg-type]
+        ticker=ticker,
+        sector=sector,
+        contracts=1,
+        strike=100.0,
+        expiry=_TODAY + timedelta(days=30),
+        mid=1.0,
+        delta=0.5,
+        notional=notional,
+        capital_used=notional,
+        margin_used=margin_used,
+        realistic_loss=loss,
+        dollar_delta=ddelta,
+        premium=0.0,
+    )
+
+
+def _book() -> tuple[SizedPortfolio, UserProfile, HoldingsAnalysis]:
+    """A margin account, $100k value and $50k buying power, holding $40k of stock ($10k AAA).
+
+    Checked values: notional 25k/100k = 0.25; margin 5.5k/50k = 0.11; worst position
+    5.6k/100k = 0.056; worst ticker (AAA) 8.6k = 0.086; worst sector (Technology) 10k = 0.10;
+    portfolio loss 12k = 0.12; assignment (25k + 5k LEAPS)/50k = 0.6; dollar delta 20.5k = 0.205;
+    AAA after assignment (10k + 20k)/(40k + 50k) = 1/3.
+    """
+    positions = [
+        _pos(
+            "P1",
+            "csp",
+            "AAA",
+            "Technology",
+            notional=20_000,
+            margin_used=4_400,
+            loss=5_600,
+            ddelta=6_000,
+        ),
+        _pos(
+            "P2",
+            "csp",
+            "BBB",
+            "Technology",
+            notional=5_000,
+            margin_used=1_100,
+            loss=1_400,
+            ddelta=1_500,
+        ),
+        _pos(
+            "L1",
+            "leaps",
+            "AAA",
+            "Technology",
+            notional=3_000,
+            margin_used=0,
+            loss=3_000,
+            ddelta=8_000,
+        ),
+        _pos(
+            "L2", "leaps", "CCC", "Health", notional=2_000, margin_used=0, loss=2_000, ddelta=5_000
+        ),
+    ]
+    totals = PortfolioTotals(
+        short_put_notional=25_000,
+        capital_used=30_000,
+        margin_used=5_500,
+        leaps_cost=5_000,
+        realistic_loss=12_000,
+        dollar_delta=20_500,
+        premium_income=0.0,
+        cash_reserve=20_000,
+        buying_power_used_pct=0.6,
+        assignment_cash=30_000,
+    )
+    profile = UserProfile(
+        buying_power=50_000, account_value=100_000, account_type="margin", risk_profile="balanced"
+    )
+
+    def held(ticker: str, value: float) -> HoldingValue:
+        return HoldingValue(
+            ticker=ticker,
+            shares=100,
+            price=value / 100,
+            market_value=value,
+            cost=None,
+            unrealised_pnl=None,
+            weight=value / 40_000,
+            sector="Technology",
+            expense_ratio=None,
+            beta=None,
+            covered_call_lots=1,
+        )
+
+    holdings = HoldingsAnalysis(
+        positions=[held("AAA", 10_000), held("ZZZ", 30_000)],
+        total_value=40_000,
+        by_sector={"Technology": 1.0},
+        hhi=0.625,
+        effective_positions=1.6,
+        diversification_score=37.5,
+        weighted_expense_ratio=None,
+        beta_weighted_exposure=None,
+        largest_position="ZZZ",
+        largest_sector="Technology",
+        covered_call_eligible=[],
+    )
+    return SizedPortfolio(positions=positions, totals=totals), profile, holdings
+
+
+_CHECKS = [
+    ("short_put_notional_x", "max_short_put_notional_x", 0.25),
+    ("margin_usage", "max_margin_usage", 0.11),
+    ("max_loss_per_position", "max_loss_per_position", 0.056),
+    ("max_exposure_per_ticker", "max_exposure_per_ticker", 0.086),
+    ("max_per_sector", "max_per_sector", 0.10),
+    ("portfolio_loss", "max_portfolio_loss", 0.12),
+    ("assignment_cash_x", "max_assignment_cash_x", 0.6),
+    ("dollar_delta_x", "max_dollar_delta_x", 0.205),
+    ("ticker_concentration_after_assignment", "max_ticker_concentration_after_assignment", 1 / 3),
+]
+
+
+def test_the_hand_built_book_passes_every_check_under_loose_limits() -> None:
+    port, profile, holdings = _book()
+    checks = risk.check_constraints(port, profile, _LOOSE, holdings)
+    assert sorted(c.name for c in checks) == sorted(n for n, _, _ in _CHECKS)
+    assert all(c.passed for c in checks)
+    assert {c.name: c.value for c in checks} == pytest.approx({n: v for n, _, v in _CHECKS})
+
+
+@pytest.mark.parametrize(("name", "field", "value"), _CHECKS, ids=[n for n, _, _ in _CHECKS])
+def test_each_check_fails_alone_when_its_limit_is_broken(
+    name: str, field: str, value: float
+) -> None:
+    port, profile, holdings = _book()
+    at = risk.check_constraints(port, profile, _LOOSE.model_copy(update={field: value}), holdings)
+    assert all(c.passed for c in at), "a value equal to its limit passes"
+    below = _LOOSE.model_copy(update={field: value * 0.99})
+    checks = risk.check_constraints(port, profile, below, holdings)
+    assert [c.name for c in checks if not c.passed] == [name]
+    report = risk.build_risk_report(port, profile, below, [], {}, holdings)
+    assert not report.passed
+
+
+def test_a_cash_account_has_no_margin_check_and_puts_alone_drive_concentration() -> None:
+    port, profile, holdings = _book()
+    cash = profile.model_copy(update={"account_type": "cash"})
+    assert "margin_usage" not in {c.name for c in risk.check_constraints(port, cash, _LOOSE)}
+    # LEAPS on a ticker never count toward its concentration after assignment
+    leaps_only = port.model_copy(
+        update={"positions": [p for p in port.positions if p.strategy == "leaps"]}
+    )
+    (conc,) = [
+        c
+        for c in risk.check_constraints(leaps_only, profile, _LOOSE, holdings)
+        if c.name == "ticker_concentration_after_assignment"
+    ]
+    assert conc.value == 0.0
+
+
+# ------------------------------------- W33: the property test over many sectors and prices
+@st.composite
+def _synthetic_world(draw: st.DrawFn) -> list[OptionCandidate]:
+    sectors = ["Technology", "Health", "Energy", "Financials"]
+    out: list[OptionCandidate] = []
+    for i in range(draw(st.integers(min_value=1, max_value=12))):
+        ticker = f"T{draw(st.integers(min_value=0, max_value=5))}"
+        sector = sectors[int(ticker[1:]) % len(sectors)]  # one sector per ticker
+        spot = draw(st.sampled_from([12.0, 45.0, 110.0, 380.0, 900.0]))
+        if draw(st.booleans()):
+            strike = round(spot * draw(st.floats(min_value=0.7, max_value=1.0)), 2)
+            mid = round(spot * draw(st.floats(min_value=0.005, max_value=0.05)), 2) or 0.01
+            delta = -draw(st.floats(min_value=0.05, max_value=0.5))
+            c = _put(ticker, sector=sector, spot=spot, strike=strike, mid=mid, delta=delta)
+        else:
+            mid = round(spot * draw(st.floats(min_value=0.1, max_value=0.4)), 2)
+            c = _call(ticker, sector=sector, mid=mid).model_copy(
+                update={"spot": spot, "strike": spot * 0.8}
+            )
+        out.append(c.model_copy(update={"id": f"{c.id}-{i}"}))
+    return out
+
+
+@settings(max_examples=150, deadline=None)
+@given(
+    cands=_synthetic_world(),
+    account=st.sampled_from(["cash", "margin"]),
+    av=st.floats(min_value=10_000, max_value=2_000_000),
+    bp_mult=st.floats(min_value=0.2, max_value=1.5),
+    tight=st.fixed_dictionaries(
+        {
+            "max_short_put_notional_x": st.floats(min_value=0.05, max_value=1.5),
+            "max_margin_usage": st.floats(min_value=0.02, max_value=0.5),
+            "max_loss_per_position": st.floats(min_value=0.005, max_value=0.05),
+            "max_exposure_per_ticker": st.floats(min_value=0.005, max_value=0.1),
+            "max_per_sector": st.floats(min_value=0.01, max_value=0.35),
+            "max_dollar_delta_x": st.floats(min_value=0.05, max_value=1.5),
+            "max_portfolio_loss": st.floats(min_value=0.01, max_value=0.3),
+            "max_assignment_cash_x": st.floats(min_value=0.1, max_value=2.0),
+        }
+    ),
+)
+def test_sizing_never_violates_constraints_on_synthetic_worlds(
+    cands: list[OptionCandidate],
+    account: str,
+    av: float,
+    bp_mult: float,
+    tight: dict[str, float],
+) -> None:
+    """Many sectors, price levels and limits drawn tight, so every cap gets to bind."""
+    limits = Constraints(**tight)
+    bp = av * bp_mult
+    port = _fill(cands, limits, account=account, av=av, bp=bp)
+    profile = UserProfile(
+        buying_power=bp,
+        account_value=av,
+        account_type=account,  # type: ignore[arg-type]
+        risk_profile="balanced",
+    )
+    failed = [c for c in risk.check_constraints(port, profile, limits) if not c.passed]
+    assert not failed, failed
