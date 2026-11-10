@@ -36,6 +36,9 @@ overlap: 0.15
 
 knowledge_dir: knowledge          # concepts/, basics/, tax/, rules/, filings/ (Markdown + YAML front-matter)
 index_db: data/knowledge.sqlite   # rebuilt by `make index`; built lazily on first use if missing
+# W42: no documents under knowledge_dir is an error at start-up (and /healthz answers 503), not a
+# silent "I don't have a source" on every question. Set true only for a deployment without a corpus.
+allow_empty_corpus: false
 
 # Collections and their weight in the fused ranking (evidence is the per-run in-memory collection
 # of trend-scout posts and news, indexed by Market Intelligence in step 10.3).

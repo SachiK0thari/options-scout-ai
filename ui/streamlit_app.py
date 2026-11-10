@@ -20,6 +20,20 @@ for p in (_ROOT, _ROOT / "src"):
 
 st.set_page_config(page_title="OptionsScout", page_icon="🔭", layout="wide")
 
+from options_scout.config import load_env  # noqa: E402
+from options_scout.env import EnvConfigError, check_startup  # noqa: E402
+from options_scout.rag.retriever import (  # noqa: E402
+    KnowledgeBaseEmptyError,
+    ensure_knowledge_base,
+)
+
+load_env()
+try:  # W42: a bad setting or an empty knowledge base stops the app with the reason
+    check_startup()
+except EnvConfigError as exc:
+    st.error(str(exc))
+    st.stop()
+
 from ui import session  # noqa: E402
 from ui.tabs import (  # noqa: E402
     candidates,
@@ -44,6 +58,19 @@ RENDERERS = (
     trends.render,
     under_the_hood.render,
 )
+
+
+@st.cache_resource(show_spinner=False)
+def _knowledge_chunks() -> int:
+    """W42: build or check the knowledge index once per process, on its own connection."""
+    return ensure_knowledge_base(session.CFG)
+
+
+try:
+    _knowledge_chunks()
+except KnowledgeBaseEmptyError as exc:
+    st.error(str(exc))
+    st.stop()
 
 session.banner()
 st.title("🔭 OptionsScout")

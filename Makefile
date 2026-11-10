@@ -4,14 +4,14 @@ UV        ?= uv
 PORT_API  ?= 8000
 PORT_UI   ?= 8501
 
-.PHONY: help install test test-cov test-live mutation lint fmt eval bench requirements api ui mcp demo demo-core bottlenecks index clean check
+.PHONY: help install test test-cov test-live mutation lint fmt eval bench requirements requirements-check api ui mcp demo demo-core bottlenecks index clean check
 
 help:
 	@grep -E '^[a-zA-Z_-]+:.*?## ' $(MAKEFILE_LIST) | awk 'BEGIN {FS = ":.*?## "}; {printf "  %-12s %s\n", $$1, $$2}'
 
-install: ## create .venv and install all deps (uv)
+install: ## create .venv and install all deps at the versions in requirements.txt (uv)
 	$(UV) venv .venv --python 3.12 --allow-existing
-	$(UV) pip install --python $(PY) -e ".[dev,mcp]"
+	$(UV) pip install --python $(PY) -c requirements.txt -e ".[dev,mcp]"
 	@test -f .env || cp .env.example .env
 	@echo "Installed. Edit .env if you want live data / an LLM key."
 
@@ -48,6 +48,10 @@ bench: ## performance benchmarks in fixture mode (latency per agent, tokens, cos
 
 requirements: ## export requirements.txt from pyproject.toml (pinned, universal); pyproject stays the source of truth
 	$(PY) scripts/export_requirements.py --uv $(UV)
+
+requirements-check: ## fail when requirements.txt is out of date with pyproject.toml (CI)
+	$(PY) scripts/export_requirements.py --uv $(UV)
+	git diff --exit-code -- requirements.txt
 
 api: ## FastAPI on localhost:8000 (local dev: anonymous allowed because it is not published)
 	OPTIONS_SCOUT_ALLOW_ANONYMOUS=$${OPTIONS_SCOUT_ALLOW_ANONYMOUS:-1} $(PY) -m uvicorn options_scout.api.main:app --host 127.0.0.1 --port $(PORT_API) --reload

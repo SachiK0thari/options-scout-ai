@@ -10,8 +10,10 @@ jobs:
       - uses: astral-sh/setup-uv@v6
         with:
           version: "0.8.4"
-      - name: Install
+      - name: Install (pinned by requirements.txt)
         run: make install
+      - name: requirements.txt matches pyproject.toml
+        run: make requirements-check
       - name: Lint (ruff + mypy --strict)
         run: make lint
       - name: Tests with coverage (fails below 85% on core/, rag/, agent/, bottleneck/)

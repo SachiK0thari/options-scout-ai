@@ -80,7 +80,10 @@ def format_run(run: BottleneckRun, *, top: int = 10) -> str:
 
 
 def main(argv: list[str] | None = None) -> int:
+    from options_scout.env import check_startup_or_exit
+
     load_env()
+    check_startup_or_exit()  # W42: bad settings stop here, with a message
     parser = argparse.ArgumentParser(description="Refresh the bottleneck board snapshot.")
     mode = parser.add_mutually_exclusive_group()
     mode.add_argument("--mode", choices=["live", "fixture"], default=None)

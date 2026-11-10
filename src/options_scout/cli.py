@@ -275,7 +275,10 @@ def cmd_ask(deps: Any, question: str) -> int:
 
 
 def main(argv: Sequence[str] | None = None) -> int:
+    from options_scout.env import check_startup_or_exit
+
     load_env()
+    check_startup_or_exit()  # W42: bad settings stop here, with a message
     parser = argparse.ArgumentParser(
         prog="options-scout", description="Educational options screener. Not investment advice."
     )

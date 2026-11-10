@@ -24,7 +24,8 @@ class IVSnapshotStore:
         self.path.parent.mkdir(parents=True, exist_ok=True)
         # One connection shared by the parallel per-ticker graph branches → serialise access.
         self._lock = threading.Lock()
-        self._conn = sqlite3.connect(str(self.path), check_same_thread=False)
+        # the scheduler writes while the API and UI read: wait on the file lock (W39)
+        self._conn = sqlite3.connect(str(self.path), check_same_thread=False, timeout=30)
         with self._lock:
             self._conn.execute(
                 "CREATE TABLE IF NOT EXISTS iv_snapshots (ticker TEXT NOT NULL, day TEXT NOT NULL, "
@@ -66,8 +67,10 @@ def main(argv: list[str] | None = None) -> int:
     from options_scout.config import get_config, load_env
     from options_scout.data.fixtures import DEMO_TICKERS
     from options_scout.data.market import MarketData
+    from options_scout.env import check_startup_or_exit
 
     load_env()
+    check_startup_or_exit()  # W42: bad settings stop here, with a message
     parser = argparse.ArgumentParser(description="Record today's ATM IV per ticker.")
     parser.add_argument("tickers", nargs="*", help="defaults to the demo tickers")
     args = parser.parse_args(argv)

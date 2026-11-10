@@ -15,7 +15,10 @@ from options_scout.social.pipeline import TrendScout, TrendStore
 
 
 def main(argv: list[str] | None = None) -> int:
+    from options_scout.env import check_startup_or_exit
+
     load_env()
+    check_startup_or_exit()  # W42: bad settings stop here, with a message
     parser = argparse.ArgumentParser(description="Refresh the trend board snapshot.")
     parser.add_argument("--mode", choices=["live", "fixture"], default=None)
     parser.add_argument("--top", type=int, default=15)
@@ -37,7 +40,9 @@ def main(argv: list[str] | None = None) -> int:
     run = scout.run()
     store = TrendStore(cfg.paths.cache_db.parent / "trends.sqlite")
     store.save(run)
-    purged = store.purge(cfg.settings.trends.retention_hours)
+    # W42: purge against the run's own clock. The wall clock against a fixture snapshot dated
+    # 2026-10-27 deleted the snapshot just saved, so fixture mode always ended with zero rows.
+    purged = store.purge(cfg.settings.trends.retention_hours, now=run.as_of)
     by_src = " ".join(f"{k}={v}" for k, v in run.posts_by_source.items())
     print(f"sources={','.join(run.sources_used)} posts_by_source: {by_src}")
     print(

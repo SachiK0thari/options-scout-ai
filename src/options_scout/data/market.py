@@ -642,6 +642,49 @@ def _as_date(x: Any) -> date | None:
 
 
 # --------------------------------------------------------------------------------- facade
+class UnavailableSource:
+    """W42: the live default for a server that has no market-data key of its own.
+
+    The server still starts and serves everything that needs no quotes (health, concept
+    questions, requests that bring their own key); any quote it is asked for raises
+    :class:`MarketDataError` with the reason, instead of every route failing at start-up."""
+
+    name = "unavailable"
+
+    def __init__(self, reason: str) -> None:
+        self.reason = reason
+
+    def _fail(self) -> MarketDataError:
+        return MarketDataError(self.reason)
+
+    def get_spot(self, ticker: str) -> SpotQuote:
+        raise self._fail()
+
+    def list_expiries(self, ticker: str) -> list[date]:
+        raise self._fail()
+
+    def get_option_chain(self, ticker: str, expiry: date) -> OptionChain:
+        raise self._fail()
+
+    def get_earnings_date(self, ticker: str) -> date | None:
+        raise self._fail()
+
+    def get_close_history(self, ticker: str, days: int) -> list[float]:
+        raise self._fail()
+
+    def get_dividend_yield(self, ticker: str) -> float:
+        raise self._fail()
+
+    def get_index_history(self, symbol: str, days: int) -> list[float]:
+        raise self._fail()
+
+    def get_index_last(self, symbol: str) -> float:
+        raise self._fail()
+
+    def now(self) -> datetime:
+        return datetime.now(tz=UTC)
+
+
 class MarketData:
     """Cached, typed facade used by tools and agent nodes."""
 
@@ -696,7 +739,8 @@ class MarketData:
                 far_dte_min=far,
             )
         md_cfg = cfg.settings.market_data
-        chosen = provider or os.environ.get("OPTIONS_SCOUT_MARKET_PROVIDER") or md_cfg.provider
+        env_provider = os.environ.get("OPTIONS_SCOUT_MARKET_PROVIDER", "").strip().lower()
+        chosen = provider or env_provider or md_cfg.provider
         source: MarketSource
         if chosen == "tradier":
             key = api_key or os.environ.get(md_cfg.tradier.api_key_env, "")
@@ -728,6 +772,26 @@ class MarketData:
             near_dte=near,
             far_dte_min=far,
         )
+
+    @classmethod
+    def unavailable(cls, cfg: AppConfig, reason: str) -> MarketData:
+        """A facade over :class:`UnavailableSource` (W42: a live server with no key of its own)."""
+        return cls(
+            UnavailableSource(reason),
+            MemoryCache(),
+            cfg.settings.cache_ttl_seconds.model_dump(),
+            IVSnapshotStore(cfg.paths.iv_snapshot_db),
+            near_dte=(cfg.rules.csp.dte_min - 10, cfg.rules.csp.dte_max + 15),
+            far_dte_min=cfg.rules.leaps.dte_min - 35,
+        )
+
+    @property
+    def available(self) -> bool:
+        return not isinstance(self.source, UnavailableSource)
+
+    @property
+    def unavailable_reason(self) -> str | None:
+        return self.source.reason if isinstance(self.source, UnavailableSource) else None
 
     # -- cached primitives -----------------------------------------------------------
     def _cached(self, key: str, ttl_key: str, fetch: Any, parse: Any) -> Any:

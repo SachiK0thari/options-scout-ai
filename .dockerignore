@@ -1,0 +1,21 @@
+# W42: keys, local state and tooling never enter the build context.
+.env
+.env.*
+.git
+.github
+.venv
+**/__pycache__
+**/*.pyc
+.pytest_cache
+.mypy_cache
+.ruff_cache
+.hypothesis
+.coverage
+htmlcov
+mutants
+miscellaneous
+notebooks
+data/*.sqlite
+data/*.sqlite-*
+data/bottleneck_series
+evals/reports

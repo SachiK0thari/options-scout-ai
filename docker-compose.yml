@@ -1,52 +1,75 @@
+# Settings shared by every service. Live market data needs MARKETDATA_TOKEN (or TRADIER_API_KEY
+# with OPTIONS_SCOUT_MARKET_PROVIDER=tradier); without one the API still starts and serves requests
+# that bring their own key (W42).
+x-common-env: &common-env
+  OPTIONS_SCOUT_DATA_MODE: ${OPTIONS_SCOUT_DATA_MODE:-fixture}   # fixture by default; set live to use real sources
+  OPTIONS_SCOUT_LLM_MODE: ${OPTIONS_SCOUT_LLM_MODE:-fixture}
+  OPTIONS_SCOUT_MARKET_PROVIDER: ${OPTIONS_SCOUT_MARKET_PROVIDER:-}
+  MARKETDATA_TOKEN: ${MARKETDATA_TOKEN:-}
+  TRADIER_API_KEY: ${TRADIER_API_KEY:-}
+  OPENROUTER_API_KEY: ${OPENROUTER_API_KEY:-}
+  ANTHROPIC_API_KEY: ${ANTHROPIC_API_KEY:-}
+
+# What the services share on scout-data (W39): the market cache and the trend, bottleneck and
+# IV snapshot databases. The scheduler refreshes the snapshots that the API and UI read; every
+# store locks its own connection and waits up to 30 s on SQLite's file lock for another
+# service's write. Each front end has its own checkpoint file (checkpoints.sqlite for the UI,
+# checkpoints-api.sqlite for the API), and the knowledge index lives in the image, not here.
 services:
   api:
     build: .
     command: ["python", "-m", "uvicorn", "options_scout.api.main:app", "--host", "0.0.0.0", "--port", "8000"]
     ports: ["8000:8000"]
+    restart: unless-stopped
     environment:
-      OPTIONS_SCOUT_DATA_MODE: ${OPTIONS_SCOUT_DATA_MODE:-fixture}   # fixture by default; set live to use real sources
-      OPTIONS_SCOUT_LLM_MODE: ${OPTIONS_SCOUT_LLM_MODE:-fixture}
-      OPENROUTER_API_KEY: ${OPENROUTER_API_KEY:-}
-      ANTHROPIC_API_KEY: ${ANTHROPIC_API_KEY:-}
+      <<: *common-env
       # required: the API refuses to start without it (clients send it as X-API-Key)
       OPTIONS_SCOUT_API_KEY: ${OPTIONS_SCOUT_API_KEY:-}
+      OPTIONS_SCOUT_RATE_LIMIT_PER_MIN: ${OPTIONS_SCOUT_RATE_LIMIT_PER_MIN:-}
       LANGSMITH_API_KEY: ${LANGSMITH_API_KEY:-}
     volumes: ["scout-data:/app/data"]
     healthcheck:
+      # 503 when the knowledge base is empty (W42), so an image without it reports unhealthy
       test: ["CMD", "python", "-c", "import urllib.request; urllib.request.urlopen('http://localhost:8000/healthz')"]
       interval: 30s
       timeout: 5s
       retries: 3
+      start_period: 30s
 
   ui:
     build: .
     command: ["python", "-m", "streamlit", "run", "ui/streamlit_app.py", "--server.port", "8501", "--server.address", "0.0.0.0", "--server.headless", "true"]
     # the Streamlit UI has no authentication: published on this machine only (W37)
     ports: ["127.0.0.1:8501:8501"]
+    restart: unless-stopped
     environment:
-      OPTIONS_SCOUT_DATA_MODE: ${OPTIONS_SCOUT_DATA_MODE:-fixture}
-      OPTIONS_SCOUT_LLM_MODE: ${OPTIONS_SCOUT_LLM_MODE:-fixture}
-      OPENROUTER_API_KEY: ${OPENROUTER_API_KEY:-}
-      ANTHROPIC_API_KEY: ${ANTHROPIC_API_KEY:-}
+      <<: *common-env
     volumes: ["scout-data:/app/data"]
     depends_on: [api]
+    healthcheck:
+      test: ["CMD", "python", "-c", "import urllib.request; urllib.request.urlopen('http://localhost:8501/_stcore/health')"]
+      interval: 30s
+      timeout: 5s
+      retries: 3
+      start_period: 30s
 
   scheduler:
     # Daily jobs: ATM IV snapshot per watchlist ticker, trend-board refresh and the bottleneck
-    # board refresh with its thesis monitor (Phase 11).
+    # board refresh with its thesis monitor (Phase 11). A failed job is logged with its exit code
+    # and the heartbeat is not touched, so the healthcheck turns unhealthy (W42).
     build: .
+    restart: unless-stopped
     command: >
-      sh -c "while true; do
-        python -m options_scout.jobs.snapshot_iv || true;
-        python -m options_scout.jobs.refresh_trends || true;
-        python -m options_scout.jobs.refresh_bottlenecks || true;
+      sh -c 'while true; do
+        ok=1;
+        for job in snapshot_iv refresh_trends refresh_bottlenecks; do
+          python -m options_scout.jobs.$$job || { echo "scheduler: $$job failed (exit $$?)" >&2; ok=0; };
+        done;
+        [ $$ok = 1 ] && touch /app/data/scheduler.heartbeat;
         sleep 86400;
-      done"
+      done'
     environment:
-      OPTIONS_SCOUT_DATA_MODE: ${OPTIONS_SCOUT_DATA_MODE:-fixture}
-      OPTIONS_SCOUT_LLM_MODE: ${OPTIONS_SCOUT_LLM_MODE:-fixture}
-      OPENROUTER_API_KEY: ${OPENROUTER_API_KEY:-}
-      ANTHROPIC_API_KEY: ${ANTHROPIC_API_KEY:-}
+      <<: *common-env
       REDDIT_CLIENT_ID: ${REDDIT_CLIENT_ID:-}
       REDDIT_CLIENT_SECRET: ${REDDIT_CLIENT_SECRET:-}
       REDDIT_USER_AGENT: ${REDDIT_USER_AGENT:-options-scout-ai/0.1 (educational screener)}
@@ -56,6 +79,13 @@ services:
       OPTIONS_SCOUT_CONTACT_EMAIL: ${OPTIONS_SCOUT_CONTACT_EMAIL:-}
       FRED_API_KEY: ${FRED_API_KEY:-}
     volumes: ["scout-data:/app/data"]
+    healthcheck:
+      # healthy while every job of the last daily pass succeeded (heartbeat younger than 25 hours)
+      test: ["CMD", "python", "-c", "import os, sys, time; p = '/app/data/scheduler.heartbeat'; sys.exit(not os.path.exists(p) or time.time() - os.path.getmtime(p) > 90000)"]
+      interval: 5m
+      timeout: 10s
+      retries: 1
+      start_period: 15m
 
 volumes:
   scout-data:

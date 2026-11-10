@@ -39,6 +39,23 @@ from options_scout.rag.models import (
 from options_scout.rag.store import KnowledgeStore
 
 
+class KnowledgeBaseEmptyError(RuntimeError):
+    """The knowledge base has no documents and ``rag.allow_empty_corpus`` is false (W42)."""
+
+
+def ensure_knowledge_base(cfg: AppConfig) -> int:
+    """Build the index if it is missing or stale and return its chunk count (W42 start-up check).
+
+    Raises :class:`KnowledgeBaseEmptyError` unless ``rag.allow_empty_corpus`` is set. It opens and
+    closes its own connection: a SQLite connection is bound to the thread that opened it, so the
+    check must never leave one behind for the agents' run threads."""
+    retriever = KnowledgeRetriever.from_config(cfg)
+    try:
+        return len(retriever.store)
+    finally:
+        retriever.store.close()
+
+
 def chunk_params(cfg: RagConfig) -> ChunkParams:
     return ChunkParams(chunk_tokens=cfg.chunk_tokens, overlap=cfg.overlap)
 
@@ -61,6 +78,12 @@ class KnowledgeRetriever:
         embedder = make_embedder(cfg.rag)
         store = KnowledgeStore(cfg.rag.index_db)
         chunks = chunk_documents(load_corpus(cfg.rag.knowledge_dir), chunk_params(cfg.rag))
+        if not chunks and not cfg.rag.allow_empty_corpus:
+            raise KnowledgeBaseEmptyError(
+                f"the knowledge base is empty: no documents under {cfg.rag.knowledge_dir}. Copy "
+                "knowledge/ into the deployment (and run `python -m options_scout.rag.index`), or "
+                "set rag.allow_empty_corpus: true if it has no corpus on purpose."
+            )
         if rebuild or not store.is_current(chunks, embedder):
             store.rebuild(chunks, embedder)
         return cls(store, embedder, cfg.rag)

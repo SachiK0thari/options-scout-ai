@@ -94,7 +94,7 @@ def configure_logging(level: str | None = None) -> None:
     global _configured
     if _configured:
         return
-    level = level or os.environ.get("OPTIONS_SCOUT_LOG_LEVEL", "INFO")
+    level = (level or os.environ.get("OPTIONS_SCOUT_LOG_LEVEL", "") or "INFO").strip().upper()
     logging.basicConfig(level=level, stream=sys.stderr, format="%(message)s")
     for name in _QUIET_LOGGERS:  # httpx logs every full URL, query-string keys included, at INFO
         logging.getLogger(name).setLevel(logging.WARNING)

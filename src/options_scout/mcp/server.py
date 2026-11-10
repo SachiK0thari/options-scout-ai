@@ -969,7 +969,10 @@ def create_server(deps: Deps | None = None) -> MCPServer[None]:
 
 def main() -> None:
     """``python -m options_scout.mcp.server``: serve over stdio (``make mcp``)."""
+    from options_scout.env import check_startup_or_exit
+
     load_env()
+    check_startup_or_exit()  # W42: bad settings stop here, with a message
     configure_logging()
     get_logger(component="mcp").info("mcp_server_start", transport="stdio", version=__version__)
     create_server().run("stdio")

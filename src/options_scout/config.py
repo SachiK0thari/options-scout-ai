@@ -205,6 +205,10 @@ class AgentSettings(_Strict):
     # Conversation threads whose newest checkpoint is older than this are deleted when the
     # checkpoint database is opened (0 keeps every thread forever).
     checkpoint_retention_days: int = Field(ge=0)
+    # W39: the API runs screens and chat turns on a fixed pool of this many workers, with at most
+    # ``api_max_queued`` more waiting; past that a new run gets 429.
+    api_max_workers: int = Field(default=4, ge=1, le=64)
+    api_max_queued: int = Field(default=8, ge=0, le=1000)
 
 
 class RiskSettings(_Strict):
@@ -1018,6 +1022,10 @@ class RagConfig(_Strict):
     knowledge_dir: Path
     index_db: Path
     collections: dict[CollectionName, CollectionConfig]
+    # W42: an empty knowledge base is an error (the image once shipped without one and every
+    # answer came back "no source" with nothing failing). True only for a deployment that has no
+    # corpus on purpose.
+    allow_empty_corpus: bool = False
 
     @model_validator(mode="after")
     def _complete(self) -> RagConfig:
@@ -1050,8 +1058,17 @@ class RagConfig(_Strict):
 
 
 def _apply_rag_overrides(raw: dict[str, Any]) -> dict[str, Any]:
-    env_val = os.environ.get("OPTIONS_SCOUT_RAG_EMBEDDER")
-    return {**raw, "embedder": env_val} if env_val else raw
+    """``OPTIONS_SCOUT_RAG_EMBEDDER`` sets the embedder; ``OPTIONS_SCOUT_RAG_INDEX_DB`` moves the
+    index (relative to the repository root unless absolute). The image keeps its index outside
+    the shared data volume, so each container reads the copy built with it (W39)."""
+    out = dict(raw)
+    env_val = os.environ.get("OPTIONS_SCOUT_RAG_EMBEDDER", "").strip().lower()
+    if env_val:
+        out["embedder"] = env_val
+    index_db = os.environ.get("OPTIONS_SCOUT_RAG_INDEX_DB", "").strip()
+    if index_db:
+        out["index_db"] = index_db
+    return out
 
 
 # ---------------------------------------------------------------------- compliance.yaml
@@ -1163,8 +1180,8 @@ def _apply_env_overrides(raw: dict[str, Any]) -> dict[str, Any]:
     """
     out = dict(raw)
     for key in ("data_mode", "llm_mode"):
-        env_val = os.environ.get(f"OPTIONS_SCOUT_{key.upper()}")
-        if env_val:
+        env_val = os.environ.get(f"OPTIONS_SCOUT_{key.upper()}", "").strip().lower()
+        if env_val:  # W42: case and spaces are normalised ("LIVE" is "live")
             out[key] = env_val
     checkpoint_db = os.environ.get("OPTIONS_SCOUT_CHECKPOINT_DB")
     if checkpoint_db:
