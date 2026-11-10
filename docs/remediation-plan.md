@@ -1307,6 +1307,19 @@ unchanged" and the code then adds `cash_used` to it. Consumers:
 
 Suggested commit: `fix(holdings): concentration after assignment uses holdings plus buying power everywhere`
 
+**Status, 2026-11-09:** done in the working tree, steps 1 to 3. `sizing.concentration_base` now
+takes the buying power as a float and is the one base used by the sizer, both places in
+`core/risk.py`, and `holdings.post_assignment` (which takes `buying_power=` and no longer adds
+the put's cash to the denominator). `concentration_after_assignment(..., sized=True)` counts every
+sized put on a ticker together, as the risk check does, and marks such rows
+`includes_other_puts`; before sizing the one-contract rows stay alternatives. The holdings node
+passes the profile's buying power and computes nothing when the thread has no profile. The chart
+draws one bar pair per ticker (the worst row) and the narrative says "the sized NKE puts, all
+assigned" for combined rows. Tests: the $1M/NKE case and the combined-puts case in
+`tests/unit/test_holdings.py`; the seventh-constraint agent test now asserts the chart's figure
+equals the risk check's value. Full suite passes; no new mypy errors (28 before and after, all
+pre-existing).
+
 ---
 
 ### W21. FIRE figures mix a real target with a nominal return

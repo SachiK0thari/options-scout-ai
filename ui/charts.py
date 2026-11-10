@@ -15,6 +15,7 @@ from options_scout.core.models import (
     GoalPlan,
     HoldingsAnalysis,
     OptionCandidate,
+    PostAssignment,
     QualityCheck,
     StressResult,
     TrendSignal,
@@ -692,8 +693,15 @@ def sector_weights_bar(analysis: HoldingsAnalysis) -> go.Figure:
 
 
 def concentration_after_assignment_bar(analysis: HoldingsAnalysis, cap: float) -> go.Figure:
-    """Each screened put's ticker weight before and after assignment, against the profile cap."""
-    rows = analysis.post_assignment
+    """Each ticker's weight before and after assignment, against the profile cap, on the same
+    base as the risk check (holdings plus buying power). One bar pair per ticker: for a sized
+    portfolio the row already counts every put on the ticker, as the check does; before sizing
+    the puts are alternatives and the bar shows the one that would concentrate most."""
+    worst: dict[str, PostAssignment] = {}
+    for r in analysis.post_assignment:
+        if r.ticker not in worst or r.weight_after > worst[r.ticker].weight_after:
+            worst[r.ticker] = r
+    rows = list(worst.values())
     fig = go.Figure()
     fig.add_bar(
         name="today",
@@ -707,7 +715,9 @@ def concentration_after_assignment_bar(analysis: HoldingsAnalysis, cap: float) -
         x=[r.ticker for r in rows],
         y=[round(r.weight_after * 100, 1) for r in rows],
         marker={"color": [theme.NEGATIVE if r.weight_after > cap else theme.ACCENT for r in rows]},
-        customdata=[r.candidate_id for r in rows],
+        customdata=[
+            f"all sized {r.ticker} puts" if r.includes_other_puts else r.candidate_id for r in rows
+        ],
         hovertemplate="%{customdata}: %{y:.1f}% after assignment<extra></extra>",
     )
     fig.add_hline(

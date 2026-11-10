@@ -921,8 +921,9 @@ class PostAssignment(Model):
     strike: float
     shares_added: int
     cash_used: float
-    weight_before: float
+    weight_before: float  # share of holdings plus buying power (sizing.concentration_base)
     weight_after: float
+    includes_other_puts: bool = False  # weight_after also counts other sized puts on the ticker
 
 
 class HoldingsAnalysis(Model):

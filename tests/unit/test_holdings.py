@@ -10,8 +10,8 @@ from hypothesis import given, settings
 from hypothesis import strategies as st
 
 from options_scout.config import AppConfig
-from options_scout.core import holdings
-from options_scout.core.models import Holding, OptionCandidate
+from options_scout.core import holdings, sizing
+from options_scout.core.models import Holding, OptionCandidate, UserProfile
 
 PRICES = {"AAPL": 200.0, "MSFT": 400.0, "SPY": 500.0, "COST": 900.0}
 SECTORS = {"AAPL": "Technology", "MSFT": "Technology", "SPY": "ETF", "COST": "Consumer Defensive"}
@@ -76,17 +76,16 @@ def test_beta_of_a_scaled_series_is_the_scale() -> None:
     assert holdings.beta(stock, [100.0] * 60) is None  # flat index: no variance
 
 
-def test_post_assignment_concentration(config: AppConfig) -> None:
-    a = holdings.analyse_holdings(_holdings(), PRICES, SECTORS, config.holdings)
-    cand = OptionCandidate(
-        id="CSP-AAPL",
+def _csp(ticker: str = "AAPL", strike: float = 180.0, cid: str = "CSP-AAPL") -> OptionCandidate:
+    return OptionCandidate(
+        id=cid,
         strategy="csp",
-        ticker="AAPL",
+        ticker=ticker,
         sector="Technology",
         spot=200.0,
         expiry=date(2026, 12, 18),
         dte=44,
-        strike=180.0,
+        strike=strike,
         kind="put",
         bid=2.0,
         ask=2.2,
@@ -101,24 +100,72 @@ def test_post_assignment_concentration(config: AppConfig) -> None:
         theta=-0.05,
         vega=0.2,
         prob_otm=0.8,
-        collateral=17_790.0,
+        collateral=strike * 100 - 210.0,
         margin_req=None,
         annualized_return=0.1,
         return_on_margin=None,
         extrinsic_per_year_pct=None,
         intrinsic=None,
         extrinsic=None,
-        breakeven=177.9,
+        breakeven=strike - 2.1,
         earnings_before_expiry=False,
         flags=[],
     )
-    pa = holdings.post_assignment(a, cand, 2)
+
+
+def test_post_assignment_concentration(config: AppConfig) -> None:
+    a = holdings.analyse_holdings(_holdings(), PRICES, SECTORS, config.holdings)
+    cand = _csp()
+    pa = holdings.post_assignment(a, cand, 2, buying_power=100_000.0)
     assert pa.shares_added == 200 and pa.cash_used == 36_000.0
-    assert pa.weight_before == pytest.approx(40_000 / 109_000)
-    assert pa.weight_after == pytest.approx(76_000 / 145_000)
-    assert pa.weight_after > pa.weight_before
+    # base = holdings 109,000 + buying power 100,000; the collateral is inside it
+    assert pa.weight_before == pytest.approx(40_000 / 209_000)
+    assert pa.weight_after == pytest.approx(76_000 / 209_000)
+    assert pa.weight_after > pa.weight_before and not pa.includes_other_puts
     with pytest.raises(ValueError):
-        holdings.post_assignment(a, cand.model_copy(update={"strategy": "leaps"}), 1)
+        holdings.post_assignment(
+            a, cand.model_copy(update={"strategy": "leaps"}), 1, buying_power=100_000.0
+        )
+
+
+def test_post_assignment_uses_the_sizer_and_risk_check_base(config: AppConfig) -> None:
+    """W20: $1M cash, 50 AAPL (~$10k), 36 NKE puts. The holdings analysis used to divide by
+    holdings plus that put's cash and print 93%; the risk check says about 12.5%."""
+    a = holdings.analyse_holdings(
+        [Holding(ticker="AAPL", shares=50)], {"AAPL": 200.0}, {}, config.holdings
+    )
+    profile = UserProfile(
+        buying_power=1_000_000.0,
+        account_value=1_000_000.0,
+        account_type="cash",
+        risk_profile="balanced",
+    )
+    nke = _csp("NKE", 35.0, "CSP-NKE")
+    pa = holdings.post_assignment(a, nke, 36, buying_power=profile.buying_power)
+    base = sizing.concentration_base(a, profile.buying_power)
+    assert base == pytest.approx(1_010_000.0)
+    assert pa.weight_before == 0.0
+    assert pa.weight_after == pytest.approx(36 * 100 * 35.0 / base)
+    assert pa.weight_after == pytest.approx(0.125, abs=0.001)
+
+
+def test_sized_puts_on_one_ticker_are_counted_together(config: AppConfig) -> None:
+    """The risk check assumes every sized put on a ticker is assigned; so does the chart's row."""
+    a = holdings.analyse_holdings(_holdings(), PRICES, SECTORS, config.holdings)
+    p1, p2 = _csp(strike=180.0, cid="CSP-1"), _csp(strike=170.0, cid="CSP-2")
+    sized = holdings.concentration_after_assignment(
+        a, [(p1, 2), (p2, 1)], buying_power=100_000.0, sized=True
+    )
+    expected = (40_000 + 36_000 + 17_000) / 209_000
+    assert [r.weight_after for r in sized] == pytest.approx([expected, expected])
+    assert all(r.includes_other_puts for r in sized)
+    alternatives = holdings.concentration_after_assignment(
+        a, [(p1, 2), (p2, 1)], buying_power=100_000.0
+    )
+    assert [r.weight_after for r in alternatives] == pytest.approx(
+        [76_000 / 209_000, 57_000 / 209_000]
+    )
+    assert not any(r.includes_other_puts for r in alternatives)
 
 
 @settings(max_examples=200, deadline=None)

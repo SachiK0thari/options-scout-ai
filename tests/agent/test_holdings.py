@@ -19,7 +19,7 @@ from options_scout.agent.graph import (
 from options_scout.config import AppConfig, load_config
 from options_scout.core import ranking, risk, screeners, sizing
 from options_scout.core.allocation import allocate
-from options_scout.core.holdings import analyse_holdings
+from options_scout.core.holdings import analyse_holdings, concentration_after_assignment
 from options_scout.core.models import Holding, MarketRegime, UserProfile
 from options_scout.data.fixtures import DEMO_TICKERS
 from options_scout.data.market import MarketData
@@ -144,6 +144,15 @@ def test_seventh_constraint_limits_contracts_and_is_checked(config_module: AppCo
     assert (
         "ticker_concentration_after_assignment" in names
         and names["ticker_concentration_after_assignment"].passed
+    )
+    # W20: the Holdings chart's after-assignment weight is the risk check's figure, same base
+    by_id = {r.candidate.id: r.candidate for r in ranked}
+    pairs = [(by_id[p.candidate_id], p.contracts) for p in with_h.positions if p.strategy == "csp"]
+    rows = concentration_after_assignment(
+        heavy, pairs, buying_power=profile.buying_power, sized=True
+    )
+    assert max((r.weight_after for r in rows), default=0.0) == pytest.approx(
+        names["ticker_concentration_after_assignment"].value
     )
     assert "ticker_concentration_after_assignment" not in {
         c.name for c in risk.check_constraints(without, profile, limits)

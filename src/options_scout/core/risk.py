@@ -19,6 +19,7 @@ from options_scout.core.models import (
     TickerSnapshot,
     UserProfile,
 )
+from options_scout.core.sizing import concentration_base
 
 
 def check_constraints(
@@ -81,7 +82,7 @@ def check_constraints(
     if holdings is not None and holdings.positions:  # seventh constraint (Phase 12)
         # judged on the tickers the sizer put a cash-secured put on: a concentration the user
         # already holds is reported as a warning by build_risk_report, not failed here
-        base = holdings.total_value + profile.buying_power
+        base = concentration_base(holdings, profile.buying_power)
         held = {p.ticker: p.market_value for p in holdings.positions}
         after: dict[str, float] = {}
         for p in portfolio.positions:
@@ -189,7 +190,7 @@ def build_risk_report(
     checks = check_constraints(portfolio, profile, limits, holdings)
     warnings: list[str] = []
     if holdings is not None and holdings.positions:
-        base = holdings.total_value + profile.buying_power
+        base = concentration_base(holdings, profile.buying_power)
         cap = limits.max_ticker_concentration_after_assignment
         for hp in holdings.positions:
             if base > 0 and hp.market_value / base > cap:

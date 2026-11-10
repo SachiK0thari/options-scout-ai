@@ -19,6 +19,7 @@ from options_scout.core.models import (
     OptionCandidate,
     PostAssignment,
 )
+from options_scout.core.sizing import concentration_base
 
 MIN_BETA_POINTS = 20
 
@@ -159,20 +160,29 @@ def analyse_holdings(
 
 
 def post_assignment(
-    analysis: HoldingsAnalysis, candidate: OptionCandidate, contracts: int
+    analysis: HoldingsAnalysis,
+    candidate: OptionCandidate,
+    contracts: int,
+    *,
+    buying_power: float,
+    other_cash_on_ticker: float = 0.0,
 ) -> PostAssignment:
-    """Weight of ``candidate.ticker`` after the put is assigned: cash leaves, shares arrive at the
-    strike, so the total is unchanged and the ticker's weight rises by the cash used."""
+    """Weight of ``candidate.ticker`` after the put is assigned, as a share of holdings plus buying
+    power: the base the sizer and the risk check use (``sizing.concentration_base``, PRD 3.10).
+
+    The collateral is cash already inside that base; assignment turns it into stock, so the base
+    does not change and only the ticker's numerator grows. ``other_cash_on_ticker`` adds the cash
+    of other sized puts on the same ticker, so the figure matches the risk check, which assumes
+    every put on a ticker is assigned."""
     if candidate.strategy != "csp" or contracts < 1:
         raise ValueError("post-assignment concentration applies to cash-secured puts")
     shares = contracts * 100
     cash_used = candidate.strike * shares
     before_value = sum(p.market_value for p in analysis.positions if p.ticker == candidate.ticker)
-    total_before = analysis.total_value
-    # the collateral is cash outside the holdings total; after assignment it becomes stock
-    total_after = total_before + cash_used
-    weight_before = before_value / total_before if total_before > 0 else 0.0
-    weight_after = (before_value + cash_used) / total_after if total_after > 0 else 1.0
+    base = concentration_base(analysis, buying_power)
+    weight_before = before_value / base if base > 0 else 0.0
+    after_value = before_value + cash_used + other_cash_on_ticker
+    weight_after = after_value / base if base > 0 else 1.0
     return PostAssignment(
         candidate_id=candidate.id,
         ticker=candidate.ticker,
@@ -181,12 +191,33 @@ def post_assignment(
         cash_used=cash_used,
         weight_before=weight_before,
         weight_after=weight_after,
+        includes_other_puts=other_cash_on_ticker > 0,
     )
 
 
 def concentration_after_assignment(
-    analysis: HoldingsAnalysis, candidates: Sequence[tuple[OptionCandidate, int]]
+    analysis: HoldingsAnalysis,
+    candidates: Sequence[tuple[OptionCandidate, int]],
+    *,
+    buying_power: float,
+    sized: bool = False,
 ) -> list[PostAssignment]:
+    """One row per cash-secured put. With ``sized`` the pairs are the sized portfolio, which can
+    hold several puts on one ticker: each row then counts every put on its ticker, as the risk
+    check does. Without it the pairs are alternatives (one contract of each screened put) and each
+    row stands alone."""
+    puts = [(c, n) for c, n in candidates if c.strategy == "csp" and n >= 1]
+    cash_by_ticker: dict[str, float] = {}
+    if sized:
+        for c, n in puts:
+            cash_by_ticker[c.ticker] = cash_by_ticker.get(c.ticker, 0.0) + c.strike * n * 100
     return [
-        post_assignment(analysis, c, n) for c, n in candidates if c.strategy == "csp" and n >= 1
+        post_assignment(
+            analysis,
+            c,
+            n,
+            buying_power=buying_power,
+            other_cash_on_ticker=(cash_by_ticker[c.ticker] - c.strike * n * 100 if sized else 0.0),
+        )
+        for c, n in puts
     ]

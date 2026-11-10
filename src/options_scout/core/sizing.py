@@ -154,9 +154,10 @@ def _max_contracts(
     return max(n, 0), reason
 
 
-def concentration_base(holdings: HoldingsAnalysis, profile: UserProfile) -> float:
-    """What a ticker's weight is measured against: existing holdings plus the account's cash."""
-    return holdings.total_value + profile.buying_power
+def concentration_base(holdings: HoldingsAnalysis, buying_power: float) -> float:
+    """What a ticker's weight is measured against: existing holdings plus the account's buying
+    power (PRD 3.10). The sizer, the risk check and the holdings analysis all use this one base."""
+    return holdings.total_value + buying_power
 
 
 def concentration_room(
@@ -171,7 +172,7 @@ def concentration_room(
     held = sum(p.market_value for p in holdings.positions if p.ticker == ticker)
     already = book.csp_notional_by_ticker.get(ticker, 0.0)
     cap = limits.max_ticker_concentration_after_assignment
-    return cap * concentration_base(holdings, profile) - held - already
+    return cap * concentration_base(holdings, profile.buying_power) - held - already
 
 
 def size_portfolio(

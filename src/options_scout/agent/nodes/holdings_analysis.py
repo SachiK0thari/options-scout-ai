@@ -65,11 +65,17 @@ def _betas(deps: Deps, tickers: list[str]) -> dict[str, float | None]:
 
 
 def _post_assignment(state: AgentState, analysis: HoldingsAnalysis) -> list[Any]:
-    """Concentration after assignment for the sized CSPs (their contracts) or, before sizing, for
-    every CSP candidate at one contract."""
+    """Concentration after assignment for the sized CSPs (their contracts, every put on a ticker
+    counted together, as the risk check does) or, before sizing, for every CSP candidate at one
+    contract. Measured against holdings plus the profile's buying power; with no profile on the
+    thread there is no base to measure against, so nothing is computed."""
+    profile = state.get("profile")
+    if profile is None:
+        return []
     portfolio = state.get("portfolio")
     cands: dict[str, OptionCandidate] = {c.id: c for c in state.get("candidates") or []}
     pairs: list[tuple[OptionCandidate, int]] = []
+    sized = portfolio is not None and bool(portfolio.positions)
     if portfolio is not None and portfolio.positions:
         for p in portfolio.positions:
             c = cands.get(p.candidate_id)
@@ -77,7 +83,9 @@ def _post_assignment(state: AgentState, analysis: HoldingsAnalysis) -> list[Any]
                 pairs.append((c, p.contracts))
     else:
         pairs = [(c, 1) for c in cands.values() if c.strategy == "csp"]
-    return core_holdings.concentration_after_assignment(analysis, pairs)
+    return core_holdings.concentration_after_assignment(
+        analysis, pairs, buying_power=profile.buying_power, sized=sized
+    )
 
 
 def make(deps: Deps) -> Callable[[AgentState], dict[str, Any]]:

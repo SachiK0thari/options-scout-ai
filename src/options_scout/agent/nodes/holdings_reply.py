@@ -72,6 +72,7 @@ def holdings_payload(a: HoldingsAnalysis, disclaimer: str) -> dict[str, Any]:
                     "weight_before_pct": round(x.weight_before * 100),
                     "weight_after_pct": round(x.weight_after * 100),
                     "cash_used": round(x.cash_used),
+                    "includes_other_puts": x.includes_other_puts,
                 }
                 for x in a.post_assignment
             ],
@@ -79,6 +80,19 @@ def holdings_payload(a: HoldingsAnalysis, disclaimer: str) -> dict[str, Any]:
         },
         "disclaimer": disclaimer,
     }
+
+
+def _one_row_per_combined_ticker(rows: list[dict[str, Any]]) -> list[dict[str, Any]]:
+    """Rows that already count every sized put on their ticker repeat the same figure; keep one."""
+    seen: set[str] = set()
+    out: list[dict[str, Any]] = []
+    for x in rows:
+        if x.get("includes_other_puts"):
+            if x["ticker"] in seen:
+                continue
+            seen.add(x["ticker"])
+        out.append(x)
+    return out
 
 
 def holdings_narrative(payload: dict[str, Any], sources: list[Chunk], disclaimer: str) -> Narrative:
@@ -115,9 +129,13 @@ def holdings_narrative(payload: dict[str, Any], sources: list[Chunk], disclaimer
         paras.append(Paragraph(mode="screen_result", text="; ".join(extras).capitalize() + "."))
     if h["post_assignment"]:
         rows = "; ".join(
-            f"the {x['ticker']} {x['strike']:g} put would take {x['ticker']} from "
-            f"{x['weight_before_pct']}% to {x['weight_after_pct']}% of holdings plus buying power"
-            for x in h["post_assignment"][:5]
+            (
+                f"the sized {x['ticker']} puts, all assigned, would take {x['ticker']} from "
+                if x.get("includes_other_puts")
+                else f"the {x['ticker']} {x['strike']:g} put would take {x['ticker']} from "
+            )
+            + f"{x['weight_before_pct']}% to {x['weight_after_pct']}% of holdings plus buying power"
+            for x in _one_row_per_combined_ticker(h["post_assignment"])[:5]
         )
         paras.append(
             Paragraph(
