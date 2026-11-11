@@ -89,6 +89,7 @@ def _leaps_rows(cands: list[OptionCandidate], report: ScreeningReport) -> pd.Dat
                 "Cost per contract": round(c.mid * 100),
                 "Delta": round(c.delta, 2),
                 "Time value per year": pct(c.extrinsic_per_year_pct),
+                "Yearly cost vs owning the shares": pct(c.carry_per_year_pct),
                 "Breakeven at expiry": round(c.breakeven, 2),
                 "Open interest": c.open_interest,
                 **_greek_cells(c),

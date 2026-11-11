@@ -222,6 +222,9 @@ class OptionCandidate(Model):
     annualized_return: float | None = None  # on collateral (CSP)
     return_on_margin: float | None = None
     extrinsic_per_year_pct: float | None = None  # LEAPS
+    # LEAPS: extrinsic + dividends forgone − interest saved, per year, over S (W3); None when
+    # the dividend yield is unknown
+    carry_per_year_pct: float | None = None
     intrinsic: float | None = None
     extrinsic: float | None = None
     breakeven: float
@@ -774,13 +777,18 @@ class GoalParse(Model):
 class YieldEstimate(Model):
     """What the sized portfolio earns per year, as the Goal Planning agent sees it."""
 
-    gross_yield: float  # capital-weighted annualised return incl. the cash reserve at cash_rate
-    stress_adjusted_yield: float  # gross minus assignment_frequency x realistic loss / capital
+    # every premium kept, plus the cash rate on the whole account (collateral and reserve)
+    gross_yield: float
+    # the cash rate plus each short put's premium less its expected payoff (PRD 3.8, W22); the
+    # yield the goal verdict is judged against
+    expected_yield: float
+    expected_assignment_loss: float  # dollars a year: present value of the expected put payoffs
     cash_rate: float
     capital_used: float
     cash_reserve: float
-    realistic_loss: float
-    assignment_frequency: float
+    realistic_loss: float  # the -30% scenario, taken once on the stress path
+    expected_drift: float
+    realised_to_implied: float
     detail: list[str] = Field(default_factory=list)
 
     @property
@@ -797,7 +805,7 @@ class GoalLever(Model):
 class FeasibilityVerdict(Model):
     status: FeasibilityStatus
     required_return: float | None  # None when the goal needs no return (already met)
-    available_return: float  # the stress-adjusted yield the verdict was judged against
+    available_return: float  # the expected yield the verdict was judged against
     profile_cap: float
     gap: float  # required - available in return points (negative = headroom)
     levers: list[GoalLever] = Field(default_factory=list)
@@ -825,7 +833,7 @@ class FirePlan(Model):
     years_to_fi: float | None  # None: not reached within the horizon cap at the assumed return
     coast_balance: float | None  # balance needed today to coast to the FIRE number by target age
     savings_rate: float | None
-    income_coverage: float | None  # share of the expense target the stress-adjusted yield covers
+    income_coverage: float | None  # share of the expense target the expected yield covers
     buying_power_for_full_coverage: float | None
     targets: dict[str, float] = Field(default_factory=dict)  # lean/regular/fat FIRE numbers
     notes: list[str] = Field(default_factory=list)
@@ -1051,6 +1059,10 @@ class RunMetadata(Model):
     # Phase 10: per-specialist trace (agent_latency_ms sums an agent's retries)
     agent_latency_ms: dict[str, float] = Field(default_factory=dict)
     agents_visited: list[str] = Field(default_factory=list)
+    # W11: who wrote the released narrative. "model": a live LLM; "fixture": fixture-mode replay
+    # (a recorded reply or its rule-based stand-in); "rules": the deterministic narrative after
+    # the model failed (schema, cut-off or compliance); "withheld": the fixed W12 notice
+    narrative_source: Literal["model", "fixture", "rules", "withheld"] = "rules"
 
 
 class ScreeningReport(Model):

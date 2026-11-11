@@ -5,7 +5,7 @@ source: PRD.md section 3.4 and config/screener_rules.yaml
 url: PRD.md#34-leaps-screener-rules
 kind: rules
 level: intermediate
-as_of: '2026-11-03'
+as_of: '2026-11-10'
 ---
 
 # Rule 3.4 LEAPS screener rules
@@ -18,7 +18,8 @@ This document is generated from PRD.md section 3.4 and `config/screener_rules.ya
 |---|---|
 | DTE | ≥ 365 days, prefer the longest available (≥ 540 preferred) |
 | Call delta | 0.70–0.85 |
-| Extrinsic value per year | ≤ 5% of stock price per year (score lower is better) |
+| Extrinsic value per year | ≤ 5% of stock price per year (hard filter) |
+| Ranking | by carry per year (3.6), cheapest first; a carry of 5% or more scores 0 on the cost term (`leaps.carry_score_cap`) |
 | Open interest | ≥ 100 |
 | Bid-ask spread | ≤ 5% of mid |
 | IV rank | prefer ≤ 40 (soft scoring) |
@@ -31,6 +32,7 @@ This document is generated from PRD.md section 3.4 and `config/screener_rules.ya
 | Days to expiry | ≥ 365; prefer ≥ 540 |
 | Call delta | 0.7–0.85 |
 | Extrinsic value per year | ≤ 5% of the stock price |
+| Ranking | by carry per year (extrinsic + dividends forgone − interest saved), cheapest first; a carry of 5% or more scores 0 on cost |
 | Open interest | ≥ 100 |
 | Bid-ask spread | ≤ 5% of mid |
 | IV rank | prefer ≤ 40% (soft score) |

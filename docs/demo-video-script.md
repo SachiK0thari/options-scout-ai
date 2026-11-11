@@ -36,7 +36,7 @@ Do not narrate features that are not on screen.
 - [ ] Run the exact NVDA prompt from scene 6 **three times** in rehearsal. All three replies must reframe to education plus the licensed-advisor pointer, with the Compliance badge green. If any of the three gives advice-shaped text that passes compliance, fix `prompts/route_message.md` / `config/compliance.yaml` first. Never record around a flaky guardrail.
 - [ ] Run the scene 8 goal turn in rehearsal and confirm the verdict is **does not fit** on $60,000 conservative (the required return is 8% a year, above the conservative cap of 6% in `config/goals.yaml`, so the verdict does not depend on the screened yield). If a fixture change has moved the yield, change the target to a figure that still does not fit and update the narration.
 - [ ] Save a rehearsal thread where the Compliance agent **failed attempt 1 and passed attempt 2**. Threads persist in `data/checkpoints.sqlite`, so write the thread id down. Scene 7 reopens it. If no rehearsal run retried, scene 7 has a deterministic terminal fallback (7.3).
-- [ ] MarketData.app free token with credits left. The free plan is roughly 100 credits a day and a chain costs one credit per contract, so **record scene 5 first in the day** or you will hit the 429 before you want to.
+- [ ] MarketData.app token with credits left. With the default historical chain feed a ticker costs a few credits (its whole previous-session chain is one request at about one credit per 1,000 contracts), but the free plan is roughly 100 credits a day, so **record scene 5 first in the day**. A run that would overspend is cut to the tickers the credits cover, with a note.
 - [ ] A second, deliberately wrong token (any string) for the 401 shot.
 - [ ] Browser window 1440 × 900, zoom 110%. Close every other tab. Light theme. Hide bookmarks bar.
 - [ ] Have the README's mermaid diagram rendered and open in a separate window for scene 2.
@@ -342,7 +342,7 @@ Be precise about what goal planning means here: a stated income or growth target
 I want $400 a month from this account.
 ```
 
-**What must appear:** a goal turn that states the verdict in words, **does not fit**, with the required return (8% a year on $60,000) against the stress-adjusted yield of the sized puts and the conservative cap of 6%; three levers (a lower target, a larger balance, a longer horizon or a different profile) with numbers; a cited education paragraph on compound growth or the app's risk profiles from the *basics* collection; Compliance ✓ with check 9 listed as `goal_narrative`.
+**What must appear:** a goal turn that states the verdict in words, **does not fit**, with the required return (8% a year on $60,000) against the expected yield of the sized puts and the conservative cap of 6%; three levers (a lower target, a larger balance, a longer horizon or a different profile) with numbers; a cited education paragraph on compound growth or the app's risk profiles from the *basics* collection; Compliance ✓ with check 9 listed as `goal_narrative`.
 
 **Action:** click **Goals**. Point at the verdict metrics, the four-path projection (stress, base, best, diversified assumption) with the target line, and the levers.
 

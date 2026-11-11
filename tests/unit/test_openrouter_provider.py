@@ -191,3 +191,55 @@ def test_strict_json_schema_requires_every_property_and_keeps_null() -> None:
     )
     inner = nested["properties"]["items"]["items"]
     assert inner["required"] == ["a"] and inner["additionalProperties"] is False
+
+
+def test_reasoning_effort_is_sent_when_configured(monkeypatch: pytest.MonkeyPatch) -> None:
+    usage = {"prompt_tokens": 1, "completion_tokens": 1}
+    server = _Server([_completion('{"ticker": "COST", "score": 1}', usage)])
+    monkeypatch.setenv("OPENROUTER_API_KEY", "test-key")
+    provider = OpenRouterProvider(
+        _settings().model_copy(update={"reasoning_effort": "low"}),
+        http_client=httpx.Client(transport=httpx.MockTransport(server)),
+    )
+    provider.complete(
+        task="explain_report", model=MODEL, system="s", user="u", schema=Answer, max_tokens=8
+    )
+    assert server.requests[0]["reasoning"] == {"effort": "low"}
+
+
+def test_no_reasoning_field_by_default(monkeypatch: pytest.MonkeyPatch) -> None:
+    usage = {"prompt_tokens": 1, "completion_tokens": 1}
+    server = _Server([_completion('{"ticker": "COST", "score": 1}', usage)])
+    _provider(monkeypatch, server).complete(
+        task="explain_report", model=MODEL, system="s", user="u", schema=Answer, max_tokens=8
+    )
+    assert "reasoning" not in server.requests[0]
+
+
+def test_output_cut_off_raises_without_a_wasted_retry(monkeypatch: pytest.MonkeyPatch) -> None:
+    """A reply that ran out of tokens (reasoning included) is not retried with the same budget."""
+    reply = _completion("", {"prompt_tokens": 1, "completion_tokens": 8})
+    reply["choices"][0]["finish_reason"] = "length"
+    server = _Server([reply])
+    with pytest.raises(RuntimeError, match=r"cut off .* max_tokens=8"):
+        _provider(monkeypatch, server).complete(
+            task="explain_report", model=MODEL, system="s", user="u", schema=Answer, max_tokens=8
+        )
+    assert len(server.requests) == 1
+
+
+def test_validation_summary_names_the_field_not_the_text() -> None:
+    from options_scout.llm.client import validation_summary
+
+    with pytest.raises(ValueError) as bad_field:
+        Answer.model_validate_json('{"ticker": "SECRET-TEXT", "score": "x"}')
+    assert validation_summary(bad_field.value) == "score: int_parsing"
+    with pytest.raises(ValueError) as bad_json:
+        Answer.model_validate_json('{"ticker": ')
+    summary = validation_summary(bad_json.value)
+    assert summary == "<root>: json_invalid" and "SECRET" not in summary
+
+
+def test_configured_openrouter_effort_is_low(config: AppConfig) -> None:
+    assert config.settings.llm.providers["openrouter"].reasoning_effort == "none"
+    assert config.settings.llm.max_output_tokens >= 8192

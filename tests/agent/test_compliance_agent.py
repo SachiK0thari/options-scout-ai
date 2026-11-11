@@ -120,6 +120,7 @@ def test_report_retries_then_falls_back_and_rechecks(
     assert rep.compliance is not None and rep.compliance.passed and rep.verification.passed
     assert "You should buy" not in rep.narrative_markdown
     assert any("deterministic narrative used (passed=True)" in e for e in rep.errors)
+    assert rep.metadata.narrative_source == "rules"  # W11: the fallback is recorded as such
     failed = rep.audit_log[0]
     assert {"check_numbers", "check_language"} <= {c.name for c in failed.failed_checks}
     assert "check_language" in failed.retry_feedback
@@ -226,6 +227,7 @@ def test_an_unsuitable_screen_is_withheld_without_rewrites(
     visited, final = _run(deps, REQUEST, "t-comp-unsuitable")
     rep: ScreeningReport = final["report"]
     assert rep.withheld and rep.withheld_reasons == ["loss_over_limit"]
+    assert rep.metadata.narrative_source == "withheld"
     # a fact failure goes straight to the withheld path: one evaluation, no rewrites
     assert visited.count("compliance_node") == 1 and visited.count("explainer_node") == 1
     assert rep.compliance is not None and not rep.compliance.passed
@@ -335,3 +337,54 @@ def test_a_withheld_thread_drops_the_refused_positions_from_its_state(
     assert r.turn.intent == "goal"
     plan = session.graph.get_state({"configurable": {"thread_id": t}}).values["goal_plan"]
     assert any("withheld" in a for a in plan.assumptions)
+
+
+# --------------------------------------------- W11: the report records who wrote the narrative
+def test_a_fixture_run_records_a_fixture_narrative(deps: Deps) -> None:
+    _visited, final = _run(deps, REQUEST, "t-source-fixture")
+    assert final["report"].metadata.narrative_source == "fixture"
+
+
+def test_a_model_failure_records_the_rules_narrative(
+    deps: Deps, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    def broken(*_a: object, **_k: object) -> Narrative:
+        raise RuntimeError("output cut off for task=explain_report")
+
+    monkeypatch.setattr(deps.llm, "explain", broken)
+    _visited, final = _run(deps, REQUEST, "t-source-broken")
+    rep: ScreeningReport = final["report"]
+    assert rep.metadata.narrative_source == "rules"
+    assert any("using deterministic narrative" in e for e in rep.errors)
+
+
+def test_a_live_model_narrative_is_recorded_as_the_model(
+    deps: Deps, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    from options_scout.llm.rules import rule_explain
+
+    def written(payload: dict[str, object], block: str, **_k: object) -> Narrative:
+        from options_scout.agent.nodes.explainer import rule_prompt
+
+        return rule_explain(rule_prompt(payload, block))  # a passing narrative, "from the model"
+
+    monkeypatch.setattr(deps.llm, "explain", written)
+    monkeypatch.setattr(type(deps.llm), "is_live", property(lambda _self: True))
+    _visited, final = _run(deps, REQUEST, "t-source-model")
+    assert final["report"].metadata.narrative_source == "model"
+
+
+def test_the_payload_names_every_skipped_candidate_a_warning_mentions(deps: Deps) -> None:
+    """W11: every candidate id a sizing warning names is in ``skipped_candidates`` with the
+    realistic loss of one contract, so the explainer can satisfy check_education_only."""
+    from options_scout.core.compliance import CANDIDATE_ID
+
+    _visited, final = _run(deps, REQUEST, "t-skipped-payload")
+    payload = final["explain_payload"]
+    skipped = {s["candidate_id"]: s for s in payload["skipped_candidates"]}
+    named = {m for w in payload["risk"]["warnings"] for m in CANDIDATE_ID.findall(w)}
+    sized = {p["candidate_id"] for p in payload["positions"]}
+    assert named - sized, "the request must produce a warning that names a skipped candidate"
+    assert named - sized <= set(skipped)
+    assert all(s["realistic_loss_per_contract"] > 0 for s in skipped.values())
+    assert len(skipped) <= 8 + len(named)

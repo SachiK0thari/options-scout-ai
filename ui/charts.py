@@ -617,7 +617,7 @@ def agent_latency(latency_ms: Mapping[str, float], order: Sequence[str]) -> go.F
 # ------------------------------------------------------------------------------- goals
 PATH_LABELS = {
     "stress": "stress path",
-    "base": "base (stress-adjusted yield)",
+    "base": "base (expected yield, capped)",
     "best": "best (gross yield, capped)",
     "assumed": "diversified-portfolio assumption",
 }

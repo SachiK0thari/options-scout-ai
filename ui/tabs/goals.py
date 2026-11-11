@@ -84,13 +84,16 @@ def _metrics(plan: GoalPlan) -> None:
     c2.metric(
         "Required return", "n/a" if v.required_return is None else session.pct(v.required_return)
     )
-    c3.metric("Stress-adjusted yield", session.pct(v.available_return))
+    c3.metric("Expected yield", session.pct(v.available_return))
     c4.metric("Profile cap", session.pct(v.profile_cap, 0))
     st.caption(
         session.md(
-            f"Gross yield {session.pct(y.gross_yield)} on {session.money(y.total_capital)} "
-            f"(cash {session.money(y.cash_reserve)} at {session.pct(y.cash_rate, 2)}); realistic "
-            f"loss {session.money(y.realistic_loss)} amortised at {y.assignment_frequency:.0%} a year."
+            f"Gross yield {session.pct(y.gross_yield)} on {session.money(y.total_capital)} if "
+            f"every premium were kept, with the whole account at {session.pct(y.cash_rate, 2)}; "
+            f"expected assignment losses {session.money(y.expected_assignment_loss)} a year. "
+            f"Assumes the stocks drift {y.expected_drift:.0%} a year with realised volatility at "
+            f"{y.realised_to_implied:.2f} × implied. The stress path takes the -30% scenario's "
+            f"realistic loss of {session.money(y.realistic_loss)} once."
         )
     )
     for note in v.notes:
@@ -146,7 +149,7 @@ def render(view: session.View) -> None:
     st.subheader("Goals")
     st.write(
         "Does the goal fit this account under this risk profile? The Goal Planning agent compares "
-        "the return a goal needs with the stress-adjusted yield of the current screen and the "
+        "the return a goal needs with the expected yield of the current screen and the "
         "profile's cap, lists the levers, and shows the diversified-portfolio projection beside "
         "the options view. Every number is computed; the text passes Compliance check 9."
     )
@@ -174,7 +177,7 @@ def render(view: session.View) -> None:
     theme.show(
         charts.goal_projection(plan),
         "Balance by year on four paths: stress (the -30% scenario's realistic loss in year one), "
-        "base (stress-adjusted yield), best (gross yield capped at the profile's maximum) and the "
+        "base (expected yield, capped), best (gross yield capped at the profile's maximum) and the "
         "diversified-portfolio assumption. Dashed lines are targets; the marker is the coast "
         "balance. Assumptions, not forecasts.",
     )

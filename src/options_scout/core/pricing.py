@@ -58,6 +58,26 @@ def bsm_price(
     return K * math.exp(-r * T) * norm_cdf(-d2) - S * math.exp(-q * T) * norm_cdf(-d1)
 
 
+def expected_put_payoff(S: float, K: float, T: float, mu: float, sigma: float) -> float:
+    """Undiscounted E[max(K − S_T, 0)] with S_T lognormal: price drift ``mu`` and volatility
+    ``sigma`` (the Black-Scholes put formula with ``mu`` in place of ``r`` and no discounting).
+
+    Used by the goal yield (PRD 3.8): at ``mu = r`` and ``sigma`` the implied vol, discounting it at
+    ``r`` gives back the option's price, so a seller expects to earn only the cash rate.
+    """
+    if S <= 0 or K <= 0:
+        raise ValueError("S and K must be positive")
+    if T <= 0:
+        return max(K - S, 0.0)
+    fwd = S * math.exp(mu * T)
+    if sigma <= _EPS:
+        return max(K - fwd, 0.0)
+    vol_t = sigma * math.sqrt(T)
+    d1 = (math.log(fwd / K) + 0.5 * vol_t * vol_t) / vol_t
+    d2 = d1 - vol_t
+    return K * norm_cdf(-d2) - fwd * norm_cdf(-d1)
+
+
 def bsm_greeks(
     S: float, K: float, T: float, r: float, q: float, sigma: float, kind: OptionKind
 ) -> Greeks:

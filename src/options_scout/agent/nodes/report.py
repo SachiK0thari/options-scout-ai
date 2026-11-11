@@ -161,6 +161,7 @@ def make(deps: Deps) -> Callable[[AgentState], dict[str, Any]]:
         compliance = state.get("compliance")
         audit_log = list(state.get("audit_log") or [])
         withheld = False
+        source = state.get("narrative_source") or "rules"
         if not verification.passed and not fact_suitability_codes(compliance):
             # Final fallback (13.1): deterministic narrative that only echoes payload numbers and
             # quotes the retrieved sources verbatim, checked again so the audit log stays honest.
@@ -174,6 +175,7 @@ def make(deps: Deps) -> Callable[[AgentState], dict[str, Any]]:
             compliance = recheck
             verification = recheck.verification
             audit_log.append(recheck)
+            source = "rules"
         if compliance is None or not audit_log:
             raise RuntimeError("report assembled without a ComplianceReport")  # 13.1 invariant
         if not compliance.passed:
@@ -181,6 +183,7 @@ def make(deps: Deps) -> Callable[[AgentState], dict[str, Any]]:
             # and the sized positions are dropped; the failing report stays attached and on the
             # audit log, so the run says exactly why it was withheld.
             withheld = True
+            source = "withheld"
             narrative = withheld_narrative(compliance, deps.cfg.settings.disclaimer)
             errors.append(
                 f"report: withheld ({', '.join(withheld_reason_codes(compliance))}); "
@@ -210,6 +213,7 @@ def make(deps: Deps) -> Callable[[AgentState], dict[str, Any]]:
             nodes_visited=[*state.get("nodes_visited", []), "report_node"],
             agent_latency_ms=dict(state.get("agent_latency_ms", {})),
             agents_visited=list(state.get("agents_visited", [])),
+            narrative_source=source,
         )
         # The report lists the ranker's shortlist (best N per ticker and strategy, in rank order),
         # not every strike the screeners emitted: otherwise one ETF's ladder fills the tables.

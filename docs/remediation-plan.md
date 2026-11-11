@@ -384,6 +384,30 @@ are not.
 
 Suggested commit: `feat(leaps): carry-adjusted cost (dividends forgone, interest saved) as the ranking metric`
 
+**Status, 2026-11-10:** done in the working tree, steps 1 to 8. `margin.leaps_carry_per_year_pct`
+(golden 0.82%, the r=q=0 case, a negative-carry case); `OptionCandidate.carry_per_year_pct`;
+`leaps.rank_by: carry` and `carry_score_cap: 0.05` in `LEAPSRules` and the YAML, the 5% extrinsic
+cap unchanged as the filter. `screen_leaps` sets carry only when the dividend yield is known and
+sorts rows without one last; `option_quality` scores `1 − carry / cap` (unknown carry scores 0,
+negative carry clips to 1), and `rank_by: extrinsic` restores the old sort and score. "Carry/yr"
+in the report, "Yearly cost vs owning the shares" in the UI with a glossary entry (the "Time
+value per year" entry no longer claims to be that cost). PRD 3.4 and 3.6, the generated rule
+pages, and one paragraph in `knowledge/concepts/leaps.md`; `make index` rerun.
+- **Fixture ordering differs from the table above**, which predates W1's strikes. Cheapest carry
+  per ticker: SPY 2.0%, QQQ 2.3%, MSFT 2.7%, COST 2.7%, AAPL 2.7%, NKE 3.9%. The
+  acceptance point holds: NKE sorts first on raw extrinsic (1.5%) and last on carry
+  (`tests/unit/test_screeners.py::test_carry_reorders_the_fixture_leaps`).
+- **Golden report:** Carry/yr column; NKE 20C moves from fifth to last; its score drops from 0.52 to
+  0.44; the warning now names four top underlyings that did not fit (SPY, QQQ, AAPL, COST).
+- **Knock-on in sizing:** with NKE now the sixth underlying, a $100k balanced margin run judged on
+  the top 5 sizes nothing (policy B) where it used to size NKE. The two W6 tests that pinned the
+  NKE outcome now judge on the top 6, and a new test pins the $100k "too small" result;
+  `test_graceful_degradation_when_social_disabled` accepts a too-small result instead of
+  requiring positions.
+- **Run facts:** the "why" chunk listed only the top 10 ranks, so "why is NKE ranked where it
+  is?" (now rank 11) had no rank to report. `run_facts_chunk` adds the best line of every
+  ticker below the top 10.
+
 ---
 
 ### W4. Stop presenting the IV/HV proxy as an IV rank
@@ -875,6 +899,89 @@ No code. These change how a grader reads the numbers you already report.
 6. **Article count.** The rubric's top band asks for 100 or more curated articles. The corpus
    has 79 written articles, 35 filing excerpts and 10 generated rule pages. Either state the
    split plainly in `docs/brief-mapping.md` or write 21 more articles.
+
+**Status, 2026-11-10/11:** steps 1, 3 and 6 done in the working tree, step 4 started; step 2 not
+done; step 5 is the user's.
+- **Step 1:** MarketData.app run live after W27 (see W27's status for what broke and the
+  fixes). The README sentence saying neither provider had been exercised now gives the facts.
+- **Step 4:** the first IV history rows are in `data/iv_snapshots.sqlite` (git-ignored): the
+  at-the-money IV of the 10 tickers that passed the gate, dated 2026-11-09, the session the
+  chains are from. Rank needs 30 rows per ticker. The daily job
+  (`python -m options_scout.jobs.snapshot_iv`, or the compose scheduler) has to run each trading
+  day, at about 5 credits a ticker.
+- **Step 2 (re-record fixtures from the provider):** not done. It changes the golden report and
+  the fixture-mode expectations, and earnings and VIX would be missing from the recording.
+- **Step 6:** `docs/brief-mapping.md` states the split: 79 written articles (37 concepts, 28
+  basics, 14 tax), 35 verbatim 10-K Item 1A excerpts, 10 generated rule pages.
+- **Step 3:** `evals/run_evals.py` runs the six agent runs twice, once with the rule-based writer
+  and once with the live model (each row is labelled with its writer). Because the explainer and
+  the report node both release the rule-based narrative when the model fails, the live pass also
+  reports how many final narratives the model wrote, and grounding on those alone.
+  `evals/reports/latest.md` was regenerated (2026-11-10 23:12 UTC; 916 tests; coverage 95.7%).
+- **Result, DeepSeek v4.1 Flash via OpenRouter:** the model wrote **0 of 6** final narratives.
+  Every report released the deterministic fallback. Its grounding, policy and compliance rows
+  (357/357, 6/6) therefore measure the fallback, not the model. About $0.012 and 146 s per run.
+  Two causes seen:
+  1. Schema failures: `explain_report` failed `Narrative` validation 9 times on the first try
+     and 6 times on the retry, so six calls raised and fell back. The log says only "1 validation
+     error for Narrative"; the failing field is not yet known.
+  2. A denylist false positive (W15): `\brisk[- ]?free\b` in `config/compliance.yaml` and
+     "risk-free" in `core/compliance.py:BANNED_PHRASES` reject "the risk-free rate", a figure the
+     payload itself supplies (`risk_free_rate_pct`). A probe run failed attempt 1 on exactly that.
+- **Fixed the same day:**
+  - The schema-failure log now names the field and error type, `finish_reason` and the reply
+    length, without the reply's text (`llm/client.py:validation_summary`). That showed the real
+    cause: `finish_reason=length` with 0 characters. DeepSeek v4.1 Flash's reasoning tokens share
+    `max_tokens` and used up all 4,096. Structured output was already on (`json_schema`, strict).
+  - New `reasoning_effort` on the provider settings, sent as OpenRouter `reasoning.effort`.
+    Measured: "low" barely changed the reasoning (82 tokens against 68 unset); "none" turned it
+    off. Set to `none`. `llm.max_output_tokens` raised to 8,192. A reply cut off for length now
+    raises at once instead of a corrective retry with the same budget.
+  - "risk-free rate" is allowed: a negative lookahead in the YAML pattern and
+    `core/compliance.py:banned_phrases_in`, used by the verifier, the rule writer and the eval.
+    "risk-free trade" and "risk free income" still fail.
+  - `RunMetadata.narrative_source` ("model", "fixture", "rules", "withheld"), set by the
+    explainer and the report node; the eval counts on it instead of reading error text.
+  - With those, the model's JSON was valid but broke two rules on every attempt: a put named
+    without its realistic loss in the same paragraph, and no "delayed" statement (a hard
+    `check_disclaimer` rule that the prompt only listed as a topic). `prompts/explain_report.md`
+    2.4.0 states both as rules; the golden report was re-recorded for the version string.
+  - Probe after the fixes: the model wrote the narrative and passed on the first attempt
+    ($0.0035).
+  - Full eval after the fixes (`latest.md`, 2026-11-10 23:55 UTC): no schema failures and no
+    cut-offs in any task. The model wrote **3 of 6** final narratives (was 0), 154/154 numbers
+    grounded in those three, 2 of 6 passing on the first attempt. Mean 26 s and $0.0051 per run
+    (was 146 s and $0.0118). The other three still failed compliance on all three attempts and
+    released the rule-based narrative; the eval does not yet record which checks they failed.
+    Entity extraction F1 0.86 (was 0.83).
+  - The eval now records the checks each model attempt failed (a row in `latest.md`, details in
+    `evals/reports/agent_llm_failures.json`). Run of 2026-11-11 00:17 UTC: the model wrote **4 of
+    6**, with 248/248 numbers grounded in them, at $0.0046 a run. The 10 failed attempts were
+    `check_education_only` ×9 and `check_citations` ×1. Eight of the nine name the same
+    contract, CSP-SPY-2026-11-30-735P: the top-ranked put that **did not fit**, named in the W6
+    sizing warning the payload hands the model. `check_education_only` takes realistic losses only
+    from `payload.positions`, so for a skipped candidate the payload has no number to give, and
+    the model passes only if it happens to use a phrase like "realistic loss". The rule is
+    unsatisfiable as specified for that sentence. The remaining two failures were real misses: a
+    sized PMCC short call without its loss, and an uncited education paragraph.
+  - **Decided (user, 2026-11-11): give the model the number.** The explain payload gains
+    `skipped_candidates`: every candidate a sizing warning names plus the best-ranked other
+    skips, 8 at most, each with `realistic_loss_per_contract` (`SkipDetail.per_contract_loss`)
+    and `fits_from_account` (`explainer.py:skipped_candidates_payload`). `check_education_only`
+    accepts that figure for a candidate that was not sized; a sized position still needs its
+    own. Prompt 2.5.0 says to quote it as the realistic loss of one contract. The golden report
+    was re-recorded for the version string.
+  - **Result (`latest.md`, 2026-11-11 00:45 UTC):** the model wrote **6 of 6** final narratives,
+    with 341/341 numbers grounded, 3 of 6 passing on the first attempt and the other three on a
+    retry. The failed first attempts were 4 × `check_education_only`. No schema failures or
+    cut-offs. $0.0049 and 22 s per run. **Step 3 is done.**
+- **Steps 1, 2, 4 not run:** a live screen, the fixture re-record and the IV snapshot job all do
+  W27's full chain sweep (about 20,000 MarketData credits against 100 a day on the free plan,
+  whose data is at least 24 hours delayed anyway). Proposed for W27, not yet agreed: chains from
+  Alpha Vantage `HISTORICAL_OPTIONS` (free key; one request per ticker returns every expiry and
+  strike with IV and Greeks, previous session; probed with the `demo` key on IBM: 2,140
+  contracts, 19 expiries to 2029-01-19), with spot and history staying on MarketData. Its `date`
+  parameter would also let step 4 backfill IV history.
 
 ---
 
@@ -1527,6 +1634,41 @@ Related defects in the same function and the projection:
 
 Suggested commit: `fix(goals): expected-payoff yield for short puts; collateral interest; ordered projection paths`
 
+**Status, 2026-11-10:** done in the working tree, steps 1 to 7.
+- **PRD 3.8** rewritten first: the available return is now the **expected yield**. Collateral and
+  reserve earn the T-bill rate in either account type. Each short put adds
+  `(premium − e^(−rT)·E[max(K − S_T, 0)]) / T`, with `S_T` lognormal at `expected_drift: 0.06` and
+  `realised_to_implied: 0.85` (new in `config/goals.yaml`, printed in the plan's assumptions, the
+  report and the Goals tab). `assignment_frequency` is gone from config, model and rule page.
+  Nothing amortises the −30% scenario any more, so it is not counted twice.
+- **Names:** `YieldEstimate.stress_adjusted_yield` became `expected_yield`, with new
+  `expected_assignment_loss`, `expected_drift` and `realised_to_implied` fields. The explainer
+  payload key is `expected_pct`; the rule writer, report, UI metric, chart legend, README,
+  architecture, brief-mapping, demo script and the FIRE basics page say "expected yield".
+  `docs/compliance.md` (a recorded log) and `docs/capstone-plan.md` (historical) are unchanged.
+- **Formula:** `pricing.expected_put_payoff(S, K, T, mu, sigma)`, the undiscounted put formula on
+  the forward `S·e^(μT)`. It has no dividend term: `mu` is the price drift.
+- **LEAPS (step 5):** left out of the income view. Their capital earns nothing and is charged
+  nothing, and their premium is still in the stress path's realistic loss. A LEAPS-only $1M
+  screen now shows 3.40% (the cash reserve's interest diluted by the capital spent on calls)
+  instead of a figure that could go negative.
+- **Paths (step 6):** base and best are both capped at the profile's maximum, and best is never
+  below base. The stress path is the base path minus the −30% lump at the end of year one, or at
+  the horizon when that is shorter, so a six-month horizon no longer shows stress equal to base.
+- **Tests (`tests/unit/test_goals.py`):** payoff goldens (at μ = r it is the BS put grown at r;
+  zero vol; expiry; monotone in drift and vol); a yield golden; a property test that a put priced
+  at its model value earns exactly the cash rate at μ = r and ratio 1 (any strike, tenor, cash);
+  cash and margin accounts give the same yield; LEAPS left out; `stress ≤ base ≤ best` on 80
+  random yields and horizons from three months.
+- **Measured on the fixtures, $1M balanced, cash account:** puts only, gross 8.57%, expected
+  5.66% (expected assignment loss $29,051 a year), against T-bills at 4.04%. At 7% drift and a
+  0.8 ratio, 6.13%. At μ = r and ratio 1, 4.20%: the 0.16-point residual is dividends, which the
+  pricing model counts and the price-drift payoff leaves out. With LEAPS and PMCC, 5.13%. The margin
+  account is identical, because W24's 1.0 × buying-power assignment cap sizes the same positions.
+  The table above predates W1 and W24, so its 6.61% is not comparable.
+- **Step 7:** the goal eval is unchanged (29/29: it plans on cash alone, where the expected
+  yield is the cash rate); `make index` regenerated `goal_feasibility.md`.
+
 ---
 
 ### W23. A PMCC request is filled mostly with unpaired LEAPS
@@ -1829,6 +1971,60 @@ QQQ, and the LEAPS picks sit 16% to 31% in the money:
 LEAPS counts with the new strike plan equal the full-chain counts in the table.
 
 Suggested commit: `fix(data): planned expiries and per-screen strike ranges; credit budget; quota errors reported as such`
+
+**Status, 2026-11-11:** done in the working tree by a different route for steps 2 and 3 (agreed
+with the user), steps 1 and 4 to 6 as written; step 7 not needed. Run live end to end the same
+day (below).
+- **What the probes found (2026-11-10, on the user's token):** the plan has **10,000** credits a
+  day, not the free plan's 100, and serves delayed data a session behind. A current chain is
+  billed per contract: SPY all expiries 12,904 contracts for 6,206 credits, COST 3,992 for 1,108,
+  SBUX 1,074 for 383. Asked by `date` for the previous session, the same SBUX chain (all 16
+  expiries to 2029, bid/ask/IV/Greeks/OI, the same 2026-11-09 close) cost **2 credits**,
+  matching the documented one credit per 1,000 contracts for historical chains. The probes
+  themselves used 7,711 of that day's credits, a cost the user was told about.
+- **Steps 2 and 3, replaced:** `market_data.marketdata.chain_feed: historical` (new, the default)
+  makes one request per ticker, `/options/chain/{t}/?date=<last session>&expiration=all`. The
+  call is memoised per ticker and day; `list_expiries` and every `get_option_chain` read from it,
+  so there is no expirations call and no `strikeLimit`, and every LEAPS strike is kept. A session
+  with no data (a holiday) steps back a weekday, up to 6. Each chain is stamped with the quote
+  time (`updated`), not the fetch time. `chain_feed: live` keeps the old per-expiry path with
+  `strike_limit`. An Alpha Vantage `HISTORICAL_OPTIONS` source was considered and not needed.
+- **Step 4:** each response's `X-Api-Ratelimit-Remaining`/`-Consumed` is recorded on the source.
+  `MarketData.fit_to_budget` (called by `universe_node`) cuts the universe to
+  `remaining // credits_per_ticker` (new, 25) with a note naming the kept tickers.
+  `build_snapshot` calls `ensure_budget` first and raises `QuotaExceededError` before spending.
+- **Step 5:** new `QuotaExceededError(MarketDataError)` for a MarketData 429, a Tradier
+  "Quota Violation" (sent as a 400) and a refused budget. `build_snapshot` re-raises it from
+  every lookup instead of recording a chain or earnings error; `market_data_node` returns status
+  `quota` with "data quota reached", and `check_quality` is not run.
+- **Step 6:** one year of adjusted and one year of split-only candles per ticker and day, sliced
+  for the average volume, the close history (≤ 252 days) and the dividend estimate: two
+  requests where there were five.
+- **Acceptance:** the mocked 12-ticker run (35 expiries each) makes 12 chain requests (≤ 60) and
+  keeps the 60%-in-the-money LEAPS strikes (`tests/unit/test_marketdata_w27.py`, 10 tests;
+  `tests/agent/test_market_data_quota.py`, 3). README, the setup tab and the demo script no
+  longer say a chain costs one credit per contract.
+- **Live run (2026-11-11, user's token, LLM in fixture mode, every path in a temp dir):**
+  three attempts, 28 + about 50 + 65 credits.
+  1. Every chain was refused. The session date came from UTC: at 01:22 UTC it was still 10 Nov
+     in New York, and a `date` for the running session is "used for historical queries only" (or
+     402). `_today` now uses America/New_York.
+  2. Chains loaded, but every ticker failed the gate on "at-the-money implied volatility
+     unavailable": the previous-session chains carry **null IVs** (SPY: 318 quotes per expiry,
+     none with IV). `atm_implied_vol` now solves the vol from the mid when the provider gives
+     none, as the screeners have since W1. The historical feed also prices the stock from the
+     chain's own `underlyingPrice`, so stock and options share one close and no quote is bought.
+     Only "no chain" falls back to a quote; a 401 (`AuthenticationError`) or a spent quota does
+     not.
+  3. **Passed:** 12 tickers in 33 s for 65 credits (66 requests). 10 passed the gate; NKE and
+     CSCO were excluded on real volatility readings. 4 CSP, 12 LEAPS and 2 PMCC candidates, 16
+     ranked, compliance passed. At $100k nothing was sized (policy B: the top-ranked SPY put
+     needs about $640k).
+  - **Plan limits seen:** `/stocks/earnings` answered 402 for every ticker except AAPL (a cached
+    answer), so single-stock puts fail closed on an unknown earnings date (W5). Index quotes and
+    candles (VIX) came back empty, so the regime used its neutral default. Both need another
+    source: FRED's `VIXCLS` for VIX (the FRED key exists), an earnings calendar for the rest.
+    Not done yet.
 
 ---
 

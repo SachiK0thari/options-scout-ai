@@ -158,29 +158,29 @@ _Headlines never change the ranking; they flag what to read before trading._
 \* IV rank from HV proxy (fewer than 30 stored IV snapshots).
 
 ## LEAPS / PMCC candidates
-| ID | Strike | Expiry | DTE | Delta | Mid | Extrinsic/yr | Breakeven | OI / spread | PMCC short call | Flags |
-|---|---|---|---|---|---|---|---|---|---|---|
-| LEAPS-SPY-2028-12-15-550C | 550 | 2028-12-15 | 780 | 0.85 | 278.78 | 3.6% | 828.78 | 114/2% | n/a | iv_disagrees, high_iv_rank |
-| LEAPS-SPY-2028-01-21-600C | 600 | 2028-01-21 | 451 | 0.84 | 211.81 | 4.4% | 811.81 | 1,590/1% | n/a | iv_disagrees, shorter_than_preferred_dte, high_iv_rank |
-| LEAPS-QQQ-2028-12-15-530C | 530 | 2028-12-15 | 780 | 0.85 | 260.75 | 4.5% | 790.75 | 372/2% | n/a | iv_disagrees, high_iv_rank |
-| LEAPS-QQQ-2029-01-19-550C | 550 | 2029-01-19 | 815 | 0.83 | 248.00 | 4.8% | 798.00 | 132/2% | n/a | iv_disagrees, high_iv_rank |
-| LEAPS-NKE-2028-12-15-20C | 20 | 2028-12-15 | 780 | 0.80 | 18.80 | 1.5% | 38.80 | 575/5% | 40C 2026-11-20 Δ0.30 mid 0.72 (net Δ 0.50, safety +1.20) | iv_disagrees, high_iv_rank |
-| LEAPS-MSFT-2028-12-15-360C | 360 | 2028-12-15 | 780 | 0.85 | 220.18 | 4.3% | 580.17 | 538/2% | n/a | iv_disagrees, high_iv_rank |
-| LEAPS-AAPL-2029-01-19-260C | 260 | 2029-01-19 | 815 | 0.83 | 125.65 | 5.0% | 385.65 | 239/3% | n/a | iv_disagrees, high_iv_rank |
-| LEAPS-MSFT-2028-12-15-370C | 370 | 2028-12-15 | 780 | 0.84 | 213.00 | 4.6% | 583.00 | 687/2% | n/a | iv_disagrees, high_iv_rank |
-| LEAPS-COST-2028-12-15-800C | 800 | 2028-12-15 | 780 | 0.81 | 297.00 | 4.9% | 1097.00 | 172/3% | n/a | iv_disagrees, high_iv_rank |
+| ID | Strike | Expiry | DTE | Delta | Mid | Extrinsic/yr | Carry/yr | Breakeven | OI / spread | PMCC short call | Flags |
+|---|---|---|---|---|---|---|---|---|---|---|---|
+| LEAPS-SPY-2028-12-15-550C | 550 | 2028-12-15 | 780 | 0.85 | 278.78 | 3.6% | 2.0% | 828.78 | 114/2% | n/a | iv_disagrees, high_iv_rank |
+| LEAPS-SPY-2028-01-21-600C | 600 | 2028-01-21 | 451 | 0.84 | 211.81 | 4.4% | 2.5% | 811.81 | 1,590/1% | n/a | iv_disagrees, shorter_than_preferred_dte, high_iv_rank |
+| LEAPS-QQQ-2028-12-15-530C | 530 | 2028-12-15 | 780 | 0.85 | 260.75 | 4.5% | 2.3% | 790.75 | 372/2% | n/a | iv_disagrees, high_iv_rank |
+| LEAPS-QQQ-2028-06-16-540C | 540 | 2028-06-16 | 598 | 0.85 | 238.00 | 4.8% | 2.5% | 778.00 | 107/2% | n/a | iv_disagrees, high_iv_rank |
+| LEAPS-AAPL-2029-01-19-260C | 260 | 2029-01-19 | 815 | 0.83 | 125.65 | 5.0% | 2.7% | 385.65 | 239/3% | n/a | iv_disagrees, high_iv_rank |
+| LEAPS-COST-2028-12-15-800C | 800 | 2028-12-15 | 780 | 0.81 | 297.00 | 4.9% | 2.7% | 1097.00 | 172/3% | n/a | iv_disagrees, high_iv_rank |
+| LEAPS-MSFT-2028-12-15-360C | 360 | 2028-12-15 | 780 | 0.85 | 220.18 | 4.3% | 2.7% | 580.17 | 538/2% | n/a | iv_disagrees, high_iv_rank |
+| LEAPS-MSFT-2028-12-15-370C | 370 | 2028-12-15 | 780 | 0.84 | 213.00 | 4.6% | 2.9% | 583.00 | 687/2% | n/a | iv_disagrees, high_iv_rank |
+| LEAPS-NKE-2028-12-15-20C | 20 | 2028-12-15 | 780 | 0.80 | 18.80 | 1.5% | 3.9% | 38.80 | 575/5% | 40C 2026-11-20 Δ0.30 mid 0.72 (net Δ 0.50, safety +1.20) | iv_disagrees, high_iv_rank |
 
 ## Sized portfolio
 > ⚠️ Every sized position is on NKE, so this is a one-stock portfolio even though the limits passed.
 >
-> ⚠️ The 2 highest-ranked underlying(s) (SPY, QQQ) did not fit this account size. The smallest account at which the top-ranked CSP-SPY-2026-11-30-735P fits is $640,477.
+> ⚠️ The 4 highest-ranked underlying(s) (SPY, QQQ, AAPL, COST) did not fit this account size. The smallest account at which the top-ranked CSP-SPY-2026-11-30-735P fits is $640,477.
 >
 > ⚠️ Only $3,464 of the $70,000 set aside for the requested strategies is used (5%); the rest stays in cash.
 
 | Candidate | Strategy | Contracts | Strike | Expiry | Capital | Margin | Loss @ -30% | $ delta | Premium | Score | PMCC short call |
 |---|---|---|---|---|---|---|---|---|---|---|---|
 | CSP-NKE-2026-11-20-35P | short put on margin (naked) | 3 | 35 | 2026-11-20 | $1,655 | $1,655 | $2,443 | 2,630 | 169 | 0.58 | n/a |
-| LEAPS-NKE-2028-12-15-20C | leaps | 1 | 20 | 2028-12-15 | $1,808 | n/a | $1,808 | 1,884 | -1,808 | 0.52 | PMCCSC-NKE-2026-11-20-40C |
+| LEAPS-NKE-2028-12-15-20C | leaps | 1 | 20 | 2028-12-15 | $1,808 | n/a | $1,808 | 1,884 | -1,808 | 0.44 | PMCCSC-NKE-2026-11-20-40C |
 
 | Metric | Value |
 |---|---|
@@ -198,12 +198,12 @@ _Headlines never change the ranking; they flag what to read before trading._
 
 - CSP-SPY-2026-11-30-735P: 0 contracts fit (max loss per position) · fits from $640,477
 - CSP-SPY-2026-11-30-750P: 0 contracts fit (max loss per position) · fits from $683,427
-- CSP-QQQ-2026-11-30-695P: 0 contracts fit (max loss per position) · fits from $602,851
 - LEAPS-SPY-2028-12-15-550C: 0 contracts fit (allocation budget) · fits from $929,284
-- CSP-QQQ-2026-11-30-690P: 0 contracts fit (max loss per position) · fits from $589,651
 - LEAPS-SPY-2028-01-21-600C: 0 contracts fit (max loss per position) · fits from $706,034
 - LEAPS-QQQ-2028-12-15-530C: 0 contracts fit (allocation budget) · fits from $869,167
-- LEAPS-QQQ-2029-01-19-550C: 0 contracts fit (max loss per position) · fits from $826,667
+- CSP-QQQ-2026-11-30-695P: 0 contracts fit (max loss per position) · fits from $602,851
+- CSP-QQQ-2026-11-30-690P: 0 contracts fit (max loss per position) · fits from $589,651
+- LEAPS-QQQ-2028-06-16-540C: 0 contracts fit (max loss per position) · fits from $793,334
 - …
 
 </details>
@@ -231,7 +231,7 @@ _Headlines never change the ranking; they flag what to read before trading._
 | -30% | +50% | -3,176 | -3.2% |
 
 - ⚠️ Every sized position is on NKE, so this is a one-stock portfolio even though the limits passed.
-- ⚠️ The 2 highest-ranked underlying(s) (SPY, QQQ) did not fit this account size. The smallest account at which the top-ranked CSP-SPY-2026-11-30-735P fits is $640,477.
+- ⚠️ The 4 highest-ranked underlying(s) (SPY, QQQ, AAPL, COST) did not fit this account size. The smallest account at which the top-ranked CSP-SPY-2026-11-30-735P fits is $640,477.
 - ⚠️ Only $3,464 of the $70,000 set aside for the requested strategies is used (5%); the rest stays in cash.
 - ⚠️ CSP-NKE-2026-11-20-35P: IV rank is an HV proxy (fewer than 30 IV snapshots stored).
 - ⚠️ LEAPS-NKE-2028-12-15-20C: IV rank is an HV proxy (fewer than 30 IV snapshots stored).
@@ -256,7 +256,7 @@ _Headlines never change the ranking; they flag what to read before trading._
 
 **Risk.** 8 of 8 constraint checks pass. Stress test with an instant move and an IV shock: a -10% move gives -876; a -20% move gives -1901; a -30% move gives -3176. The combined loss at a 30% drop across all positions is 4251.
 
-**Warnings and limitations.** Every sized position is on NKE, so this is a one-stock portfolio even though the limits passed. The 2 highest-ranked underlying(s) (SPY, QQQ) did not fit this account size. The smallest account at which the top-ranked CSP-SPY-2026-11-30-735P fits is $640,477. Only $3,464 of the $70,000 set aside for the requested strategies is used (5%); the rest stays in cash. CSP-NKE-2026-11-20-35P: IV rank is an HV proxy (fewer than 30 IV snapshots stored). LEAPS-NKE-2028-12-15-20C: IV rank is an HV proxy (fewer than 30 IV snapshots stored). Margin account: the puts are sized as naked puts on the Reg T requirement ($1,655), but the loss at a -30% move is $4,251 and assignment of every put plus the LEAPS debits would need $12,308 in cash. Brokers can raise requirements at any time, especially in volatile markets.
+**Warnings and limitations.** Every sized position is on NKE, so this is a one-stock portfolio even though the limits passed. The 4 highest-ranked underlying(s) (SPY, QQQ, AAPL, COST) did not fit this account size. The smallest account at which the top-ranked CSP-SPY-2026-11-30-735P fits is $640,477. Only $3,464 of the $70,000 set aside for the requested strategies is used (5%); the rest stays in cash. CSP-NKE-2026-11-20-35P: IV rank is an HV proxy (fewer than 30 IV snapshots stored). LEAPS-NKE-2028-12-15-20C: IV rank is an HV proxy (fewer than 30 IV snapshots stored). Margin account: the puts are sized as naked puts on the Reg T requirement ($1,655), but the loss at a -30% move is $4,251 and assignment of every put plus the LEAPS debits would need $12,308 in cash. Brokers can raise requirements at any time, especially in volatile markets.
 
 Market data is delayed and Greeks are model-derived; these are screened candidates that meet the configured criteria, not recommendations.
 
@@ -290,7 +290,7 @@ PASS: 64 numbers checked, 0 ungrounded, banned phrases: none, disclaimer present
 
 ## Run metadata
 - Models: {"extraction": "deepseek/deepseek-v4.1-flash", "explanation": "deepseek/deepseek-v4.1-flash", "provider": "fixture"}
-- Prompt versions: {"answer_concept": "1.3.0", "answer_tax": "1.0.0", "classify_bottleneck": "1.0.0", "classify_news": "1.1.0", "explain_goal": "1.0.0", "explain_report": "2.3.0", "extract_entities": "1.1.0", "judge_explanation": "1.0.0", "parse_goal": "1.0.0", "parse_holdings": "1.0.0", "parse_profile": "1.2.0", "route_message": "1.3.0"}
+- Prompt versions: {"answer_concept": "1.3.0", "answer_tax": "1.0.0", "classify_bottleneck": "1.0.0", "classify_news": "1.1.0", "explain_goal": "1.0.0", "explain_report": "2.5.0", "extract_entities": "1.1.0", "judge_explanation": "1.0.0", "parse_goal": "1.0.0", "parse_holdings": "1.0.0", "parse_profile": "1.2.0", "route_message": "1.3.0"}
 - Config hash: `<config_hash>`
 - Data sources: {"AAPL": "ok", "COST": "ok", "MSFT": "ok", "NKE": "ok", "QQQ": "ok", "SBUX": "ok", "SPY": "ok", "bottleneck": "ran (274 snippets, 8 layers, 30 companies)", "bottleneck:csv_series": "ok", "bottleneck:edgar": "ok", "bottleneck:fred": "ok", "bottleneck:google_trends": "ok", "bottleneck:news": "ok", "bottleneck:reddit": "ok", "bottleneck:transcripts": "disabled", "google_trends": "ok", "market_data": "fixture", "news": "ok", "news_alphavantage_news": "ok", "news_desk": "41 headlines for 7 ticker(s)", "news_rss": "ok", "reddit": "ok", "sec": "ok", "social": "ran (7095 posts, 28 entities)", "wikipedia": "ok", "x": "ok"}
 - Tokens: 0 in / 0 out · cost $0.0000

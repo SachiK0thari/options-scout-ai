@@ -23,6 +23,7 @@ from options_scout.core.models import (
     Narrative,
     OptionCandidate,
     PMCCCandidate,
+    SizedPortfolio,
     SizedPosition,
 )
 from options_scout.core.screeners import BOTTLENECK_FLAGS
@@ -32,6 +33,36 @@ from options_scout.rag.models import Chunk, citation_of
 
 def _money(x: float | None) -> int | None:
     return None if x is None else round(x)
+
+
+SKIPPED_IN_PAYLOAD = 8  # the best-ranked skipped candidates sent to the explainer
+
+
+def skipped_candidates_payload(
+    portfolio: SizedPortfolio, warnings: Sequence[str]
+) -> list[dict[str, Any]]:
+    """The best-ranked size-limited skips, plus any a warning names, with the realistic loss of
+    one contract (``SkipDetail.per_contract_loss``) and the account size it would fit from."""
+    named = {
+        d.candidate_id
+        for d in portfolio.skipped_detail
+        if any(d.candidate_id in w for w in warnings)
+    }
+    ordered = sorted(portfolio.skipped_detail, key=lambda d: d.rank)
+    chosen = [d for d in ordered if d.candidate_id in named]
+    chosen += [d for d in ordered if d.candidate_id not in named][
+        : max(SKIPPED_IN_PAYLOAD - len(chosen), 0)
+    ]
+    return [
+        {
+            "candidate_id": d.candidate_id,
+            "rank": d.rank,
+            "reason": d.reason,
+            "realistic_loss_per_contract": _money(d.per_contract_loss),
+            "fits_from_account": _money(d.min_account_value),
+        }
+        for d in sorted(chosen, key=lambda d: d.rank)
+    ]
 
 
 def _pct(x: float | None) -> int | None:
@@ -248,6 +279,9 @@ def build_explain_payload(
             "cash_reserve": _money(portfolio.totals.cash_reserve),
             "skipped_count": len(portfolio.skipped),
         },
+        # W11: candidates that did not fit, with the realistic loss of one contract, so a
+        # paragraph that names one (the sizing warnings do) can state its downside
+        "skipped_candidates": skipped_candidates_payload(portfolio, risk.warnings),
         "risk": {
             "passed": risk.passed,
             "checks_passed": sum(1 for c in risk.checks if c.passed),
@@ -298,6 +332,7 @@ def make(deps: Deps) -> Callable[[AgentState], dict[str, Any]]:
         block = render_sources_block(sources)
         usage_before = len(deps.llm.usage)
         errors: list[str] = []
+        source = "model" if deps.llm.is_live else "fixture"
         try:
             narrative: Narrative = deps.llm.explain(
                 payload, block, audience=audience_for(state.get("profile"))
@@ -305,9 +340,11 @@ def make(deps: Deps) -> Callable[[AgentState], dict[str, Any]]:
         except Exception as exc:
             errors.append(f"explainer: LLM failed ({exc}); using deterministic narrative")
             narrative = rule_explain(rule_prompt(payload, block))
+            source = "rules"
         citations = resolve_citations(narrative, [citation_of(c) for c in sources])
         return {
             "narrative": narrative,
+            "narrative_source": source,
             "citations": citations,
             "explain_payload": payload,
             "token_usage": deps.llm.usage[usage_before:],

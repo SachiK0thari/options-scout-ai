@@ -131,6 +131,7 @@ class AgentState(TypedDict, total=False):
     sources: list[Chunk]  # the [S1]…[Sn] chunks the narrative/answer may cite
     retrievals: list[RetrievalResult]  # retrieval log for the Under-the-hood tab
     narrative: Narrative | None
+    narrative_source: str | None  # W11: "model", "fixture" or "rules" (set by the explainer)
     citations: list[Citation]  # sources the final text actually cites, numbered
     answer: Narrative | None  # concept Q&A reply (question runs)
     # verification (Phase 10 step 10.4: the full ComplianceReport plus the run's audit log)
@@ -253,6 +254,7 @@ class EducationSlice(BaseModel):
     sources: list[Chunk] = Field(default_factory=list)
     retrievals: list[RetrievalResult] = Field(default_factory=list)
     narrative: Narrative | None = None
+    narrative_source: str | None = None  # W11: "model", "fixture" or "rules"
     citations: list[Citation] = Field(default_factory=list)
     answer: Narrative | None = None
 

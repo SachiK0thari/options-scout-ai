@@ -12,18 +12,21 @@ from collections.abc import Sequence
 from datetime import UTC, date, datetime, timedelta
 from pathlib import Path
 from typing import Any, Protocol
+from zoneinfo import ZoneInfo
 
 import httpx
 from tenacity import retry, retry_if_exception_type, stop_after_attempt, wait_exponential
 
 from options_scout.config import AppConfig, DataMode, MarketProviderName
-from options_scout.core import volatility
+from options_scout.core import pricing, volatility
 from options_scout.core.models import OptionChain, OptionQuote, SpotQuote, TickerSnapshot
 from options_scout.data.cache import MemoryCache, SQLiteCache
 from options_scout.data.fixtures import FixtureStore, IndexFixture, TickerFixture
 from options_scout.jobs.snapshot_iv import IVSnapshotStore
 
 log = logging.getLogger(__name__)
+
+_NEW_YORK = ZoneInfo("America/New_York")
 
 RISK_FREE_FALLBACK = 0.04
 MIN_IV_HISTORY = 30
@@ -52,6 +55,17 @@ class MarketSource(Protocol):
 
 class MarketDataError(RuntimeError):
     pass
+
+
+class AuthenticationError(MarketDataError):
+    """The provider rejected the key (401): no fallback request can succeed either."""
+
+
+class QuotaExceededError(MarketDataError):
+    """The provider's credit or rate quota is spent, or would be by the next call (W27).
+
+    Not a fact about the ticker: the agent reports it as ``quota`` and never runs the quality
+    gate on what was fetched, so a spent plan cannot read as "implied volatility unavailable"."""
 
 
 # --------------------------------------------------------------------------------- fixture
@@ -144,9 +158,23 @@ class MarketDataAppSource:
     """Keyed provider: MarketData.app REST API v1 (https://api.marketdata.app/v1/).
 
     One token gives quotes, daily candles, option expirations, option chains with IV and
-    Greeks, upcoming earnings dates and index series (VIX etc.). The free plan is delayed and
-    allows ~100 credits a day; **an option chain costs one credit per contract returned**, so
-    ``strike_limit`` trims each chain to the N strikes closest to the money (0 = full chain).
+    Greeks, upcoming earnings dates and index series (VIX etc.).
+
+    **Chains (W27).** With ``chain_feed="historical"`` (the default) a ticker's whole chain, every
+    expiry and strike, comes from one request for the previous session's close
+    (``/options/chain/{t}/?date=…&expiration=all``), billed at about one credit per 1,000
+    contracts: SBUX's 1,074 contracts cost 2 credits on 2026-11-10, against 383 for the same
+    chain without ``date``. The plans this app targets serve delayed data, a session behind, so
+    nothing fresher is lost. ``chain_feed="live"`` asks for the current chain per expiry, billed
+    per contract, trimmed by ``strike_limit`` (0 = full chain).
+
+    **Budget.** Every response's ``X-Api-Ratelimit-Remaining`` is recorded;
+    :meth:`ensure_budget` raises :class:`QuotaExceededError` before a ticker is fetched when
+    fewer credits are left than it needs, and a 429 is a :class:`QuotaExceededError` too.
+
+    **Candles.** One year of adjusted daily candles and one year of split-only candles are
+    fetched once per ticker and session and sliced for the average volume, the close history
+    and the dividend estimate (two requests where there were five).
 
     What MarketData.app does not have:
 
@@ -170,17 +198,30 @@ class MarketDataAppSource:
     DIVIDEND_LOOKBACK_DAYS = 252
     EARNINGS_HORIZON_DAYS = 180
 
+    HISTORY_DAYS = 252  # the one-year candle series every price lookup is sliced from
+    SESSION_LOOKBACK = 6  # weekdays tried back from yesterday for the last session with a chain
+
     def __init__(
         self,
         api_key: str,
         *,
         strike_limit: int = 0,
+        chain_feed: str = "historical",
         http_client: httpx.Client | None = None,
     ) -> None:
         key = api_key.strip()
         if not key:
             raise MarketDataError("MarketData.app API token is empty")
+        if chain_feed not in ("historical", "live"):
+            raise MarketDataError(f"unknown MarketData.app chain feed {chain_feed!r}")
         self.strike_limit = max(0, int(strike_limit))
+        self.chain_feed = chain_feed
+        self.credits_remaining: int | None = None  # from the last response's headers
+        self.credits_used = 0  # summed X-Api-Ratelimit-Consumed over this source's life
+        self.requests = 0
+        # per-session memos: (ticker, day) -> whole-chain body / candle series
+        self._chains: dict[tuple[str, date], tuple[date, dict[str, Any]]] = {}
+        self._series: dict[tuple[str, bool, date], dict[str, Any]] = {}
         self._client = http_client or httpx.Client(
             base_url=self.BASE_URL,
             headers={"Authorization": f"Bearer {key}", "Accept": "application/json"},
@@ -188,7 +229,9 @@ class MarketDataAppSource:
         )
 
     def __repr__(self) -> str:  # never leak the token
-        return f"MarketDataAppSource(strike_limit={self.strike_limit})"
+        return (
+            f"MarketDataAppSource(chain_feed={self.chain_feed}, strike_limit={self.strike_limit})"
+        )
 
     # -- transport ----------------------------------------------------------------------
     @_RETRY_HTTP
@@ -202,15 +245,16 @@ class MarketDataAppSource:
         """GET and normalise: returns the JSON body, ``{"s": "no_data"}`` when there is none."""
         clean = {k: v for k, v in params.items() if v is not None}
         resp = self._fetch(path, clean)
+        self._record_credits(resp)
         code = resp.status_code
         if code in (204, 404):
             return {"s": "no_data"}
         if code == 401:
-            raise MarketDataError("MarketData.app rejected the API token (401 Unauthorized)")
+            raise AuthenticationError("MarketData.app rejected the API token (401 Unauthorized)")
         if code == 402:
             raise MarketDataError(f"MarketData.app: your plan does not allow {path} (402)")
         if code == 429:
-            raise MarketDataError("MarketData.app: credit or rate limit reached (429)")
+            raise QuotaExceededError("MarketData.app: credit or rate limit reached (429)")
         try:
             body = resp.json()
         except ValueError as exc:
@@ -223,10 +267,47 @@ class MarketDataAppSource:
             )
         return body
 
+    def _record_credits(self, resp: httpx.Response) -> None:
+        self.requests += 1
+        remaining = resp.headers.get("x-api-ratelimit-remaining")
+        consumed = resp.headers.get("x-api-ratelimit-consumed")
+        try:
+            if remaining is not None:
+                self.credits_remaining = int(remaining)
+            if consumed is not None:
+                self.credits_used += int(consumed)
+        except ValueError:
+            pass
+
+    def ensure_budget(self, needed: int) -> None:
+        """Raise :class:`QuotaExceededError` when the plan is known to have fewer than ``needed``
+        credits left (W27 step 4). Unknown (no response yet) passes: the first call reports it."""
+        if self.credits_remaining is not None and self.credits_remaining < needed:
+            raise QuotaExceededError(
+                f"MarketData.app: {self.credits_remaining} credits left today, a ticker needs "
+                f"about {needed}"
+            )
+
     @staticmethod
     def _col(body: dict[str, Any], key: str) -> list[Any]:
         value = body.get(key)
         return list(value) if isinstance(value, list) else []
+
+    @staticmethod
+    def _today() -> date:
+        """The US market's date (New York). The last session is the weekday before it: asking
+        by ``date`` for the session still running in New York is refused as not historical,
+        which a UTC date does every evening after 7 or 8 pm Eastern."""
+        return datetime.now(tz=_NEW_YORK).date()
+
+    def _year_series(self, symbol: str, *, raw: bool) -> dict[str, Any]:
+        """One year of daily stock candles, dividend-adjusted (default) or split-only, fetched
+        once per ticker and day (W27 step 6)."""
+        key = (symbol, raw, self._today())
+        if key not in self._series:
+            extra = {"adjustsplits": "true", "adjustdividends": "false"} if raw else {}
+            self._series[key] = self._candles("stocks", symbol, self.HISTORY_DAYS, **extra)
+        return self._series[key]
 
     def _candles(self, kind: str, symbol: str, days: int, **extra: Any) -> dict[str, Any]:
         """Daily candles for a stock (``kind="stocks"``) or index (``kind="indices"``)."""
@@ -242,8 +323,34 @@ class MarketDataAppSource:
         return [_f(c) for c in self._col(body, "c") if _f(c) > 0][-days:]
 
     # -- MarketSource -------------------------------------------------------------------
+    def _session_spot(self, sym: str) -> tuple[float, datetime] | None:
+        """The underlying's price at the session the chain is from (``underlyingPrice``), so the
+        stock and its options are quoted at the same moment (W27; see W28)."""
+        try:
+            _day, body = self._session_chain(sym)
+        except (AuthenticationError, QuotaExceededError):
+            raise  # a rejected key or a spent plan fails the quote as well
+        except MarketDataError:
+            return None  # no chain for this ticker: price it from a quote
+        prices = [_f(x) for x in self._col(body, "underlyingPrice") if _f(x) > 0]
+        stamps = [_i(u) for u in self._col(body, "updated") if _i(u) > 0]
+        if not prices:
+            return None
+        when = datetime.fromtimestamp(max(stamps), tz=UTC) if stamps else datetime.now(tz=UTC)
+        return prices[0], when
+
     def get_spot(self, ticker: str) -> SpotQuote:
         sym = ticker.upper()
+        if self.chain_feed == "historical":
+            session = self._session_spot(sym)
+            if session is not None:
+                return SpotQuote(
+                    ticker=sym,
+                    price=session[0],
+                    avg_volume=self._average_volume(sym),
+                    as_of=session[1],
+                    sector="Unknown",
+                )
         body = self._get(f"/stocks/quotes/{sym}/")
         last = self._col(body, "last")
         mid = self._col(body, "mid")
@@ -252,23 +359,51 @@ class MarketDataAppSource:
         price = _f(last[0] if last else None) or _f(mid[0] if mid else None)
         if price <= 0:
             raise MarketDataError(f"MarketData.app quote for {sym} has no price")
-        avg_volume = 0.0
-        try:  # quotes only carry the session volume; average the last ~3 months of candles
-            candles = self._candles("stocks", sym, self.AVG_VOLUME_DAYS)
-            vols = [_f(v) for v in self._col(candles, "v") if _f(v) > 0]
-            avg_volume = sum(vols) / len(vols) if vols else 0.0
-        except Exception as exc:
-            log.info("marketdata average volume unavailable for %s: %s", sym, type(exc).__name__)
         return SpotQuote(
             ticker=sym,
             price=price,
-            avg_volume=avg_volume,
+            avg_volume=self._average_volume(sym),
             as_of=datetime.now(tz=UTC),
             sector="Unknown",  # MarketData.app quotes carry no sector; the curated list supplies it
         )
 
+    def _session_chain(self, sym: str) -> tuple[date, dict[str, Any]]:
+        """The whole chain at the last session's close, one request (W27): yesterday, or the
+        weekday before it when that session has no data (a weekend or a holiday)."""
+        key = (sym, self._today())
+        if key in self._chains:
+            return self._chains[key]
+        day = self._today() - timedelta(days=1)
+        tried = 0
+        while tried < self.SESSION_LOOKBACK:
+            if day.weekday() < 5:
+                tried += 1
+                body = self._get(f"/options/chain/{sym}/", date=day.isoformat(), expiration="all")
+                if body.get("s") == "ok" and self._col(body, "strike"):
+                    self._chains[key] = (day, body)
+                    return self._chains[key]
+            day -= timedelta(days=1)
+        raise MarketDataError(f"{sym}: MarketData.app has no chain in the last sessions")
+
+    def _average_volume(self, sym: str) -> float:
+        """Quotes carry only the session volume; average the last ~3 months of candles."""
+        try:
+            candles = self._year_series(sym, raw=False)
+        except QuotaExceededError:
+            raise
+        except Exception as exc:
+            log.info("marketdata average volume unavailable for %s: %s", sym, type(exc).__name__)
+            return 0.0
+        vols = [_f(v) for v in self._col(candles, "v")[-self.AVG_VOLUME_DAYS :] if _f(v) > 0]
+        return sum(vols) / len(vols) if vols else 0.0
+
     def list_expiries(self, ticker: str) -> list[date]:
-        body = self._get(f"/options/expirations/{ticker.upper()}/")
+        sym = ticker.upper()
+        if self.chain_feed == "historical":
+            _day, body = self._session_chain(sym)
+            found = {_as_date(raw) for raw in self._col(body, "expiration")}
+            return sorted(d for d in found if d is not None)
+        body = self._get(f"/options/expirations/{sym}/")
         out: list[date] = []
         for raw in self._col(body, "expirations"):
             parsed = _as_date(raw)
@@ -278,11 +413,23 @@ class MarketDataAppSource:
 
     def get_option_chain(self, ticker: str, expiry: date) -> OptionChain:
         sym = ticker.upper()
-        body = self._get(
-            f"/options/chain/{sym}/",
-            expiration=expiry.isoformat(),
-            strikeLimit=self.strike_limit or None,
-        )
+        if self.chain_feed == "historical":
+            _day, full = self._session_chain(sym)
+            keep = [
+                i for i, raw in enumerate(self._col(full, "expiration")) if _as_date(raw) == expiry
+            ]
+            if not keep:
+                raise MarketDataError(f"{sym}: MarketData.app has no chain for {expiry}")
+            body = {
+                k: [v[i] for i in keep if i < len(v)] if isinstance(v, list) else v
+                for k, v in full.items()
+            }
+        else:
+            body = self._get(
+                f"/options/chain/{sym}/",
+                expiration=expiry.isoformat(),
+                strikeLimit=self.strike_limit or None,
+            )
         if body.get("s") != "ok":
             raise MarketDataError(f"{sym}: MarketData.app has no chain for {expiry}")
         cols = {
@@ -327,9 +474,9 @@ class MarketDataAppSource:
                 log.debug("skipping bad MarketData.app row %s: %s", cell("optionSymbol", i), exc)
                 continue
             (calls if kind == "call" else puts).append(quote)
-        return OptionChain(
-            ticker=sym, expiry=expiry, as_of=datetime.now(tz=UTC), calls=calls, puts=puts
-        )
+        stamps = [_i(u) for u in self._col(body, "updated") if _i(u) > 0]
+        as_of = datetime.fromtimestamp(max(stamps), tz=UTC) if stamps else datetime.now(tz=UTC)
+        return OptionChain(ticker=sym, expiry=expiry, as_of=as_of, calls=calls, puts=puts)
 
     def get_earnings_date(self, ticker: str) -> date | None:
         """Next projected report date from /stocks/earnings; None when nothing is scheduled.
@@ -353,7 +500,11 @@ class MarketDataAppSource:
         return min(upcoming) if upcoming else None
 
     def get_close_history(self, ticker: str, days: int) -> list[float]:
-        return self._closes("stocks", ticker.upper(), days)
+        sym = ticker.upper()
+        if days > self.HISTORY_DAYS:
+            return self._closes("stocks", sym, days)
+        series = self._year_series(sym, raw=False)
+        return [_f(c) for c in self._col(series, "c") if _f(c) > 0][-days:]
 
     def get_dividend_yield(self, ticker: str) -> float:
         """Trailing yield implied by dividend adjustment: 1 - adjusted/split-only first close.
@@ -367,8 +518,10 @@ class MarketDataAppSource:
         """
         sym = ticker.upper()
         days = self.DIVIDEND_LOOKBACK_DAYS
-        adjusted = self._closes("stocks", sym, days)
-        raw = self._closes("stocks", sym, days, adjustsplits="true", adjustdividends="false")
+        adjusted = [_f(c) for c in self._col(self._year_series(sym, raw=False), "c") if _f(c) > 0][
+            -days:
+        ]
+        raw = [_f(c) for c in self._col(self._year_series(sym, raw=True), "c") if _f(c) > 0][-days:]
         if len(adjusted) != len(raw):
             raise MarketDataError(f"{sym}: dividend series mismatch")
         if len(adjusted) < MIN_IV_HISTORY or raw[0] <= 0:
@@ -446,6 +599,9 @@ class TradierSource:
             raise MarketDataError("Tradier rejected the API key (401 Unauthorized)")
         if resp.status_code == 403:
             raise MarketDataError("Tradier: this key is not allowed to call " + path)
+        if resp.status_code in (400, 429) and "quota violation" in resp.text.lower():
+            # Tradier signals its rate limit as a 400 with a "Quota Violation" body
+            raise QuotaExceededError("Tradier: rate limit reached (Quota Violation)")
         resp.raise_for_status()
         return resp.json()
 
@@ -697,8 +853,10 @@ class MarketData:
         *,
         near_dte: tuple[int, int] = (20, 60),
         far_dte_min: int = 330,
+        credits_per_ticker: int = 0,
     ) -> None:
         self.source = source
+        self.credits_per_ticker = credits_per_ticker  # W27: 0 = no budget check
         self.cache = cache
         self.ttl = ttl
         self.iv_store = iv_store
@@ -752,7 +910,11 @@ class MarketData:
             fallback: MarketSource | None = None
             md_key = os.environ.get(md_cfg.marketdata.api_key_env, "")
             if md_key.strip():
-                fallback = MarketDataAppSource(md_key, strike_limit=md_cfg.marketdata.strike_limit)
+                fallback = MarketDataAppSource(
+                    md_key,
+                    strike_limit=md_cfg.marketdata.strike_limit,
+                    chain_feed=md_cfg.marketdata.chain_feed,
+                )
             source = TradierSource(key, sandbox=md_cfg.tradier.sandbox, fallback=fallback)
         elif chosen == "marketdata":
             key = api_key or os.environ.get(md_cfg.marketdata.api_key_env, "")
@@ -761,7 +923,11 @@ class MarketData:
                     "MarketData.app selected but no API token given (paste one in the UI or set "
                     f"{md_cfg.marketdata.api_key_env})"
                 )
-            source = MarketDataAppSource(key, strike_limit=md_cfg.marketdata.strike_limit)
+            source = MarketDataAppSource(
+                key,
+                strike_limit=md_cfg.marketdata.strike_limit,
+                chain_feed=md_cfg.marketdata.chain_feed,
+            )
         else:
             raise MarketDataError(f"unknown market data provider {chosen!r}")
         return cls(
@@ -771,6 +937,7 @@ class MarketData:
             iv_store,
             near_dte=near,
             far_dte_min=far,
+            credits_per_ticker=md_cfg.marketdata.credits_per_ticker,
         )
 
     @classmethod
@@ -901,38 +1068,83 @@ class MarketData:
                 out.append(e)
         return out
 
+    def credits_remaining(self) -> int | None:
+        """Credits the live provider reported left, or None when it has no such counter or has
+        not answered yet."""
+        value = getattr(self.source, "credits_remaining", None)
+        return value if isinstance(value, int) else None
+
+    def fit_to_budget(self, tickers: Sequence[str]) -> tuple[list[str], str | None]:
+        """W27 step 4: before the fan-out, keep only as many tickers as the remaining credits
+        cover at ``credits_per_ticker`` each, with one note naming the cut. Asks for the first
+        ticker's quote (needed anyway, then cached) when the provider has not reported yet."""
+        if not self.credits_per_ticker or not tickers or not hasattr(self.source, "ensure_budget"):
+            return list(tickers), None
+        if self.credits_remaining() is None:
+            try:
+                self.get_spot(tickers[0])
+            except QuotaExceededError as exc:
+                return [], f"data quota reached: {exc}; no ticker was fetched"
+            except Exception:
+                return list(tickers), None  # the per-ticker fetch reports the real error
+        left = self.credits_remaining()
+        if left is None:
+            return list(tickers), None
+        fits = max(left // self.credits_per_ticker, 0)
+        if fits >= len(tickers):
+            return list(tickers), None
+        kept = list(tickers)[:fits]
+        return kept, (
+            f"data quota: {left} credits left today, about {self.credits_per_ticker} per ticker, "
+            f"so {fits} of {len(tickers)} tickers were fetched"
+            + (f" ({', '.join(kept)})" if kept else "")
+        )
+
     def build_snapshot(self, ticker: str, expiries: Sequence[date] | None = None) -> TickerSnapshot:
         ticker = ticker.upper()
         errors: list[str] = []
+        ensure = getattr(self.source, "ensure_budget", None)
+        if self.credits_per_ticker and ensure is not None:
+            ensure(self.credits_per_ticker)  # QuotaExceededError before anything is spent
         now = self.now()
         spot = self.get_spot(ticker)
         chains: list[OptionChain] = []
         for e in expiries if expiries is not None else self.relevant_expiries(ticker, now.date()):
             try:
                 chains.append(self.get_option_chain(ticker, e))
+            except QuotaExceededError:
+                raise  # W27 step 5: a spent plan is not a fact about the ticker
             except Exception as exc:
                 errors.append(f"chain {e}: {exc}")
         earnings: date | None = None
         earnings_known = True
         try:
             earnings = self.get_earnings_date(ticker)
+        except QuotaExceededError:
+            raise
         except Exception as exc:
             errors.append(f"earnings: lookup failed ({exc})")
             earnings_known = False
         hv30: float | None = None
         try:
             hv30 = self.get_hist_vol(ticker, 30)
+        except QuotaExceededError:
+            raise
         except Exception as exc:
             errors.append(f"hv30: {exc}")
         divy = 0.0
         dividend_yield_known = True
         try:
             divy = self.get_dividend_yield(ticker)
+        except QuotaExceededError:
+            raise
         except Exception as exc:
             errors.append(f"dividend: lookup failed ({exc})")
             dividend_yield_known = False
 
-        atm_iv = atm_implied_vol(chains, spot.price, now.date(), self.near_dte)
+        atm_iv = atm_implied_vol(
+            chains, spot.price, now.date(), self.near_dte, r=self.get_risk_free_rate(), q=divy
+        )
         iv_rank, iv_source = self._iv_rank(ticker, atm_iv, hv30)
         self.status[ticker] = "ok" if not errors else f"partial: {len(errors)} errors"
         return TickerSnapshot(
@@ -968,19 +1180,35 @@ class MarketData:
 
 
 def atm_implied_vol(
-    chains: Sequence[OptionChain], spot: float, today: date, near_dte: tuple[int, int]
+    chains: Sequence[OptionChain],
+    spot: float,
+    today: date,
+    near_dte: tuple[int, int],
+    *,
+    r: float = RISK_FREE_FALLBACK,
+    q: float = 0.0,
 ) -> float | None:
-    """Average IV of the ATM call and put on the nearest chain inside the near-DTE window."""
+    """Average IV of the ATM call and put on the nearest chain inside the near-DTE window.
+
+    The provider's figure when it has one; otherwise the vol solved from the quote's mid (W27:
+    MarketData.app's previous-session chains carry no IV), as the screeners do since W1."""
     near = [c for c in chains if near_dte[0] <= (c.expiry - today).days <= near_dte[1]]
     pool = near or list(chains)
     if not pool:
         return None
     target = min(pool, key=lambda c: abs((c.expiry - today).days - 37))
+    t = max((target.expiry - today).days, 1) / 365.0
     ivs: list[float] = []
     for side in (target.calls, target.puts):
-        quotes = [q for q in side if q.iv > 0]
-        if quotes:
-            ivs.append(min(quotes, key=lambda q: abs(q.strike - spot)).iv)
+        if not side:
+            continue
+        quote = min(side, key=lambda x: abs(x.strike - spot))
+        if quote.iv > 0:
+            ivs.append(quote.iv)
+        elif quote.mid > 0 and spot > 0:
+            solved = pricing.implied_vol(quote.mid, spot, quote.strike, t, r, q, quote.kind)
+            if solved is not None and solved > 0:
+                ivs.append(solved)
     return sum(ivs) / len(ivs) if ivs else None
 
 
@@ -1003,11 +1231,13 @@ def default_cache_path(cfg: AppConfig) -> Path:
 
 
 __all__ = [
+    "AuthenticationError",
     "FixtureSource",
     "MarketData",
     "MarketDataAppSource",
     "MarketDataError",
     "MarketSource",
+    "QuotaExceededError",
     "TradierSource",
     "atm_implied_vol",
     "timedelta",

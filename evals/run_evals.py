@@ -20,7 +20,7 @@ import sys
 import time
 import unicodedata
 import xml.etree.ElementTree as ET
-from dataclasses import dataclass, field
+from dataclasses import dataclass, field, replace
 from datetime import UTC, date, datetime
 from pathlib import Path
 from typing import Any
@@ -40,8 +40,8 @@ from options_scout.agent.graph import (  # noqa: E402
 )
 from options_scout.config import load_config, load_env  # noqa: E402
 from options_scout.core.compliance import (  # noqa: E402
-    BANNED_PHRASES,
     CANDIDATE_ID,
+    banned_phrases_in,
     check_citations,
     check_education_only,
     check_language,
@@ -459,7 +459,12 @@ REQUESTS = [
 ]
 
 
-def eval_agent(res: Results, cfg: Any, deps: Deps) -> None:
+def eval_agent(res: Results, cfg: Any, deps: Deps, writer: str | None = None) -> None:
+    """The six end-to-end runs. ``writer`` names the explanation model for a second pass with a
+    live LLM (W11 step 3); without it the rule-based writer stands in for the model, for which
+    grounding and policy hold by construction, and the metric names say so."""
+    tag = "rule-based writer" if writer is None else f"LLM {writer}"
+    thread = "eval" if writer is None else "eval-llm"
     graph = build_graph(deps)
     grounded = checked = 0
     first_pass = 0
@@ -469,6 +474,11 @@ def eval_agent(res: Results, cfg: Any, deps: Deps) -> None:
     tokens_in: list[int] = []
     trajectories_ok = 0
     audited = 0
+    model_written = 0  # final narratives the model wrote (no deterministic fallback)
+    # every failed check on a model-written attempt, and which runs fell back and why
+    failed_tally: dict[str, int] = {}
+    fallbacks: list[dict[str, Any]] = []
+    model_grounded = model_checked = 0
     contained = boards = 0  # Phase 11 (section 4A.11): the board never adds a ticker
     layers_seen: set[str] = set()
     weakening: set[str] = set()
@@ -493,17 +503,47 @@ def eval_agent(res: Results, cfg: Any, deps: Deps) -> None:
     for i, text in enumerate(REQUESTS):
         t0 = time.perf_counter()
         visited: list[str] = []
-        for u in stream_run(graph, initial_state(text), f"eval-{i}"):
+        for u in stream_run(graph, initial_state(text), f"{thread}-{i}"):
             visited += [k for k in u if k != "__interrupt__"]
         latencies.append(time.perf_counter() - t0)
-        rep = graph.get_state(thread_config(f"eval-{i}")).values["report"]
+        rep = graph.get_state(thread_config(f"{thread}-{i}")).values["report"]
         v = rep.verification
         checked += v.numbers_checked
         grounded += v.numbers_checked - len(v.ungrounded_numbers)
+        # the explainer and the report node both substitute the rule-based narrative when the
+        # model fails, so a live pass must say how many final narratives the model wrote
+        if rep.metadata.narrative_source == "model":
+            model_written += 1
+            model_checked += v.numbers_checked
+            model_grounded += v.numbers_checked - len(v.ungrounded_numbers)
+        if writer is not None:
+            # the audit log's failing entries are the model's attempts (the fallback's own
+            # evaluation, when there is one, is the last entry and passes)
+            attempts = [
+                [f"{c.name}: {c.detail}" for c in a.failed_checks]
+                for a in rep.audit_log
+                if not a.passed
+            ]
+            for att in attempts:
+                for item in att:
+                    name = item.split(":", 1)[0]
+                    failed_tally[name] = failed_tally.get(name, 0) + 1
+            if rep.metadata.narrative_source != "model":
+                fallbacks.append(
+                    {
+                        "run": i,
+                        "request": text,
+                        "narrative_source": rep.metadata.narrative_source,
+                        "failed_attempts": attempts,
+                        "model_errors": [
+                            e for e in rep.errors if e.startswith(("explainer:", "report:"))
+                        ],
+                    }
+                )
         first_pass += int(v.attempts == 1 and v.passed)
         constraint_ok += int(rep.risk.passed and all(c.passed for c in rep.risk.checks))
         low = rep.narrative_markdown.lower()
-        policy_ok += int(v.disclaimer_present and not any(p in low for p in BANNED_PHRASES))
+        policy_ok += int(v.disclaimer_present and not banned_phrases_in(low))
         costs.append(rep.metadata.total_cost_usd)
         tokens_in.append(sum(u.input_tokens for u in rep.metadata.token_usage))
         audited += int(rep.compliance is not None and rep.compliance.passed and bool(rep.audit_log))
@@ -526,81 +566,132 @@ def eval_agent(res: Results, cfg: Any, deps: Deps) -> None:
     rate = grounded / checked if checked else 1.0
     res.add(
         "11.3 Agent",
-        "Numeric grounding rate (final narrative)",
+        f"Numeric grounding rate (final narrative) · {tag}",
         f"{rate:.1%}",
         "100%",
         "PASS" if rate >= 0.999 else "FAIL",
         f"{grounded}/{checked} numbers over {n} runs",
     )
+    if writer is not None:
+        res.add(
+            "11.3 Agent",
+            f"Final narratives written by the model (no deterministic fallback) · {tag}",
+            f"{model_written}/{n}",
+            "report",
+            "INFO",
+            (
+                "fell back: "
+                + (
+                    "; ".join(
+                        f"run {f['run']} ({len(f['failed_attempts'])} failed attempt(s)"
+                        + (
+                            ", model error"
+                            if any("LLM failed" in e for e in f["model_errors"])
+                            else ""
+                        )
+                        + ")"
+                        for f in fallbacks
+                    )
+                    or "none"
+                )
+                + ". The grounding row above counts the fallbacks too."
+            ),
+        )
+        res.add(
+            "11.3 Agent",
+            f"Compliance checks the model's attempts failed (all attempts, all runs) · {tag}",
+            ", ".join(f"{k} ×{v}" for k, v in sorted(failed_tally.items(), key=lambda kv: -kv[1]))
+            or "none",
+            "report",
+            "INFO",
+            "per-attempt details: evals/reports/agent_llm_failures.json",
+        )
+        REPORTS.mkdir(parents=True, exist_ok=True)
+        (REPORTS / "agent_llm_failures.json").write_text(
+            json.dumps({"writer": writer, "fallbacks": fallbacks}, indent=1) + "\n",
+            encoding="utf-8",
+        )
+        m_rate = model_grounded / model_checked if model_checked else None
+        res.add(
+            "11.3 Agent",
+            f"Numeric grounding on the model-written narratives only · {tag}",
+            "n/a" if m_rate is None else f"{m_rate:.1%}",
+            "report",
+            "INFO",
+            f"{model_grounded}/{model_checked} numbers over {model_written} runs",
+        )
     res.add(
         "11.3 Agent",
-        "Narratives passing verifier on first attempt",
+        f"Narratives passing verifier on first attempt · {tag}",
         f"{first_pass}/{n}",
         "report",
         "INFO",
     )
     res.add(
         "11.3 Agent",
-        "Constraint compliance",
+        f"Constraint compliance · {tag}",
         f"{constraint_ok}/{n}",
         "100%",
         "PASS" if constraint_ok == n else "FAIL",
     )
     res.add(
         "11.3 Agent",
-        "Policy compliance (banned phrases absent, disclaimer present)",
+        f"Policy compliance (banned phrases absent, disclaimer present) · {tag}",
         f"{policy_ok}/{n}",
         "100%",
         "PASS" if policy_ok == n else "FAIL",
     )
     res.add(
         "11.3 Agent",
-        "Trajectory checks (expected nodes visited, retries bounded)",
+        f"Trajectory checks (expected nodes visited, retries bounded) · {tag}",
         f"{trajectories_ok}/{n}",
         "100%",
         "PASS" if trajectories_ok == n else "FAIL",
     )
     res.add(
         "11.3a Compliance",
-        "Compliance audit coverage (report text carries a passing ComplianceReport)",
+        f"Compliance audit coverage (report text carries a passing ComplianceReport) · {tag}",
         f"{audited}/{n}",
         "100%",
         "PASS" if audited == n else "FAIL",
     )
-    res.add(
-        "11.3 Agent",
-        "Bottleneck containment: board suppliers off the good-to-own list never enter the universe, "
-        "a candidate table or the ranking (Phase 11, 4A.11)",
-        f"{contained}/{n}",
-        "100%",
-        "PASS" if contained == n else "FAIL",
-    )
-    res.add(
-        "11.3 Agent",
-        "Bottleneck board present with a thesis monitor (every layer row carries falsifiers and "
-        "evidence links)",
-        f"{boards}/{n}",
-        "100%",
-        "PASS" if boards == n else "FAIL",
-        f"{len(layers_seen)} layers; thesis weakening: {', '.join(sorted(weakening)) or 'none'}",
-    )
+    if writer is None:  # the board and containment do not depend on the writer
+        res.add(
+            "11.3 Agent",
+            "Bottleneck containment: board suppliers off the good-to-own list never enter the universe, "
+            "a candidate table or the ranking (Phase 11, 4A.11)",
+            f"{contained}/{n}",
+            "100%",
+            "PASS" if contained == n else "FAIL",
+        )
+        res.add(
+            "11.3 Agent",
+            "Bottleneck board present with a thesis monitor (every layer row carries falsifiers and "
+            "evidence links)",
+            f"{boards}/{n}",
+            "100%",
+            "PASS" if boards == n else "FAIL",
+            f"{len(layers_seen)} layers; thesis weakening: {', '.join(sorted(weakening)) or 'none'}",
+        )
     p95 = sorted(latencies)[max(round(0.95 * n) - 1, 0)]
     res.add(
         "11.3 Agent",
-        "Latency per run (fixture mode)",
+        f"Latency per run (fixture mode) · {tag}",
         f"mean {statistics.mean(latencies):.2f}s · p95 {p95:.2f}s",
         "report",
         "INFO",
     )
     res.add(
         "11.3 Agent",
-        "Cost per run",
+        f"Cost per run · {tag}",
         f"mean ${statistics.mean(costs):.4f} · input tokens mean {statistics.mean(tokens_in):.0f}",
         "report",
         "INFO",
         f"llm_mode={deps.llm.mode}",
     )
 
+    if writer is not None:
+        return
     # graceful degradation: social disabled
     deps.disabled_sources.add("social")
     g2 = build_graph(deps)
@@ -1356,6 +1447,8 @@ def main() -> int:
         eval_profile(res, cfg, llm)
         eval_injection(res, cfg, llm)
         eval_agent(res, cfg, deps)
+        if llm is not None:  # W11 step 3: the same runs with the model writing the narrative
+            eval_agent(res, cfg, replace(deps, llm=llm), writer=llm.models.explanation_model)
         eval_compliance(res, cfg)
         eval_routing(res, llm)
         eval_retrieval(res, cfg, tmp)

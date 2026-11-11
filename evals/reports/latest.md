@@ -1,44 +1,55 @@
 # OptionsScout AI: evaluation report
 
-_Generated 2026-11-08 21:17 UTC · data mode `fixture` · LLM: openrouter (deepseek/deepseek-v4.1-flash / deepseek/deepseek-v4.1-flash)_
+_Generated 2026-11-11 00:45 UTC · data mode `fixture` · LLM: openrouter (deepseek/deepseek-v4.1-flash / deepseek/deepseek-v4.1-flash)_
 
 Numbers below were measured by `make eval` on this machine. Rows marked **NOT RUN** need a live LLM key (or the optional `fastembed` extra) and are reported as such rather than estimated.
 
 | Section | Metric | Result | Target | Status | Detail |
 |---|---|---|---|---|---|
-| 11.1 Deterministic | Golden-value + property tests (tests/unit) | 415 passed | all pass | **PASS** |  |
-| Quality | Offline test suite (unit + agent + API + UI + MCP) | 594 passed | all pass | **PASS** | 329s |
-| Quality | Line coverage on core/, rag/, agent/, bottleneck/ (pytest --cov, same run) | 95.2% | ≥ 85% | **PASS** | whole package 92.0% |
+| 11.1 Deterministic | Golden-value + property tests (tests/unit) | 675 passed | all pass | **PASS** |  |
+| Quality | Offline test suite (unit + agent + API + UI + MCP) | 928 passed | all pass | **PASS** | 362s |
+| Quality | Line coverage on core/, rag/, agent/, bottleneck/ (pytest --cov, same run) | 95.7% | ≥ 85% | **PASS** | whole package 93.4% |
 | 11.2 Entity extraction | F1 on 150 labeled posts (rule-based, no LLM) | P 0.90 / R 0.89 / F1 0.90 | F1 ≥ 0.80 | **PASS** | tp=159 fp=17 fn=20 |
 | 11.2 Entity extraction | is_stock_talk accuracy (rule-based, no LLM) | 0.96 | report | **INFO** | n=159 |
-| 11.2 Entity extraction | F1 on 150 labeled posts (LLM deepseek/deepseek-v4.1-flash) | P 0.74 / R 0.94 / F1 0.83 | F1 ≥ 0.80 | **PASS** | tp=168 fp=59 fn=11 |
-| 11.2 Entity extraction | is_stock_talk accuracy (LLM deepseek/deepseek-v4.1-flash) | 0.98 | report | **INFO** | n=168 |
+| 11.2 Entity extraction | F1 on 150 labeled posts (LLM deepseek/deepseek-v4.1-flash) | P 0.77 / R 0.95 / F1 0.85 | F1 ≥ 0.80 | **PASS** | tp=170 fp=52 fn=9 |
+| 11.2 Entity extraction | is_stock_talk accuracy (LLM deepseek/deepseek-v4.1-flash) | 0.97 | report | **INFO** | n=170 |
 | 11.2 Resolution | Brand → ticker accuracy (100 names) | 100% | ≥ 90% | **PASS** | 0 misses |
 | 11.2 Resolution | Hallucinated (non-SEC) tickers | 0 | 0 | **PASS** |  |
 | 11.2 Profile parsing | Required-field accuracy (rule-based, no LLM) | 98% | ≥ 95% | **PASS** | 177/180 |
 | 11.2 Profile parsing | Clarification routing accuracy (rule-based, no LLM) | 98% | ≥ 95% | **PASS** | 59/60 |
 | 11.2 Profile parsing | Knowledge-level accuracy (rule-based, no LLM) | 100% | ≥ 90% | **PASS** | 60/60 (11 requests state a level, the rest must parse to none) |
-| 11.2 Profile parsing | Required-field accuracy (LLM deepseek/deepseek-v4.1-flash) | 100% | ≥ 95% | **PASS** | 180/180 |
-| 11.2 Profile parsing | Clarification routing accuracy (LLM deepseek/deepseek-v4.1-flash) | 100% | ≥ 95% | **PASS** | 60/60 |
-| 11.2 Profile parsing | Knowledge-level accuracy (LLM deepseek/deepseek-v4.1-flash) | 100% | ≥ 90% | **PASS** | 60/60 (11 requests state a level, the rest must parse to none) |
+| 11.2 Profile parsing | Required-field accuracy (LLM deepseek/deepseek-v4.1-flash) | 99% | ≥ 95% | **PASS** | 179/180 |
+| 11.2 Profile parsing | Clarification routing accuracy (LLM deepseek/deepseek-v4.1-flash) | 98% | ≥ 95% | **PASS** | 59/60 |
+| 11.2 Profile parsing | Knowledge-level accuracy (LLM deepseek/deepseek-v4.1-flash) | 98% | ≥ 90% | **PASS** | 59/60 (11 requests state a level, the rest must parse to none) |
 | 11.2 Prompt injection | Runs where injected ticker influenced output (rule-based) | 0/30 | 0% | **PASS** |  |
 | 11.2 Prompt injection | Runs where injected ticker influenced output (LLM) | 0/30 | 0% | **PASS** |  |
-| 11.3 Agent | Numeric grounding rate (final narrative) | 100.0% | 100% | **PASS** | 332/332 numbers over 6 runs |
-| 11.3 Agent | Narratives passing verifier on first attempt | 6/6 | report | **INFO** |  |
-| 11.3 Agent | Constraint compliance | 6/6 | 100% | **PASS** |  |
-| 11.3 Agent | Policy compliance (banned phrases absent, disclaimer present) | 6/6 | 100% | **PASS** |  |
-| 11.3 Agent | Trajectory checks (expected nodes visited, retries bounded) | 6/6 | 100% | **PASS** |  |
-| 11.3a Compliance | Compliance audit coverage (report text carries a passing ComplianceReport) | 6/6 | 100% | **PASS** |  |
+| 11.3 Agent | Numeric grounding rate (final narrative) · rule-based writer | 100.0% | 100% | **PASS** | 357/357 numbers over 6 runs |
+| 11.3 Agent | Narratives passing verifier on first attempt · rule-based writer | 6/6 | report | **INFO** |  |
+| 11.3 Agent | Constraint compliance · rule-based writer | 6/6 | 100% | **PASS** |  |
+| 11.3 Agent | Policy compliance (banned phrases absent, disclaimer present) · rule-based writer | 6/6 | 100% | **PASS** |  |
+| 11.3 Agent | Trajectory checks (expected nodes visited, retries bounded) · rule-based writer | 6/6 | 100% | **PASS** |  |
+| 11.3a Compliance | Compliance audit coverage (report text carries a passing ComplianceReport) · rule-based writer | 6/6 | 100% | **PASS** |  |
 | 11.3 Agent | Bottleneck containment: board suppliers off the good-to-own list never enter the universe, a candidate table or the ranking (Phase 11, 4A.11) | 6/6 | 100% | **PASS** |  |
 | 11.3 Agent | Bottleneck board present with a thesis monitor (every layer row carries falsifiers and evidence links) | 6/6 | 100% | **PASS** | 8 layers; thesis weakening: ai_datacenter/networking, electrification/battery |
-| 11.3 Agent | Latency per run (fixture mode) | mean 1.17s · p95 3.05s | report | **INFO** |  |
-| 11.3 Agent | Cost per run | mean $0.0000 · input tokens mean 0 | report | **INFO** | llm_mode=fixture |
+| 11.3 Agent | Latency per run (fixture mode) · rule-based writer | mean 0.64s · p95 2.43s | report | **INFO** |  |
+| 11.3 Agent | Cost per run · rule-based writer | mean $0.0000 · input tokens mean 0 | report | **INFO** | llm_mode=fixture |
 | 11.3 Agent | Graceful degradation with social source disabled | ok | report | **PASS** |  |
+| 11.3 Agent | Numeric grounding rate (final narrative) · LLM deepseek/deepseek-v4.1-flash | 100.0% | 100% | **PASS** | 341/341 numbers over 6 runs |
+| 11.3 Agent | Final narratives written by the model (no deterministic fallback) · LLM deepseek/deepseek-v4.1-flash | 6/6 | report | **INFO** | fell back: none. The grounding row above counts the fallbacks too. |
+| 11.3 Agent | Compliance checks the model's attempts failed (all attempts, all runs) · LLM deepseek/deepseek-v4.1-flash | check_education_only ×4 | report | **INFO** | per-attempt details: evals/reports/agent_llm_failures.json |
+| 11.3 Agent | Numeric grounding on the model-written narratives only · LLM deepseek/deepseek-v4.1-flash | 100.0% | report | **INFO** | 341/341 numbers over 6 runs |
+| 11.3 Agent | Narratives passing verifier on first attempt · LLM deepseek/deepseek-v4.1-flash | 3/6 | report | **INFO** |  |
+| 11.3 Agent | Constraint compliance · LLM deepseek/deepseek-v4.1-flash | 6/6 | 100% | **PASS** |  |
+| 11.3 Agent | Policy compliance (banned phrases absent, disclaimer present) · LLM deepseek/deepseek-v4.1-flash | 6/6 | 100% | **PASS** |  |
+| 11.3 Agent | Trajectory checks (expected nodes visited, retries bounded) · LLM deepseek/deepseek-v4.1-flash | 6/6 | 100% | **PASS** |  |
+| 11.3a Compliance | Compliance audit coverage (report text carries a passing ComplianceReport) · LLM deepseek/deepseek-v4.1-flash | 6/6 | 100% | **PASS** |  |
+| 11.3 Agent | Latency per run (fixture mode) · LLM deepseek/deepseek-v4.1-flash | mean 22.01s · p95 30.68s | report | **INFO** |  |
+| 11.3 Agent | Cost per run · LLM deepseek/deepseek-v4.1-flash | mean $0.0049 · input tokens mean 16587 | report | **INFO** | llm_mode=live |
 | 11.3a Compliance | Education-vs-advice separation (check_language / check_education_only / check_citations) | 34/34 advice caught · 0/10 clean rejected | 100% caught, ≤ 1 false positive | **PASS** |  |
 | 11.3a Compliance | Suitability gate (correct check name per case) | 22/22 | 100% | **PASS** |  |
 | 11.3a Conversation | Intent routing accuracy (rule-based router) | 100/100 = 100% | ≥ 90% | **PASS** |  |
 | 11.3a Conversation | Intent routing accuracy (LLM router) | 100/100 = 100% | ≥ 90% | **PASS** |  |
-| 11.3a Retrieval | Retrieval quality: recall@6 on 63 labelled questions (hash embedder, CI default) | 0.84 (53/63) · MRR 0.60 | recall@6 ≥ 0.70 | **PASS** | document-level recall 56/63; chunk misses: rag-05, rag-07, rag-11, rag-16, rag-23, rag-25, rag-26, rag-27, rag-30, rag-58 |
+| 11.3a Retrieval | Retrieval quality: recall@6 on 63 labelled questions (hash embedder, CI default) | 0.83 (52/63) · MRR 0.59 | recall@6 ≥ 0.70 | **PASS** | document-level recall 55/63; chunk misses: rag-05, rag-07, rag-11, rag-16, rag-23, rag-25, rag-26, rag-27, rag-30, rag-42, rag-58 |
 | 11.3a Retrieval | Retrieval quality: recall@6 (fastembed bge-small-en-v1.5) | n/a | recall@6 ≥ 0.85 | **NOT RUN** | optional extra not installed: pip install -e '.[rag]' (downloads the model) |
 | 11.3a Citations | Citation faithfulness: cited [Sn] tags that exist in the retrieved set (rule-based answerer) | 110/110 | 100% | **PASS** | over 63 answers |
 | 11.3a Citations | Citation faithfulness: education paragraphs carrying a citation (rule-based answerer) | 106/106 | 100% | **PASS** |  |
@@ -51,7 +62,7 @@ Numbers below were measured by `make eval` on this machine. Rows marked **NOT RU
 | 12.3 Goal planning | Goal parsing: a goal kind recognised on the 10 goal messages (rule-based) | 10/10 | 100% | **PASS** |  |
 | 12.5 News desk | Headline category accuracy on 70 labelled headlines (keyword classifier) | 70/70 = 100% | ≥ 85% | **PASS** |  |
 | 12.5 News desk | Headlines with an embedded instruction still labelled by content (20, keyword) | 20/20 | 100% | **PASS** |  |
-| 12.5 News desk | Headline category accuracy on 70 labelled headlines (LLM classifier) | 70/70 = 100% | ≥ 85% | **PASS** |  |
+| 12.5 News desk | Headline category accuracy on 70 labelled headlines (LLM classifier) | 69/70 = 99% | ≥ 85% | **PASS** |  |
 | 12.5 News desk | Headlines with an embedded instruction still labelled by content (20, LLM) | 20/20 | 100% | **PASS** |  |
 | 11.2 Constraint classification | Direction accuracy on 100 hand-labelled filing and news snippets (rule-based stand-in) | 94/100 = 94% | ≥ 0.85 | **PASS** | bl-007→neutral; bl-010→neutral; bl-018→neutral; bl-020→neutral; bl-026→tightening; bl-036→neutral |
 | 11.2 Constraint classification | Layer macro-F1 on 100 snippets, no search hint given (rule-based stand-in) | 0.93 | ≥ 0.80 | **PASS** |  |
@@ -59,8 +70,8 @@ Numbers below were measured by `make eval` on this machine. Rows marked **NOT RU
 | 11.2 Theme-map validation | Tickers in config/themes.yaml that exist in the SEC company list (33) | 33/33 | 100% | **PASS** |  |
 | 11.2 Prompt injection | Fixture filings/headlines with an embedded instruction that steered the label (20, rule-based) | 0/20 | 0% | **PASS** |  |
 | 11.2 Constraint classification | Direction accuracy on 100 hand-labelled filing and news snippets (LLM deepseek/deepseek-v4.1-flash) | 100/100 = 100% | ≥ 0.85 | **PASS** |  |
-| 11.2 Constraint classification | Layer macro-F1 on 100 snippets, no search hint given (LLM deepseek/deepseek-v4.1-flash) | 0.99 | ≥ 0.80 | **PASS** |  |
-| 11.2 Constraint classification | Side accuracy (customer / supplier / neutral) on 100 snippets (LLM deepseek/deepseek-v4.1-flash) | 91/100 = 91% | report | **INFO** |  |
+| 11.2 Constraint classification | Layer macro-F1 on 100 snippets, no search hint given (LLM deepseek/deepseek-v4.1-flash) | 0.98 | ≥ 0.80 | **PASS** |  |
+| 11.2 Constraint classification | Side accuracy (customer / supplier / neutral) on 100 snippets (LLM deepseek/deepseek-v4.1-flash) | 97/100 = 97% | report | **INFO** |  |
 | 11.2 Prompt injection | Fixture filings/headlines with an embedded instruction that steered the label (20, LLM) | 0/20 | 0% | **PASS** |  |
 | 12.6 Tax & accounts | Tax questions routed to the Tax agent and citing the expected document (rule-based answerer) | routed 20/20 · cited 20/20 | ≥ 90% cited | **PASS** | every question cited its document |
 | 12.6 Tax & accounts | Tax replies passing Compliance (check 11: disclaimer once, no rate, no instruction) | 20/20 · disclaimer once in 20/20 | 100% | **PASS** |  |

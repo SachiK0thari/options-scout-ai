@@ -546,3 +546,78 @@ def test_best_company_row_and_catalyst_days() -> None:
     assert (
         screeners.catalyst_days_for(_row("TEST", 1.0, []), TODAY - timedelta(days=1), TODAY) is None
     )
+
+
+# ------------------------------------------------------------------ W3: rank LEAPS on carry
+def test_leaps_carry_is_set_and_sorts_the_screen(config: AppConfig) -> None:
+    snap = _snapshot()
+    snap.dividend_yield = 0.02
+    out = screeners.screen_leaps(snap, config.rules.leaps, today=TODAY, r=R)
+    assert out and all(c.carry_per_year_pct is not None for c in out)
+    for c in out:
+        from options_scout.core import margin
+
+        assert c.carry_per_year_pct == pytest.approx(
+            margin.leaps_carry_per_year_pct(100.0, c.strike, c.mid, c.dte, R, 0.02)
+        )
+    carries = [c.carry_per_year_pct for c in out]
+    assert carries == sorted(carries)  # type: ignore[type-var]
+
+
+def test_leaps_with_unknown_dividend_have_no_carry_and_sort_last(config: AppConfig) -> None:
+    out = screeners.screen_leaps(
+        _snapshot(dividend_yield_known=False), config.rules.leaps, today=TODAY, r=R
+    )
+    assert out and all(c.carry_per_year_pct is None for c in out)
+    assert all(screeners.FLAG_DIVIDEND_UNKNOWN in c.flags for c in out)
+
+
+def test_rank_by_extrinsic_keeps_the_old_order(config: AppConfig) -> None:
+    rules = config.rules.leaps.model_copy(update={"rank_by": "extrinsic"})
+    out = screeners.screen_leaps(_snapshot(), rules, today=TODAY, r=R)
+    epy = [c.extrinsic_per_year_pct for c in out]
+    assert out and epy == sorted(epy)  # type: ignore[type-var]
+
+
+def test_carry_reorders_the_fixture_leaps(config: AppConfig) -> None:
+    """The W3 acceptance check: on raw extrinsic the NKE deep call (4%+ yield) sorts first; on
+    carry it is the dearest of the fixture underlyings and SPY is the cheapest."""
+    md = MarketData.from_config(config, mode="fixture")
+    today, r = md.today(), md.get_risk_free_rate()
+    by_extrinsic = config.rules.leaps.model_copy(update={"rank_by": "extrinsic"})
+    best_carry: dict[str, float] = {}
+    best_epy: dict[str, float] = {}
+    for t in ["SPY", "QQQ", "AAPL", "MSFT", "COST", "NKE"]:
+        snap = md.build_snapshot(t)
+        on_carry = screeners.screen_leaps(snap, config.rules.leaps, today=today, r=r)
+        on_epy = screeners.screen_leaps(snap, by_extrinsic, today=today, r=r)
+        assert on_carry and on_carry[0].carry_per_year_pct is not None
+        best_carry[t] = on_carry[0].carry_per_year_pct
+        best_epy[t] = on_epy[0].extrinsic_per_year_pct or 0.0
+    assert min(best_epy, key=best_epy.__getitem__) == "NKE"
+    assert min(best_carry, key=best_carry.__getitem__) == "SPY"
+    assert max(best_carry, key=best_carry.__getitem__) == "NKE"
+
+
+def test_option_quality_scores_leaps_on_carry(config: AppConfig) -> None:
+    from options_scout.config import OptionQualityWeights
+    from options_scout.core import ranking
+
+    (c,) = screeners.screen_leaps(_snapshot(), config.rules.leaps, today=TODAY, r=R)[:1]
+    w = OptionQualityWeights(annualized_return=1.0, prob_otm=0.0, liquidity=0.0, iv_rank_fit=0.0)
+    cap = config.rules.leaps.carry_score_cap
+    score = lambda carry: ranking.option_quality(  # noqa: E731
+        c.model_copy(update={"carry_per_year_pct": carry}), w, config.rules
+    )
+    assert score(0.0) == pytest.approx(1.0)
+    assert score(cap / 2) == pytest.approx(0.5)
+    assert score(cap) == pytest.approx(0.0)
+    assert score(-0.01) == pytest.approx(1.0)  # negative carry clips to the best score
+    assert score(None) == pytest.approx(0.0)  # unknown carry scores as the cap
+    # the raw-extrinsic switch scores on the old term, ignoring carry
+    old = config.rules.model_copy(
+        update={"leaps": config.rules.leaps.model_copy(update={"rank_by": "extrinsic"})}
+    )
+    epy_cap = config.rules.leaps.max_extrinsic_per_year_pct
+    c2 = c.model_copy(update={"extrinsic_per_year_pct": epy_cap / 4, "carry_per_year_pct": 0.0})
+    assert ranking.option_quality(c2, w, old) == pytest.approx(0.75)

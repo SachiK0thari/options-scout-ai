@@ -2,7 +2,7 @@
  {
   "section": "11.1 Deterministic",
   "name": "Golden-value + property tests (tests/unit)",
-  "value": "415 passed",
+  "value": "675 passed",
   "target": "all pass",
   "status": "PASS",
   "detail": ""
@@ -10,18 +10,18 @@
  {
   "section": "Quality",
   "name": "Offline test suite (unit + agent + API + UI + MCP)",
-  "value": "594 passed",
+  "value": "928 passed",
   "target": "all pass",
   "status": "PASS",
-  "detail": "329s"
+  "detail": "362s"
  },
  {
   "section": "Quality",
   "name": "Line coverage on core/, rag/, agent/, bottleneck/ (pytest --cov, same run)",
-  "value": "95.2%",
+  "value": "95.7%",
   "target": "\u2265 85%",
   "status": "PASS",
-  "detail": "whole package 92.0%"
+  "detail": "whole package 93.4%"
  },
  {
   "section": "11.2 Entity extraction",
@@ -42,18 +42,18 @@
  {
   "section": "11.2 Entity extraction",
   "name": "F1 on 150 labeled posts (LLM deepseek/deepseek-v4.1-flash)",
-  "value": "P 0.74 / R 0.94 / F1 0.83",
+  "value": "P 0.77 / R 0.95 / F1 0.85",
   "target": "F1 \u2265 0.80",
   "status": "PASS",
-  "detail": "tp=168 fp=59 fn=11"
+  "detail": "tp=170 fp=52 fn=9"
  },
  {
   "section": "11.2 Entity extraction",
   "name": "is_stock_talk accuracy (LLM deepseek/deepseek-v4.1-flash)",
-  "value": "0.98",
+  "value": "0.97",
   "target": "report",
   "status": "INFO",
-  "detail": "n=168"
+  "detail": "n=170"
  },
  {
   "section": "11.2 Resolution",
@@ -98,26 +98,26 @@
  {
   "section": "11.2 Profile parsing",
   "name": "Required-field accuracy (LLM deepseek/deepseek-v4.1-flash)",
-  "value": "100%",
+  "value": "99%",
   "target": "\u2265 95%",
   "status": "PASS",
-  "detail": "180/180"
+  "detail": "179/180"
  },
  {
   "section": "11.2 Profile parsing",
   "name": "Clarification routing accuracy (LLM deepseek/deepseek-v4.1-flash)",
-  "value": "100%",
+  "value": "98%",
   "target": "\u2265 95%",
   "status": "PASS",
-  "detail": "60/60"
+  "detail": "59/60"
  },
  {
   "section": "11.2 Profile parsing",
   "name": "Knowledge-level accuracy (LLM deepseek/deepseek-v4.1-flash)",
-  "value": "100%",
+  "value": "98%",
   "target": "\u2265 90%",
   "status": "PASS",
-  "detail": "60/60 (11 requests state a level, the rest must parse to none)"
+  "detail": "59/60 (11 requests state a level, the rest must parse to none)"
  },
  {
   "section": "11.2 Prompt injection",
@@ -137,15 +137,15 @@
  },
  {
   "section": "11.3 Agent",
-  "name": "Numeric grounding rate (final narrative)",
+  "name": "Numeric grounding rate (final narrative) \u00b7 rule-based writer",
   "value": "100.0%",
   "target": "100%",
   "status": "PASS",
-  "detail": "332/332 numbers over 6 runs"
+  "detail": "357/357 numbers over 6 runs"
  },
  {
   "section": "11.3 Agent",
-  "name": "Narratives passing verifier on first attempt",
+  "name": "Narratives passing verifier on first attempt \u00b7 rule-based writer",
   "value": "6/6",
   "target": "report",
   "status": "INFO",
@@ -153,7 +153,7 @@
  },
  {
   "section": "11.3 Agent",
-  "name": "Constraint compliance",
+  "name": "Constraint compliance \u00b7 rule-based writer",
   "value": "6/6",
   "target": "100%",
   "status": "PASS",
@@ -161,7 +161,7 @@
  },
  {
   "section": "11.3 Agent",
-  "name": "Policy compliance (banned phrases absent, disclaimer present)",
+  "name": "Policy compliance (banned phrases absent, disclaimer present) \u00b7 rule-based writer",
   "value": "6/6",
   "target": "100%",
   "status": "PASS",
@@ -169,7 +169,7 @@
  },
  {
   "section": "11.3 Agent",
-  "name": "Trajectory checks (expected nodes visited, retries bounded)",
+  "name": "Trajectory checks (expected nodes visited, retries bounded) \u00b7 rule-based writer",
   "value": "6/6",
   "target": "100%",
   "status": "PASS",
@@ -177,7 +177,7 @@
  },
  {
   "section": "11.3a Compliance",
-  "name": "Compliance audit coverage (report text carries a passing ComplianceReport)",
+  "name": "Compliance audit coverage (report text carries a passing ComplianceReport) \u00b7 rule-based writer",
   "value": "6/6",
   "target": "100%",
   "status": "PASS",
@@ -201,15 +201,15 @@
  },
  {
   "section": "11.3 Agent",
-  "name": "Latency per run (fixture mode)",
-  "value": "mean 1.17s \u00b7 p95 3.05s",
+  "name": "Latency per run (fixture mode) \u00b7 rule-based writer",
+  "value": "mean 0.64s \u00b7 p95 2.43s",
   "target": "report",
   "status": "INFO",
   "detail": ""
  },
  {
   "section": "11.3 Agent",
-  "name": "Cost per run",
+  "name": "Cost per run \u00b7 rule-based writer",
   "value": "mean $0.0000 \u00b7 input tokens mean 0",
   "target": "report",
   "status": "INFO",
@@ -222,6 +222,94 @@
   "target": "report",
   "status": "PASS",
   "detail": ""
+ },
+ {
+  "section": "11.3 Agent",
+  "name": "Numeric grounding rate (final narrative) \u00b7 LLM deepseek/deepseek-v4.1-flash",
+  "value": "100.0%",
+  "target": "100%",
+  "status": "PASS",
+  "detail": "341/341 numbers over 6 runs"
+ },
+ {
+  "section": "11.3 Agent",
+  "name": "Final narratives written by the model (no deterministic fallback) \u00b7 LLM deepseek/deepseek-v4.1-flash",
+  "value": "6/6",
+  "target": "report",
+  "status": "INFO",
+  "detail": "fell back: none. The grounding row above counts the fallbacks too."
+ },
+ {
+  "section": "11.3 Agent",
+  "name": "Compliance checks the model's attempts failed (all attempts, all runs) \u00b7 LLM deepseek/deepseek-v4.1-flash",
+  "value": "check_education_only \u00d74",
+  "target": "report",
+  "status": "INFO",
+  "detail": "per-attempt details: evals/reports/agent_llm_failures.json"
+ },
+ {
+  "section": "11.3 Agent",
+  "name": "Numeric grounding on the model-written narratives only \u00b7 LLM deepseek/deepseek-v4.1-flash",
+  "value": "100.0%",
+  "target": "report",
+  "status": "INFO",
+  "detail": "341/341 numbers over 6 runs"
+ },
+ {
+  "section": "11.3 Agent",
+  "name": "Narratives passing verifier on first attempt \u00b7 LLM deepseek/deepseek-v4.1-flash",
+  "value": "3/6",
+  "target": "report",
+  "status": "INFO",
+  "detail": ""
+ },
+ {
+  "section": "11.3 Agent",
+  "name": "Constraint compliance \u00b7 LLM deepseek/deepseek-v4.1-flash",
+  "value": "6/6",
+  "target": "100%",
+  "status": "PASS",
+  "detail": ""
+ },
+ {
+  "section": "11.3 Agent",
+  "name": "Policy compliance (banned phrases absent, disclaimer present) \u00b7 LLM deepseek/deepseek-v4.1-flash",
+  "value": "6/6",
+  "target": "100%",
+  "status": "PASS",
+  "detail": ""
+ },
+ {
+  "section": "11.3 Agent",
+  "name": "Trajectory checks (expected nodes visited, retries bounded) \u00b7 LLM deepseek/deepseek-v4.1-flash",
+  "value": "6/6",
+  "target": "100%",
+  "status": "PASS",
+  "detail": ""
+ },
+ {
+  "section": "11.3a Compliance",
+  "name": "Compliance audit coverage (report text carries a passing ComplianceReport) \u00b7 LLM deepseek/deepseek-v4.1-flash",
+  "value": "6/6",
+  "target": "100%",
+  "status": "PASS",
+  "detail": ""
+ },
+ {
+  "section": "11.3 Agent",
+  "name": "Latency per run (fixture mode) \u00b7 LLM deepseek/deepseek-v4.1-flash",
+  "value": "mean 22.01s \u00b7 p95 30.68s",
+  "target": "report",
+  "status": "INFO",
+  "detail": ""
+ },
+ {
+  "section": "11.3 Agent",
+  "name": "Cost per run \u00b7 LLM deepseek/deepseek-v4.1-flash",
+  "value": "mean $0.0049 \u00b7 input tokens mean 16587",
+  "target": "report",
+  "status": "INFO",
+  "detail": "llm_mode=live"
  },
  {
   "section": "11.3a Compliance",
@@ -258,10 +346,10 @@
  {
   "section": "11.3a Retrieval",
   "name": "Retrieval quality: recall@6 on 63 labelled questions (hash embedder, CI default)",
-  "value": "0.84 (53/63) \u00b7 MRR 0.60",
+  "value": "0.83 (52/63) \u00b7 MRR 0.59",
   "target": "recall@6 \u2265 0.70",
   "status": "PASS",
-  "detail": "document-level recall 56/63; chunk misses: rag-05, rag-07, rag-11, rag-16, rag-23, rag-25, rag-26, rag-27, rag-30, rag-58"
+  "detail": "document-level recall 55/63; chunk misses: rag-05, rag-07, rag-11, rag-16, rag-23, rag-25, rag-26, rag-27, rag-30, rag-42, rag-58"
  },
  {
   "section": "11.3a Retrieval",
@@ -362,7 +450,7 @@
  {
   "section": "12.5 News desk",
   "name": "Headline category accuracy on 70 labelled headlines (LLM classifier)",
-  "value": "70/70 = 100%",
+  "value": "69/70 = 99%",
   "target": "\u2265 85%",
   "status": "PASS",
   "detail": ""
@@ -426,7 +514,7 @@
  {
   "section": "11.2 Constraint classification",
   "name": "Layer macro-F1 on 100 snippets, no search hint given (LLM deepseek/deepseek-v4.1-flash)",
-  "value": "0.99",
+  "value": "0.98",
   "target": "\u2265 0.80",
   "status": "PASS",
   "detail": ""
@@ -434,7 +522,7 @@
  {
   "section": "11.2 Constraint classification",
   "name": "Side accuracy (customer / supplier / neutral) on 100 snippets (LLM deepseek/deepseek-v4.1-flash)",
-  "value": "91/100 = 91%",
+  "value": "97/100 = 97%",
   "target": "report",
   "status": "INFO",
   "detail": ""

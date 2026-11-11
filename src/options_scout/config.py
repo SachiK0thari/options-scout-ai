@@ -97,6 +97,9 @@ class LLMProviderSettings(_Strict):
     judge_model: str
     pricing: dict[str, ModelPrice]
     base_url: str | None = None  # OpenAI-compatible gateways (OpenRouter); unused by Anthropic
+    # OpenRouter ``reasoning.effort`` for reasoning models. Reasoning tokens share max_tokens with
+    # the answer, so an unset effort can spend the whole budget before any JSON is written.
+    reasoning_effort: Literal["none", "minimal", "low", "medium", "high"] | None = None
 
 
 class LLMSettings(_Strict):
@@ -174,8 +177,13 @@ MarketProviderName = Literal["marketdata", "tradier"]
 
 class MarketDataAppSettings(_Strict):
     api_key_env: str = "MARKETDATA_TOKEN"  # same variable the official SDKs read
-    # A chain costs one credit per contract; keep the N strikes nearest the money (0 = all).
+    # W27: "historical" = the previous session's whole chain by date, one request per ticker,
+    # about 1 credit per 1,000 contracts; "live" = the current chain per expiry, per contract
+    chain_feed: Literal["historical", "live"] = "historical"
+    # live feed only: keep the N strikes nearest the money (0 = all)
     strike_limit: int = Field(default=60, ge=0)
+    # credits a ticker is assumed to need; a run is cut to what the remaining credits cover
+    credits_per_ticker: int = Field(default=25, ge=0)
 
 
 class TradierSettings(_Strict):
@@ -317,11 +325,14 @@ class LEAPSRules(_Strict):
     dte_preferred: int
     delta_min: float
     delta_max: float
-    max_extrinsic_per_year_pct: float
+    max_extrinsic_per_year_pct: float  # hard filter (PRD 3.4)
     min_open_interest: int
     max_spread_pct: float
     preferred_iv_rank_max: float
     roll_warning_dte: int
+    # W3: sort and score on carry (dividends forgone, interest saved) or on raw extrinsic
+    rank_by: Literal["carry", "extrinsic"] = "carry"
+    carry_score_cap: float = Field(default=0.05, gt=0)  # carry at or above this scores 0
 
 
 class PMCCRules(_Strict):
@@ -892,7 +903,10 @@ class GoalsConfig(_Strict):
     max_horizon_years: int = Field(default=100, ge=1)
     assumed_return: dict[RiskProfileName, float]
     max_assumed_return: dict[RiskProfileName, float]
-    assignment_frequency: dict[RiskProfileName, float]
+    # W22: a short put's expected payoff assumes the stock drifts at expected_drift a year with
+    # realised volatility at realised_to_implied x its implied vol
+    expected_drift: float = Field(ge=-0.5, le=0.5)
+    realised_to_implied: float = Field(gt=0.0, le=2.0)
     retirement_age: float = Field(gt=0.0)
     savings_rate_table: SavingsRateTable
 
@@ -901,7 +915,6 @@ class GoalsConfig(_Strict):
         for name, table in (
             ("assumed_return", self.assumed_return),
             ("max_assumed_return", self.max_assumed_return),
-            ("assignment_frequency", self.assignment_frequency),
         ):
             missing = {"conservative", "balanced", "aggressive"} - set(table)
             if missing:

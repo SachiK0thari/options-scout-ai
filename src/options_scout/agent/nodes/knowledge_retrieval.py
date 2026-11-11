@@ -185,7 +185,15 @@ def run_facts_chunk(rep: ScreeningReport) -> Chunk:
             )
         else:
             lines.append(f"{q.ticker} was excluded by the quality gate: {'; '.join(q.reasons)}.")
-    for r in rep.ranked[:10]:
+    # the top 10, then the best-ranked line of every other ticker, so "why is X ranked where it
+    # is?" has X's rank even when X sits below the top 10
+    shown = list(rep.ranked[:10])
+    tickers = {r.candidate.ticker for r in shown}
+    for r in rep.ranked[10:]:
+        if r.candidate.ticker not in tickers:
+            tickers.add(r.candidate.ticker)
+            shown.append(r)
+    for r in shown:
         c = r.candidate
         bflags = [f for f in c.flags if f.startswith(("bottleneck", "catalyst"))]
         lines.append(

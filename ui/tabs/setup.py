@@ -115,13 +115,14 @@ def _form() -> tuple[dict[str, object] | None, str, str, bool]:
                     "MarketData.app API token",
                     type="password",
                     key="ds_key_md",
-                    help="Free plan: delayed data, ~100 credits a day. Leave empty to use MARKETDATA_TOKEN from .env.",
+                    help="Delayed plans are a session behind. Leave empty to use MARKETDATA_TOKEN from .env.",
                 )
                 st.caption(
                     "Your token is used for this run only. It is never written to disk, logged, "
-                    "cached or shown in the report. A chain costs one credit per contract, so each "
-                    f"run keeps the {CFG.settings.market_data.marketdata.strike_limit or '(all)'} "
-                    "strikes nearest the money."
+                    "cached or shown in the report. Each ticker's whole chain is one request for "
+                    "the previous session's close, about one credit per 1,000 contracts; a run "
+                    f"is cut to the tickers the credits left cover (about "
+                    f"{CFG.settings.market_data.marketdata.credits_per_ticker} each)."
                 )
             else:
                 st.caption(

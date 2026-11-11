@@ -81,7 +81,13 @@ TERMS: dict[str, Term] = {
     "Time value per year": Term(
         "extrinsic-value",
         "The part of the call's price that is not intrinsic value, per year, as a share of the "
-        "stock price: the yearly cost of holding the call instead of the shares.",
+        "stock price. The screen keeps calls at 5% or less.",
+    ),
+    "Yearly cost vs owning the shares": Term(
+        "leaps",
+        "Time value, plus the dividends a call holder does not receive, minus the interest earned "
+        "on the cash not spent on shares, per year, as a share of the stock price. LEAPS are "
+        "ranked on this, cheapest first. Blank when the dividend yield could not be found.",
     ),
     "Breakeven at expiry": Term(
         "leaps", "Stock price at expiry where the call neither gains nor loses: strike + price."

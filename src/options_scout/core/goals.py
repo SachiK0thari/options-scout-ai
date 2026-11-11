@@ -16,6 +16,7 @@ import math
 from collections.abc import Mapping, Sequence
 
 from options_scout.config import GoalsConfig
+from options_scout.core import pricing
 from options_scout.core.models import (
     FeasibilityStatus,
     FeasibilityVerdict,
@@ -119,47 +120,69 @@ def portfolio_yield(
     portfolio: SizedPortfolio,
     candidates: Mapping[str, OptionCandidate],
     cash_rate: float,
-    assignment_frequency: float,
+    *,
+    expected_drift: float,
+    realised_to_implied: float,
 ) -> YieldEstimate:
-    """Capital-weighted annualised yield of the sized positions plus the cash reserve at
-    ``cash_rate``. Short options earn ``premium / capital_used x 365 / dte``; LEAPS are held for
-    appreciation and count at 0% income. The stress-adjusted yield amortises the portfolio's
-    realistic loss (the -30% scenario) at ``assignment_frequency`` per year."""
+    """What the sized portfolio earns per year (PRD 3.8, W22).
+
+    Collateral and cash reserve (cash or margin account alike) earn ``cash_rate``.
+    Each short put adds ``(premium − PV(E[max(K − S_T, 0)])) / T`` dollars a year, with ``S_T``
+    lognormal at ``expected_drift`` and ``realised_to_implied`` × its implied vol, discounted at
+    ``cash_rate``. The gross yield keeps every premium. LEAPS are left out of the income view:
+    their capital earns nothing here and is charged nothing; their risk is on the stress path.
+    """
     totals = portfolio.totals
     capital = max(totals.capital_used, 0.0)
     cash = max(totals.cash_reserve, 0.0)
     total = capital + cash
     detail: list[str] = []
-    weighted = 0.0
+    premium_per_year = 0.0
+    loss_per_year = 0.0
+    leaps_capital = 0.0
     for p in portfolio.positions:
         c = candidates.get(p.candidate_id)
         if p.strategy == "leaps":
-            y = 0.0
-            detail.append(f"{p.candidate_id}: LEAPS held for appreciation, counted at 0% income")
-        elif p.capital_used > 0 and c is not None and c.dte > 0:
-            y = p.premium / p.capital_used * 365.0 / c.dte
-        elif c is not None and c.annualized_return is not None:
-            y = c.annualized_return
-        else:
-            y = 0.0
-            detail.append(f"{p.candidate_id}: no yield data, counted at 0%")
-        weighted += p.capital_used * y
-    gross = (weighted + cash * cash_rate) / total if total > 0 else 0.0
-    loss_share = totals.realistic_loss / total if total > 0 else 0.0
-    stress = gross - assignment_frequency * loss_share
+            leaps_capital += max(p.capital_used, 0.0)
+            detail.append(
+                f"{p.candidate_id}: LEAPS held for appreciation, left out of the income yield"
+            )
+            continue
+        if c is None or c.dte <= 0 or p.premium <= 0:
+            detail.append(f"{p.candidate_id}: no yield data, counted at the cash rate")
+            continue
+        t = c.dte / 365.0
+        premium_per_year += p.premium / t
+        if c.iv <= 0:
+            # no volatility to price the payoff with: count none of the premium as income
+            loss_per_year += p.premium / t
+            detail.append(f"{p.candidate_id}: no implied vol, premium not counted as income")
+            continue
+        payoff = pricing.expected_put_payoff(
+            c.spot, c.strike, t, expected_drift, realised_to_implied * c.iv
+        )
+        pv = payoff * math.exp(-cash_rate * t) * 100.0 * p.contracts
+        loss_per_year += pv / t
+    # money spent on LEAPS is not in T-bills: it earns nothing in this income view
+    interest = cash_rate * max(total - leaps_capital, 0.0)
+    gross = (interest + premium_per_year) / total if total > 0 else cash_rate
+    expected = (interest + premium_per_year - loss_per_year) / total if total > 0 else cash_rate
     detail.append(
-        f"gross {gross:.2%} on ${total:,.0f} (cash ${cash:,.0f} at {cash_rate:.2%}); "
-        f"stress-adjusted {stress:.2%} after {assignment_frequency:.0%} x realistic loss "
-        f"${totals.realistic_loss:,.0f}"
+        f"gross {gross:.2%} on ${total:,.0f} with every premium kept (${premium_per_year:,.0f} a "
+        f"year, cash and collateral at {cash_rate:.2%}); expected {expected:.2%} after an expected "
+        f"assignment loss of ${loss_per_year:,.0f} a year at {expected_drift:.0%} drift and "
+        f"realised vol at {realised_to_implied:.2f} x implied"
     )
     return YieldEstimate(
         gross_yield=gross,
-        stress_adjusted_yield=stress,
+        expected_yield=expected,
+        expected_assignment_loss=loss_per_year,
         cash_rate=cash_rate,
         capital_used=capital,
         cash_reserve=cash,
         realistic_loss=totals.realistic_loss,
-        assignment_frequency=assignment_frequency,
+        expected_drift=expected_drift,
+        realised_to_implied=realised_to_implied,
         detail=detail,
     )
 
@@ -215,14 +238,14 @@ def years_to_fi_by_savings_rate(
 
 
 def income_coverage(
-    stress_adjusted_yield: float, buying_power: float, expense_target_value: float
+    annual_yield: float, buying_power: float, expense_target_value: float
 ) -> tuple[float | None, float | None]:
-    """(share of the expense target the stress-adjusted premium yield covers, buying power needed
+    """(share of the expense target the expected yield covers, buying power needed
     for full coverage at that yield). Both ``None`` when the yield is not positive."""
-    if stress_adjusted_yield <= 0 or expense_target_value <= 0:
+    if annual_yield <= 0 or expense_target_value <= 0:
         return None, None
-    coverage = stress_adjusted_yield * buying_power / expense_target_value
-    return coverage, expense_target_value / stress_adjusted_yield
+    coverage = annual_yield * buying_power / expense_target_value
+    return coverage, expense_target_value / annual_yield
 
 
 # ------------------------------------------------------------------------- feasibility
@@ -269,7 +292,7 @@ def _capital_lever(
 ) -> GoalLever:
     if available <= 0:
         return GoalLever(
-            name="more_capital", value=None, detail="the stress-adjusted yield is not positive"
+            name="more_capital", value=None, detail="the expected yield is not positive"
         )
     if goal.kind == "income" and goal.target_monthly_income is not None:
         needed = 12.0 * goal.target_monthly_income / available
@@ -323,11 +346,11 @@ def _profile_lever(required: float, cfg: GoalsConfig) -> GoalLever:
 def feasibility(
     goal: Goal, profile: UserProfile, yields: YieldEstimate, cfg: GoalsConfig
 ) -> FeasibilityVerdict:
-    """fits / stretch / does_not_fit against the stress-adjusted yield and the profile's cap, plus
+    """fits / stretch / does_not_fit against the expected yield and the profile's cap, plus
     the three levers the user could pull: more capital, a longer horizon, a different profile.
     The function lists all three with numbers and never picks one."""
     cap = cfg.max_assumed_return[profile.risk_profile]
-    available = yields.stress_adjusted_yield
+    available = yields.expected_yield
     required = required_return(goal, cfg)
     notes: list[str] = []
     horizon = goal_horizon(goal)
@@ -391,24 +414,27 @@ def projection(
     goal: Goal, profile: UserProfile, yields: YieldEstimate, cfg: GoalsConfig
 ) -> list[ProjectionPath]:
     """Stress, base and best paths at the options yields, plus the conventional diversified
-    projection at the profile's assumed return. The stress path takes the -30% scenario's
-    realistic loss in year one and forgoes its growth afterwards."""
+    projection at the profile's assumed return. Base and best are capped at the profile's maximum
+    alike, so ``stress ≤ base ≤ best`` at every point. The stress path is the base path with the
+    -30% scenario's realistic loss taken once, at the end of year one (or at the horizon when it
+    is shorter), and the growth that loss forgoes afterwards."""
     years = goal_horizon(goal) or DEFAULT_HORIZON_YEARS
     contribution = 0.0 if goal.variant == "coast" else goal.monthly_contribution
     start = goal.start_balance
     cap = cfg.max_assumed_return[profile.risk_profile]
-    base_rate = max(yields.stress_adjusted_yield, MIN_RETURN)
-    best_rate = min(yields.gross_yield, cap)
+    base_rate = min(max(yields.expected_yield, MIN_RETURN), cap)
+    best_rate = max(min(yields.gross_yield, cap), base_rate)
     assumed = cfg.assumed_return[profile.risk_profile]
     total = yields.total_capital
     loss = yields.realistic_loss * (start / total) if total > 0 else 0.0
+    hit = min(1.0, years)
 
     base = _points(start, base_rate, years, contribution)
     stress = [
         ProjectionPoint(
             year=p.year,
             balance=p.balance
-            - (project_balance(loss, base_rate, p.year - 1.0, 0.0) if p.year >= 1.0 else 0.0),
+            - (project_balance(loss, base_rate, p.year - hit, 0.0) if p.year >= hit else 0.0),
         )
         for p in base
     ]
@@ -417,19 +443,19 @@ def projection(
             label="stress",
             annual_return=base_rate,
             points=stress,
-            note="the -30% scenario's realistic loss hits in year one",
+            note="the base path with the -30% scenario's realistic loss taken once in year one",
         ),
         ProjectionPath(
             label="base",
             annual_return=base_rate,
             points=base,
-            note="stress-adjusted yield of the current screen",
+            note="expected yield of the current screen, capped at the profile's maximum",
         ),
         ProjectionPath(
             label="best",
             annual_return=best_rate,
             points=_points(start, best_rate, years, contribution),
-            note="gross yield, capped at the profile's maximum",
+            note="gross yield (every premium kept), capped at the profile's maximum",
         ),
         ProjectionPath(
             label="assumed",
@@ -458,7 +484,7 @@ def fire_plan(
     annual_income = expenses + 12.0 * goal.monthly_contribution if expenses else None
     rate_saved = savings_rate(annual_income, expenses) if annual_income else None
     coverage, bp_full = income_coverage(
-        yields.stress_adjusted_yield, yields.total_capital, target_expenses
+        yields.expected_yield, yields.total_capital, target_expenses
     )
     targets = {v: fire_number(expense_target(v, goal, cfg), rate) for v in _FIRE_TARGETS}
     notes = [
@@ -469,7 +495,7 @@ def fire_plan(
     ]
     if coverage is not None:
         notes.append(
-            f"the current screen's stress-adjusted yield of {yields.stress_adjusted_yield:.1%} "
+            f"the current screen's expected yield of {yields.expected_yield:.1%} "
             f"would cover {coverage:.0%} of ${target_expenses:,.0f} a year; a short-put yield "
             "is not a safe withdrawal rate"
         )
@@ -498,8 +524,13 @@ def plan_goal(
     cfg: GoalsConfig,
 ) -> GoalPlan:
     """Everything the Goal Planning agent hands to its explainer, computed here and nowhere else."""
-    frequency = cfg.assignment_frequency[profile.risk_profile]
-    yields = portfolio_yield(portfolio, candidates, cash_rate, frequency)
+    yields = portfolio_yield(
+        portfolio,
+        candidates,
+        cash_rate,
+        expected_drift=cfg.expected_drift,
+        realised_to_implied=cfg.realised_to_implied,
+    )
     verdict = feasibility(goal, profile, yields, cfg)
     paths = projection(goal, profile, yields, cfg)
     fire = fire_plan(goal, profile, yields, cfg) if goal.kind == "fire" else None
@@ -507,9 +538,11 @@ def plan_goal(
     assumptions = [
         f"start balance ${goal.start_balance:,.0f}, contributions "
         f"${goal.monthly_contribution:,.0f} a month",
-        f"cash reserve earns the T-bill rate of {cash_rate:.2%}",
-        f"{profile.risk_profile} profile: return cap {cap:.0%}, stress every "
-        f"{1 / frequency:.0f} years on average",
+        f"the whole account, collateral included, earns the T-bill rate of {cash_rate:.2%}",
+        f"expected put payoffs assume the stocks drift {cfg.expected_drift:.0%} a year with "
+        f"realised volatility at {cfg.realised_to_implied:.2f} x implied",
+        f"{profile.risk_profile} profile: return cap {cap:.0%}; the stress path takes the -30% "
+        "scenario once in year one",
         "returns are assumptions for illustration, not forecasts; the stress path is always shown",
     ]
     return GoalPlan(

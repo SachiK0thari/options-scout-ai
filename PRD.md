@@ -148,7 +148,8 @@ fail to fit while a low-ranked one does. The sizer does not hide this:
 |---|---|
 | DTE | ≥ 365 days, prefer the longest available (≥ 540 preferred) |
 | Call delta | 0.70–0.85 |
-| Extrinsic value per year | ≤ 5% of stock price per year (score lower is better) |
+| Extrinsic value per year | ≤ 5% of stock price per year (hard filter) |
+| Ranking | by carry per year (3.6), cheapest first; a carry of 5% or more scores 0 on the cost term (`leaps.carry_score_cap`) |
 | Open interest | ≥ 100 |
 | Bid-ask spread | ≤ 5% of mid |
 | IV rank | prefer ≤ 40 (soft scoring) |
@@ -174,6 +175,7 @@ Notation: S spot, K strike, T years to expiry, r risk-free rate, q dividend yiel
 - **Return on margin** = `premium × 100 / margin_requirement`
 - **LEAPS intrinsic** = `max(S − K, 0)`; **extrinsic** = `price − intrinsic`
 - **Extrinsic per year %** = `(extrinsic / S) / (DTE / 365)`
+- **LEAPS carry per year %** = `(extrinsic + q × S × years − (S − price) × r × years) / S / years`, with `years = DTE / 365`: the yearly cost of holding the call instead of 100 shares (time value, plus dividends forgone, minus interest earned on the cash not spent). It can be negative. Not computed when the dividend yield is unknown.
 - **LEAPS breakeven at expiry** = `K + price`
 - **Dollar delta** = `delta × 100 × S × contracts` (short put delta is positive dollar exposure for the seller: use `−put_delta`)
 - **IV rank** = `(IV_now − IV_min_52w) / (IV_max_52w − IV_min_52w)`; **IV percentile** = share of days with IV below today.
@@ -184,6 +186,7 @@ Golden-value tests: use at least these, verified with an independent calculator 
 - Margin example: S=100, K=90, premium=1.50 → OTM=10, max(20−10, 9)=10 → requirement = (1.50 + 10) × 100 = **$1,150**
 - CSP example: K=90, premium=1.50, DTE=40 → annualized ≈ 1.50/88.50 × 365/40 ≈ **15.47%**
 - LEAPS example: S=100, K=70, price=33 → intrinsic 30, extrinsic 3, breakeven 103
+- LEAPS carry example: the same call with DTE=730, r=0.04, q=0.02 → 3.00 + 4.00 − 5.36 = 1.64 over two years → **0.82% per year**
 
 ### 3.7 Good-to-own universe (quality gate)
 
@@ -210,10 +213,10 @@ The product promise is "stocks you would be happy to own if assigned", so the un
 
 ### 3.8 Goal feasibility (Goal Planning agent)
 
-Logic in `core/goals.py` (pure, golden-tested), assumptions in `config/goals.yaml`. A goal is checked against what the current screen yields under stress and against the risk profile's return cap. Every return here is an assumption printed beside the chart; nothing is a forecast.
+Logic in `core/goals.py` (pure, golden-tested), assumptions in `config/goals.yaml`. A goal is checked against what the current screen is expected to yield and against the risk profile's return cap. Every return here is an assumption printed beside the chart; nothing is a forecast.
 
 1. **Required return.** Income goal: `12 × target monthly income / start balance`. Growth, contribution and FIRE goals: the effective annual return that turns the start balance plus monthly contributions into the target over the horizon (closed form for a lump sum, bisection with contributions; compounding is monthly at the rate equivalent to the annual one). The target of a FIRE goal is the FIRE number, `expense target / withdrawal rate`. A coast goal assumes no further contributions.
-2. **Available return** is the **stress-adjusted yield** of the sized portfolio: the capital-weighted annualised premium yield of the short options, with LEAPS counted at 0% income and the cash reserve at the T-bill rate, minus `assignment frequency × realistic loss / total capital` (the −30% scenario amortised at the profile's assumed frequency). Without a screen on the thread the balance is treated as cash at the T-bill rate.
+2. **Available return** is the **expected yield** of the sized portfolio. Collateral and the cash reserve earn the T-bill rate `r` in a cash or a margin account alike, so the two differ only by leverage. Each short put adds `(premium − e^(−rT) · E[max(K − S_T, 0)]) / T` dollars a year, where `S_T` is lognormal with price drift `expected_drift` (6%) and volatility `realised_to_implied` (0.85) × the put's implied volatility: `E[max(K − S_T, 0)] = K·N(−d2) − F·N(−d1)` with `F = S·e^(μT)`, `d1 = (ln(F/K) + σ²T/2)/(σ√T)`, `d2 = d1 − σ√T`. The expected yield is the sum over total capital. LEAPS are left out of the income view: their capital earns nothing and is charged nothing, and their risk is on the stress path. With the drift equal to `r` and a ratio of 1, a put priced at its model value adds nothing to the cash rate: an option seller earns only the volatility premium, which is the honest baseline. Both assumptions are printed beside the chart. The **gross yield** is the same with every premium kept. Without a screen on the thread the balance is treated as cash at the T-bill rate.
 3. **Verdict:**
 
 | Status | Condition |
@@ -224,8 +227,8 @@ Logic in `core/goals.py` (pure, golden-tested), assumptions in `config/goals.yam
 
    The gap is the required return minus the available return, in return points.
 4. **Levers** are listed together with their numbers and never chosen for the user: `more_capital` (the start balance that reaches the target at the available return; for an income goal `12 × monthly income / available return`), `longer_horizon` (the years to the target at the available return, or "not reached" within the maximum horizon) and `different_profile` (the first profile, conservative to aggressive, whose cap admits the required return, or none).
-5. **Projection paths** on one chart: `stress` (the base path less the −30% scenario's realistic loss taken in year one and the growth it forgoes), `base` (the stress-adjusted yield), `best` (the gross yield capped at the profile's maximum) and `assumed` (the profile's diversified-portfolio return, labelled as not options income). The stress path is shown whenever a projection is.
-6. **FIRE variants.** Expense target: minimum expenses (`lean`), current expenses (`regular`, `coast`), the entered fat expenses or the fat multiple × current expenses (`fat`), current expenses minus part-time income (`barista`). Years to independence and the coast balance (the present value of the FIRE number at the target age) use the profile's assumed diversified return, never the options yield. Income coverage (`stress-adjusted yield × buying power / expense target`) is shown beside them and never blended: a short-put yield is not a safe withdrawal rate.
+5. **Projection paths** on one chart: `stress` (the base path less the −30% scenario's realistic loss taken once, at the end of year one or at the horizon if shorter, and the growth it forgoes; the base rate has no amortised stress deduction, so the loss is not counted twice), `base` (the expected yield, capped at the profile's maximum), `best` (the gross yield, capped the same way), so `stress ≤ base ≤ best` at every point and `assumed` (the profile's diversified-portfolio return, labelled as not options income). The stress path is shown whenever a projection is.
+6. **FIRE variants.** Expense target: minimum expenses (`lean`), current expenses (`regular`, `coast`), the entered fat expenses or the fat multiple × current expenses (`fat`), current expenses minus part-time income (`barista`). Years to independence and the coast balance (the present value of the FIRE number at the target age) use the profile's assumed diversified return, never the options yield. Income coverage (`expected yield × buying power / expense target`) is shown beside them and never blended: a short-put yield is not a safe withdrawal rate.
 
 ### 3.9 News flags (News Desk agent)
 

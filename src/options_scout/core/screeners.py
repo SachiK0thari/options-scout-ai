@@ -293,6 +293,10 @@ def screen_leaps(
             )
             if c.extrinsic_per_year_pct > rules.max_extrinsic_per_year_pct:
                 continue
+            if snap.dividend_yield_known:  # unknown yield: no carry, sorted last (W3, W5)
+                c.carry_per_year_pct = margin.leaps_carry_per_year_pct(
+                    snap.spot.price, c.strike, c.mid, c.dte, r, snap.dividend_yield
+                )
             if c.dte < rules.dte_preferred:
                 c.flags.append("shorter_than_preferred_dte")
             if c.dte < rules.roll_warning_dte:
@@ -305,8 +309,17 @@ def screen_leaps(
                 c.flags.append(FLAG_DIVIDEND_UNKNOWN)  # delta and extrinsic assume no dividend
             # earnings_before_expiry is always true for a multi-year option; not flagged for LEAPS
             out.append(c)
-    # lower extrinsic per year is better; prefer longer DTE on ties
-    out.sort(key=lambda c: ((c.extrinsic_per_year_pct or 0.0), -c.dte))
+    # cheaper is better; prefer longer DTE on ties. On carry, rows without one sort last.
+    if rules.rank_by == "carry":
+        out.sort(
+            key=lambda c: (
+                c.carry_per_year_pct is None,
+                c.carry_per_year_pct if c.carry_per_year_pct is not None else 0.0,
+                -c.dte,
+            )
+        )
+    else:
+        out.sort(key=lambda c: ((c.extrinsic_per_year_pct or 0.0), -c.dte))
     return out
 
 

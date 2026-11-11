@@ -2,14 +2,15 @@
 
 from __future__ import annotations
 
+import math
 from datetime import date
 
 import pytest
-from hypothesis import given, settings
+from hypothesis import HealthCheck, given, settings
 from hypothesis import strategies as st
 
 from options_scout.config import AppConfig
-from options_scout.core import goals
+from options_scout.core import goals, pricing
 from options_scout.core.models import (
     Goal,
     OptionCandidate,
@@ -17,6 +18,7 @@ from options_scout.core.models import (
     SizedPortfolio,
     SizedPosition,
     UserProfile,
+    YieldEstimate,
 )
 
 
@@ -172,14 +174,165 @@ def test_years_to_target_monotone_in_contribution(
 
 
 # ------------------------------------------------------------------------------- yield
-def test_portfolio_yield_weights_capital_and_cash() -> None:
+DRIFT, RATIO = 0.06, 0.85
+
+
+def _yield(
+    portfolio: SizedPortfolio,
+    cands: dict[str, OptionCandidate],
+    cash_rate: float = 0.04,
+    drift: float = DRIFT,
+    ratio: float = RATIO,
+) -> YieldEstimate:
+    return goals.portfolio_yield(
+        portfolio, cands, cash_rate, expected_drift=drift, realised_to_implied=ratio
+    )
+
+
+def test_expected_put_payoff_goldens() -> None:
+    # at mu = r the undiscounted expectation is the Black-Scholes put grown at r
+    S, K, T, r, vol = 100.0, 95.0, 40 / 365, 0.04, 0.25
+    bs = pricing.bsm_price(S, K, T, r, 0.0, vol, "put")
+    assert pricing.expected_put_payoff(S, K, T, r, vol) == pytest.approx(bs * math.exp(r * T))
+    # no volatility: the payoff on the forward; expiry: intrinsic
+    assert pricing.expected_put_payoff(100, 110, 1.0, 0.05, 0.0) == pytest.approx(
+        110 - 100 * math.exp(0.05)
+    )
+    assert pricing.expected_put_payoff(100, 110, 0.0, 0.05, 0.3) == 10.0
+    # a higher drift or a lower volatility means a smaller expected payoff
+    assert pricing.expected_put_payoff(S, K, T, 0.10, vol) < pricing.expected_put_payoff(
+        S, K, T, 0.0, vol
+    )
+    assert pricing.expected_put_payoff(S, K, T, r, 0.8 * vol) < pricing.expected_put_payoff(
+        S, K, T, r, vol
+    )
+
+
+def test_portfolio_yield_goldens() -> None:
     portfolio, cands = _portfolio(cash_reserve=20_000.0)
-    y = goals.portfolio_yield(portfolio, cands, cash_rate=0.04, assignment_frequency=0.15)
-    csp_yield = 300 / 17_700 * 365 / 40  # premium / collateral annualised
-    gross = (17_700 * csp_yield + 20_000 * 0.04) / 37_700
-    assert y.gross_yield == pytest.approx(gross)
-    assert y.stress_adjusted_yield == pytest.approx(gross - 0.15 * 3_700 / 37_700)
+    y = _yield(portfolio, cands)
+    c = cands["CSP-A"]
+    t = 40 / 365
+    payoff = pricing.expected_put_payoff(c.spot, 90.0, t, DRIFT, RATIO * 0.25)
+    loss = payoff * math.exp(-0.04 * t) * 100 * 2 / t
+    interest = 0.04 * 37_700  # collateral earns the cash rate too (W22 step 4)
+    assert y.gross_yield == pytest.approx((interest + 300 / t) / 37_700)
+    assert y.expected_yield == pytest.approx((interest + 300 / t - loss) / 37_700)
+    assert y.expected_assignment_loss == pytest.approx(loss)
+    assert y.expected_yield < y.gross_yield
     assert y.total_capital == pytest.approx(37_700)
+    assert (y.expected_drift, y.realised_to_implied) == (DRIFT, RATIO)
+
+
+@settings(max_examples=60, deadline=None)
+@given(
+    strike_ratio=st.floats(0.80, 1.05),
+    vol=st.floats(0.10, 0.80),
+    dte=st.integers(7, 120),
+    r=st.floats(0.0, 0.08),
+    cash=st.floats(0, 100_000),
+)
+def test_a_fairly_priced_put_earns_the_cash_rate(
+    strike_ratio: float, vol: float, dte: int, r: float, cash: float
+) -> None:
+    """The honest baseline: at drift = r and realised vol = implied vol, a put priced at its model
+    value adds nothing to the cash rate, whatever its strike, tenor or the cash beside it."""
+    S, t = 100.0, dte / 365
+    K = round(S * strike_ratio, 2)
+    mid = pricing.bsm_price(S, K, t, r, 0.0, vol, "put")
+    if mid < 0.10 or mid >= K:  # the helper's 10-cent quote needs a positive bid
+        return
+    c = _csp("CSP-F", "AAPL", K, mid, dte).model_copy(update={"spot": S, "iv": vol})
+    portfolio, _ = _portfolio(cash_reserve=cash)
+    collateral = (K - mid) * 100
+    pos = portfolio.positions[0].model_copy(
+        update={
+            "candidate_id": c.id,
+            "contracts": 1,
+            "strike": K,
+            "mid": mid,
+            "capital_used": collateral,
+            "premium": mid * 100,
+        }
+    )
+    totals = portfolio.totals.model_copy(update={"capital_used": collateral})
+    port = portfolio.model_copy(update={"positions": [pos], "totals": totals})
+    y = _yield(port, {c.id: c}, cash_rate=r, drift=r, ratio=1.0)
+    assert y.expected_yield == pytest.approx(r, abs=1e-9)
+
+
+def test_cash_and_margin_accounts_differ_only_by_leverage() -> None:
+    """The same put on margin is backed by a smaller requirement and a larger reserve; both earn
+    the cash rate, so the same total and contracts give the same yield in either account."""
+    portfolio, cands = _portfolio(cash_reserve=20_000.0)
+    margin_pos = portfolio.positions[0].model_copy(update={"capital_used": 3_000.0})
+    margin_totals = portfolio.totals.model_copy(
+        update={"capital_used": 3_000.0, "cash_reserve": 34_700.0}
+    )
+    on_margin = portfolio.model_copy(update={"positions": [margin_pos], "totals": margin_totals})
+    a, b = _yield(portfolio, cands), _yield(on_margin, cands)
+    assert a.expected_yield == pytest.approx(b.expected_yield)
+    assert a.gross_yield == pytest.approx(b.gross_yield)
+
+
+def test_leaps_are_left_out_of_the_income_yield() -> None:
+    portfolio, cands = _portfolio(cash_reserve=20_000.0)
+    leaps = portfolio.positions[0].model_copy(
+        update={
+            "candidate_id": "LEAPS-A",
+            "strategy": "leaps",
+            "capital_used": 10_000.0,
+            "premium": -10_000.0,
+            "realistic_loss": 10_000.0,
+        }
+    )
+    totals = portfolio.totals.model_copy(
+        update={"capital_used": 10_000.0, "realistic_loss": 10_000.0, "cash_reserve": 20_000.0}
+    )
+    only_leaps = portfolio.model_copy(update={"positions": [leaps], "totals": totals})
+    y = _yield(only_leaps, cands)
+    # no premium, no loss charged; the LEAPS capital earns nothing, the reserve earns 4%
+    assert y.gross_yield == pytest.approx(y.expected_yield)
+    assert y.expected_yield == pytest.approx(0.04 * 20_000 / 30_000)
+    assert y.expected_yield > 0 and y.expected_assignment_loss == 0.0
+    assert any("left out of the income yield" in d for d in y.detail)
+
+
+@settings(
+    max_examples=80, deadline=None, suppress_health_check=[HealthCheck.function_scoped_fixture]
+)
+@given(
+    expected=st.floats(-0.2, 0.3),
+    extra=st.floats(0.0, 0.3),
+    years=st.floats(0.25, 30),
+    loss_share=st.floats(0.0, 0.5),
+    risk=st.sampled_from(["conservative", "balanced", "aggressive"]),
+)
+def test_projection_paths_are_ordered(
+    config: AppConfig, expected: float, extra: float, years: float, loss_share: float, risk: str
+) -> None:
+    """stress ≤ base ≤ best at every point, for any yields, horizons under a year included."""
+    y = YieldEstimate(
+        gross_yield=expected + extra,
+        expected_yield=expected,
+        expected_assignment_loss=0.0,
+        cash_rate=0.04,
+        capital_used=50_000.0,
+        cash_reserve=50_000.0,
+        realistic_loss=100_000.0 * loss_share,
+        expected_drift=DRIFT,
+        realised_to_implied=RATIO,
+    )
+    g = Goal(kind="growth", start_balance=100_000, target_balance=150_000, horizon_years=years)
+    paths = {p.label: p for p in goals.projection(g, _profile(risk), y, config.goals)}
+    cap = config.goals.max_assumed_return[risk]
+    assert paths["base"].annual_return <= cap and paths["best"].annual_return <= cap
+    for s_pt, b_pt, x_pt in zip(
+        paths["stress"].points, paths["base"].points, paths["best"].points, strict=True
+    ):
+        assert s_pt.balance <= b_pt.balance + 1e-6 <= x_pt.balance + 2e-6
+    if loss_share > 1e-3:  # the stress event shows up even on a horizon under a year
+        assert paths["stress"].points[-1].balance < paths["base"].points[-1].balance
 
 
 # -------------------------------------------------------------------------------- FIRE
@@ -230,7 +383,7 @@ def test_feasibility_income_goal_levers(config: AppConfig) -> None:
     cfg = config.goals
     portfolio, cands = _portfolio()
     profile = _profile("conservative")
-    y = goals.portfolio_yield(portfolio, cands, 0.04, cfg.assignment_frequency["conservative"])
+    y = _yield(portfolio, cands)
     g = Goal(kind="income", start_balance=60_000, target_monthly_income=400)  # 8% required
     v = goals.feasibility(g, profile, y, cfg)
     assert v.required_return == pytest.approx(0.08)
@@ -238,7 +391,7 @@ def test_feasibility_income_goal_levers(config: AppConfig) -> None:
     names = {lever.name for lever in v.levers}
     assert names == {"more_capital", "different_profile"}
     capital = next(lever for lever in v.levers if lever.name == "more_capital")
-    assert capital.value == pytest.approx(4_800 / y.stress_adjusted_yield)
+    assert capital.value == pytest.approx(4_800 / y.expected_yield)
     profile_lever = next(lever for lever in v.levers if lever.name == "different_profile")
     assert profile_lever.value == cfg.max_assumed_return["balanced"]  # the first cap >= 8%
     assert any("exceeds" in n for n in v.notes)
@@ -248,10 +401,10 @@ def test_feasibility_growth_fits_and_stretch(config: AppConfig) -> None:
     cfg = config.goals
     portfolio, cands = _portfolio()
     profile = _profile("aggressive")
-    y = goals.portfolio_yield(portfolio, cands, 0.04, cfg.assignment_frequency["aggressive"])
+    y = _yield(portfolio, cands)
     easy = Goal(kind="growth", start_balance=60_000, target_balance=61_000, horizon_years=5)
     assert goals.feasibility(easy, profile, y, cfg).status == "fits"
-    required = y.stress_adjusted_yield + cfg.stretch_band / 2
+    required = y.expected_yield + cfg.stretch_band / 2
     target = goals.project_balance(60_000, required, 5)
     stretch = Goal(kind="growth", start_balance=60_000, target_balance=target, horizon_years=5)
     v = goals.feasibility(stretch, profile, y, cfg)

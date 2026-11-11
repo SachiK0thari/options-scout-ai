@@ -20,12 +20,12 @@ max_assumed_return:
   balanced: 0.09
   aggressive: 0.12
 
-# Share of years in which the -30% stress scenario is assumed to hit, used to amortise the sized
-# portfolio's realistic loss into a stress-adjusted yield (the options income-coverage view).
-assignment_frequency:
-  conservative: 0.10
-  balanced: 0.15
-  aggressive: 0.20
+# Expected yield of a short put (PRD 3.8, W22): premium less the expected payoff
+# E[max(K - S_T, 0)], with S_T lognormal at this drift and at this share of the implied vol.
+# Both are printed beside the chart. At a drift equal to the cash rate and a ratio of 1 the
+# expected yield is the cash rate: a seller earns only the volatility premium.
+expected_drift: 0.06         # stock price drift a year
+realised_to_implied: 0.85    # realised volatility as a multiple of implied volatility
 
 retirement_age: 59.5         # IRA balances are treated as unavailable before this age
 savings_rate_table:          # illustration on the Goals tab: savings rates x years to independence

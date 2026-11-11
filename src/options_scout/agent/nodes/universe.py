@@ -109,6 +109,9 @@ def make(deps: Deps) -> Callable[[AgentState], dict[str, Any]]:
             available=available,
             signal_kinds=kinds,
         )
+        universe, budget_note = deps.md.fit_to_budget(universe)  # W27 step 4
+        if budget_note:
+            notes.append(f"universe: {budget_note}")
         return {"universe": universe, "errors": notes}
 
     return universe_node

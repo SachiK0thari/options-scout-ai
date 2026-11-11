@@ -10,7 +10,8 @@ require_delayed_data_statement: true # report narratives must say the data is de
 banned_patterns:
   # certainty
   - {label: certainty, pattern: "\\bguarantee[ds]?\\b"}
-  - {label: certainty, pattern: "\\brisk[- ]?free\\b"}
+  # "the risk-free rate" (the T-bill yield the payload supplies) is terminology, not a claim
+  - {label: certainty, pattern: "\\brisk[- ]?free\\b(?!(?:\\s+interest)?\\s+rates?\\b)"}
   - {label: certainty, pattern: "\\bcan(?:'|no)?t lose\\b"}
   - {label: certainty, pattern: "\\bsure thing\\b"}
   - {label: certainty, pattern: "\\bwill (?:profit|make money|pay off|go up|rise|rally|recover)\\b"}

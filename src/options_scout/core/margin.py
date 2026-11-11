@@ -54,6 +54,24 @@ def extrinsic_per_year_pct(S: float, extrinsic: float, dte: int) -> float:
     return (extrinsic / S) / (dte / 365.0)
 
 
+def leaps_carry_per_year_pct(
+    S: float, K: float, price: float, dte: int, r: float, q: float
+) -> float:
+    """Yearly cost of holding the call instead of 100 shares, as a fraction of the stock price:
+    (extrinsic + dividends forgone − interest saved on the capital not spent) / S / years.
+
+    Negative when the interest earned on the cash not spent exceeds the time value and the
+    dividends given up. Continuous-yield approximation, like the pricing model.
+    """
+    if dte <= 0 or S <= 0:
+        raise ValueError("dte and S must be positive")
+    years = dte / 365.0
+    extrinsic = price - leaps_intrinsic(S, K)
+    dividends_forgone = q * S * years
+    interest_saved = (S - price) * r * years
+    return (extrinsic + dividends_forgone - interest_saved) / S / years
+
+
 def leaps_breakeven(K: float, price: float) -> float:
     return K + price
 

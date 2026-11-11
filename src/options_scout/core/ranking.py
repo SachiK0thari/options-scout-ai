@@ -37,8 +37,13 @@ def option_quality(c: OptionCandidate, w: OptionQualityWeights, rules: ScreenerR
         liq = liquidity_score(c, rules.csp.max_spread_pct)
         iv_fit = c.iv_rank if c.iv_rank is not None else 0.5  # CSP sellers want high IV rank
     elif c.strategy == "leaps":
-        epy = c.extrinsic_per_year_pct or rules.leaps.max_extrinsic_per_year_pct
-        ret = _clip01(1.0 - epy / rules.leaps.max_extrinsic_per_year_pct)  # cheaper carry = better
+        if rules.leaps.rank_by == "carry":  # W3: unknown carry scores 0 on the cost term
+            cap = rules.leaps.carry_score_cap
+            cost = c.carry_per_year_pct if c.carry_per_year_pct is not None else cap
+        else:
+            cap = rules.leaps.max_extrinsic_per_year_pct
+            cost = c.extrinsic_per_year_pct if c.extrinsic_per_year_pct is not None else cap
+        ret = _clip01(1.0 - cost / cap)  # cheaper carry = better
         pop = c.delta  # deep ITM: delta approximates P(finish ITM)
         liq = liquidity_score(c, rules.leaps.max_spread_pct)
         iv_fit = (1.0 - c.iv_rank) if c.iv_rank is not None else 0.5  # buyers want low IV rank

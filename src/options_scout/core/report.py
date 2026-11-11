@@ -353,6 +353,7 @@ def render_leaps(
                 f"{c.delta:.2f}",
                 f"{c.mid:.2f}",
                 pct(c.extrinsic_per_year_pct),
+                pct(c.carry_per_year_pct),
                 f"{c.breakeven:.2f}",
                 f"{c.open_interest:,}/{pct(c.spread_pct, 0)}",
                 (
@@ -374,6 +375,7 @@ def render_leaps(
             "Delta",
             "Mid",
             "Extrinsic/yr",
+            "Carry/yr",
             "Breakeven",
             "OI / spread",
             "PMCC short call",
@@ -550,9 +552,11 @@ def render_goal(plan: GoalPlan | None) -> str:
     status = {"fits": "fits", "stretch": "stretch", "does_not_fit": "does not fit"}[v.status]
     lines = [
         f"**{g.kind} goal: {status}.** Required return "
-        f"{pct(v.required_return) if v.required_return is not None else 'n/a'}, stress-adjusted "
+        f"{pct(v.required_return) if v.required_return is not None else 'n/a'}, expected "
         f"yield {pct(v.available_return)}, profile cap {pct(v.profile_cap, 0)} "
-        f"(gross yield {pct(y.gross_yield)}, cash at {pct(y.cash_rate, 2)}).",
+        f"(gross yield {pct(y.gross_yield)} with every premium kept, cash at "
+        f"{pct(y.cash_rate, 2)}; assumes {pct(y.expected_drift, 0)} drift and realised vol at "
+        f"{y.realised_to_implied:.2f} × implied).",
         "",
         _table(
             ["Lever", "Value", "Detail"],

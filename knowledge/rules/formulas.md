@@ -5,7 +5,7 @@ source: PRD.md section 3.6 and config/settings.yaml
 url: PRD.md#36-formulas-implement-exactly-test-with-golden-values
 kind: rules
 level: intermediate
-as_of: '2026-11-09'
+as_of: '2026-11-10'
 ---
 
 # Rule 3.6 Formulas (implement exactly, test with golden values)
@@ -27,6 +27,7 @@ Notation: S spot, K strike, T years to expiry, r risk-free rate, q dividend yiel
 - **Return on margin** = `premium × 100 / margin_requirement`
 - **LEAPS intrinsic** = `max(S − K, 0)`; **extrinsic** = `price − intrinsic`
 - **Extrinsic per year %** = `(extrinsic / S) / (DTE / 365)`
+- **LEAPS carry per year %** = `(extrinsic + q × S × years − (S − price) × r × years) / S / years`, with `years = DTE / 365`: the yearly cost of holding the call instead of 100 shares (time value, plus dividends forgone, minus interest earned on the cash not spent). It can be negative. Not computed when the dividend yield is unknown.
 - **LEAPS breakeven at expiry** = `K + price`
 - **Dollar delta** = `delta × 100 × S × contracts` (short put delta is positive dollar exposure for the seller: use `−put_delta`)
 - **IV rank** = `(IV_now − IV_min_52w) / (IV_max_52w − IV_min_52w)`; **IV percentile** = share of days with IV below today.
@@ -37,6 +38,7 @@ Golden-value tests: use at least these, verified with an independent calculator 
 - Margin example: S=100, K=90, premium=1.50 → OTM=10, max(20−10, 9)=10 → requirement = (1.50 + 10) × 100 = **$1,150**
 - CSP example: K=90, premium=1.50, DTE=40 → annualized ≈ 1.50/88.50 × 365/40 ≈ **15.47%**
 - LEAPS example: S=100, K=70, price=33 → intrinsic 30, extrinsic 3, breakeven 103
+- LEAPS carry example: the same call with DTE=730, r=0.04, q=0.02 → 3.00 + 4.00 − 5.36 = 1.64 over two years → **0.82% per year**
 
 ## Values in force (config/settings.yaml)
 

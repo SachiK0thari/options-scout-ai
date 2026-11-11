@@ -486,3 +486,51 @@ def test_thesis_monitor_vocabulary_is_not_advice(ccfg: ComplianceConfig) -> None
     # say "average selling prices"; the monitor itself never says exit, sell or take profits)
     own_words = re.sub(r"“[^”]*”", " ", "\n".join(paragraphs)).lower()
     assert not re.search(r"\b(exit|sell|take profits|you should)\b", own_words)
+
+
+def test_the_risk_free_rate_is_terminology_in_any_paragraph(ccfg: ComplianceConfig) -> None:
+    """The payload hands the explainer ``risk_free_rate_pct``; naming that rate in a screen result
+    is not a certainty claim, while calling a trade or income risk-free still is."""
+    ok = [
+        "The regime uses a risk-free rate of 4.04%.",
+        "With the risk free interest rate at 4.04% the cash reserve earns T-bill yield.",
+        "Risk-free rates were read from FRED.",
+    ]
+    for text in ok:
+        assert cc.check_language(Narrative(paragraphs=[res(text)]), ccfg).passed, text
+        assert cc.banned_phrases_in(text) == [], text
+    bad = ["This is a risk-free trade.", "Premium is risk free income.", "Risk-free, rate or not."]
+    for text in bad:
+        assert not cc.check_language(Narrative(paragraphs=[res(text)]), ccfg).passed, text
+        assert cc.banned_phrases_in(text), text
+
+
+def test_verify_narrative_allows_the_risk_free_rate() -> None:
+    v = cc.verify_narrative("The risk-free rate is 4.04%. " + DISC, PAYLOAD, disclaimer=DISC)
+    assert v.banned_phrases_found == []
+    v2 = cc.verify_narrative("A risk-free trade. " + DISC, PAYLOAD, disclaimer=DISC)
+    assert v2.banned_phrases_found == ["risk-free"]
+
+
+def test_a_skipped_candidate_is_described_with_its_per_contract_loss() -> None:
+    """W11: the sizing warnings name the top-ranked candidate that did not fit; the payload now
+    carries the realistic loss of one contract of it, and the check accepts that number."""
+    cid = "CSP-SPY-2026-11-30-735P"
+    payload = {
+        **PAYLOAD,
+        "skipped_candidates": [
+            {
+                "candidate_id": cid,
+                "rank": 1,
+                "reason": "max loss per position",
+                "realistic_loss_per_contract": 20503,
+                "fits_from_account": 640477,
+            }
+        ],
+    }
+    named = f"The top-ranked {cid} fits from an account of $640,477."
+    assert not cc.check_education_only(Narrative(paragraphs=[res(named)]), payload, []).passed
+    with_loss = named + " One contract has a downside of $20,503."
+    assert cc.check_education_only(Narrative(paragraphs=[res(with_loss)]), payload, []).passed
+    # without the payload entry there is still no number to accept
+    assert not cc.check_education_only(Narrative(paragraphs=[res(with_loss)]), PAYLOAD, []).passed

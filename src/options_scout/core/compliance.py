@@ -53,6 +53,17 @@ BANNED_PHRASES: tuple[str, ...] = (
     "we recommend buying",
 )
 
+# "the risk-free rate" names the T-bill yield the payload supplies (``risk_free_rate_pct``); it is
+# terminology, not a claim that something carries no risk
+RISK_FREE_RATE_TERM = re.compile(r"\brisk[- ]?free(?:\s+interest)?\s+rates?\b", re.IGNORECASE)
+
+
+def banned_phrases_in(text: str) -> list[str]:
+    """The ``BANNED_PHRASES`` that occur in ``text``, after removing the risk-free rate term."""
+    low = RISK_FREE_RATE_TERM.sub(" ", text.lower())
+    return sorted({p for p in BANNED_PHRASES if p in low})
+
+
 CANDIDATE_ID = re.compile(r"\b(?:CSP|LEAPS|PMCC|PMCCSC)-[A-Z.\-]+?-\d{4}-\d{2}-\d{2}-[\d.]+[CP]\b")
 _PMCC_ID = re.compile(r"\bPMCC-[A-Z.]+-\d{4}-\d{2}-\d{2}-[\d.]+C-\d{4}-\d{2}-\d{2}-[\d.]+C\b")
 _DATE = re.compile(r"\b\d{4}-\d{2}-\d{2}\b")
@@ -222,8 +233,7 @@ def verify_narrative(
             candidates += [val / 100.0, -val / 100.0]
         if not any(_matches(c, allowed, rel_tol) for c in candidates):
             ungrounded.append(tok)
-    low = narrative.lower()
-    banned = sorted({p for p in BANNED_PHRASES if p in low})
+    banned = banned_phrases_in(narrative)
     disclaimer_present = _normalise(disclaimer)[:60] in _normalise(narrative)
     cited = sorted(set(CANDIDATE_ID.findall(narrative)) | set(_PMCC_ID.findall(narrative)))
     passed = not ungrounded and not banned and disclaimer_present and not unknown
@@ -355,6 +365,10 @@ def check_education_only(
         for p in payload.get("positions", [])
         if isinstance(p, dict)
     }
+    # W11: a candidate that did not fit is described with the realistic loss of one contract
+    for s in payload.get("skipped_candidates", []):
+        if isinstance(s, dict) and str(s.get("candidate_id")) not in losses:
+            losses[str(s.get("candidate_id"))] = s.get("realistic_loss_per_contract")
     for i, p in enumerate(narrative.paragraphs):
         if p.mode == "education":
             ids = CANDIDATE_ID.findall(p.text)

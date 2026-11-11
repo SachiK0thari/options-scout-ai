@@ -151,6 +151,15 @@ def _values_3_4(cfg: AppConfig) -> str:
         ("Days to expiry", f"≥ {r.dte_min}; prefer ≥ {r.dte_preferred}"),
         ("Call delta", f"{r.delta_min:g}–{r.delta_max:g}"),
         ("Extrinsic value per year", f"≤ {_pct(r.max_extrinsic_per_year_pct)} of the stock price"),
+        (
+            "Ranking",
+            (
+                "by carry per year (extrinsic + dividends forgone − interest saved), cheapest "
+                f"first; a carry of {_pct(r.carry_score_cap)} or more scores 0 on cost"
+            )
+            if r.rank_by == "carry"
+            else "by extrinsic value per year, cheapest first",
+        ),
         ("Open interest", f"≥ {r.min_open_interest:,}"),
         ("Bid-ask spread", f"≤ {_pct(r.max_spread_pct)} of mid"),
         ("IV rank", f"prefer ≤ {_pct(r.preferred_iv_rank_max)} (soft score)"),
@@ -247,18 +256,16 @@ def _values_3_8(cfg: AppConfig) -> str:
                 "Diversified-portfolio return assumed for the conventional and FIRE projections",
                 *(_pct(g.assumed_return[p]) for p in profiles),
             ),
-            (
-                "Share of years in which the −30% stress scenario is assumed to hit",
-                *(_pct(g.assignment_frequency[p]) for p in profiles),
-            ),
         ],
     )
     table = g.savings_rate_table
     rates = ", ".join(_pct(r) for r in table.rates)
     return (
         f"{per_profile}\n\n"
+        f"Expected put payoffs assume a stock price drift of {_pct(g.expected_drift)} a year and "
+        f"realised volatility at {g.realised_to_implied:g} × implied (all profiles).\n\n"
         f"Stretch band: a required return up to {g.stretch_band * 100:g} percentage points above "
-        "the stress-adjusted yield, and still within the profile's cap, is a `stretch`.\n\n"
+        "the expected yield, and still within the profile's cap, is a `stretch`.\n\n"
         f"Withdrawal rate: {_pct(g.withdrawal_rate)} unless the user states one (FIRE number = "
         f"expense target / withdrawal rate). Fat FIRE expense target when none is entered: "
         f"{g.fat_multiple:g} × current expenses. A target is reported as not reached beyond "

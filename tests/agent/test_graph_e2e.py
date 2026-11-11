@@ -160,7 +160,10 @@ def test_graceful_degradation_when_social_disabled(deps: Deps) -> None:
     rep = final["report"]
     assert rep.trends == []
     assert any("social engine disabled" in e for e in rep.errors)
-    assert rep.portfolio.positions and rep.verification.passed
+    # the run still ranks and sizes; at $100k since W3 the top-ranked underlyings may not fit,
+    # which policy B reports as too small rather than as an error
+    assert rep.ranked and rep.verification.passed
+    assert rep.portfolio.positions or rep.portfolio.account_too_small
     assert all(r.social_score == 50.0 for r in rep.ranked)  # neutral social score
 
 

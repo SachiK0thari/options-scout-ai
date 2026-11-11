@@ -44,6 +44,31 @@ def test_spec_leaps_example() -> None:
     assert margin.extrinsic_per_year_pct(100, 3, 730) == pytest.approx(0.015)
 
 
+def test_leaps_carry_golden() -> None:
+    # S=100, K=70, price=33, DTE=730, r=0.04, q=0.02 (W3, verified by hand):
+    # extrinsic 3.00 + dividends forgone 100×0.02×2 = 4.00 − interest saved (100−33)×0.04×2 = 5.36
+    # → 1.64 over two years on a $100 stock = 0.82% a year
+    assert margin.leaps_carry_per_year_pct(100, 70, 33, 730, 0.04, 0.02) == pytest.approx(0.0082)
+
+
+def test_leaps_carry_without_rates_is_extrinsic_per_year() -> None:
+    assert margin.leaps_carry_per_year_pct(100, 70, 33, 730, 0.0, 0.0) == pytest.approx(
+        margin.extrinsic_per_year_pct(100, 3, 730)
+    )
+
+
+def test_leaps_carry_can_be_negative() -> None:
+    # high rate, no dividend, little extrinsic: interest saved exceeds the time value paid
+    assert margin.leaps_carry_per_year_pct(100, 70, 31, 365, 0.05, 0.0) < 0.0
+
+
+def test_leaps_carry_rejects_bad_inputs() -> None:
+    with pytest.raises(ValueError):
+        margin.leaps_carry_per_year_pct(100, 70, 33, 0, 0.04, 0.02)
+    with pytest.raises(ValueError):
+        margin.leaps_carry_per_year_pct(0, 70, 33, 730, 0.04, 0.02)
+
+
 def test_dollar_delta_sign_convention() -> None:
     # short put delta -0.25 → positive dollar exposure for the seller
     assert margin.dollar_delta(-0.25, 100.0, 2, short=True) == pytest.approx(5000.0)

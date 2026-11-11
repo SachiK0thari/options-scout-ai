@@ -30,6 +30,11 @@ leaps:
   max_spread_pct: 0.05
   preferred_iv_rank_max: 0.40         # soft score
   roll_warning_dte: 240
+  # Ranking (W3). Carry = (extrinsic + dividends forgone − interest saved on the cash not spent)
+  # per year over the stock price: the yearly cost of the call against owning 100 shares.
+  # max_extrinsic_per_year_pct above stays the hard filter.
+  rank_by: carry                      # carry | extrinsic
+  carry_score_cap: 0.05               # a carry at or above this scores 0 on the cost term
 
 pmcc:
   dte_min: 30

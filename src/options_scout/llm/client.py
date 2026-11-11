@@ -145,6 +145,7 @@ class OpenRouterProvider:
             http_client=http_client,  # tests inject an httpx.MockTransport client
         )
         self._pricing = settings.pricing
+        self._reasoning_effort = settings.reasoning_effort
 
     def complete(
         self, *, task: str, model: str, system: str, user: str, schema: type[T], max_tokens: int
@@ -170,12 +171,18 @@ class OpenRouterProvider:
             kwargs: dict[str, Any] = {}
             if task in _DETERMINISTIC_TASKS:
                 kwargs["temperature"] = 0.0
+            extra: dict[str, Any] = {
+                "provider": {"require_parameters": True},
+                "usage": {"include": True},
+            }
+            if self._reasoning_effort is not None:
+                extra["reasoning"] = {"effort": self._reasoning_effort}
             response = self._client.chat.completions.create(
                 model=model,
                 max_tokens=max_tokens,
                 messages=messages,
                 response_format=response_format,
-                extra_body={"provider": {"require_parameters": True}, "usage": {"include": True}},
+                extra_body=extra,
                 **kwargs,
             )
             totals = _add_usage(totals, response, self._pricing)
@@ -186,15 +193,26 @@ class OpenRouterProvider:
             if refusal:
                 raise RuntimeError(f"model refused task={task}: {refusal}")
             text = choice.message.content or ""
+            if getattr(choice, "finish_reason", None) == "length":
+                # out of tokens: a corrective retry with the same budget is cut off again
+                raise RuntimeError(
+                    f"output cut off for task={task} at max_tokens={max_tokens} after "
+                    f"{len(text)} chars (reasoning tokens share the budget; see "
+                    "llm.max_output_tokens and reasoning_effort)"
+                )
             try:
                 return schema.model_validate_json(_strip_fences(text)), totals
             except ValueError as exc:  # pydantic.ValidationError subclasses ValueError
                 last_error = exc
                 log.warning(
-                    "openrouter task=%s attempt=%d: output failed schema validation (%s)",
+                    "openrouter task=%s attempt=%d: output failed schema validation (%s; %s; "
+                    "finish_reason=%s, %d chars)",
                     task,
                     attempt + 1,
                     str(exc).splitlines()[0],
+                    validation_summary(exc),
+                    getattr(choice, "finish_reason", None),
+                    len(text),
                 )
                 messages = [
                     *messages,
@@ -208,6 +226,24 @@ class OpenRouterProvider:
                     },
                 ]
         raise RuntimeError(f"schema validation failed for task={task}: {last_error}")
+
+
+def validation_summary(exc: Exception, limit: int = 3) -> str:
+    """Where and why a reply failed validation, without the reply's text: ``loc: type`` for the
+    first ``limit`` errors (a JSON syntax error reports its position instead)."""
+    errors = getattr(exc, "errors", None)
+    if not callable(errors):
+        return type(exc).__name__
+    try:
+        items = errors(include_input=False, include_url=False)
+    except TypeError:
+        items = errors()
+    parts = [
+        f"{'.'.join(str(x) for x in e.get('loc', ())) or '<root>'}: {e.get('type', '?')}"
+        for e in items[:limit]
+    ]
+    more = len(items) - limit
+    return ", ".join(parts) + (f" (+{more} more)" if more > 0 else "")
 
 
 def strict_json_schema(schema: dict[str, Any]) -> dict[str, Any]:

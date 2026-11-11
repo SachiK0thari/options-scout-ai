@@ -545,7 +545,7 @@ def education_paragraphs(sources: list[dict[str, str]], limit: int = 3) -> list[
     skipped so the deterministic stand-in always passes the language check; the allow-list for
     quoted sources arrives with the Compliance agent in step 10.4.
     """
-    from options_scout.core.compliance import BANNED_PHRASES
+    from options_scout.core.compliance import banned_phrases_in
 
     out: list[Paragraph] = []
     seen_titles: set[str] = set()
@@ -553,7 +553,7 @@ def education_paragraphs(sources: list[dict[str, str]], limit: int = 3) -> list[
         if src["title"] in seen_titles:
             continue
         excerpt = _first_sentences(src["text"])
-        if any(b in excerpt.lower() for b in BANNED_PHRASES):
+        if banned_phrases_in(excerpt):
             continue
         seen_titles.add(src["title"])
         out.append(
@@ -1070,7 +1070,7 @@ def rule_explain_goal(user_prompt: str) -> Narrative:
             text += f" The {goal.get('kind', 'goal')} goal needs about {req}% a year"
             if avail is not None:
                 text += (
-                    f"; the stress-adjusted yield available is {avail}% and the "
+                    f"; the expected yield available is {avail}% and the "
                     f"{goal.get('risk_profile', 'current')} profile's cap is {cap}%."
                 )
             else:

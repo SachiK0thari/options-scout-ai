@@ -121,14 +121,19 @@ def _client(handler: object) -> httpx.Client:
 
 @pytest.fixture
 def src() -> MarketDataAppSource:
-    return MarketDataAppSource(TOKEN, strike_limit=40, http_client=_client(_routes))
+    # the per-expiry ("live") chain feed; the historical feed has its own tests below
+    return MarketDataAppSource(
+        TOKEN, strike_limit=40, chain_feed="live", http_client=_client(_routes)
+    )
 
 
 def test_spot_uses_quote_and_average_volume_from_candles(src: MarketDataAppSource) -> None:
     spot = src.get_spot("aapl")
     assert spot.ticker == "AAPL" and spot.price == 347.1
-    n = MarketDataAppSource.AVG_VOLUME_DAYS
-    assert spot.avg_volume == pytest.approx(sum(1_000_000 + 1000 * i for i in range(n)) / n)
+    # the last AVG_VOLUME_DAYS sessions of the one-year series (W27: one candle fetch)
+    n, year = MarketDataAppSource.AVG_VOLUME_DAYS, MarketDataAppSource.HISTORY_DAYS
+    vols = [1_000_000 + 1000 * i for i in range(year)][-n:]
+    assert spot.avg_volume == pytest.approx(sum(vols) / n)
     assert spot.sector == "Unknown"
 
 
@@ -143,7 +148,7 @@ def test_expiries_chain_and_history(src: MarketDataAppSource) -> None:
     call = chain.calls[0]
     assert call.last == 0.0 and call.volume == 0  # null cells -> zero, not a crash
     hist = src.get_close_history("AAPL", 30)
-    assert len(hist) == 30 and hist[-1] == pytest.approx(129.0)
+    assert len(hist) == 30 and hist[-1] == pytest.approx(100.0 + 251)  # the year's last close
 
 
 def test_earnings_picks_next_future_report(src: MarketDataAppSource) -> None:
@@ -229,6 +234,7 @@ def test_from_config_defaults_to_marketdata_and_requires_a_token(
     monkeypatch.setenv("MARKETDATA_TOKEN", TOKEN)
     md = MarketData.from_config(config, mode="live")
     assert isinstance(md.source, MarketDataAppSource) and md.source.strike_limit == 60
+    assert md.source.chain_feed == "historical" and md.credits_per_ticker == 25  # W27
     assert TOKEN not in repr(md.source)
 
 
@@ -268,7 +274,10 @@ def test_earnings_failure_is_recorded_not_cached_and_fails_the_put_screen(
 
     calls = {"n": 0}
     src = MarketDataAppSource(
-        TOKEN, strike_limit=40, http_client=_client(_failing("/stocks/earnings/", status, calls))
+        TOKEN,
+        strike_limit=40,
+        chain_feed="live",
+        http_client=_client(_failing("/stocks/earnings/", status, calls)),
     )
     src._fetch.retry.sleep = lambda *_: None  # type: ignore[attr-defined]
     with pytest.raises((MarketDataError, httpx.HTTPStatusError)):
@@ -296,7 +305,9 @@ def test_successful_earnings_lookup_is_cached(config: AppConfig) -> None:
             calls["n"] += 1
         return _routes(request)
 
-    src = MarketDataAppSource(TOKEN, strike_limit=40, http_client=_client(counting))
+    src = MarketDataAppSource(
+        TOKEN, strike_limit=40, chain_feed="live", http_client=_client(counting)
+    )
     md = MarketData(src, MemoryCache(), config.settings.cache_ttl_seconds.model_dump())
     assert md.get_earnings_date("AAPL") == NEXT_EARNINGS
     assert md.get_earnings_date("AAPL") == NEXT_EARNINGS
@@ -308,7 +319,10 @@ def test_dividend_failure_marks_the_yield_unknown(config: AppConfig) -> None:
 
     calls = {"n": 0}
     src = MarketDataAppSource(
-        TOKEN, strike_limit=40, http_client=_client(_failing("/candles/", 402, calls))
+        TOKEN,
+        strike_limit=40,
+        chain_feed="live",
+        http_client=_client(_failing("/candles/", 402, calls)),
     )
     with pytest.raises(MarketDataError):
         src.get_dividend_yield("AAPL")
@@ -328,6 +342,8 @@ def test_dividend_series_mismatch_raises() -> None:
             return httpx.Response(200, json=body)
         return resp
 
-    src = MarketDataAppSource(TOKEN, strike_limit=40, http_client=_client(short_raw))
+    src = MarketDataAppSource(
+        TOKEN, strike_limit=40, chain_feed="live", http_client=_client(short_raw)
+    )
     with pytest.raises(MarketDataError, match="dividend series mismatch"):
         src.get_dividend_yield("AAPL")

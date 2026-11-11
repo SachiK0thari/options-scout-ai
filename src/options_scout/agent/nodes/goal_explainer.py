@@ -76,7 +76,9 @@ def goal_payload(plan: GoalPlan, disclaimer: str, risk_profile: str) -> dict[str
             "notes": v.notes,
             "yield": {
                 "gross_pct": _pct(y.gross_yield),
-                "stress_adjusted_pct": _pct(y.stress_adjusted_yield),
+                "expected_pct": _pct(y.expected_yield),
+                "expected_drift_pct": _pct(y.expected_drift, 0),
+                "realised_to_implied": round(y.realised_to_implied, 2),
                 "cash_rate_pct": _pct(y.cash_rate, 2),
                 "realistic_loss": _money(y.realistic_loss),
                 "total_capital": _money(y.total_capital),

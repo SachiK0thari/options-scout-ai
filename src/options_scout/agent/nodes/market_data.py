@@ -13,6 +13,7 @@ from typing import Any
 from options_scout.agent.deps import Deps
 from options_scout.agent.state import AgentState
 from options_scout.core.quality import check_quality
+from options_scout.data.market import QuotaExceededError
 
 
 def make(deps: Deps) -> Callable[[AgentState], dict[str, Any]]:
@@ -21,6 +22,12 @@ def make(deps: Deps) -> Callable[[AgentState], dict[str, Any]]:
         try:
             snap = deps.md.build_snapshot(ticker)
             closes = deps.md.get_close_history(ticker, 90)
+        except QuotaExceededError as exc:
+            # W27 step 5: a spent plan says nothing about the ticker; the gate is not run
+            return {
+                "errors": [f"market_data {ticker}: data quota reached: {exc}"],
+                "data_source_status": {ticker: "quota"},
+            }
         except Exception as exc:
             return {
                 "errors": [f"market_data {ticker}: {type(exc).__name__}: {exc}"],

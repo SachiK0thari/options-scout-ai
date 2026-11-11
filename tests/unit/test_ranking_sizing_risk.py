@@ -614,10 +614,25 @@ def test_the_reported_minimum_account_sizes_one_contract(
     assert again.positions and again.positions[0].contracts >= 1, (r.candidate.id, d)
 
 
+def _top6(cfg: AppConfig) -> object:
+    """Policy B judged on the best 6 underlyings. Since W3 ranks LEAPS on carry, NKE (the dearest
+    carry) is sixth, so at $100k the default top 5 sizes nothing; with 6 the NKE lines are sized
+    and the single-name and ranking warnings can be exercised."""
+    return cfg.risk.reporting.model_copy(update={"top_tickers": 6})
+
+
+def test_100k_is_too_small_for_the_top_five_underlyings(world: dict[str, object]) -> None:
+    cfg: AppConfig = world["cfg"]  # type: ignore[assignment]
+    ranked = _pipeline_ranked(world, _profile(100_000))
+    port, _rep = _size(world, _profile(100_000), ranked, reporting=cfg.risk.reporting)
+    assert port.account_too_small and not port.positions
+    assert any("NKE" in s and "not sized, ranked below" in s for s in port.skipped)
+
+
 def test_single_name_and_ranking_warnings_at_100k(world: dict[str, object]) -> None:
     cfg: AppConfig = world["cfg"]  # type: ignore[assignment]
     ranked = _pipeline_ranked(world, _profile(100_000))
-    port, rep = _size(world, _profile(100_000), ranked, reporting=cfg.risk.reporting)
+    port, rep = _size(world, _profile(100_000), ranked, reporting=_top6(cfg))
     tickers = {p.ticker for p in port.positions}
     assert len(tickers) == 1 and not port.account_too_small
     (name,) = tickers
@@ -654,7 +669,7 @@ def test_policy_b_sizes_nothing_when_no_top_ranked_underlying_fits(
 def test_low_deployment_is_reported(world: dict[str, object]) -> None:
     cfg: AppConfig = world["cfg"]  # type: ignore[assignment]
     ranked = _pipeline_ranked(world, _profile(100_000))
-    _port, rep = _size(world, _profile(100_000), ranked, reporting=cfg.risk.reporting)
+    _port, rep = _size(world, _profile(100_000), ranked, reporting=_top6(cfg))
     assert "low_deployment" in rep.sizing_flags  # type: ignore[attr-defined]
 
 

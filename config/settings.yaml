@@ -25,7 +25,7 @@ cache_ttl_seconds:
 llm:
   provider: openrouter        # live provider: anthropic | openrouter (OPTIONS_SCOUT_LLM_MODE=live)
   extraction_batch_size: 20
-  max_output_tokens: 4096
+  max_output_tokens: 8192     # reasoning tokens count against this too (OpenRouter)
   providers:
     openrouter:
       base_url: https://openrouter.ai/api/v1
@@ -33,6 +33,10 @@ llm:
       extraction_model: deepseek/deepseek-v4.1-flash
       explanation_model: deepseek/deepseek-v4.1-flash
       judge_model: deepseek/deepseek-v4.1-flash
+      # DeepSeek v4.1 Flash reasons by default and its reasoning shares max_tokens with the reply:
+      # unset (and at "low", measured 2026-11-10) a report narrative could run out of tokens with
+      # 0 characters written (finish_reason=length). "none" turns reasoning off.
+      reasoning_effort: none
       # $ per 1M tokens, fallback for cost accounting when OpenRouter omits usage.cost (2026-10-28)
       pricing:
         deepseek/deepseek-v4.1-flash: {input: 0.14, output: 0.42}
@@ -49,7 +53,16 @@ market_data:
   provider: marketdata        # live provider: marketdata (MarketData.app token) | tradier (API key)
   marketdata:
     api_key_env: MARKETDATA_TOKEN  # the UI/API can also pass a token per run (never persisted)
-    strike_limit: 60          # a chain costs 1 credit per contract: keep the 60 strikes nearest the money (0 = all)
+    # W27. historical: the previous session's whole chain (every expiry and strike) by date, one
+    # request per ticker, about 1 credit per 1,000 contracts (SBUX's 1,074 cost 2 credits on
+    # 2026-11-10; without the date the same chain cost 383, SPY's 12,904 cost 6,206).
+    # live: the current chain per expiry, billed per contract.
+    chain_feed: historical
+    strike_limit: 60          # live feed only: the 60 strikes nearest the money (0 = all)
+    # Budget before spending: a ticker is assumed to need this many credits (SPY's chain about
+    # 13, plus a quote, two candle series and the earnings lookup); a run is cut to what the
+    # credits left today cover, with a note
+    credits_per_ticker: 25
   tradier:
     sandbox: true             # sandbox.tradier.com: free developer token, 15-minute delayed data
     api_key_env: TRADIER_API_KEY   # the UI/API can also pass a key per run (never persisted)
