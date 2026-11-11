@@ -278,8 +278,11 @@ def test_compose_passes_the_provider_settings_and_watches_every_service() -> Non
         assert svc["restart"] == "unless-stopped"
         assert "healthcheck" in svc
     assert services["ui"]["ports"] == ["127.0.0.1:8501:8501"]  # W37
-    assert "|| true" not in services["scheduler"]["command"]
-    assert "failed" in services["scheduler"]["command"]
+    # the scheduler is a module now (fixed New York time, failures logged, heartbeat only on
+    # success): see tests/unit/test_scheduler.py
+    assert services["scheduler"]["command"] == ["python", "-m", "options_scout.jobs.scheduler"]
+    for name in ("api", "ui", "scheduler"):  # the live-mode VIX and earnings fallbacks
+        assert {"FRED_API_KEY", "ALPHAVANTAGE_API_KEY"} <= set(services[name]["environment"])
 
 
 def test_sqlite_side_files_are_ignored_by_git() -> None:

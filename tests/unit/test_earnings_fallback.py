@@ -216,3 +216,69 @@ def test_the_provider_is_not_asked_for_earnings_again_after_a_402() -> None:
         with pytest.raises(MarketDataError, match="402"):
             src.get_earnings_date("AAPL")
     assert calls["n"] == 1
+
+
+def test_parallel_lookups_send_one_request_at_a_time() -> None:
+    """The agent fetches tickers in parallel; Alpha Vantage refuses bursts ("1 request per
+    second", seen live). Requests are serialised and the calendar is fetched once."""
+    import threading
+    import time as _time
+
+    state = {"in_flight": 0, "max": 0}
+    guard = threading.Lock()
+    history = {f"T{i}": ["2026-11-02"] for i in range(8)}
+    inner = _AV(history=history)
+
+    def server(request: httpx.Request) -> httpx.Response:
+        with guard:
+            state["in_flight"] += 1
+            state["max"] = max(state["max"], state["in_flight"])
+        _time.sleep(0.01)
+        try:
+            return inner(request)
+        finally:
+            with guard:
+                state["in_flight"] -= 1
+
+    av = AlphaVantageEarnings(
+        KEY,
+        cache=MemoryCache(),
+        min_interval_s=0.0,
+        http_client=httpx.Client(transport=httpx.MockTransport(server)),
+    )
+    threads = [threading.Thread(target=av.lookup, args=(t, TODAY)) for t in history]
+    for th in threads:
+        th.start()
+    for th in threads:
+        th.join()
+    assert state["max"] == 1
+    functions = [c["function"] for c in inner.calls]
+    assert functions.count("EARNINGS_CALENDAR") == 1 and functions.count("EARNINGS") == 8
+
+
+def test_an_etf_has_no_earnings_and_no_error() -> None:
+    import sys
+    from pathlib import Path
+
+    sys.path.insert(0, str(Path(__file__).parent))
+    from test_marketdata_w27 import _facade, _Provider, _source
+
+    def refuse_earnings(request: httpx.Request) -> httpx.Response:
+        if "/stocks/earnings/" in request.url.path:
+            return httpx.Response(402, json={"s": "error"})
+        return provider(request)
+
+    provider = _Provider(with_iv=False)
+    src = _source(provider)
+    src._client = httpx.Client(  # route earnings to a 402 like the user's plan
+        transport=httpx.MockTransport(refuse_earnings),
+        base_url=src.BASE_URL,
+        headers=dict(src._client.headers),
+    )
+    md = _facade(src, credits_per_ticker=0)
+    server = _AV()
+    md.earnings_fallback = _av(server, skip={"SPY"})
+    snap = md.build_snapshot("SPY")
+    assert snap.earnings_known and snap.earnings_date is None
+    assert not any("earnings" in e for e in snap.source_errors)
+    assert server.calls == []  # an ETF is never looked up

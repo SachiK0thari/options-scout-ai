@@ -1226,7 +1226,9 @@ class MarketData:
         except Exception as exc:
             found = self._earnings_from_fallback(ticker, now.date(), exc, errors)
             if found is None:
-                earnings_known = False
+                # an ETF reports nothing: no date, and that is known; anything else is a gap
+                fallback = self.earnings_fallback
+                earnings_known = fallback is not None and fallback.is_skipped(ticker)
             else:
                 earnings = found.day
                 earnings_estimated = found.kind == "estimated"
@@ -1291,6 +1293,8 @@ class MarketData:
         if self.earnings_fallback is None:
             errors.append(f"earnings: lookup failed ({provider_error})")
             return None
+        if self.earnings_fallback.is_skipped(ticker):
+            return None  # an ETF: no earnings date to know (the screens never ask for one)
         try:
             found = self.earnings_fallback.lookup(ticker, today)
         except Exception as exc:

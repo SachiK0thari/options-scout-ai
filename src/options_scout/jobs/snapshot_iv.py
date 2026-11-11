@@ -12,7 +12,7 @@ import argparse
 import sqlite3
 import sys
 import threading
-from datetime import date
+from datetime import date, timedelta
 from pathlib import Path
 
 MIN_HISTORY = 30
@@ -49,6 +49,14 @@ class IVSnapshotStore:
             ).fetchall()
         return [float(r[0]) for r in reversed(rows)]
 
+    def has(self, ticker: str, day: date) -> bool:
+        with self._lock:
+            row = self._conn.execute(
+                "SELECT 1 FROM iv_snapshots WHERE ticker = ? AND day = ?",
+                (ticker.upper(), day.isoformat()),
+            ).fetchone()
+        return row is not None
+
     def count(self, ticker: str) -> int:
         with self._lock:
             row = self._conn.execute(
@@ -61,6 +69,18 @@ class IVSnapshotStore:
 
     def close(self) -> None:
         self._conn.close()
+
+
+def expected_session(md: object) -> date | None:
+    """The session a historical chain feed will return (the weekday before New York's today),
+    or None for a feed whose session cannot be known before fetching."""
+    source = getattr(md, "source", None)
+    if getattr(source, "chain_feed", None) != "historical":
+        return None
+    day = source._today() - timedelta(days=1)  # type: ignore[union-attr]
+    while day.weekday() >= 5:
+        day -= timedelta(days=1)
+    return day
 
 
 def main(argv: list[str] | None = None) -> int:
@@ -76,14 +96,28 @@ def main(argv: list[str] | None = None) -> int:
     args = parser.parse_args(argv)
     cfg = get_config()
     md = MarketData.from_config(cfg)
+    if getattr(getattr(md, "source", None), "name", "") == "fixture":
+        # recorded test data is not an IV history: writing it would corrupt every rank later
+        print(
+            "snapshot_iv: data mode is fixture, nothing recorded; set OPTIONS_SCOUT_DATA_MODE=live",
+            file=sys.stderr,
+        )
+        return 0  # a skip, not a failure: the compose scheduler's heartbeat stays healthy
     store = IVSnapshotStore(cfg.paths.iv_snapshot_db)
     tickers = [t.upper() for t in args.tickers] or list(DEMO_TICKERS)
+    expected = expected_session(md)
     for t in tickers:
+        if expected is not None and store.has(t, expected):
+            print(f"{t}: {expected.isoformat()} already recorded")  # a weekend or repeat pass
+            continue
         snap = md.build_snapshot(t)
         if snap.atm_iv is None:
             print(f"{t}: no ATM IV available", file=sys.stderr)
             continue
-        store.record(t, snap.as_of.date(), snap.atm_iv)
+        # the session the quotes are from (a delayed or historical feed is a session behind),
+        # not the day the job ran
+        day = min(c.as_of for c in snap.chains).date() if snap.chains else snap.as_of.date()
+        store.record(t, day, snap.atm_iv)
         print(f"{t}: atm_iv={snap.atm_iv:.4f} rows={store.count(t)}")
     return 0
 

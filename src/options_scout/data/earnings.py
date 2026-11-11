@@ -27,6 +27,7 @@ import csv
 import io
 import logging
 import os
+import threading
 import time
 from collections.abc import Callable
 from dataclasses import dataclass
@@ -88,6 +89,10 @@ class AlphaVantageEarnings:
         self._clock = clock
         self._last_call: float | None = None
         self.requests = 0
+        # the agent fetches tickers in parallel threads: one request at a time, spaced, or Alpha
+        # Vantage answers "1 request per second" (seen live on 2026-11-11)
+        self._lock = threading.Lock()
+        self._key_locks: dict[str, threading.Lock] = {}
 
     def __repr__(self) -> str:  # never echo the key
         return "AlphaVantageEarnings()"
@@ -101,6 +106,10 @@ class AlphaVantageEarnings:
 
     # -- transport ------------------------------------------------------------------------
     def _query(self, **params: str) -> httpx.Response:
+        with self._lock:
+            return self._query_locked(**params)
+
+    def _query_locked(self, **params: str) -> httpx.Response:
         if self._last_call is not None:
             wait = self.min_interval_s - (self._clock() - self._last_call)
             if wait > 0:
@@ -128,10 +137,19 @@ class AlphaVantageEarnings:
             hit = self.cache.get(key)
             if hit is not None:
                 return hit
-        value = fetch()
-        if self.cache is not None:
-            self.cache.set(key, value, ttl)
-        return value
+        with self._fetch_lock(key):  # parallel tickers share one calendar request
+            if self.cache is not None:
+                hit = self.cache.get(key)
+                if hit is not None:
+                    return hit
+            value = fetch()
+            if self.cache is not None:
+                self.cache.set(key, value, ttl)
+            return value
+
+    def _fetch_lock(self, key: str) -> threading.Lock:
+        with self._lock:
+            return self._key_locks.setdefault(key, threading.Lock())
 
     # -- data -------------------------------------------------------------------------------
     def calendar(self, today: date) -> dict[str, str]:
@@ -162,6 +180,9 @@ class AlphaVantageEarnings:
 
         raw = self._cached(f"av:last_reported:{symbol}", self.HISTORY_TTL, fetch)
         return None if raw == "none" else date.fromisoformat(raw)
+
+    def is_skipped(self, symbol: str) -> bool:
+        return symbol.upper() in self.skip
 
     def lookup(self, symbol: str, today: date) -> EarningsLookup:
         """The confirmed date, else the estimate; :class:`EarningsUnavailableError` otherwise."""

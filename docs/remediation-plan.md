@@ -908,7 +908,23 @@ done; step 5 is the user's.
   at-the-money IV of the 10 tickers that passed the gate, dated 2026-11-09, the session the
   chains are from. Rank needs 30 rows per ticker. The daily job
   (`python -m options_scout.jobs.snapshot_iv`, or the compose scheduler) has to run each trading
-  day, at about 5 credits a ticker.
+  day in live mode, at about 5 credits a ticker. Fixed 2026-11-11: it records the session the
+  chains are from, not the day it ran, and in fixture mode it records nothing and exits 0, so
+  the scheduler's heartbeat stays healthy (`tests/unit/test_snapshot_iv_job.py`).
+  For deployment (2026-11-11, the user is deploying soon, so no Mac launchd job): the compose
+  scheduler is now `options_scout.jobs.scheduler`. It runs one pass at start, then every day at
+  `OPTIONS_SCOUT_SCHEDULE_AT` (07:00 America/New_York, so daylight saving is handled), where
+  the old shell loop drifted with every restart. Failed jobs are logged and the heartbeat is
+  touched only after a clean pass. The IV job skips tickers whose reading for the expected
+  session (the weekday before New York's today) is stored, so weekend passes cost nothing.
+  Compose now passes `FRED_API_KEY` and `ALPHAVANTAGE_API_KEY` to every service (before, the
+  API and UI had neither, so the VIX and earnings fallbacks would have been off in a
+  deployment). A "chain-only" lighter snapshot was considered and dropped: after W27 a full
+  snapshot is the chain plus about 2 credits, and a chain-only reading would skip the dividend
+  yield and drift from how the screen solves IV. Verified in Docker 28.3.2 (throwaway project,
+  fixture mode): the first pass ran, the IV job skipped as designed, the heartbeat and
+  healthcheck passed, next pass 07:00 New York. Tests: `tests/unit/test_scheduler.py` (5), one
+  more in `test_snapshot_iv_job.py`, and `test_deployment.py` updated.
 - **Step 2 (re-record fixtures from the provider):** not done. It changes the golden report and
   the fixture-mode expectations, and earnings and VIX would be missing from the recording.
 - **Step 6:** `docs/brief-mapping.md` states the split: 79 written articles (37 concepts, 28
@@ -2053,8 +2069,20 @@ day (below).
     asked for earnings again after a 402. Live check: all 11 resolved, 3 confirmed and 8
     estimated (AAPL tested from 2027-01-11, PEP from 2026-12-17), 9 Alpha Vantage requests.
     Tests: `tests/unit/test_earnings_fallback.py` (12). Alpha Vantage's terms allow personal,
-    non-commercial use; giving others access counts as commercial. **The user's `.env` names the
-    key `ALPHA_VANTAGE_API_KEY`; the app (News Desk and earnings) reads `ALPHAVANTAGE_API_KEY`.**
+    non-commercial use; giving others access counts as commercial. The user renamed the key in
+    `.env` to `ALPHAVANTAGE_API_KEY`, the name the app reads.
+  - **Live screen with both fallbacks (2026-11-11):** 70 s, 65 MarketData credits (2,065 left),
+    9 Alpha Vantage requests. VIX 19.92 from FRED. Earnings: COST confirmed; HON, XOM, CVX,
+    SBUX and UNP estimated. CVX ×2 and XOM puts reached the shortlist flagged
+    `earnings_estimated`, with 2 SPY puts: 5 CSP, 12 LEAPS and 2 PMCC, 17 ranked, compliance
+    passed, nothing sized at $100k (policy B). Two defects, fixed and tested the same day:
+    AAPL, MSFT and PEP got Alpha Vantage's burst refusal ("1 request per second") because the
+    parallel ticker threads raced the spacing (requests are now serialised behind a lock, and
+    concurrent lookups share one calendar request); and SPY showed an earnings error. An ETF now
+    has no date and no error (`earnings_known` true). Confirmed live the same day without a full
+    rerun (Alpha Vantage was near its 25 a day): AAPL, MSFT and PEP looked up at once from three
+    threads made 4 requests (1 calendar, 3 histories), finished 13, 26 and 39 s in, one request
+    per 12.5 s, and all three resolved (estimates 2027-02-01, 2027-01-27, 2027-01-07).
 
 ---
 

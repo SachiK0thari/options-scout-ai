@@ -9,6 +9,10 @@ x-common-env: &common-env
   TRADIER_API_KEY: ${TRADIER_API_KEY:-}
   OPENROUTER_API_KEY: ${OPENROUTER_API_KEY:-}
   ANTHROPIC_API_KEY: ${ANTHROPIC_API_KEY:-}
+  # live-mode fallbacks when the market-data plan lacks them: VIX (FRED VIXCLS) and earnings dates
+  # (Alpha Vantage); the scheduler's bottleneck job uses FRED too, the News Desk Alpha Vantage
+  FRED_API_KEY: ${FRED_API_KEY:-}
+  ALPHAVANTAGE_API_KEY: ${ALPHAVANTAGE_API_KEY:-}
 
 # What the services share on scout-data (W39): the market cache and the trend, bottleneck and
 # IV snapshot databases. The scheduler refreshes the snapshots that the API and UI read; every
@@ -59,15 +63,9 @@ services:
     # and the heartbeat is not touched, so the healthcheck turns unhealthy (W42).
     build: .
     restart: unless-stopped
-    command: >
-      sh -c 'while true; do
-        ok=1;
-        for job in snapshot_iv refresh_trends refresh_bottlenecks; do
-          python -m options_scout.jobs.$$job || { echo "scheduler: $$job failed (exit $$?)" >&2; ok=0; };
-        done;
-        [ $$ok = 1 ] && touch /app/data/scheduler.heartbeat;
-        sleep 86400;
-      done'
+    # one pass at start, then every day at OPTIONS_SCOUT_SCHEDULE_AT New York time (default
+    # 07:00, after the previous session); a failed job is logged as "scheduler: <job> failed"
+    command: ["python", "-m", "options_scout.jobs.scheduler"]
     environment:
       <<: *common-env
       REDDIT_CLIENT_ID: ${REDDIT_CLIENT_ID:-}
@@ -77,7 +75,7 @@ services:
       OPTIONS_SCOUT_SOCIAL_SOURCES: ${OPTIONS_SCOUT_SOCIAL_SOURCES:-}
       OPTIONS_SCOUT_BOTTLENECK_SOURCES: ${OPTIONS_SCOUT_BOTTLENECK_SOURCES:-}
       OPTIONS_SCOUT_CONTACT_EMAIL: ${OPTIONS_SCOUT_CONTACT_EMAIL:-}
-      FRED_API_KEY: ${FRED_API_KEY:-}
+      OPTIONS_SCOUT_SCHEDULE_AT: ${OPTIONS_SCOUT_SCHEDULE_AT:-07:00}
     volumes: ["scout-data:/app/data"]
     healthcheck:
       # healthy while every job of the last daily pass succeeded (heartbeat younger than 25 hours)
