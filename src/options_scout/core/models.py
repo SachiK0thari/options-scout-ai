@@ -144,6 +144,10 @@ class TickerSnapshot(Model):
     chains: list[OptionChain]
     earnings_date: date | None
     earnings_known: bool = True  # False when the lookup failed (the date is then meaningless)
+    # W27 follow-up: the date is an estimate (last report + cadence); ``earnings_date`` is then
+    # the earliest plausible day (estimate − margin) and ``earnings_estimate`` the estimate
+    earnings_estimated: bool = False
+    earnings_estimate: date | None = None
     hv30: float | None = Field(default=None, ge=0)
     dividend_yield: float = Field(default=0.0, ge=0)
     dividend_yield_known: bool = True  # False when the lookup failed (the yield is then 0.0)

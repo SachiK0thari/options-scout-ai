@@ -2033,7 +2033,28 @@ day (below).
     require (`MarketRegime.vix_source`); README and PRIVACY.md say the same. Live check: VIX 19.92
     on the 2026-11-09 close, the 80.6th percentile of 282 closes, where the run had used the
     neutral 20 / 50th. Tests: `tests/unit/test_vix_fallback.py` (8). Fixture mode and the golden
-    report are unchanged. The earnings source is still open.
+    report are unchanged.
+  - **Earnings from Alpha Vantage (done 2026-11-11; rule decided by the user that day):**
+    `market_data.earnings_fallback: alphavantage` (new, the default), `data/earnings.py`. Probes:
+    `EARNINGS_CALENDAR` (3-month, 1,688 rows; 12-month, 1,951) lists only **confirmed** dates.
+    Of the 11 curated stocks it had NKE, COST and CSCO; AAPL, MSFT, PEP, XOM, CVX, HON, SBUX and
+    UNP were missing although several report inside the window, so a missing name is not
+    "no earnings". `EARNINGS` per company gives the reported dates (AAPL: gaps of 91 to 95
+    days). **Rule:** a confirmed date when listed; otherwise estimate = last report +
+    `earnings_cadence_days` (91), and the snapshot's `earnings_date` is the earliest plausible
+    day, estimate − `earnings_margin_days` (21), so a put is clear only if the estimate is 21+
+    days after its expiry. `TickerSnapshot.earnings_estimated`/`earnings_estimate` are set, the
+    put gets an `earnings_estimated` flag and the report's Earnings column reads "no
+    (estimated)". An estimate already past means "any day now" (every put spans earnings). A
+    last report more than 120 days old, or none, stays unknown (W5 fails closed). Also used when
+    the provider answers with no date. ETFs are never looked up. The calendar is cached a day,
+    each history a week, requests spaced 12.5 s (five a minute), a limit message makes the date
+    unknown without failing the ticker, and errors never carry the key. MarketData.app is not
+    asked for earnings again after a 402. Live check: all 11 resolved, 3 confirmed and 8
+    estimated (AAPL tested from 2027-01-11, PEP from 2026-12-17), 9 Alpha Vantage requests.
+    Tests: `tests/unit/test_earnings_fallback.py` (12). Alpha Vantage's terms allow personal,
+    non-commercial use; giving others access counts as commercial. **The user's `.env` names the
+    key `ALPHA_VANTAGE_API_KEY`; the app (News Desk and earnings) reads `ALPHAVANTAGE_API_KEY`.**
 
 ---
 

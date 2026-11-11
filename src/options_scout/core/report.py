@@ -287,7 +287,9 @@ def earnings_cell(c: OptionCandidate) -> str:
     """Earnings column: yes, no or unknown (W5: a missing date is never shown as "no")."""
     if c.earnings_before_expiry:
         return "yes"
-    return "unknown" if "earnings_unknown" in c.flags else "no"
+    if "earnings_unknown" in c.flags:
+        return "unknown"
+    return "no (estimated)" if "earnings_estimated" in c.flags else "no"
 
 
 def render_csp(cands: Sequence[OptionCandidate], limit: int = 15) -> str:

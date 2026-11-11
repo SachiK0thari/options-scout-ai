@@ -274,6 +274,7 @@ class MarketDataAppSource:
         # per-session memos: (ticker, day) -> whole-chain body / candle series
         self._chains: dict[tuple[str, date], tuple[date, dict[str, Any]]] = {}
         self._series: dict[tuple[str, bool, date], dict[str, Any]] = {}
+        self._earnings_refused = False  # a 402 on /stocks/earnings: the plan has no earnings
         self._client = http_client or httpx.Client(
             base_url=self.BASE_URL,
             headers={"Authorization": f"Bearer {key}", "Accept": "application/json"},
@@ -536,14 +537,23 @@ class MarketDataAppSource:
         A provider error propagates (W5): the facade records it and marks the date unknown, so
         a failed lookup never reads as "no earnings before expiry".
         """
+        if self._earnings_refused:  # the plan said no once: do not spend a request again
+            raise MarketDataError(
+                "MarketData.app: your plan does not allow /stocks/earnings/ (402)"
+            )
         today = datetime.now(tz=UTC).date()
-        body = self._get(
-            f"/stocks/earnings/{ticker.upper()}/",
-            **{
-                "from": today.isoformat(),
-                "to": (today + timedelta(days=self.EARNINGS_HORIZON_DAYS)).isoformat(),
-            },
-        )
+        try:
+            body = self._get(
+                f"/stocks/earnings/{ticker.upper()}/",
+                **{
+                    "from": today.isoformat(),
+                    "to": (today + timedelta(days=self.EARNINGS_HORIZON_DAYS)).isoformat(),
+                },
+            )
+        except MarketDataError as exc:
+            if "(402)" in str(exc):
+                self._earnings_refused = True
+            raise
         upcoming: list[date] = []
         for raw in self._col(body, "reportDate") or self._col(body, "date"):
             d = _as_date(raw)
@@ -907,9 +917,11 @@ class MarketData:
         far_dte_min: int = 330,
         credits_per_ticker: int = 0,
         vix_fallback: FredVix | None = None,
+        earnings_fallback: Any | None = None,
     ) -> None:
         self.source = source
         self.vix_fallback = vix_fallback  # used when the provider has no index data
+        self.earnings_fallback = earnings_fallback  # AlphaVantageEarnings, when configured
         self.vix_source: str | None = None  # citation of where the last VIX came from
         self.credits_per_ticker = credits_per_ticker  # W27: 0 = no budget check
         self.cache = cache
@@ -985,15 +997,17 @@ class MarketData:
             )
         else:
             raise MarketDataError(f"unknown market data provider {chosen!r}")
+        cache = SQLiteCache(cfg.paths.cache_db)
         return cls(
             source,
-            SQLiteCache(cfg.paths.cache_db),
+            cache,
             ttl,
             iv_store,
             near_dte=near,
             far_dte_min=far,
             credits_per_ticker=md_cfg.marketdata.credits_per_ticker,
             vix_fallback=FredVix.from_env() if md_cfg.vix_fallback == "fred" else None,
+            earnings_fallback=_earnings_fallback(cfg, cache),
         )
 
     @classmethod
@@ -1203,13 +1217,32 @@ class MarketData:
                 errors.append(f"chain {e}: {exc}")
         earnings: date | None = None
         earnings_known = True
+        earnings_estimated = False
+        earnings_estimate: date | None = None
         try:
             earnings = self.get_earnings_date(ticker)
         except QuotaExceededError:
             raise
         except Exception as exc:
-            errors.append(f"earnings: lookup failed ({exc})")
-            earnings_known = False
+            found = self._earnings_from_fallback(ticker, now.date(), exc, errors)
+            if found is None:
+                earnings_known = False
+            else:
+                earnings = found.day
+                earnings_estimated = found.kind == "estimated"
+                earnings_estimate = found.estimate
+        else:
+            if earnings is None and self.earnings_fallback is not None:
+                # the provider answered with no date: for a single stock that is a gap (W5),
+                # so ask the fallback; if it has nothing either, the screens still fail closed
+                quiet: list[str] = []
+                found = self._earnings_from_fallback(
+                    ticker, now.date(), MarketDataError("no date"), quiet
+                )
+                if found is not None:
+                    earnings = found.day
+                    earnings_estimated = found.kind == "estimated"
+                    earnings_estimate = found.estimate
         hv30: float | None = None
         try:
             hv30 = self.get_hist_vol(ticker, 30)
@@ -1239,6 +1272,8 @@ class MarketData:
             chains=chains,
             earnings_date=earnings,
             earnings_known=earnings_known,
+            earnings_estimated=earnings_estimated,
+            earnings_estimate=earnings_estimate,
             hv30=hv30,
             dividend_yield=divy,
             dividend_yield_known=dividend_yield_known,
@@ -1247,6 +1282,28 @@ class MarketData:
             iv_rank_source=iv_source,
             source_errors=errors,
         )
+
+    def _earnings_from_fallback(
+        self, ticker: str, today: date, provider_error: Exception, errors: list[str]
+    ) -> Any | None:
+        """Alpha Vantage's confirmed date or estimate after the provider failed; None (and an
+        error naming both reasons) when it has neither, so the date stays unknown (W5)."""
+        if self.earnings_fallback is None:
+            errors.append(f"earnings: lookup failed ({provider_error})")
+            return None
+        try:
+            found = self.earnings_fallback.lookup(ticker, today)
+        except Exception as exc:
+            errors.append(f"earnings: lookup failed ({provider_error}); Alpha Vantage: {exc}")
+            return None
+        detail = (
+            f"confirmed {found.day.isoformat()}"
+            if found.kind == "confirmed"
+            else f"estimated {found.estimate.isoformat()} (last report "
+            f"{found.last_reported.isoformat()}), tested from {found.day.isoformat()}"
+        )
+        self.status[f"{ticker}:earnings"] = f"Alpha Vantage, {detail}"
+        return found
 
     def _iv_rank(
         self, ticker: str, atm_iv: float | None, hv30: float | None
@@ -1262,6 +1319,23 @@ class MarketData:
             if proxy is not None:
                 return proxy, "hv_proxy"
         return None, "none"
+
+
+def _earnings_fallback(cfg: AppConfig, cache: Cache) -> Any | None:
+    md_cfg = cfg.settings.market_data
+    if md_cfg.earnings_fallback != "alphavantage":
+        return None
+    from options_scout.data.earnings import AlphaVantageEarnings
+
+    etfs = {t.ticker for t in cfg.quality.tickers if t.sector == "ETF"}
+    return AlphaVantageEarnings.from_env(
+        md_cfg.earnings_api_key_env,
+        cache=cache,
+        cadence_days=md_cfg.earnings_cadence_days,
+        margin_days=md_cfg.earnings_margin_days,
+        stale_after_days=md_cfg.earnings_stale_after_days,
+        skip=etfs,
+    )
 
 
 def atm_implied_vol(

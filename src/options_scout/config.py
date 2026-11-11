@@ -198,6 +198,13 @@ class MarketDataSettings(_Strict):
     # VIX when the provider has none (index data is not on every plan): FRED's VIXCLS with the
     # free FRED_API_KEY, cited in the report; "none" falls back to the neutral default
     vix_fallback: Literal["fred", "none"] = "fred"
+    # next earnings date when the provider has none: Alpha Vantage's confirmed calendar, else an
+    # estimate (last report + cadence_days), tested as estimate - margin_days (user, 2026-11-11)
+    earnings_fallback: Literal["alphavantage", "none"] = "alphavantage"
+    earnings_api_key_env: str = "ALPHAVANTAGE_API_KEY"  # the same key the News Desk reads
+    earnings_cadence_days: int = Field(default=91, ge=60, le=200)
+    earnings_margin_days: int = Field(default=21, ge=0, le=60)
+    earnings_stale_after_days: int = Field(default=120, ge=60, le=400)
     marketdata: MarketDataAppSettings = MarketDataAppSettings()
     tradier: TradierSettings = TradierSettings()
 

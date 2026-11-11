@@ -54,6 +54,16 @@ market_data:
   # VIX when the provider has no index data (MarketData.app answered empty on the 2026-11-11 run):
   # FRED's VIXCLS (Cboe, "Copyrighted: Citation Required"), with FRED_API_KEY; cited in the report
   vix_fallback: fred          # fred | none (neutral VIX 20)
+  # Next earnings date when the provider has none (MarketData.app's /stocks/earnings answered 402
+  # on the 2026-11-11 run). alphavantage: the confirmed date from EARNINGS_CALENDAR, else an
+  # estimate, last report + 91 days, which the screens test as estimate - 21 days, so a put is
+  # clear only if the estimate is 21+ days after its expiry; labelled "estimated". A last report
+  # over 120 days old gives no estimate: unknown, puts excluded (W5). Free key, personal use.
+  earnings_fallback: alphavantage   # alphavantage | none
+  earnings_api_key_env: ALPHAVANTAGE_API_KEY
+  earnings_cadence_days: 91
+  earnings_margin_days: 21
+  earnings_stale_after_days: 120
   marketdata:
     api_key_env: MARKETDATA_TOKEN  # the UI/API can also pass a token per run (never persisted)
     # W27. historical: the previous session's whole chain (every expiry and strike) by date, one

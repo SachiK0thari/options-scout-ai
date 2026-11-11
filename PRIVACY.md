@@ -36,6 +36,9 @@ earnings and dividend data; an expired entry is never served and is deleted the 
 opens. The quotes a screen used (spot, implied volatility, dividend yield, earnings date) are also
 kept inside that conversation's thread (section 2) for the thread's lifetime; the option chains are
 dropped from the thread once the screen has finished. Market data contains no personal information.
+When the market-data provider has no earnings dates, Alpha Vantage (the operator's
+`ALPHAVANTAGE_API_KEY`) is asked with ticker symbols only; its earnings calendar is cached for a
+day and each company's reported dates for a week.
 
 ## 4. Public social, news and filings data
 The "consumer-trend" tiebreaker reads up to five public sources: public Reddit submissions, public X

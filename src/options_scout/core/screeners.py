@@ -30,6 +30,7 @@ FLAG_IV_FROM_PROVIDER = "iv_from_provider"  # no vol reproduces the mid; provide
 FLAG_IV_DISAGREES = "iv_disagrees"  # provider and solved figures differ by more than the tolerance
 # W5: missing inputs fail closed
 FLAG_EARNINGS_UNKNOWN = "earnings_unknown"  # single stock with no known earnings date
+FLAG_EARNINGS_ESTIMATED = "earnings_estimated"  # date estimated from the reporting cadence
 FLAG_DIVIDEND_UNKNOWN = "dividend_unknown"  # dividend lookup failed; yield assumed 0.0
 _DEFAULT_IV_RULES = ImpliedVolRules()
 
@@ -180,6 +181,8 @@ def _csp_pass(
                 c.flags.append("earnings_before_expiry")
                 if rules.exclude_earnings_before_expiry:
                     continue  # pragma: no mutate (same expiry: every later put is excluded too)
+            if snap.earnings_estimated and snap.earnings_known:
+                c.flags.append(FLAG_EARNINGS_ESTIMATED)  # tested from the earliest plausible day
             if earnings_unknown(snap):
                 c.flags.append(FLAG_EARNINGS_UNKNOWN)
                 if rules.exclude_when_earnings_unknown:

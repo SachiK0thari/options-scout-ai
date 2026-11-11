@@ -288,8 +288,13 @@ def test_earnings_failure_is_recorded_not_cached_and_fails_the_put_screen(
     assert any(e.startswith("earnings: lookup failed") for e in snap.source_errors)
     assert snap.dividend_yield_known is True
     before = calls["n"]
-    md.build_snapshot("AAPL", expiries=[EXP])
-    assert calls["n"] > before, "a failed earnings lookup must not be cached"
+    again = md.build_snapshot("AAPL", expiries=[EXP])
+    assert again.earnings_known is False  # a failure is never cached as a known date
+    if status == 402:
+        # the plan refused earnings: the refusal is remembered, not asked for again (W27)
+        assert calls["n"] == before
+    else:
+        assert calls["n"] > before, "a failed earnings lookup must not be cached"
     assert screeners.earnings_unknown(snap)
     out = screeners.screen_csp(snap, config.rules.csp, today=TODAY, r=0.04, realistic_loss_drop=0.3)
     assert out == []
