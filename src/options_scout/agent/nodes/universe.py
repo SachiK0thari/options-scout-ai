@@ -1,11 +1,12 @@
 """universe_node: the curated 'good to own' list ∪ the user's tickers − exclusions, then fan out.
 
 Signal tickers never widen the universe: a trending brand or a bottleneck pure play only matters
-if it is already on the curated list, where its signal score promotes it towards the front of the
-queue (section 3.7). The two Market Intelligence signals are combined per ticker as
-``max(social, bottleneck)`` (step 11.4); a non-curated ticker with a signal is reported as *not on
-the good-to-own list; skipped*. Everything that leaves this node still has to pass the numeric
-quality gate in ``market_data_node``.
+if it is already on the curated list, where a signal score of at least
+``universe.signal_promotion_min`` (60) promotes it towards the front of the queue (section 3.7,
+W29). A weaker score leaves the name at its list position. The two Market Intelligence signals
+are combined per ticker as ``max(social, bottleneck)`` (step 11.4); a non-curated ticker with a
+signal is reported as *not on the good-to-own list; skipped*. Everything that leaves this node
+still has to pass the numeric quality gate in ``market_data_node``.
 """
 
 from __future__ import annotations
@@ -46,12 +47,14 @@ def build_universe(
     max_tickers: int,
     available: set[str] | None = None,
     signal_kinds: Mapping[str, str] | None = None,
+    promotion_min: float,
 ) -> tuple[list[str], list[str]]:
     """Return (universe, notes). Pure, so it is unit-testable without a graph.
 
     ``signal_scores`` is ``{ticker: max(social, bottleneck)}`` (see :func:`combine_signal_scores`);
     ``signal_kinds`` names the signal behind each score so the note for a non-curated ticker says
-    whether it is a trending brand or a bottleneck pure play.
+    whether it is a trending brand or a bottleneck pure play. Only a curated ticker scoring at
+    least ``promotion_min`` moves ahead of list order.
     """
     notes: list[str] = []
     excl = {t.upper() for t in exclude}
@@ -65,8 +68,11 @@ def build_universe(
 
     for t in watchlist:  # the user's own tickers always come first
         add(t.upper())
-    # curated names with a Market Intelligence signal next (highest score first), then list order
-    signalled = sorted((t for t in curated if t in signal_scores), key=lambda t: -signal_scores[t])
+    # curated names with a strong Market Intelligence signal next (highest first), then list order
+    signalled = sorted(
+        (t for t in curated if signal_scores.get(t, -1.0) >= promotion_min),
+        key=lambda t: -signal_scores[t],
+    )
     for t in [*signalled, *curated]:
         add(t)
     for t, _score in sorted(signal_scores.items(), key=lambda kv: -kv[1]):
@@ -108,6 +114,7 @@ def make(deps: Deps) -> Callable[[AgentState], dict[str, Any]]:
             max_tickers=deps.cfg.quality.universe.max_tickers,
             available=available,
             signal_kinds=kinds,
+            promotion_min=deps.cfg.quality.universe.signal_promotion_min,
         )
         universe, budget_note = deps.md.fit_to_budget(universe)  # W27 step 4
         if budget_note:

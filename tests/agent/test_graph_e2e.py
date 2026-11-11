@@ -20,7 +20,7 @@ from options_scout.config import AppConfig
 from options_scout.core.models import ScreeningReport
 
 REQUEST = (
-    "I have $100,000 of buying power in a margin account, balanced risk tolerance. "
+    "I have $1,000,000 of buying power in a margin account, balanced risk tolerance. "
     "Show me CSPs and a few LEAPS/PMCC ideas. I like COST and NKE."
 )
 
@@ -89,7 +89,7 @@ def test_end_to_end_fixture_run(deps: Deps) -> None:
     assert all(0 <= r.quality_score <= 1 for r in rep.ranked)
     assert "## Good-to-own quality screen" in final["report_markdown"]
     # content
-    assert rep.profile.buying_power == 100_000 and rep.profile.account_type == "margin"
+    assert rep.profile.buying_power == 1_000_000 and rep.profile.account_type == "margin"
     assert set(rep.profile.watchlist) == {"COST", "NKE"}
     assert rep.trends and any(t.investable for t in rep.trends)
     # Phase 11: the bottleneck board is present, secondary, and never adds a ticker
@@ -208,7 +208,7 @@ def test_user_added_non_curated_bottleneck_ticker_is_gated_with_reasons(deps: De
     The user may add it; it then faces the same gates as everything else and the report says
     why it went no further, while the board still shows it as context (4A.1)."""
     text = (
-        "I have $100,000 of buying power in a margin account, balanced risk tolerance. "
+        "I have $1,000,000 of buying power in a margin account, balanced risk tolerance. "
         "Show me CSPs and LEAPS/PMCC ideas. I like GEV and COST."
     )
     _visited, final = _run(deps, text, "t-bn-pure-play")

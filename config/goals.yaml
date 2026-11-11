@@ -6,8 +6,15 @@ fat_multiple: 1.5            # fat FIRE expense target when the user gives no fi
 stretch_band: 0.02           # required return within this many points above the available yield -> "stretch"
 max_horizon_years: 100       # years_to_target gives up (None) beyond this
 
-# Annual return a *diversified stock/bond portfolio* projection assumes per risk profile (nominal).
-# Used for the conventional goal and FIRE projections, never for the options income view.
+# Everything on the Goals tab is in today's dollars (W21). Targets (a FIRE number, a balance) are
+# today's purchasing power, so every projection compounds at a real return: the nominal rate with
+# this inflation removed, real = (1 + nominal) / (1 + inflation) - 1. A required return is then
+# reported nominal again, so it compares like for like with a yield and a profile cap.
+inflation: 0.025
+
+# Annual return a *diversified stock/bond portfolio* projection assumes per risk profile (nominal;
+# the projection uses it less inflation). Used for the conventional goal and FIRE projections,
+# never for the options income view.
 assumed_return:
   conservative: 0.05
   balanced: 0.06
@@ -28,6 +35,5 @@ expected_drift: 0.06         # stock price drift a year
 realised_to_implied: 0.85    # realised volatility as a multiple of implied volatility
 
 retirement_age: 59.5         # IRA balances are treated as unavailable before this age
-savings_rate_table:          # illustration on the Goals tab: savings rates x years to independence
-  rates: [0.10, 0.20, 0.30, 0.50]
-  real_return: 0.05
+savings_rate_table:          # illustration on the Goals tab: savings rates x years to independence,
+  rates: [0.10, 0.20, 0.30, 0.50]   # at the profile's assumed return less inflation (as the FIRE card)

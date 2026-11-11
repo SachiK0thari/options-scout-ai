@@ -147,7 +147,8 @@ class RankingWeights(_Strict):
     option_quality: float = Field(ge=0.0, le=1.0)
     stock_quality: float = Field(ge=0.0, le=1.0)
     social: float = Field(ge=0.0, le=1.0)
-    bottleneck: float = Field(default=0.05, ge=0.0, le=1.0)  # Phase 11, section 4A
+    # Phase 11, section 4A. W29: zero by default; the board is informational for this universe.
+    bottleneck: float = Field(default=0.0, ge=0.0, le=1.0)
 
     @model_validator(mode="after")
     def _sums_to_one_and_signals_capped(self) -> RankingWeights:
@@ -416,6 +417,9 @@ class SocialScoreConfig(_Strict):
 # ------------------------------------------------------------------- quality_universe.yaml
 class UniverseLimits(_Strict):
     max_tickers: int = Field(gt=0)
+    # W29: a Market Intelligence score at or above this moves a curated name forward in the
+    # queue; below it the name keeps its list position.
+    signal_promotion_min: float = Field(ge=0.0, le=100.0)
 
 
 class QualityGates(_Strict):
@@ -893,8 +897,8 @@ def _apply_bottleneck_source_overrides(raw: dict[str, Any]) -> dict[str, Any]:
 
 # ------------------------------------------------------------------------- goals.yaml
 class SavingsRateTable(_Strict):
+    # years to FI at each savings rate, at the profile's real return (W21: the FIRE card's rate)
     rates: list[float] = Field(min_length=1)
-    real_return: float = Field(gt=-1.0, lt=1.0)
 
     @field_validator("rates")
     @classmethod
@@ -911,7 +915,9 @@ class GoalsConfig(_Strict):
     fat_multiple: float = Field(gt=1.0)
     stretch_band: float = Field(ge=0.0, lt=0.5)
     max_horizon_years: int = Field(default=100, ge=1)
-    assumed_return: dict[RiskProfileName, float]
+    # W21: every Goals figure is in today's dollars; projections use (1 + r) / (1 + inflation) - 1
+    inflation: float = Field(ge=0.0, lt=0.2)
+    assumed_return: dict[RiskProfileName, float]  # nominal
     max_assumed_return: dict[RiskProfileName, float]
     # W22: a short put's expected payoff assumes the stock drifts at expected_drift a year with
     # realised volatility at realised_to_implied x its implied vol

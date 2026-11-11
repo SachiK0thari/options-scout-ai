@@ -38,7 +38,11 @@ class _AV:
         self.calls.append(q)
         if self.limited:
             return httpx.Response(
-                200, json={"Information": "Our standard API rate limit is 25 requests per day."}
+                200,
+                json={
+                    "Information": f"We have detected your API key as {KEY} and our standard "
+                    "API rate limit is 25 requests per day."
+                },
             )
         if q["function"] == "EARNINGS_CALENDAR":
             rows = ["symbol,name,reportDate,fiscalDateEnding,estimate,currency,timeOfTheDay"]
@@ -110,8 +114,9 @@ def test_no_history_is_unknown_and_etfs_are_not_looked_up() -> None:
 
 
 def test_the_daily_limit_message_is_an_unavailable_date() -> None:
-    with pytest.raises(EarningsUnavailableError, match="rate limit"):
+    with pytest.raises(EarningsUnavailableError, match="rate limit") as err:
         _av(_AV(limited=True)).lookup("AAPL", TODAY)
+    assert KEY not in str(err.value) and "[redacted]" in str(err.value)  # AV quotes the key
 
 
 def test_answers_are_cached_and_requests_are_spaced() -> None:

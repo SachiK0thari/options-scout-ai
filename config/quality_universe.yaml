@@ -7,10 +7,12 @@
 # own if assigned.
 #
 # Order matters: when more tickers qualify than `universe.max_tickers`, the user's own tickers come
-# first, then curated names with a consumer-trend signal, then this order.
+# first, then curated names whose Market Intelligence score is at least
+# `universe.signal_promotion_min` (highest first), then this order.
 
 universe:
   max_tickers: 12            # live mode: cap on tickers fetched per run (watchlist always included)
+  signal_promotion_min: 60   # a signal score below this does not move a curated name forward
 
 gates:
   require_curated: false     # true → user-added tickers outside this list are rejected outright

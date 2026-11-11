@@ -925,8 +925,50 @@ done; step 5 is the user's.
   fixture mode): the first pass ran, the IV job skipped as designed, the heartbeat and
   healthcheck passed, next pass 07:00 New York. Tests: `tests/unit/test_scheduler.py` (5), one
   more in `test_snapshot_iv_job.py`, and `test_deployment.py` updated.
-- **Step 2 (re-record fixtures from the provider):** not done. It changes the golden report and
-  the fixture-mode expectations, and earnings and VIX would be missing from the recording.
+- **Step 2 (re-record fixtures from the provider): not to be done as written** (checked
+  2026-11-11). The repository is public, and MarketData.app's terms ("Your Use of The Data")
+  forbid it: "You may not ... redistribute or make our data or any third-party data available
+  to anyone"; "A shared folder, a public link, or an account that another person can open is
+  sharing, and sharing is not allowed"; the licence is "for your own personal non-professional
+  use". The bundled fixtures were recorded with **yfinance** (2026-10-27, about 7 MB of real
+  quotes for 10 tickers), which raises the same question under Yahoo's terms. Options for the
+  user: replace the market fixtures with deterministic synthetic chains (BSM prices on a vol
+  surface, realistic spreads and open interest, labelled synthetic like the social and
+  bottleneck corpora; about a day with the golden report and the few pinned tests), make the
+  repository private, or accept the existing risk. Removing the yfinance data from git history
+  would need a history rewrite. **Deployment consequence:** a deployment that answers other
+  people with the operator's MarketData token (or Alpha Vantage key) is "making data
+  available"; a public deployment should run on fixtures, with live mode bring-your-own-key
+  only (the UI and API already accept a per-run token).
+  **Update 2026-11-11:** the user made the repository private (educational demo, no intent to
+  share data), so re-recording is unblocked. Collaborator access still counts as "available
+  to anyone" under the strict reading; a demo video avoids that. The recorder is fixed
+  (`src/options_scout/data/recording.py`, `scripts/record_fixtures.py` a thin wrapper):
+  1. VIX: the provider's series, else FRED VIXCLS up to the recorded session, with FRED's
+     citation saved in `indices.json` (`IndexFixture.vix_source`) and cited again on replay.
+     Before, the VIX lookup ran outside the error handling and crashed on the user's plan.
+  2. Earnings: Alpha Vantage fallback as in a live run (the script refuses to run without
+     `ALPHAVANTAGE_API_KEY`). A replay restores the estimated and unknown flags
+     (`FixtureSource.earnings_record`); before, every recorded date replayed as confirmed.
+  3. Stamps: snapshots and `indices.json` carry the session the quotes are from, not the time
+     the script ran, so fixture-mode DTEs match the quotes.
+  4. Cost: the historical feed, about 5-7 credits a ticker (about 65 for ten), with the facade's
+     per-ticker budget check. All or nothing: nothing is written unless every ticker and the VIX
+     succeeded, so the bundle is one session. Sector comes from the curated list.
+  Tests: `tests/unit/test_recording.py` (6, round trip included).
+  **Run 2026-11-11** (user approved): 60 credits, session 2026-11-10, VIX 19.46 from FRED. Alpha
+  Vantage reached its 25-a-day limit after 7 stocks, so CMG, ELF and DECK were recorded with
+  unknown earnings. Its limit notice quotes the API key, which landed in those three files'
+  `source_errors`. Fixed: `earnings.py` redacts the key from notices (test added); the files
+  were scrubbed, and a scan found the key nowhere else on disk or in git history.
+  **Not adopted as the test data:** on the new quotes 27 tests fail. NKE fails the quality gate
+  (HV 35%, IV 46.7%, at $38.67), and the news, bottleneck and trend corpora are dated to the
+  2026-10-27 session, so headlines fall out of the window and several portfolios come out
+  empty. The committed fixtures were restored and the suite passes. The recording is kept,
+  git-ignored, in `data/fixtures-marketdata-2026-11-10/market/`. Moving the tests to it means
+  re-dating those corpora too. Also found: with the new dates a test writes to the committed
+  `data/trends.sqlite`, because some test's `Deps` is not isolated. At the old date the write
+  does nothing; isolate that store before moving the tests.
 - **Step 6:** `docs/brief-mapping.md` states the split: 79 written articles (37 concepts, 28
   basics, 14 tax), 35 verbatim 10-K Item 1A excerpts, 10 generated rule pages.
 - **Step 3:** `evals/run_evals.py` runs the six agent runs twice, once with the rule-based writer
@@ -1588,6 +1630,26 @@ age 35 to 65, $60k expenses, $200k start, balanced:
 6. Re-label the 29 goal eval cases in `evals/` whose expected values were recorded from the old
    behaviour; this row will otherwise fail.
 
+**Status, 2026-11-10:** done in the working tree, steps 1 to 6. `config/goals.yaml` gains
+`inflation: 0.025`; `core/goals.py` has `real_return` / `nominal_return` and uses the real rate
+everywhere a balance compounds: years to FI, coast balance, the savings-rate table, the
+`more_capital` and `longer_horizon` levers, and all four projection paths. Step 4 was read as the
+recorded decision ("everything on the Goals tab in today's dollars"), so the options paths are
+deflated too and the chart does not mix conventions. The required return for a dollar target
+is solved in real terms and **stated nominal** (`(1 + real)(1 + inflation) − 1`) so the verdict
+still compares it with the nominal yield and the nominal cap; an income goal's required return
+is a first-year yield and is unchanged. The W21 case gives coast $547,8xx and 60.0 years.
+`savings_rate_table.real_return` is gone: the table now runs at the profile's real rate and
+travels on `FirePlan.savings_rate_table`, rendered under the FIRE card (it was never on the tab
+before). `FirePlan` gains `real_return` and `inflation`; the card, chart axis, report, explainer
+payload (`real_return_pct`, `inflation_pct`), rule-based writer and `explain_goal.md` (1.1.0)
+all say "today's dollars, 6.0% nominal less 2.5% inflation". PRD 3.8 states the convention; the
+knowledge page's coast example already used a stated 5% real return and was left alone. Step 6:
+9 of the 29 goal cases changed verdict (growth-01, growth-03, contrib-03, fire-04, -05, -08,
+-09, -11, -14), each a today's-dollar target needing about 2.5 points more nominal return; every
+non-income note now reads "x% real = y% nominal". goal-fire-09 sits 0.01 points above the band.
+Tests: 4 new and 4 updated in `tests/unit/test_goals.py`.
+
 Suggested commit: `fix(goals): FIRE projections in today's dollars with one real return`
 
 ---
@@ -2187,6 +2249,27 @@ neutral 50, so a real score below 50 subtracts.
    the signals at 0.10); choose when implementing, and `test_config.py` changes with it.
 5. **Starvation.** Rotate the unsignalled part of the queue by run date so every curated name
    is screened over a week, or raise `max_tickers` once W27 has cut the cost per ticker.
+
+**Status, 2026-11-10:** steps 1 to 4 done in the working tree; step 5 not started.
+`universe.signal_promotion_min: 60` (required in `UniverseLimits`); `build_universe` promotes a
+curated name only at or above it. `blend` floors both signal terms at the neutral 50. Step 4:
+`ranking.weights` is now 0.55 / 0.35 / 0.10 / 0, with the freed 0.05 on **option quality**, not
+social, because W30 shows the trend score is not yet trustworthy; the `RankingWeights` default
+for `bottleneck` is 0. Tests: 4 new and 2 updated in `test_universe.py` (one runs the fixture
+bottleneck board and checks the universe equals the no-signal one), 1 updated and 2 new in
+`test_ranking_sizing_risk.py`, `test_config.py` updated. Prose updated in PRD 3.7 / 4A.11 / 5.x,
+README, `bottleneck-arbitrage.md`, `docs/architecture.md`, three knowledge pages and the Trends
+caption (which now says the board is informational when its weight is 0); `make index` rerun.
+**Consequence for the demo:** the fixture trend scores are NKE 51, COST 29, AAPL 28, MSFT 22,
+SBUX 4. Without the old penalty MSFT ranks above NKE, so the five highest-ranked underlyings are
+SPY, QQQ, AAPL, MSFT and COST, none of which fits a $100,000 account, and the `make demo` golden
+now sizes nothing ("account too small ... fits from $640,477"). The same happens whichever term
+takes the freed 0.05. The e2e and education tests, which check how a sized portfolio is
+reported, now ask for $1,000,000. **Found on the way:** the `why` run-facts chunk wrote a ranked
+short put without its realistic loss, so asking about a put that was not sized failed
+`check_education_only` three times and fell back to "could not produce an explanation". Each
+CSP rank line now carries its per-contract realistic loss at the −30% move
+(`run_facts_chunk(rep, realistic_loss_drop=...)`), with an assertion in `test_education.py`.
 
 Suggested commit: `fix(universe): signals promote only above a threshold; a low score no longer penalises`
 

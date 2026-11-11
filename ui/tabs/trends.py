@@ -149,12 +149,23 @@ def _bottleneck_board(view: session.View) -> None:
         "computed in Python."
     )
     weights = CFG.settings.ranking.weights
+    if weights.bottleneck > 0:
+        role = (
+            f"The bottleneck score carries {weights.bottleneck:.0%} of the final ranking "
+            f"({weights.social + weights.bottleneck:.0%} together with the consumer-trend score). "
+            "It **re-orders** stocks that already passed the good-to-own gate, and a score below "
+            "the neutral 50 counts as 50, so it can lift a name but never lower it."
+        )
+    else:  # W29: the shipped default
+        role = (
+            "The board is **informational**: it carries no weight in the final ranking, because "
+            "a curated large cap's company score stays well below the range where it would mean "
+            "anything. A score of 60 or more would still move a curated name ahead in the queue."
+        )
     st.caption(
-        f"The bottleneck score carries {weights.bottleneck:.0%} of the final ranking "
-        f"({weights.social + weights.bottleneck:.0%} together with the consumer-trend score). It "
-        "**re-orders** stocks that already passed the good-to-own gate; it **never adds** one. "
-        "Suppliers that are not on the list are shown for context only, like a private brand on "
-        "the trend board. Scores describe the state of a constraint; they are not forecasts."
+        f"{role} It **never adds** a stock. Suppliers that are not on the good-to-own list are "
+        "shown for context only, like a private brand on the trend board. Scores describe the "
+        "state of a constraint; they are not forecasts."
     )
     if view.report is not None and not view.report.bottlenecks:
         st.info(

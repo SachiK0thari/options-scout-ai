@@ -1092,7 +1092,8 @@ def rule_explain_goal(user_prompt: str) -> Narrative:
                 Paragraph(
                     mode="screen_result",
                     text=(
-                        f"At the base yield the balance would be about ${proj['base']:,} after "
+                        f"At the base yield the balance would be about ${proj['base']:,} in "
+                        f"today's dollars after "
                         f"{proj['years']} years; on the stress path, which takes the "
                         f"{proj['stress_drop_pct']}% scenario's realistic loss in year one, it "
                         f"would be about ${proj['stress']:,}."
@@ -1108,8 +1109,10 @@ def rule_explain_goal(user_prompt: str) -> Narrative:
             )
             if fire.get("years_to_fi") is not None:
                 text += (
-                    f", which the diversified-portfolio projection at "
-                    f"{fire['assumed_return_pct']}% would reach in about {fire['years_to_fi']} years"
+                    f", in today's dollars, which the diversified-portfolio projection at "
+                    f"{fire['real_return_pct']}% after inflation ({fire['assumed_return_pct']}% "
+                    f"less {fire['inflation_pct']}%) would reach in about {fire['years_to_fi']} "
+                    "years"
                 )
             text += (
                 ". The withdrawal rate comes from research on diversified stock and bond "

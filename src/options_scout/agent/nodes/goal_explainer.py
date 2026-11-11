@@ -90,9 +90,9 @@ def goal_payload(plan: GoalPlan, disclaimer: str, risk_profile: str) -> dict[str
                 "base": last.get("base"),
                 "best": last.get("best"),
                 "assumed": last.get("assumed"),
-                "assumed_return_pct": _pct(
+                # W21: the real rate the assumed path compounds at (balances in today's dollars)
+                "assumed_real_return_pct": _pct(
                     next((p.annual_return for p in plan.projection if p.label == "assumed"), None),
-                    0,
                 ),
             },
             "assumptions": plan.assumptions,
@@ -107,6 +107,8 @@ def goal_payload(plan: GoalPlan, disclaimer: str, risk_profile: str) -> dict[str
             "withdrawal_rate_pct": _pct(f.withdrawal_rate),
             "fire_number": _money(f.fire_number),
             "assumed_return_pct": _pct(f.assumed_return, 0),
+            "real_return_pct": _pct(f.real_return),
+            "inflation_pct": _pct(f.inflation),
             "years_to_fi": None if f.years_to_fi is None else round(f.years_to_fi, 1),
             "coast_balance": _money(f.coast_balance),
             "savings_rate_pct": _pct(f.savings_rate, 0),

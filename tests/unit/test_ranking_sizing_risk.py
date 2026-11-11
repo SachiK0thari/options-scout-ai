@@ -96,14 +96,16 @@ def test_ranking_orders_and_blends(world: dict[str, object]) -> None:
 def test_blend_golden_and_quality_moves_rank(world: dict[str, object]) -> None:
     cfg: AppConfig = world["cfg"]  # type: ignore[assignment]
     w = cfg.settings.ranking.weights
-    # 0.5*0.8 + 0.35*0.6 + 0.10*50/100 + 0.05*50/100 = 0.40 + 0.21 + 0.05 + 0.025 = 0.685
-    assert ranking.blend(0.8, 0.6, 50.0, w) == pytest.approx(0.685)
-    # neutral bottleneck (the default) equals the old three-term 0.15 share at social 50;
-    # a real bottleneck score moves the blend by at most 0.05
-    assert ranking.blend(0.8, 0.6, 50.0, w, bottleneck=100.0) == pytest.approx(0.71)
-    assert ranking.blend(0.8, 0.6, 50.0, w, bottleneck=0.0) == pytest.approx(0.66)
+    # W29: 0.55*0.8 + 0.35*0.6 + 0.10*50/100 + 0*50/100 = 0.44 + 0.21 + 0.05 = 0.70
+    assert ranking.blend(0.8, 0.6, 50.0, w) == pytest.approx(0.70)
+    # the bottleneck board is informational: its weight is zero, so its score moves nothing
+    assert ranking.blend(0.8, 0.6, 50.0, w, bottleneck=100.0) == pytest.approx(0.70)
+    assert ranking.blend(0.8, 0.6, 50.0, w, bottleneck=0.0) == pytest.approx(0.70)
+    # a trend score can only help: above 50 it adds, below 50 it counts as the neutral 50
+    assert ranking.blend(0.8, 0.6, 100.0, w) == pytest.approx(0.75)
+    assert ranking.blend(0.8, 0.6, 4.0, w) == pytest.approx(0.70)
     assert ranking.blend(1.0, 1.0, 100.0, w, bottleneck=100.0) == pytest.approx(1.0)
-    assert ranking.blend(0.0, 0.0, 0.0, w, bottleneck=0.0) == 0.0
+    assert ranking.blend(0.0, 0.0, 0.0, w, bottleneck=0.0) == pytest.approx(0.05)
     cands: list[OptionCandidate] = world["cands"]  # type: ignore[assignment]
     tk = cands[0].ticker  # any ticker that actually has candidates in the fixture
     hi = ranking.rank_candidates(
@@ -127,13 +129,15 @@ def test_blend_golden_and_quality_moves_rank(world: dict[str, object]) -> None:
     assert best_hi < best_lo  # a higher stock-quality score ranks the same contracts higher
 
 
-def test_bottleneck_scores_enter_the_fourth_term(world: dict[str, object]) -> None:
-    """Step 11.4: a curated supplier's company score moves its contracts; a ticker without a row
-    takes the neutral 50; with neutral scores everywhere the order is the three-term formula's."""
+def test_a_signal_score_can_only_help(world: dict[str, object]) -> None:
+    """W29 step 3: each signal term is ``max(score, 50)``, so a ticker with a low score ranks
+    exactly as one with no score, and a high score lifts it by at most the term's weight. The
+    weights here keep a non-zero bottleneck term to exercise both signals; the shipped default
+    sets it to zero (step 4)."""
     from options_scout.config import RankingWeights
 
     cfg: AppConfig = world["cfg"]  # type: ignore[assignment]
-    w = cfg.settings.ranking.weights
+    w = RankingWeights(option_quality=0.50, stock_quality=0.35, social=0.10, bottleneck=0.05)
     cands: list[OptionCandidate] = world["cands"]  # type: ignore[assignment]
     tk = cands[0].ticker
     common = {
@@ -143,41 +147,42 @@ def test_bottleneck_scores_enter_the_fourth_term(world: dict[str, object]) -> No
     }
     neutral = ranking.rank_candidates(cands, {}, {}, **common)  # type: ignore[arg-type]
     assert all(r.bottleneck_score == ranking.NEUTRAL_BOTTLENECK_SCORE for r in neutral)
+    by_id = {r.candidate.id: r.final_score for r in neutral}
+    for social, bottleneck, lift in [
+        ({tk: 4.0}, {tk: 3.0}, 0.0),  # SBUX at trend 4, UNP at bottleneck 3: no penalty
+        ({tk: 100.0}, {}, w.social / 2),
+        ({}, {tk: 100.0}, w.bottleneck / 2),
+    ]:
+        out = ranking.rank_candidates(cands, social, {}, bottleneck_scores=bottleneck, **common)  # type: ignore[arg-type]
+        for r in out:
+            expected = by_id[r.candidate.id] + (lift if r.candidate.ticker == tk else 0.0)
+            assert r.final_score == pytest.approx(expected, abs=1e-9)
+        # the raw score is still reported, so the board and the table show what the signal said
+        if tk in social:
+            assert next(r.social_score for r in out if r.candidate.ticker == tk) == social[tk]
+        if tk in bottleneck:
+            assert (
+                next(r.bottleneck_score for r in out if r.candidate.ticker == tk) == bottleneck[tk]
+            )
+
+
+def test_default_bottleneck_weight_is_zero(world: dict[str, object]) -> None:
+    """W29 step 4: the bottleneck board is informational; any company score ranks as no score."""
+    cfg: AppConfig = world["cfg"]  # type: ignore[assignment]
+    w = cfg.settings.ranking.weights
+    assert w.bottleneck == 0.0
+    cands: list[OptionCandidate] = world["cands"]  # type: ignore[assignment]
+    tk = cands[0].ticker
+    common = {
+        "weights": w,
+        "option_weights": cfg.settings.ranking.option_quality_weights,
+        "rules": cfg.rules,
+    }
+    neutral = ranking.rank_candidates(cands, {}, {}, **common)  # type: ignore[arg-type]
     hi = ranking.rank_candidates(cands, {}, {}, bottleneck_scores={tk: 100.0}, **common)  # type: ignore[arg-type]
-    lo = ranking.rank_candidates(cands, {}, {}, bottleneck_scores={tk: 0.0}, **common)  # type: ignore[arg-type]
-    assert next(r.bottleneck_score for r in hi if r.candidate.ticker == tk) == 100.0
-    assert (
-        next(r.rank for r in hi if r.candidate.ticker == tk)
-        <= next(r.rank for r in neutral if r.candidate.ticker == tk)
-        <= next(r.rank for r in lo if r.candidate.ticker == tk)
-    )
-    # the fourth term is bounded by its weight
-    for r_hi, r_lo in zip(
-        sorted(hi, key=lambda r: r.candidate.id),
-        sorted(lo, key=lambda r: r.candidate.id),
-        strict=True,
-    ):
-        if r_hi.candidate.ticker == tk:
-            assert r_hi.final_score - r_lo.final_score == pytest.approx(w.bottleneck, abs=1e-9)
-        else:
-            assert r_hi.final_score == r_lo.final_score
-    # neutral everywhere ranks identically to the three-term formula (signal share on social only)
-    three_term = RankingWeights(
-        option_quality=0.50, stock_quality=0.35, social=0.15, bottleneck=0.0
-    )
-    before = ranking.rank_candidates(
-        cands,
-        {},
-        {},
-        weights=three_term,
-        option_weights=cfg.settings.ranking.option_quality_weights,
-        rules=cfg.rules,
-    )
-    assert [r.candidate.id for r in before] == [r.candidate.id for r in neutral]
-    for r_old, r_new in zip(before, neutral, strict=True):
-        assert r_new.final_score == pytest.approx(
-            r_old.final_score, abs=1e-9
-        )  # 0.05·50/100 = 0.10·50/100 + 0.05·50/100
+    assert [(r.candidate.id, r.final_score) for r in hi] == [
+        (r.candidate.id, r.final_score) for r in neutral
+    ]
 
 
 def test_rank_cap_keeps_best_n_per_ticker_and_strategy(world: dict[str, object]) -> None:

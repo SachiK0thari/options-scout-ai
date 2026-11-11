@@ -8,6 +8,12 @@ equivalent rate, so a whole year compounds by exactly ``(1 + r)`` and goldens st
 
 Nothing here forecasts. The agent prints every assumption beside the chart, and the options
 income view is always shown next to the diversified-portfolio projection, never blended with it.
+
+Everything is in **today's dollars** (W21). A FIRE number or a target balance is today's
+purchasing power, so balances compound at a real return, :func:`real_return` of the nominal rate,
+and contributions keep their value. Yields, profile caps and the assumed returns in config are
+nominal; a required return is converted back with :func:`nominal_return` before it is compared
+with them. An income goal's required return is a first-year yield and is not converted.
 """
 
 from __future__ import annotations
@@ -42,6 +48,23 @@ DEFAULT_HORIZON_YEARS = 10.0  # projection length when a goal has no horizon (in
 
 
 # ------------------------------------------------------------------------- compounding
+def real_return(nominal: float, inflation: float) -> float:
+    """The return in today's dollars: (1 + nominal) / (1 + inflation) - 1 (W21)."""
+    return (1.0 + nominal) / (1.0 + inflation) - 1.0
+
+
+def nominal_return(real: float, inflation: float) -> float:
+    """Inverse of :func:`real_return`: (1 + real) · (1 + inflation) - 1."""
+    return (1.0 + real) * (1.0 + inflation) - 1.0
+
+
+def _todays_dollars_note(nominal: float, inflation: float) -> str:
+    return (
+        f"in today's dollars: {nominal:.1%} nominal less {inflation:.1%} inflation, "
+        f"{real_return(nominal, inflation):.1%} real"
+    )
+
+
 def monthly_rate(annual_return: float) -> float:
     """Monthly rate equivalent to an effective annual return: (1 + r) ** (1/12) - 1."""
     if annual_return <= -1.0:
@@ -267,7 +290,10 @@ def goal_target(goal: Goal, cfg: GoalsConfig) -> float | None:
 
 
 def required_return(goal: Goal, cfg: GoalsConfig) -> float | None:
-    """The annual return the goal needs from the start balance (and contributions)."""
+    """The nominal annual return the goal needs from the start balance (and contributions).
+
+    The target is in today's dollars, so the real return that reaches it is converted to nominal
+    (W21) to compare with a yield and a profile cap. An income goal needs a first-year yield."""
     if goal.kind == "income":
         if goal.target_monthly_income is None or goal.start_balance <= 0:
             return None
@@ -277,7 +303,8 @@ def required_return(goal: Goal, cfg: GoalsConfig) -> float | None:
     if target is None or horizon is None:
         return None
     contribution = 0.0 if goal.variant == "coast" else goal.monthly_contribution
-    return required_annual_return(goal.start_balance, target, horizon, contribution)
+    real = required_annual_return(goal.start_balance, target, horizon, contribution)
+    return None if real is None else nominal_return(real, cfg.inflation)
 
 
 def _needed_start(target: float, available: float, years: float, contribution: float) -> float:
@@ -288,7 +315,12 @@ def _needed_start(target: float, available: float, years: float, contribution: f
 
 
 def _capital_lever(
-    goal: Goal, target: float | None, horizon: float | None, available: float, contribution: float
+    goal: Goal,
+    target: float | None,
+    horizon: float | None,
+    available: float,
+    contribution: float,
+    inflation: float,
 ) -> GoalLever:
     if available <= 0:
         return GoalLever(
@@ -305,27 +337,34 @@ def _capital_lever(
             ),
         )
     if target is not None and horizon is not None:
-        needed = _needed_start(target, available, horizon, contribution)
+        real = real_return(available, inflation)
+        needed = _needed_start(target, real, horizon, contribution)
         return GoalLever(
             name="more_capital",
             value=needed,
             detail=(
-                f"${needed:,.0f} today reaches ${target:,.0f} in {horizon:.1f} years "
-                f"at {available:.1%}"
+                f"${needed:,.0f} today reaches ${target:,.0f} in today's dollars in "
+                f"{horizon:.1f} years at {available:.1%} ({real:.1%} after inflation)"
             ),
         )
     return GoalLever(name="more_capital", value=None, detail="no dollar target or horizon")
 
 
 def _horizon_lever(
-    goal: Goal, target: float, available: float, contribution: float, max_years: int
+    goal: Goal,
+    target: float,
+    available: float,
+    contribution: float,
+    max_years: int,
+    inflation: float,
 ) -> GoalLever:
-    rate = max(available, 0.0)
-    years = years_to_target(goal.start_balance, target, rate, contribution, max_years)
+    real = real_return(max(available, 0.0), inflation)
+    years = years_to_target(goal.start_balance, target, real, contribution, max_years)
+    at = f"at {available:.1%} ({real:.1%} after inflation)"
     if years is None:
-        detail = f"${target:,.0f} is not reached within {max_years} years at {available:.1%}"
+        detail = f"${target:,.0f} in today's dollars is not reached within {max_years} years {at}"
     else:
-        detail = f"${target:,.0f} is reached in {years:.1f} years at {available:.1%}"
+        detail = f"${target:,.0f} in today's dollars is reached in {years:.1f} years {at}"
     return GoalLever(name="longer_horizon", value=years, detail=detail)
 
 
@@ -383,9 +422,13 @@ def feasibility(
                 f"of {cap:.0%}"
             )
 
-    levers = [_capital_lever(goal, target, horizon, available, contribution)]
+    levers = [_capital_lever(goal, target, horizon, available, contribution, cfg.inflation)]
     if target is not None:
-        levers.append(_horizon_lever(goal, target, available, contribution, cfg.max_horizon_years))
+        levers.append(
+            _horizon_lever(
+                goal, target, available, contribution, cfg.max_horizon_years, cfg.inflation
+            )
+        )
     if required is not None:
         levers.append(_profile_lever(required, cfg))
     return FeasibilityVerdict(
@@ -414,17 +457,21 @@ def projection(
     goal: Goal, profile: UserProfile, yields: YieldEstimate, cfg: GoalsConfig
 ) -> list[ProjectionPath]:
     """Stress, base and best paths at the options yields, plus the conventional diversified
-    projection at the profile's assumed return. Base and best are capped at the profile's maximum
-    alike, so ``stress ≤ base ≤ best`` at every point. The stress path is the base path with the
-    -30% scenario's realistic loss taken once, at the end of year one (or at the horizon when it
-    is shorter), and the growth that loss forgoes afterwards."""
+    projection at the profile's assumed return, all in today's dollars: each path compounds at its
+    nominal rate less inflation (W21). Base and best are capped at the profile's maximum alike
+    before inflation is removed, so ``stress ≤ base ≤ best`` at every point. The stress path is the
+    base path with the -30% scenario's realistic loss taken once, at the end of year one (or at
+    the horizon when it is shorter), and the growth that loss forgoes afterwards."""
     years = goal_horizon(goal) or DEFAULT_HORIZON_YEARS
     contribution = 0.0 if goal.variant == "coast" else goal.monthly_contribution
     start = goal.start_balance
     cap = cfg.max_assumed_return[profile.risk_profile]
-    base_rate = min(max(yields.expected_yield, MIN_RETURN), cap)
-    best_rate = max(min(yields.gross_yield, cap), base_rate)
-    assumed = cfg.assumed_return[profile.risk_profile]
+    base_nominal = min(max(yields.expected_yield, MIN_RETURN), cap)
+    best_nominal = max(min(yields.gross_yield, cap), base_nominal)
+    base_rate = real_return(base_nominal, cfg.inflation)
+    best_rate = real_return(best_nominal, cfg.inflation)
+    assumed_nominal = cfg.assumed_return[profile.risk_profile]
+    assumed = real_return(assumed_nominal, cfg.inflation)
     total = yields.total_capital
     loss = yields.realistic_loss * (start / total) if total > 0 else 0.0
     hit = min(1.0, years)
@@ -449,19 +496,22 @@ def projection(
             label="base",
             annual_return=base_rate,
             points=base,
-            note="expected yield of the current screen, capped at the profile's maximum",
+            note="expected yield of the current screen, capped at the profile's maximum; "
+            + _todays_dollars_note(base_nominal, cfg.inflation),
         ),
         ProjectionPath(
             label="best",
             annual_return=best_rate,
             points=_points(start, best_rate, years, contribution),
-            note="gross yield (every premium kept), capped at the profile's maximum",
+            note="gross yield (every premium kept), capped at the profile's maximum; "
+            + _todays_dollars_note(best_nominal, cfg.inflation),
         ),
         ProjectionPath(
             label="assumed",
             annual_return=assumed,
             points=_points(start, assumed, years, contribution),
-            note="diversified-portfolio assumption, not options income",
+            note="diversified-portfolio assumption, not options income; "
+            + _todays_dollars_note(assumed_nominal, cfg.inflation),
         ),
     ]
 
@@ -474,12 +524,11 @@ def fire_plan(
     target_expenses = expense_target(variant, goal, cfg)
     number = fire_number(target_expenses, rate)
     assumed = cfg.assumed_return[profile.risk_profile]
+    real = real_return(assumed, cfg.inflation)  # W21: the FIRE number is in today's dollars
     contribution = 0.0 if variant == "coast" else goal.monthly_contribution
-    years = years_to_target(
-        goal.start_balance, number, assumed, contribution, cfg.max_horizon_years
-    )
+    years = years_to_target(goal.start_balance, number, real, contribution, cfg.max_horizon_years)
     horizon = goal_horizon(goal)
-    coast = coast_balance(number, horizon, assumed) if horizon is not None else None
+    coast = coast_balance(number, horizon, real) if horizon is not None else None
     expenses = goal.annual_expenses or 0.0
     annual_income = expenses + 12.0 * goal.monthly_contribution if expenses else None
     rate_saved = savings_rate(annual_income, expenses) if annual_income else None
@@ -487,11 +536,15 @@ def fire_plan(
         yields.expected_yield, yields.total_capital, target_expenses
     )
     targets = {v: fire_number(expense_target(v, goal, cfg), rate) for v in _FIRE_TARGETS}
+    table = years_to_fi_by_savings_rate(
+        cfg.savings_rate_table.rates, real, rate, cfg.max_horizon_years
+    )
     notes = [
         f"withdrawal rate {rate:.1%} comes from diversified stock/bond portfolio research, "
         "not from options income",
-        f"the projection assumes {assumed:.0%} a year, the {profile.risk_profile} profile's "
-        "diversified-portfolio assumption",
+        f"the projection assumes {assumed:.1%} a year, the {profile.risk_profile} profile's "
+        "diversified-portfolio assumption; every figure is "
+        + _todays_dollars_note(assumed, cfg.inflation),
     ]
     if coverage is not None:
         notes.append(
@@ -505,12 +558,15 @@ def fire_plan(
         withdrawal_rate=rate,
         fire_number=number,
         assumed_return=assumed,
+        real_return=real,
+        inflation=cfg.inflation,
         years_to_fi=years,
         coast_balance=coast,
         savings_rate=rate_saved,
         income_coverage=coverage,
         buying_power_for_full_coverage=bp_full,
         targets=dict(targets),
+        savings_rate_table=table,
         notes=notes,
     )
 
@@ -543,6 +599,9 @@ def plan_goal(
         f"realised volatility at {cfg.realised_to_implied:.2f} x implied",
         f"{profile.risk_profile} profile: return cap {cap:.0%}; the stress path takes the -30% "
         "scenario once in year one",
+        f"all balances and targets are in today's dollars: every path compounds at its rate less "
+        f"{cfg.inflation:.1%} inflation, and the required return is stated nominal to compare "
+        "with the yield and the cap",
         "returns are assumptions for illustration, not forecasts; the stress path is always shown",
     ]
     return GoalPlan(

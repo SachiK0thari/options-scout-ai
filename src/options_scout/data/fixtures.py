@@ -41,6 +41,7 @@ class IndexFixture(BaseModel):
     vix_now: float
     irx_now: float  # 13-week T-bill yield in percent (e.g. 4.25)
     recorded_with: str = "synthetic"
+    vix_source: str | None = None  # citation when the VIX series came from FRED (W11 step 2)
 
 
 class FixtureStore:

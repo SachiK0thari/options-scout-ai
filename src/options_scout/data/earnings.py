@@ -129,7 +129,9 @@ class AlphaVantageEarnings:
             body = resp.json()
             notice = body.get("Information") or body.get("Note") or body.get("Error Message")
             if notice:  # a daily or per-minute limit, or a bad symbol: 200 with a message
-                raise EarningsUnavailableError(f"Alpha Vantage: {str(notice)[:160]}")
+                # the limit notice quotes the key ("We have detected your API key as …"): strip it
+                text = str(notice).replace(self._key, "[redacted]")
+                raise EarningsUnavailableError(f"Alpha Vantage: {text[:160]}")
         return resp
 
     def _cached(self, key: str, ttl: int, fetch: Callable[[], Any]) -> Any:

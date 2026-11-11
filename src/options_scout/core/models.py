@@ -824,7 +824,7 @@ class ProjectionPoint(Model):
 
 class ProjectionPath(Model):
     label: Literal["stress", "base", "best", "assumed"]
-    annual_return: float
+    annual_return: float  # W21: the real rate the path compounds at (today's dollars)
     points: list[ProjectionPoint]
     note: str = ""
 
@@ -834,13 +834,19 @@ class FirePlan(Model):
     expense_target: float
     withdrawal_rate: float
     fire_number: float
-    assumed_return: float  # the diversified-portfolio assumption the projection uses
-    years_to_fi: float | None  # None: not reached within the horizon cap at the assumed return
+    assumed_return: float  # the diversified-portfolio assumption, nominal
+    # W21: every figure is in today's dollars; the projection compounds at this real return,
+    # (1 + assumed_return) / (1 + inflation) - 1
+    real_return: float = 0.0
+    inflation: float = 0.0
+    years_to_fi: float | None  # None: not reached within the horizon cap at the real return
     coast_balance: float | None  # balance needed today to coast to the FIRE number by target age
     savings_rate: float | None
     income_coverage: float | None  # share of the expense target the expected yield covers
     buying_power_for_full_coverage: float | None
     targets: dict[str, float] = Field(default_factory=dict)  # lean/regular/fat FIRE numbers
+    # savings rate -> years to FI from zero at ``real_return`` (None: beyond the horizon cap)
+    savings_rate_table: dict[float, float | None] = Field(default_factory=dict)
     notes: list[str] = Field(default_factory=list)
 
 

@@ -1,4 +1,5 @@
-"""ranker_node: final = w1·option_quality + w2·stock_quality + w3·social/100 + w4·bottleneck/100."""
+"""ranker_node: final = w1·option_quality + w2·stock_quality + w3·max(social, 50)/100
++ w4·max(bottleneck, 50)/100 (see :func:`options_scout.core.ranking.blend`)."""
 
 from __future__ import annotations
 

@@ -10,7 +10,7 @@ from options_scout.config import MAX_SIGNAL_WEIGHT, AppConfig, RankingWeights, l
 def test_config_loads_and_is_typed(config: AppConfig) -> None:
     assert config.settings.data_mode == "fixture"
     w = config.settings.ranking.weights
-    assert (w.option_quality, w.stock_quality, w.social, w.bottleneck) == (0.5, 0.35, 0.10, 0.05)
+    assert (w.option_quality, w.stock_quality, w.social, w.bottleneck) == (0.55, 0.35, 0.10, 0.0)
     assert config.settings.ranking.max_per_ticker == 2
     assert config.quality.get("AAPL") is not None and config.quality.gates.max_hv30 == 0.35
     assert set(config.risk.allocation) == {"conservative", "balanced", "aggressive"}
@@ -83,8 +83,9 @@ def test_ranking_weights_cap_the_two_signals() -> None:
         RankingWeights(option_quality=0.45, stock_quality=0.35, social=0.15, bottleneck=0.05)
     with pytest.raises(ValueError, match=r"must sum to 1\.0"):
         RankingWeights(option_quality=0.5, stock_quality=0.35, social=0.15, bottleneck=0.05)
-    with pytest.raises(ValueError, match=r"must sum to 1\.0"):  # the default bottleneck is 0.05
-        RankingWeights(option_quality=0.5, stock_quality=0.35, social=0.15)
+    with pytest.raises(ValueError, match=r"must sum to 1\.0"):  # the default bottleneck is 0
+        RankingWeights(option_quality=0.5, stock_quality=0.35, social=0.10)
+    assert RankingWeights(option_quality=0.55, stock_quality=0.35, social=0.10).bottleneck == 0.0
 
 
 def test_bottleneck_score_config_loads(config: AppConfig) -> None:

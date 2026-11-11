@@ -182,7 +182,7 @@ The method is the second market-intelligence signal in this repo, specified in `
 | 8 Position | The existing Portfolio and Risk agents size positions. The strategy-fit ideas above become flags on candidates, never filters: `bottleneck_support`, `bottleneck_easing`, `catalyst_inside_dte`. |
 | 9 Monitor, 10 exit | A daily job stores dated snapshots (the journal) and evaluates each layer's written falsifiers. A tripped falsifier halves the score and sets the easing flag. The app reports the state of the thesis and never uses exit language. |
 
-Two constraints carry over from the consumer-trend signal. The score only **re-orders stocks that already passed the good-to-own gate**, so a small-cap pure play appears on the board as context and is never screened unless the user adds it and it passes the gate. And the two signals together are **capped at 15% of the ranking**, so a shortage can move Honeywell ahead of Union Pacific but cannot put a speculative name on the list.
+Two constraints carry over from the consumer-trend signal. The score only **re-orders stocks that already passed the good-to-own gate**, so a small-cap pure play appears on the board as context and is never screened unless the user adds it and it passes the gate. And the two signals together are **capped at 15% of the ranking**, so even at a positive weight a shortage could move Honeywell ahead of Union Pacific but could not put a speculative name on the list. In the shipped configuration the bottleneck weight is **zero**: curated suppliers score 37 or less on the fixture board, below the neutral 50, so any positive weight could only have pushed them down. The board is informational until the score is rescaled for large caps.
 
 ---
 

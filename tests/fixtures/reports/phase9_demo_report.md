@@ -118,16 +118,16 @@ _Secondary signal: re-orders, never adds. Company score = layer score × exposur
   - filing GM, 2026-09-27: “Availability of motor controls improved and electric locomotive was no longer a constraint on our mine conversions during the quarter.” ([edgar](https://www.sec.gov/Archives/edgar/data/1467858/000104206926381928/gm-10q.htm)) · easing · capacity
   - headline, 2026-10-24: “Analysts weigh electric locomotive impact on process solutions margins (Industrial Monitor)” ([news](https://news.example.com/analysts-weigh-electric-locomotive-impact-on-process-solutio-000095)) · neutral · coverage
 
-Universe considered: NKE, COST, AAPL, MSFT, SBUX, SPY, QQQ
+Universe considered: SPY, QQQ, AAPL, MSFT, COST, SBUX, NKE
 
 ## News desk
-- **AAPL** (6 headline(s)): “Apple reports record services revenue as iPhone sales hold steady” — Reuters, 2026-10-26, earnings, high relevance, sentiment +0.31
+- **AAPL** (5 headline(s)): “Apple reports record services revenue as iPhone sales hold steady” — Reuters, 2026-10-26, earnings, high relevance, sentiment +0.31
 - **COST** (6 headline(s)): “Costco quarterly results beat on membership fee growth” — Reuters, 2026-10-26, earnings, high relevance, sentiment +0.27
 - **MSFT** (6 headline(s)): “Microsoft cloud revenue tops estimates as Azure growth accelerates” — Reuters, 2026-10-26, earnings, high relevance, sentiment +0.35
 - **NKE** (6 headline(s)): “Nike earnings miss estimates as China sales fall” — Reuters, 2026-10-26, earnings, high relevance, sentiment -0.33
 - **QQQ** (6 headline(s)): “Nasdaq-100 rallies as megacap earnings impress” — Reuters, 2026-10-26, earnings, high relevance, sentiment +0.25
 - **SBUX** (6 headline(s)): “Starbucks same-store sales fall for fourth straight quarter” — Reuters, 2026-10-26, earnings, high relevance, sentiment -0.29
-- **SPY** (5 headline(s)): “S&P 500 closes at record as earnings season beats expectations” — Reuters, 2026-10-26, earnings, high relevance, sentiment +0.21
+- **SPY** (6 headline(s)): “S&P 500 closes at record as earnings season beats expectations” — Reuters, 2026-10-26, earnings, high relevance, sentiment +0.21
 
 | Candidate | Flag | Event date | Detail |
 |---|---|---|---|
@@ -165,36 +165,29 @@ _Headlines never change the ranking; they flag what to read before trading._
 | LEAPS-QQQ-2028-12-15-530C | 530 | 2028-12-15 | 780 | 0.85 | 260.75 | 4.5% | 2.3% | 790.75 | 372/2% | n/a | iv_disagrees, high_iv_rank |
 | LEAPS-QQQ-2028-06-16-540C | 540 | 2028-06-16 | 598 | 0.85 | 238.00 | 4.8% | 2.5% | 778.00 | 107/2% | n/a | iv_disagrees, high_iv_rank |
 | LEAPS-AAPL-2029-01-19-260C | 260 | 2029-01-19 | 815 | 0.83 | 125.65 | 5.0% | 2.7% | 385.65 | 239/3% | n/a | iv_disagrees, high_iv_rank |
-| LEAPS-COST-2028-12-15-800C | 800 | 2028-12-15 | 780 | 0.81 | 297.00 | 4.9% | 2.7% | 1097.00 | 172/3% | n/a | iv_disagrees, high_iv_rank |
 | LEAPS-MSFT-2028-12-15-360C | 360 | 2028-12-15 | 780 | 0.85 | 220.18 | 4.3% | 2.7% | 580.17 | 538/2% | n/a | iv_disagrees, high_iv_rank |
+| LEAPS-COST-2028-12-15-800C | 800 | 2028-12-15 | 780 | 0.81 | 297.00 | 4.9% | 2.7% | 1097.00 | 172/3% | n/a | iv_disagrees, high_iv_rank |
 | LEAPS-MSFT-2028-12-15-370C | 370 | 2028-12-15 | 780 | 0.84 | 213.00 | 4.6% | 2.9% | 583.00 | 687/2% | n/a | iv_disagrees, high_iv_rank |
 | LEAPS-NKE-2028-12-15-20C | 20 | 2028-12-15 | 780 | 0.80 | 18.80 | 1.5% | 3.9% | 38.80 | 575/5% | 40C 2026-11-20 Δ0.30 mid 0.72 (net Δ 0.50, safety +1.20) | iv_disagrees, high_iv_rank |
 
 ## Sized portfolio
-> ⚠️ Every sized position is on NKE, so this is a one-stock portfolio even though the limits passed.
->
-> ⚠️ The 4 highest-ranked underlying(s) (SPY, QQQ, AAPL, COST) did not fit this account size. The smallest account at which the top-ranked CSP-SPY-2026-11-30-735P fits is $640,477.
->
-> ⚠️ Only $3,464 of the $70,000 set aside for the requested strategies is used (5%); the rest stays in cash.
+> ⚠️ This account is too small for this universe: no candidate on the 5 highest-ranked underlyings (SPY, QQQ, AAPL, MSFT, COST) fits even one contract inside the limits, so nothing was sized. The smallest account at which the top-ranked CSP-SPY-2026-11-30-735P fits is $640,477.
 
-| Candidate | Strategy | Contracts | Strike | Expiry | Capital | Margin | Loss @ -30% | $ delta | Premium | Score | PMCC short call |
-|---|---|---|---|---|---|---|---|---|---|---|---|
-| CSP-NKE-2026-11-20-35P | short put on margin (naked) | 3 | 35 | 2026-11-20 | $1,655 | $1,655 | $2,443 | 2,630 | 169 | 0.58 | n/a |
-| LEAPS-NKE-2028-12-15-20C | leaps | 1 | 20 | 2028-12-15 | $1,808 | n/a | $1,808 | 1,884 | -1,808 | 0.44 | PMCCSC-NKE-2026-11-20-40C |
+_Nothing sized: this account is too small for the top-ranked candidates._
 
 | Metric | Value |
 |---|---|
-| Short-put notional | $10,500 |
-| Capital used | $3,464 (3% of buying power) |
-| Reg T margin used | $1,655 |
-| LEAPS net debit | $1,808 |
-| Loss at -30% (all positions) | $4,251 |
-| Net dollar delta | 4,515 |
-| Net premium (income − debits) | -1,639 |
-| Unused buying power | $96,536 |
-| Cash needed if every put is assigned (+ LEAPS debits) | $12,308 |
+| Short-put notional | $0 |
+| Capital used | $0 (0% of buying power) |
+| Reg T margin used | $0 |
+| LEAPS net debit | $0 |
+| Loss at -30% (all positions) | $0 |
+| Net dollar delta | 0 |
+| Net premium (income − debits) | 0 |
+| Unused buying power | $100,000 |
+| Cash needed if every put is assigned (+ LEAPS debits) | $0 |
 
-<details><summary>Skipped candidates (12)</summary>
+<details><summary>Skipped candidates (14)</summary>
 
 - CSP-SPY-2026-11-30-735P: 0 contracts fit (max loss per position) · fits from $640,477
 - CSP-SPY-2026-11-30-750P: 0 contracts fit (max loss per position) · fits from $683,427
@@ -213,29 +206,24 @@ _Headlines never change the ranking; they flag what to read before trading._
 
 | Constraint | Value | Limit | Status |
 |---|---|---|---|
-| short_put_notional_x | 0.105 | 1.000 | PASS |
-| margin_usage | 0.017 | 0.400 | PASS |
-| max_loss_per_position | 0.024 | 0.030 | PASS |
-| max_exposure_per_ticker | 0.043 | 0.080 | PASS |
-| max_per_sector | 0.043 | 0.300 | PASS |
-| portfolio_loss | 0.043 | 0.200 | PASS |
-| assignment_cash_x | 0.123 | 1.000 | PASS |
-| dollar_delta_x | 0.045 | 1.000 | PASS |
+| short_put_notional_x | 0.000 | 1.000 | PASS |
+| margin_usage | 0.000 | 0.400 | PASS |
+| max_loss_per_position | 0.000 | 0.030 | PASS |
+| max_exposure_per_ticker | 0.000 | 0.080 | PASS |
+| max_per_sector | 0.000 | 0.300 | PASS |
+| portfolio_loss | 0.000 | 0.200 | PASS |
+| assignment_cash_x | 0.000 | 1.000 | PASS |
+| dollar_delta_x | 0.000 | 1.000 | PASS |
 
 **Stress test (instant move, each leg repriced with BSM before and after; the IV shock is the figure for a 30-day option and shrinks as √(30 / DTE) for longer-dated legs):**
 
 | Market move | IV shock | P&L | % of account |
 |---|---|---|---|
-| -10% | +50% | -876 | -0.9% |
-| -20% | +50% | -1,901 | -1.9% |
-| -30% | +50% | -3,176 | -3.2% |
+| -10% | +50% | 0 | 0.0% |
+| -20% | +50% | 0 | 0.0% |
+| -30% | +50% | 0 | 0.0% |
 
-- ⚠️ Every sized position is on NKE, so this is a one-stock portfolio even though the limits passed.
-- ⚠️ The 4 highest-ranked underlying(s) (SPY, QQQ, AAPL, COST) did not fit this account size. The smallest account at which the top-ranked CSP-SPY-2026-11-30-735P fits is $640,477.
-- ⚠️ Only $3,464 of the $70,000 set aside for the requested strategies is used (5%); the rest stays in cash.
-- ⚠️ CSP-NKE-2026-11-20-35P: IV rank is an HV proxy (fewer than 30 IV snapshots stored).
-- ⚠️ LEAPS-NKE-2028-12-15-20C: IV rank is an HV proxy (fewer than 30 IV snapshots stored).
-- ⚠️ Margin account: the puts are sized as naked puts on the Reg T requirement ($1,655), but the loss at a -30% move is $4,251 and assignment of every put plus the LEAPS debits would need $12,308 in cash. Brokers can raise requirements at any time, especially in volatile markets.
+- ⚠️ This account is too small for this universe: no candidate on the 5 highest-ranked underlyings (SPY, QQQ, AAPL, MSFT, COST) fits even one contract inside the limits, so nothing was sized. The smallest account at which the top-ranked CSP-SPY-2026-11-30-735P fits is $640,477.
 
 ## Explanation
 **Allocation.** With 100000 of buying power in a margin account and a balanced profile, the plan sets aside 45000 for cash-secured put collateral, 25000 for LEAPS/PMCC and keeps 30000 in reserve. The VIX reading of 17.51 sits at the 57 percentile of its past year, so the regime is normal and the tilt applied was "none".
@@ -252,11 +240,11 @@ _Headlines never change the ranking; they flag what to read before trading._
 
 **LEAPS: long-dated call options as a leveraged stand-in for owning shares.** **LEAPS** (Long-term Equity AnticiPation Securities) is the exchanges' name for listed options with more than a year until expiration. They trade and settle exactly like shorter options; only the time horizon is different. This app screens **deep in-the-money LEAPS calls** as a way to hold long exposure to a good-to-own stock for a year or more while committing less capital than buying the shares outright. [S3]
 
-**Sized positions.** CSP-NKE-2026-11-20-35P: 3 contract(s) of the csp with strike 35.0 expiring 2026-11-20, using 1655 of capital with a realistic loss of 2443 if the underlying falls 30%. Breakeven at expiry 34.44, maximum loss 10330. LEAPS-NKE-2028-12-15-20C: 1 contract(s) of the leaps with strike 20.0 expiring 2028-12-15, using 1808 of capital with a realistic loss of 1808 if the underlying falls 30%. Breakeven at expiry 38.09, maximum loss 1808. It is paired with short call PMCCSC-NKE-2026-11-20-40C.
+**Sized positions.** None: this account is too small for the top-ranked candidates, so nothing was sized rather than filling it with lower-ranked ones. The warnings below give the account size at which the top-ranked one fits.
 
-**Risk.** 8 of 8 constraint checks pass. Stress test with an instant move and an IV shock: a -10% move gives -876; a -20% move gives -1901; a -30% move gives -3176. The combined loss at a 30% drop across all positions is 4251.
+**Risk.** 8 of 8 constraint checks pass. Stress test with an instant move and an IV shock: a -10% move gives 0; a -20% move gives 0; a -30% move gives 0. The combined loss at a 30% drop across all positions is 0.
 
-**Warnings and limitations.** Every sized position is on NKE, so this is a one-stock portfolio even though the limits passed. The 4 highest-ranked underlying(s) (SPY, QQQ, AAPL, COST) did not fit this account size. The smallest account at which the top-ranked CSP-SPY-2026-11-30-735P fits is $640,477. Only $3,464 of the $70,000 set aside for the requested strategies is used (5%); the rest stays in cash. CSP-NKE-2026-11-20-35P: IV rank is an HV proxy (fewer than 30 IV snapshots stored). LEAPS-NKE-2028-12-15-20C: IV rank is an HV proxy (fewer than 30 IV snapshots stored). Margin account: the puts are sized as naked puts on the Reg T requirement ($1,655), but the loss at a -30% move is $4,251 and assignment of every put plus the LEAPS debits would need $12,308 in cash. Brokers can raise requirements at any time, especially in volatile markets.
+**Warnings and limitations.** This account is too small for this universe: no candidate on the 5 highest-ranked underlyings (SPY, QQQ, AAPL, MSFT, COST) fits even one contract inside the limits, so nothing was sized. The smallest account at which the top-ranked CSP-SPY-2026-11-30-735P fits is $640,477.
 
 Market data is delayed and Greeks are model-derived; these are screened candidates that meet the configured criteria, not recommendations.
 
@@ -273,7 +261,7 @@ Educational screening tool. Not investment, tax or legal advice. Options involve
 ## Compliance
 PASS · audit `<audit_id>` · report · attempt 1
 
-- ✓ `check_numbers`: 64 numbers checked, all grounded
+- ✓ `check_numbers`: 41 numbers checked, all grounded
 - ✓ `check_citations`: 3 tag(s) resolve to retrieved sources
 - ✓ `check_education_only`: education paragraphs carry no run data; short options show their loss
 - ✓ `check_suitability`: suits the profile
@@ -286,11 +274,11 @@ PASS · audit `<audit_id>` · report · attempt 1
 - ✓ `tax_reply`: no tax reply to check
 
 ## Verification
-PASS: 64 numbers checked, 0 ungrounded, banned phrases: none, disclaimer present, citations 3 checked / 0 unknown, attempts 1.
+PASS: 41 numbers checked, 0 ungrounded, banned phrases: none, disclaimer present, citations 3 checked / 0 unknown, attempts 1.
 
 ## Run metadata
 - Models: {"extraction": "deepseek/deepseek-v4.1-flash", "explanation": "deepseek/deepseek-v4.1-flash", "provider": "fixture"}
-- Prompt versions: {"answer_concept": "1.3.0", "answer_tax": "1.0.0", "classify_bottleneck": "1.0.0", "classify_news": "1.1.0", "explain_goal": "1.0.0", "explain_report": "2.5.0", "extract_entities": "1.1.0", "judge_explanation": "1.0.0", "parse_goal": "1.0.0", "parse_holdings": "1.0.0", "parse_profile": "1.2.0", "route_message": "1.3.0"}
+- Prompt versions: {"answer_concept": "1.3.0", "answer_tax": "1.0.0", "classify_bottleneck": "1.0.0", "classify_news": "1.1.0", "explain_goal": "1.1.0", "explain_report": "2.5.0", "extract_entities": "1.1.0", "judge_explanation": "1.0.0", "parse_goal": "1.0.0", "parse_holdings": "1.0.0", "parse_profile": "1.2.0", "route_message": "1.3.0"}
 - Config hash: `<config_hash>`
 - Data sources: {"AAPL": "ok", "COST": "ok", "MSFT": "ok", "NKE": "ok", "QQQ": "ok", "SBUX": "ok", "SPY": "ok", "bottleneck": "ran (274 snippets, 8 layers, 30 companies)", "bottleneck:csv_series": "ok", "bottleneck:edgar": "ok", "bottleneck:fred": "ok", "bottleneck:google_trends": "ok", "bottleneck:news": "ok", "bottleneck:reddit": "ok", "bottleneck:transcripts": "disabled", "google_trends": "ok", "market_data": "fixture", "news": "ok", "news_alphavantage_news": "ok", "news_desk": "41 headlines for 7 ticker(s)", "news_rss": "ok", "reddit": "ok", "sec": "ok", "social": "ran (7095 posts, 28 entities)", "wikipedia": "ok", "x": "ok"}
 - Tokens: 0 in / 0 out · cost $0.0000
@@ -317,7 +305,7 @@ PASS: 64 numbers checked, 0 ungrounded, banned phrases: none, disclaimer present
 - universe: bottleneck ticker SQM is not on the good-to-own list; skipped
 - universe: bottleneck ticker VRT is not on the good-to-own list; skipped
 - universe: bottleneck ticker VST is not on the good-to-own list; skipped
-- universe: no offline fixture for PEP, HON, XOM, CVX, UNP, CSCO, GOOGL, AMZN, TXN, ACN, WMT, PG, KO, MCD, HD, LOW, TJX, JNJ, ABBV, MRK, ABT, JPM, V, MA, LMT; skipped
+- universe: no offline fixture for PEP, GOOGL, AMZN, CSCO, TXN, ACN, WMT, PG, KO, MCD, HD, LOW, TJX, JNJ, ABBV, MRK, ABT, JPM, V, MA, HON, UNP, LMT, XOM, CVX; skipped
 - universe: trending ticker ANF is not on the good-to-own list; skipped
 - universe: trending ticker BIRK is not on the good-to-own list; skipped
 - universe: trending ticker BROS is not on the good-to-own list; skipped

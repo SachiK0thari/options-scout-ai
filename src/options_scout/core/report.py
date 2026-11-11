@@ -574,7 +574,11 @@ def render_goal(plan: GoalPlan | None) -> str:
         ),
         "",
         _table(
-            ["Path", "Return", f"Balance after {plan.projection[0].points[-1].year:g} years"],
+            [
+                "Path",
+                "Real return",
+                f"Balance after {plan.projection[0].points[-1].year:g} years (today's $)",
+            ],
             [[p.label, pct(p.annual_return), money(p.points[-1].balance)] for p in plan.projection],
         )
         if plan.projection
@@ -587,7 +591,8 @@ def render_goal(plan: GoalPlan | None) -> str:
             f"**{f.variant} FIRE:** expenses {money(f.expense_target)} a year at a "
             f"{pct(f.withdrawal_rate)} withdrawal rate give a FIRE number of "
             f"{money(f.fire_number)}; "
-            f"years to FI at {pct(f.assumed_return, 0)}: "
+            f"years to FI at {pct(f.real_return)} real "
+            f"({pct(f.assumed_return)} nominal less {pct(f.inflation)} inflation): "
             f"{'not within the horizon cap' if f.years_to_fi is None else f'{f.years_to_fi:.1f}'}; "
             f"coast balance {money(f.coast_balance)}; income coverage "
             f"{pct(f.income_coverage, 0) if f.income_coverage is not None else 'n/a'}.",

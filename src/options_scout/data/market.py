@@ -159,6 +159,19 @@ class FixtureSource:
     def get_earnings_date(self, ticker: str) -> date | None:
         return self._fx(ticker).snapshot.earnings_date
 
+    def earnings_record(self, ticker: str) -> tuple[date | None, bool, bool, date | None]:
+        """The earnings fields as recorded: (date, known, estimated, estimate), so a replay keeps
+        an estimated or unknown date as it was rather than reading it as confirmed."""
+        s = self._fx(ticker).snapshot
+        return s.earnings_date, s.earnings_known, s.earnings_estimated, s.earnings_estimate
+
+    @property
+    def vix_citation(self) -> str | None:
+        try:
+            return self._idx().vix_source
+        except FileNotFoundError:
+            return None
+
     def get_close_history(self, ticker: str, days: int) -> list[float]:
         hist: list[float] = self._fx(ticker).close_history
         return hist[-days:]
@@ -1140,7 +1153,8 @@ class MarketData:
         vix_now = self._cached(
             "index_last:^VIX", "spot", lambda: self.source.get_index_last("^VIX"), float
         )
-        self.vix_source = None
+        # recorded fixtures carry the citation of a FRED-sourced series (W11 step 2)
+        self.vix_source = getattr(self.source, "vix_citation", None)
         return float(vix_now), volatility.percentile_rank(float(vix_now), history)
 
     def get_risk_free_rate(self) -> float:
@@ -1215,36 +1229,9 @@ class MarketData:
                 raise  # W27 step 5: a spent plan is not a fact about the ticker
             except Exception as exc:
                 errors.append(f"chain {e}: {exc}")
-        earnings: date | None = None
-        earnings_known = True
-        earnings_estimated = False
-        earnings_estimate: date | None = None
-        try:
-            earnings = self.get_earnings_date(ticker)
-        except QuotaExceededError:
-            raise
-        except Exception as exc:
-            found = self._earnings_from_fallback(ticker, now.date(), exc, errors)
-            if found is None:
-                # an ETF reports nothing: no date, and that is known; anything else is a gap
-                fallback = self.earnings_fallback
-                earnings_known = fallback is not None and fallback.is_skipped(ticker)
-            else:
-                earnings = found.day
-                earnings_estimated = found.kind == "estimated"
-                earnings_estimate = found.estimate
-        else:
-            if earnings is None and self.earnings_fallback is not None:
-                # the provider answered with no date: for a single stock that is a gap (W5),
-                # so ask the fallback; if it has nothing either, the screens still fail closed
-                quiet: list[str] = []
-                found = self._earnings_from_fallback(
-                    ticker, now.date(), MarketDataError("no date"), quiet
-                )
-                if found is not None:
-                    earnings = found.day
-                    earnings_estimated = found.kind == "estimated"
-                    earnings_estimate = found.estimate
+        earnings, earnings_known, earnings_estimated, earnings_estimate = self._earnings(
+            ticker, now.date(), errors
+        )
         hv30: float | None = None
         try:
             hv30 = self.get_hist_vol(ticker, 30)
@@ -1284,6 +1271,48 @@ class MarketData:
             iv_rank_source=iv_source,
             source_errors=errors,
         )
+
+    def _earnings(
+        self, ticker: str, today: date, errors: list[str]
+    ) -> tuple[date | None, bool, bool, date | None]:
+        """(date, known, estimated, estimate): the provider's date, else the fallback's."""
+        recorded = getattr(self.source, "earnings_record", None)
+        if recorded is not None:  # a fixture: replay what was recorded, flags included
+            found_rec: tuple[date | None, bool, bool, date | None] = recorded(ticker)
+            if not found_rec[1]:
+                errors.append("earnings: unknown when the fixture was recorded")
+            return found_rec
+        earnings: date | None = None
+        earnings_known = True
+        earnings_estimated = False
+        earnings_estimate: date | None = None
+        try:
+            earnings = self.get_earnings_date(ticker)
+        except QuotaExceededError:
+            raise
+        except Exception as exc:
+            found = self._earnings_from_fallback(ticker, today, exc, errors)
+            if found is None:
+                # an ETF reports nothing: no date, and that is known; anything else is a gap
+                fallback = self.earnings_fallback
+                earnings_known = fallback is not None and fallback.is_skipped(ticker)
+            else:
+                earnings = found.day
+                earnings_estimated = found.kind == "estimated"
+                earnings_estimate = found.estimate
+        else:
+            if earnings is None and self.earnings_fallback is not None:
+                # the provider answered with no date: for a single stock that is a gap (W5),
+                # so ask the fallback; if it has nothing either, the screens still fail closed
+                quiet: list[str] = []
+                found = self._earnings_from_fallback(
+                    ticker, today, MarketDataError("no date"), quiet
+                )
+                if found is not None:
+                    earnings = found.day
+                    earnings_estimated = found.kind == "estimated"
+                    earnings_estimate = found.estimate
+        return earnings, earnings_known, earnings_estimated, earnings_estimate
 
     def _earnings_from_fallback(
         self, ticker: str, today: date, provider_error: Exception, errors: list[str]

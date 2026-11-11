@@ -14,8 +14,8 @@ from options_scout.core.models import OptionCandidate, PMCCCandidate, RankedCand
 
 ANNUALIZED_RETURN_CAP = 0.40  # a 40%+ annualised CSP return scores 1.0
 OI_SATURATION = 5000  # open interest at which the liquidity sub-score saturates
-NEUTRAL_SOCIAL_SCORE = 50.0  # used when a ticker has no trend signal
-NEUTRAL_BOTTLENECK_SCORE = 50.0  # used when a ticker has no bottleneck signal (Phase 11)
+NEUTRAL_SOCIAL_SCORE = 50.0  # no trend signal; also the floor of the social term (W29)
+NEUTRAL_BOTTLENECK_SCORE = 50.0  # no bottleneck signal (Phase 11); also the term's floor (W29)
 NEUTRAL_QUALITY_SCORE = 0.5  # used when a ticker has no quality check (e.g. demo-core CLI)
 
 
@@ -61,16 +61,19 @@ def blend(
     w: RankingWeights,
     bottleneck: float = NEUTRAL_BOTTLENECK_SCORE,
 ) -> float:
-    """final = w1·option_quality + w2·stock_quality + w3·social/100 + w4·bottleneck/100, in [0, 1].
+    """final = w1·option_quality + w2·stock_quality + w3·max(social, 50)/100
+    + w4·max(bottleneck, 50)/100, in [0, 1].
 
-    ``bottleneck`` is the company score of section 4A.7 for a curated supplier and the neutral 50
-    for every other ticker, so with the engine absent the formula ranks as the three-term one did.
+    A signal is a tiebreaker that can only help (W29): a score below the neutral 50 counts as 50,
+    so a weak or falling signal ranks a ticker exactly as no signal does. ``bottleneck`` is the
+    company score of section 4A.7 for a curated supplier and the neutral 50 for every other
+    ticker; its default weight is 0 (the board is informational for this universe).
     """
     return _clip01(
         w.option_quality * option_q
         + w.stock_quality * stock_q
-        + w.social * social / 100.0
-        + w.bottleneck * bottleneck / 100.0
+        + w.social * max(social, NEUTRAL_SOCIAL_SCORE) / 100.0
+        + w.bottleneck * max(bottleneck, NEUTRAL_BOTTLENECK_SCORE) / 100.0
     )
 
 

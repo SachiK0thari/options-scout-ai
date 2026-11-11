@@ -32,7 +32,7 @@ An index fund promises nothing except to roughly match its index, including in a
 
 ## Where this shows up in OptionsScout
 
-The Quality Screen tab displays every ticker from the curated universe and whether it passed the quality gate on the day of the run, with the two index ETFs at the top of the list. The ranking that follows blends option economics (50%), a quality score (35%) and a consumer-trend signal (15%); the trend signal can re-order names but never adds one that is not on the list or that fails the gate. When the Scout chat is asked whether the universe is "like an index fund", it cites this document to explain that it is a filter, not an index.
+The Quality Screen tab displays every ticker from the curated universe and whether it passed the quality gate on the day of the run, with the two index ETFs at the top of the list. The ranking that follows blends option economics (55%), a quality score (35%) and a consumer-trend signal (10%); the trend signal can re-order names but never adds one that is not on the list or that fails the gate. When the Scout chat is asked whether the universe is "like an index fund", it cites this document to explain that it is a filter, not an index.
 
 ## Sources
 

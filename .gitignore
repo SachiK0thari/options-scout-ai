@@ -38,3 +38,4 @@ docs/capstone-plan.md
 # Phase 11: operator-licensed price-tracker CSVs (PRD 4A.5), never committed
 data/bottleneck_series/
 data/bottleneck_snapshots.sqlite
+data/fixtures-marketdata-*/

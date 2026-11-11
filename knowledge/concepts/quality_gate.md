@@ -38,7 +38,7 @@ Survivors receive a score between 0 and 1: 0.4 × stability + 0.3 × trend + 0.3
 
 ## Step 4: where the score goes
 
-The final ranking of option candidates is 0.50 × option quality + 0.35 × quality score + 0.15 × consumer-trend score / 100. The stock's quality carries more than a third of the ranking so that, between two puts with similar premium and probability, the one on the steadier business ranks first. When more names qualify than the universe cap of 12 tickers, the order is: the user's own tickers, then curated names with a consumer-trend signal (highest first), then list order.
+The final ranking of option candidates is 0.55 × option quality + 0.35 × quality score + 0.10 × consumer-trend score / 100, where a trend score below the neutral 50 counts as 50, so the signal can lift a name but never lower it. The bottleneck board is shown for information and carries no weight. The stock's quality carries more than a third of the ranking so that, between two puts with similar premium and probability, the one on the steadier business ranks first. When more names qualify than the universe cap of 12 tickers, the order is: the user's own tickers, then curated names with a signal score of 60 or more (highest first), then list order.
 
 ## What the gate is not
 

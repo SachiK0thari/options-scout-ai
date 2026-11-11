@@ -389,7 +389,7 @@ def test_bottleneck_board_renders_without_a_report() -> None:
     at = _board(_app(120))
     assert at.radio(key="trends_board").options == BOARDS
     assert any(c.value.startswith("Board from") for c in at.caption)
-    assert any("re-orders" in c.value and "never adds" in c.value for c in at.caption)
+    assert any("informational" in c.value and "never adds" in c.value for c in at.caption)
     # theme → layer tree: one table per theme, eight layers in all, each with its thesis state
     layer_tables = [d.value for d in at.dataframe if "Thesis" in d.value.columns]
     assert len(layer_tables) == 2 and sum(len(t) for t in layer_tables) == 8
@@ -447,7 +447,8 @@ def test_bottleneck_board_with_a_report_never_leaks_into_candidate_tables() -> N
     assert not any(
         f.startswith("bottleneck") for cell in table["Flags"] for f in str(cell).split(", ")
     )
-    assert any("bottleneck 5%" in c.value for c in at.caption)
+    assert any("bottleneck 0%" in c.value for c in at.caption)  # W29: informational
+    assert any("board is **informational**" in c.value for c in at.caption)
     # Under the hood: the engine's status and one row per configured source
     from options_scout.config import BOTTLENECK_SOURCE_NAMES
 

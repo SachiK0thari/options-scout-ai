@@ -17,6 +17,7 @@ from options_scout.agent.deps import Deps
 from options_scout.agent.nodes.bottleneck_scout import fresh_snapshot
 from options_scout.agent.nodes.evidence_retrieval import BOARD_DOC_ID, board_chunks
 from options_scout.agent.state import AgentState
+from options_scout.core import margin
 from options_scout.core.models import BottleneckSignal, ScreeningReport, UserProfile
 from options_scout.rag.models import Chunk, Kind, Level, RetrievalResult, level_rank
 from options_scout.rag.retriever import KnowledgeRetriever
@@ -171,7 +172,7 @@ def select_sources(
     return chosen[:limit], log
 
 
-def run_facts_chunk(rep: ScreeningReport) -> Chunk:
+def run_facts_chunk(rep: ScreeningReport, *, realistic_loss_drop: float) -> Chunk:
     """The current report's computed facts as one ``evidence`` chunk a ``why`` answer can cite:
     quality-gate outcomes with reasons, the ranking, skipped candidates and sized positions."""
     lines = [
@@ -196,10 +197,19 @@ def run_facts_chunk(rep: ScreeningReport) -> Chunk:
     for r in shown:
         c = r.candidate
         bflags = [f for f in c.flags if f.startswith(("bottleneck", "catalyst"))]
+        # a short put is never described without its loss, sized or not (check_education_only)
+        loss = (
+            f", realistic loss "
+            f"{margin.csp_realistic_loss(c.spot, c.strike, c.mid, realistic_loss_drop, 1):,.0f} "
+            f"per contract at a -{realistic_loss_drop:.0%} move"
+            if c.strategy == "csp"
+            else ""
+        )
         lines.append(
             f"Rank {r.rank}: {c.id} ({c.ticker}) final score {r.final_score:.2f}, option quality "
             f"{r.option_quality:.2f}, stock quality {r.quality_score:.2f}, consumer-trend score "
             f"{r.social_score:.0f}, bottleneck score {r.bottleneck_score:.0f}"
+            + loss
             + (f", flags {', '.join(bflags)}" if bflags else "")
             + "."
         )
@@ -345,7 +355,11 @@ def make(deps: Deps) -> Callable[[AgentState], dict[str, Any]]:
             chunks = [h.chunk for h in result.hits]
             rep = state.get("report")
             if state.get("intent") == "why" and rep is not None:
-                chunks.insert(0, run_facts_chunk(rep))  # S1: the facts the question is about
+                # S1: the facts the question is about
+                chunks.insert(
+                    0,
+                    run_facts_chunk(rep, realistic_loss_drop=deps.cfg.risk.realistic_loss_drop),
+                )
                 rules, rule_log = select_sources(
                     retriever, why_rule_queries(question, rep), limit=2, max_level=cap
                 )

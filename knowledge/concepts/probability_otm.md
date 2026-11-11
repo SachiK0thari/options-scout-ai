@@ -30,7 +30,7 @@ N(d2) is the probability that the stock is below the strike **at expiration**. T
 
 ## How it is used in ranking
 
-The CSP screener scores candidates on four components: annualised return on collateral, probability OTM, liquidity and fit of IV rank to the preferred range. Probability OTM carries 30% of that option-quality score, which itself is half of the final ranking alongside the stock's quality score and the consumer-trend signal. A put with a very high probability OTM but almost no premium does not rank well, and neither does a fat premium with a coin-flip chance of assignment; the ranking rewards the balance.
+The CSP screener scores candidates on four components: annualised return on collateral, probability OTM, liquidity and fit of IV rank to the preferred range. Probability OTM carries 30% of that option-quality score, which itself carries 55% of the final ranking alongside the stock's quality score and the consumer-trend signal. A put with a very high probability OTM but almost no premium does not rank well, and neither does a fat premium with a coin-flip chance of assignment; the ranking rewards the balance.
 
 ## Sources
 

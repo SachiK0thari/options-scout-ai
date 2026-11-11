@@ -37,7 +37,7 @@ from options_scout.rag.models import citation_of
 from tests.conftest import REPO_ROOT
 
 REQUEST = (
-    "I have $100,000 of buying power in a margin account, balanced risk tolerance. "
+    "I have $1,000,000 of buying power in a margin account, balanced risk tolerance. "
     "Show me CSPs and LEAPS/PMCC ideas."
 )
 
@@ -171,7 +171,12 @@ def test_bottleneck_evidence_is_indexed_and_cited(report: Any, deps: Deps) -> No
     assert facts is not None and facts.id == f"{BOARD_DOC_ID}#0" and "HON" in facts.text
     assert {c.id for c in [*chunks, facts]} <= {c.id for c in final["evidence"]}
     # the run facts a why answer cites carry the bottleneck term of every ranked ticker
-    assert "bottleneck score 50" in run_facts_chunk(rep).text
+    facts_text = run_facts_chunk(rep, realistic_loss_drop=0.30).text
+    assert "bottleneck score 50" in facts_text
+    # W29 follow-on: every ranked short put carries its loss, sized or not, so a why answer about
+    # an unsized put passes check_education_only
+    csp_lines = [ln for ln in facts_text.splitlines() if ln.startswith("Rank ") and "CSP-" in ln]
+    assert csp_lines and all("realistic loss" in ln for ln in csp_lines)
     # on the run's thread: "why is HON ranked above UNP" quotes a filing and the board facts
     final_q = answer_question(deps, "why is HON ranked above UNP", "t-why-bn-fresh")
     cites = final_q["citations"]

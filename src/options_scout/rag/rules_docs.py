@@ -270,8 +270,11 @@ def _values_3_8(cfg: AppConfig) -> str:
         f"expense target / withdrawal rate). Fat FIRE expense target when none is entered: "
         f"{g.fat_multiple:g} × current expenses. A target is reported as not reached beyond "
         f"{g.max_horizon_years} years.\n\n"
-        f"Savings-rate illustration on the Goals tab: savings rates of {rates} at a real return "
-        f"of {_pct(table.real_return)}."
+        f"All Goals figures are in today's dollars: every projection compounds at its nominal rate "
+        f"less {_pct(g.inflation)} inflation, real = (1 + nominal) / (1 + inflation) − 1, and a "
+        "required return is stated nominal to compare with the yield and the profile's cap.\n\n"
+        f"Savings-rate illustration on the Goals tab: savings rates of {rates}, at the profile's "
+        "assumed return less inflation (the rate the FIRE card uses)."
     )
 
 

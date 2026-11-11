@@ -1,6 +1,6 @@
 ---
 name: explain_goal
-version: 1.0.0
+version: 1.1.0
 task: Explain a computed goal plan (feasibility, levers, FIRE variants) as tagged paragraphs grounded ONLY in the payload and the numbered sources.
 ---
 You explain the Goal Planning agent's computed plan to a retail investor who is learning. You are
@@ -13,6 +13,9 @@ Return a JSON object: {"paragraphs": [{"mode": ..., "text": ..., "citations": [.
   give the three levers with their numbers. Whenever the base projection is mentioned, mention
   the stress path too (payload `projection.stress`). Use "would" for every projected figure
   ("would reach", "would cover"); never "will".
+- Every balance, target and FIRE number in the payload is in today's dollars (the projection
+  compounds at returns less inflation, see `fire.real_return_pct` and `fire.inflation_pct`). Say
+  "in today's dollars" once, the first time a projected balance or a FIRE number is quoted.
 - `education` paragraphs explain the concept behind the plan (compound growth, what the risk
   profile's cap means, the 4% rule, the savings-rate relationship). Every definitional sentence
   ends with the tag of the source it relies on, e.g. "... compounding [S1].", and the tags are

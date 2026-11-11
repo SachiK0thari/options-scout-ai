@@ -189,6 +189,21 @@ def _yield(
     )
 
 
+def _cash_yield(rate: float = 0.04) -> YieldEstimate:
+    """An account held in T-bills, as the goal evals plan it."""
+    return YieldEstimate(
+        gross_yield=rate,
+        expected_yield=rate,
+        expected_assignment_loss=0.0,
+        cash_rate=rate,
+        capital_used=0.0,
+        cash_reserve=200_000.0,
+        realistic_loss=0.0,
+        expected_drift=DRIFT,
+        realised_to_implied=RATIO,
+    )
+
+
 def test_expected_put_payoff_goldens() -> None:
     # at mu = r the undiscounted expectation is the Black-Scholes put grown at r
     S, K, T, r, vol = 100.0, 95.0, 40 / 365, 0.04, 0.25
@@ -327,6 +342,12 @@ def test_projection_paths_are_ordered(
     paths = {p.label: p for p in goals.projection(g, _profile(risk), y, config.goals)}
     cap = config.goals.max_assumed_return[risk]
     assert paths["base"].annual_return <= cap and paths["best"].annual_return <= cap
+    # W21: every path compounds at its rate less inflation (today's dollars)
+    infl = config.goals.inflation
+    base_nominal = min(max(expected, goals.MIN_RETURN), cap)
+    assert paths["base"].annual_return == pytest.approx(goals.real_return(base_nominal, infl))
+    assumed = config.goals.assumed_return[risk]
+    assert paths["assumed"].annual_return == pytest.approx(goals.real_return(assumed, infl))
     for s_pt, b_pt, x_pt in zip(
         paths["stress"].points, paths["base"].points, paths["best"].points, strict=True
     ):
@@ -363,13 +384,71 @@ def test_fire_variants_order_and_numbers(config: AppConfig) -> None:
 
 
 def test_savings_rate_table_is_monotone(config: AppConfig) -> None:
-    cfg = config.goals.savings_rate_table
-    table = goals.years_to_fi_by_savings_rate(cfg.rates, cfg.real_return, 0.04)
-    years = [table[r] for r in cfg.rates]
+    rates = config.goals.savings_rate_table.rates
+    table = goals.years_to_fi_by_savings_rate(rates, 0.05, 0.04)
+    years = [table[r] for r in rates]
     assert all(y is not None for y in years)
     assert years == sorted(years, reverse=True)  # saving more never takes longer
     # the classic 50% row lands in the high teens at 5% real / 4% withdrawal
     assert 14 < (table[0.5] or 0) < 20
+
+
+# ------------------------------------------------------------------ W21: today's dollars
+def test_real_return_removes_inflation(config: AppConfig) -> None:
+    assert config.goals.inflation == 0.025
+    assert goals.real_return(0.06, 0.025) == pytest.approx(1.06 / 1.025 - 1)
+    assert goals.nominal_return(goals.real_return(0.06, 0.025), 0.025) == pytest.approx(0.06)
+    assert goals.real_return(0.05, 0.0) == pytest.approx(0.05)
+
+
+def test_fire_card_is_in_todays_dollars(config: AppConfig) -> None:
+    """The W21 case: age 35 to 65, $60k of expenses, $200k start, balanced (6% nominal). With
+    2.5% inflation removed the coast balance is about $547,800 (it was $261,165 at 6% nominal)
+    and years to FI is 60.0 (it was 34.6)."""
+    g = Goal(
+        kind="fire",
+        variant="regular",
+        start_balance=200_000,
+        annual_expenses=60_000,
+        current_age=35,
+        target_age=65,
+    )
+    fire = goals.fire_plan(g, _profile("balanced"), _cash_yield(), config.goals)
+    assert fire.fire_number == pytest.approx(1_500_000)
+    assert fire.assumed_return == 0.06 and fire.inflation == 0.025
+    assert fire.real_return == pytest.approx(1.06 / 1.025 - 1)
+    assert fire.coast_balance == pytest.approx(547_812, abs=50)
+    assert fire.years_to_fi == pytest.approx(60.0, abs=0.05)
+    assert any(
+        "today's dollars" in n and "6.0% nominal less 2.5% inflation" in n for n in fire.notes
+    )
+
+
+@pytest.mark.parametrize("risk", ["conservative", "balanced", "aggressive"])
+def test_savings_table_and_fire_card_share_one_real_rate(config: AppConfig, risk: str) -> None:
+    g = Goal(kind="fire", start_balance=100_000, annual_expenses=48_000, horizon_years=20)
+    fire = goals.fire_plan(g, _profile(risk), _cash_yield(), config.goals)
+    real = goals.real_return(config.goals.assumed_return[risk], config.goals.inflation)
+    assert fire.real_return == pytest.approx(real)
+    rates = config.goals.savings_rate_table.rates
+    assert fire.savings_rate_table == goals.years_to_fi_by_savings_rate(
+        rates, real, fire.withdrawal_rate
+    )
+    assert goals.coast_balance(fire.fire_number, 20, real) == pytest.approx(fire.coast_balance)
+
+
+def test_required_return_is_nominal_for_a_todays_dollar_target(config: AppConfig) -> None:
+    """A target in today's dollars needs the real return plus inflation; the verdict compares
+    that nominal figure with the nominal yield and the nominal cap."""
+    cfg = config.goals
+    g = Goal(kind="fire", start_balance=600_000, annual_expenses=48_000, horizon_years=10)
+    real_needed = (1_200_000 / 600_000) ** (1 / 10) - 1  # 7.18% real
+    assert goals.required_return(g, cfg) == pytest.approx(
+        goals.nominal_return(real_needed, cfg.inflation)
+    )
+    # an income goal's required return is a first-year yield and is not inflated
+    inc = Goal(kind="income", start_balance=60_000, target_monthly_income=400)
+    assert goals.required_return(inc, cfg) == pytest.approx(0.08)
 
 
 def test_income_coverage() -> None:
@@ -405,9 +484,11 @@ def test_feasibility_growth_fits_and_stretch(config: AppConfig) -> None:
     easy = Goal(kind="growth", start_balance=60_000, target_balance=61_000, horizon_years=5)
     assert goals.feasibility(easy, profile, y, cfg).status == "fits"
     required = y.expected_yield + cfg.stretch_band / 2
-    target = goals.project_balance(60_000, required, 5)
+    # a target in today's dollars that a nominal `required` just reaches
+    target = goals.project_balance(60_000, goals.real_return(required, cfg.inflation), 5)
     stretch = Goal(kind="growth", start_balance=60_000, target_balance=target, horizon_years=5)
     v = goals.feasibility(stretch, profile, y, cfg)
+    assert v.required_return == pytest.approx(required, abs=1e-9)
     assert v.status == "stretch" and {lever.name for lever in v.levers} == {
         "more_capital",
         "longer_horizon",
@@ -438,7 +519,8 @@ def test_plan_goal_fire_end_to_end(config: AppConfig) -> None:
     assert plan.fire.variant == "lean" and plan.fire.fire_number == pytest.approx(900_000)
     assert set(plan.fire.targets) == {"lean", "regular", "fat"}
     assert plan.fire.targets["lean"] <= plan.fire.targets["regular"] <= plan.fire.targets["fat"]
-    assert plan.fire.coast_balance == pytest.approx(900_000 / 1.06**15)
+    real = goals.real_return(0.06, cfg.inflation)
+    assert plan.fire.coast_balance == pytest.approx(900_000 / (1 + real) ** 15)
     assert plan.fire.years_to_fi is not None and 0 < plan.fire.years_to_fi < 30
     assert plan.fire.savings_rate == pytest.approx(24_000 / 72_000)
     assert any("not a safe withdrawal rate" in n for n in plan.fire.notes)
@@ -449,3 +531,4 @@ def test_plan_goal_fire_end_to_end(config: AppConfig) -> None:
     assert all(s.balance <= b.balance for s, b in zip(stress.points, base.points, strict=True))
     assert stress.points[-1].year == 15.0
     assert plan.assumptions and "not forecasts" in plan.assumptions[-1]
+    assert any("today's dollars" in a for a in plan.assumptions)

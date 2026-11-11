@@ -117,7 +117,7 @@ def _fire_card(plan: GoalPlan) -> None:
     f = plan.fire
     if f is None:
         return
-    st.markdown(f"**{f.variant.title()} FIRE**")
+    st.markdown(f"**{f.variant.title()} FIRE** (today's dollars)")
     c1, c2, c3, c4 = st.columns(4)
     c1.metric("FIRE number", session.money(f.fire_number))
     c2.metric("Years to FI", "beyond horizon" if f.years_to_fi is None else f"{f.years_to_fi:.1f}")
@@ -130,10 +130,24 @@ def _fire_card(plan: GoalPlan) -> None:
         session.md(
             f"Targets: lean {session.money(f.targets.get('lean'))}, regular "
             f"{session.money(f.targets.get('regular'))}, fat {session.money(f.targets.get('fat'))} "
-            f"at a {session.pct(f.withdrawal_rate)} withdrawal rate; the projection assumes "
-            f"{session.pct(f.assumed_return, 0)} a year."
+            f"at a {session.pct(f.withdrawal_rate)} withdrawal rate. In today's dollars: "
+            f"{session.pct(f.assumed_return)} nominal less {session.pct(f.inflation)} inflation, "
+            f"{session.pct(f.real_return)} real."
         )
     )
+    if f.savings_rate_table:
+        st.markdown(
+            f"**Years to FI by savings rate**, from zero at {session.pct(f.real_return)} real"
+        )
+        st.table(
+            [
+                {
+                    "Savings rate": session.pct(s, 0),
+                    "Years to FI": "beyond the cap" if y is None else f"{y:.1f}",
+                }
+                for s, y in sorted(f.savings_rate_table.items())
+            ]
+        )
     for note in f.notes:
         st.caption(session.md(note))
 
@@ -176,10 +190,11 @@ def render(view: session.View) -> None:
     _metrics(plan)
     theme.show(
         charts.goal_projection(plan),
-        "Balance by year on four paths: stress (the -30% scenario's realistic loss in year one), "
-        "base (expected yield, capped), best (gross yield capped at the profile's maximum) and the "
-        "diversified-portfolio assumption. Dashed lines are targets; the marker is the coast "
-        "balance. Assumptions, not forecasts.",
+        "Balance by year in today's dollars on four paths, each at its rate less inflation: "
+        "stress (the -30% scenario's realistic loss in year one), base (expected yield, capped), "
+        "best (gross yield capped at the profile's maximum) and the diversified-portfolio "
+        "assumption. Dashed lines are targets; the marker is the coast balance. Assumptions, not "
+        "forecasts.",
     )
     _levers(plan)
     _fire_card(plan)

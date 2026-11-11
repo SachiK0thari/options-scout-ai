@@ -667,7 +667,9 @@ def goal_projection(plan: GoalPlan) -> go.Figure:
             annotation_position="top left",
         )
     years = plan.projection[0].points[-1].year if plan.projection else 0
-    return theme.style(fig, "Projected balance by year", f"Years (0–{years:g})", "Balance ($)")
+    return theme.style(
+        fig, "Projected balance by year", f"Years (0–{years:g})", "Balance (today's $)"
+    )
 
 
 # ---------------------------------------------------------------------------- holdings
