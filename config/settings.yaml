@@ -51,6 +51,9 @@ llm:
 
 market_data:
   provider: marketdata        # live provider: marketdata (MarketData.app token) | tradier (API key)
+  # VIX when the provider has no index data (MarketData.app answered empty on the 2026-11-11 run):
+  # FRED's VIXCLS (Cboe, "Copyrighted: Citation Required"), with FRED_API_KEY; cited in the report
+  vix_fallback: fred          # fred | none (neutral VIX 20)
   marketdata:
     api_key_env: MARKETDATA_TOKEN  # the UI/API can also pass a token per run (never persisted)
     # W27. historical: the previous session's whole chain (every expiry and strike) by date, one

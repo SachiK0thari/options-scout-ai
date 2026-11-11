@@ -2024,7 +2024,16 @@ day (below).
     answer), so single-stock puts fail closed on an unknown earnings date (W5). Index quotes and
     candles (VIX) came back empty, so the regime used its neutral default. Both need another
     source: FRED's `VIXCLS` for VIX (the FRED key exists), an earnings calendar for the rest.
-    Not done yet.
+  - **VIX from FRED (done 2026-11-11):** `market_data.vix_fallback: fred` (new, the default).
+    When the provider raises or returns fewer than 20 VIX closes, `MarketData.get_vix_percentile`
+    reads VIXCLS through the bottleneck engine's FRED adapter (key never echoed), over 400
+    calendar days, the last 252 closes as the window. Values are held in memory for the day and
+    never written to the SQLite cache. VIXCLS is "Copyrighted: Citation Required" (Cboe), so
+    the report's regime line carries FRED's suggested citation and the notice the FRED API terms
+    require (`MarketRegime.vix_source`); README and PRIVACY.md say the same. Live check: VIX 19.92
+    on the 2026-11-09 close, the 80.6th percentile of 282 closes, where the run had used the
+    neutral 20 / 50th. Tests: `tests/unit/test_vix_fallback.py` (8). Fixture mode and the golden
+    report are unchanged. The earnings source is still open.
 
 ---
 

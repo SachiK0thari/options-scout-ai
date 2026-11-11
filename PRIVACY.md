@@ -112,7 +112,9 @@ person:
   them are never extracted or stored.
 - **FRED** (Federal Reserve Bank of St. Louis, `api.stlouisfed.org`): aggregate producer-price and
   industrial series, read with the operator's free API key and cached for 24 hours. Only series
-  identifiers, dates and values are stored.
+  identifiers, dates and values are stored. In live market mode, when the market-data provider
+  has no index data, VIX daily closes come from FRED's `VIXCLS` (Cboe): requested with the same
+  key, held in memory for the day and never written to disk.
 - **News RSS, industry subreddits and Google Trends** are read through the adapters of sections 4.1
   and 4.3 with the signal's own queries; the same fields, filters, retention and removal rules apply.
   No usernames, handles or author identifiers leave the pipeline.

@@ -18,6 +18,7 @@ def make_regime(
     tilt: RegimeTilt,
     as_of: datetime,
     source: Literal["live", "fixture"],
+    vix_source: str | None = None,
 ) -> MarketRegime:
     return MarketRegime(
         vix=vix,
@@ -28,4 +29,5 @@ def make_regime(
         ),
         as_of=as_of,
         source=source,
+        vix_source=vix_source,
     )

@@ -28,6 +28,7 @@ def make(deps: Deps) -> Callable[[AgentState], dict[str, Any]]:
             tilt=deps.cfg.risk.regime_tilt,
             as_of=deps.md.now(),
             source="fixture" if deps.md.source.name == "fixture" else "live",
+            vix_source=getattr(deps.md, "vix_source", None),
         )
         status = {"market_data": deps.md.source.name}
         status.update(deps.md.status)

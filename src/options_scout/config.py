@@ -195,6 +195,9 @@ class MarketDataSettings(_Strict):
     """Live-mode market data provider. The UI/API may override provider + key per run."""
 
     provider: MarketProviderName = "marketdata"
+    # VIX when the provider has none (index data is not on every plan): FRED's VIXCLS with the
+    # free FRED_API_KEY, cited in the report; "none" falls back to the neutral default
+    vix_fallback: Literal["fred", "none"] = "fred"
     marketdata: MarketDataAppSettings = MarketDataAppSettings()
     tradier: TradierSettings = TradierSettings()
 

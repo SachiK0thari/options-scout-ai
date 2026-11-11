@@ -28,6 +28,58 @@ log = logging.getLogger(__name__)
 
 _NEW_YORK = ZoneInfo("America/New_York")
 
+FRED_VIX_SERIES = "VIXCLS"
+# FRED's suggested citation for VIXCLS ("Copyrighted: Citation Required") and the notice the FRED
+# API terms require (https://fred.stlouisfed.org/docs/api/terms_of_use.html), checked 2026-11-11
+FRED_VIX_CITATION = (
+    "Chicago Board Options Exchange, CBOE Volatility Index: VIX [VIXCLS], retrieved from FRED, "
+    "Federal Reserve Bank of St. Louis; https://fred.stlouisfed.org/series/VIXCLS"
+)
+FRED_NOTICE = (
+    "This product uses the FRED® API but is not endorsed or certified by the Federal Reserve "
+    "Bank of St. Louis (terms: https://fred.stlouisfed.org/docs/api/terms_of_use.html)."
+)
+
+
+class FredVix:
+    """VIX daily closes from FRED (VIXCLS) for providers without index data (W27 follow-up).
+
+    Values are kept in memory for the day only, never in the SQLite cache. Needs the free
+    ``FRED_API_KEY``; errors carry the status code and host, never the key (the bottleneck
+    engine's adapter does the request)."""
+
+    LOOKBACK_CALENDAR_DAYS = 400  # a 252-session window with weekends and holidays
+
+    def __init__(self, fetch: Any) -> None:
+        self._fetch = fetch  # (series_id, start, end) -> list[SeriesPoint]
+        self._memo: dict[date, list[tuple[date, float]]] = {}
+
+    @classmethod
+    def from_env(cls) -> FredVix | None:
+        from options_scout.bottleneck.adapters.fred import FredSeriesAdapter
+        from options_scout.config import FredSourceConfig
+
+        cfg = FredSourceConfig()
+        if not os.environ.get(cfg.api_key_env, "").strip():
+            return None
+        adapter = FredSeriesAdapter("live", cfg, cache=None)
+
+        def fetch(series_id: str, start: date, end: date) -> list[Any]:
+            points = adapter.fetch(series_id, start, end)
+            if not points and adapter.status().errors:
+                raise MarketDataError(f"FRED {series_id}: {adapter.status().errors[-1]}")
+            return points
+
+        return cls(fetch)
+
+    def closes(self, today: date) -> list[tuple[date, float]]:
+        if today not in self._memo:
+            start = today - timedelta(days=self.LOOKBACK_CALENDAR_DAYS)
+            points = self._fetch(FRED_VIX_SERIES, start, today)
+            self._memo = {today: [(p.day, float(p.value)) for p in points if p.value > 0]}
+        return self._memo[today]
+
+
 RISK_FREE_FALLBACK = 0.04
 MIN_IV_HISTORY = 30
 
@@ -854,8 +906,11 @@ class MarketData:
         near_dte: tuple[int, int] = (20, 60),
         far_dte_min: int = 330,
         credits_per_ticker: int = 0,
+        vix_fallback: FredVix | None = None,
     ) -> None:
         self.source = source
+        self.vix_fallback = vix_fallback  # used when the provider has no index data
+        self.vix_source: str | None = None  # citation of where the last VIX came from
         self.credits_per_ticker = credits_per_ticker  # W27: 0 = no budget check
         self.cache = cache
         self.ttl = ttl
@@ -938,6 +993,7 @@ class MarketData:
             near_dte=near,
             far_dte_min=far,
             credits_per_ticker=md_cfg.marketdata.credits_per_ticker,
+            vix_fallback=FredVix.from_env() if md_cfg.vix_fallback == "fred" else None,
         )
 
     @classmethod
@@ -1031,17 +1087,46 @@ class MarketData:
             float,
         )
 
+    MIN_VIX_HISTORY = 20  # fewer closes than this cannot place today's VIX in its year
+
     def get_vix_percentile(self, lookback_days: int = 252) -> tuple[float, float]:
-        """Returns (vix_now, percentile 0-100 within the lookback window)."""
+        """Returns (vix_now, percentile 0-100 within the lookback window).
+
+        From the provider; when it has no index data (MarketData.app answered empty on the
+        user's plan, 2026-11-11), from FRED's VIXCLS, cited in :attr:`vix_source`."""
+        try:
+            return self._provider_vix(lookback_days)
+        except Exception as exc:
+            if self.vix_fallback is None:
+                raise
+            provider_error = exc
+        try:
+            closes = self.vix_fallback.closes(self.today())
+        except Exception as exc:
+            raise MarketDataError(
+                f"VIX unavailable from the provider ({provider_error}) and FRED ({exc})"
+            ) from None
+        values = [v for _, v in closes][-lookback_days:]
+        if len(values) < self.MIN_VIX_HISTORY:
+            raise MarketDataError(f"FRED VIXCLS returned {len(values)} closes; too few")
+        last_day = closes[-1][0]
+        self.vix_source = f"{FRED_VIX_CITATION} (close of {last_day.isoformat()}). {FRED_NOTICE}"
+        self.status["^VIX"] = f"FRED VIXCLS, close of {last_day.isoformat()}"
+        return values[-1], volatility.percentile_rank(values[-1], values)
+
+    def _provider_vix(self, lookback_days: int) -> tuple[float, float]:
         history = self._cached(
             f"index_hist:^VIX:{lookback_days}",
             "history",
             lambda: self.source.get_index_history("^VIX", lookback_days),
             lambda v: [float(x) for x in v],
         )
+        if len(history) < self.MIN_VIX_HISTORY:
+            raise MarketDataError(f"the provider returned {len(history)} VIX closes")
         vix_now = self._cached(
             "index_last:^VIX", "spot", lambda: self.source.get_index_last("^VIX"), float
         )
+        self.vix_source = None
         return float(vix_now), volatility.percentile_rank(float(vix_now), history)
 
     def get_risk_free_rate(self) -> float:
@@ -1231,8 +1316,10 @@ def default_cache_path(cfg: AppConfig) -> Path:
 
 
 __all__ = [
+    "FRED_NOTICE",
     "AuthenticationError",
     "FixtureSource",
+    "FredVix",
     "MarketData",
     "MarketDataAppSource",
     "MarketDataError",

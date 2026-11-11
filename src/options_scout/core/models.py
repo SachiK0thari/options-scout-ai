@@ -163,6 +163,7 @@ class MarketRegime(Model):
     label: RegimeLabel
     as_of: datetime
     source: Literal["live", "fixture"] = "fixture"
+    vix_source: str | None = None  # citation when VIX came from a secondary source (FRED)
 
 
 class AllocationPlan(Model):

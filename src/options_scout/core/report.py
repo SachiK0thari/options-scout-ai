@@ -52,6 +52,7 @@ def render_regime(r: MarketRegime) -> str:
     return (
         f"VIX {r.vix:.2f} ({r.vix_percentile:.0f}th percentile, {r.label.replace('_', ' ')}), "
         f"risk-free rate {pct(r.risk_free_rate, 2)} ({r.source} data)."
+        + (f"\n\nVIX source: {r.vix_source}" if r.vix_source else "")
     )
 
 
