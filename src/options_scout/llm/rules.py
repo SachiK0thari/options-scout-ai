@@ -568,14 +568,21 @@ def education_paragraphs(sources: list[dict[str, str]], limit: int = 3) -> list[
     return out
 
 
+def _item_key(items: list[Any], i: int) -> str:
+    """How a slot addresses ``items[i]``: by its identity field when the list has one."""
+    from options_scout.core.grounding import _identity_field
+
+    ident = _identity_field(items)
+    return str(items[i][ident]) if ident else str(i)
+
+
 def rule_explain(user_prompt: str) -> Narrative:
-    """Template narrative that only echoes payload numbers verbatim (so the verifier passes),
-    with education paragraphs assembled from the retrieved sources, each carrying its tag."""
+    """Template narrative written in slots (W14): every figure is a ``{{path}}`` that
+    ``core.grounding.render_narrative`` fills from the payload (the explainer and the report
+    fallback do), so the deterministic writer takes the same path the model does. Education
+    paragraphs are verbatim excerpts of the retrieved sources, each carrying its tag."""
     payload = _payload_from(user_prompt)
     sources = parse_sources_block(user_prompt)
-    prof = payload.get("profile", {})
-    alloc = payload.get("allocation", {})
-    regime = payload.get("regime", {})
     positions = payload.get("positions", [])
     risk = payload.get("risk", {})
     trends = payload.get("trends", [])
@@ -585,66 +592,80 @@ def rule_explain(user_prompt: str) -> Narrative:
         paras.append(Paragraph(mode="screen_result", text=text))
 
     result(
-        f"**Allocation.** With {prof.get('buying_power')} of buying power in a {prof.get('account_type')} "
-        f"account and a {prof.get('risk_profile')} profile, the plan sets aside {alloc.get('csp_dollars')} "
-        f"for cash-secured put collateral, {alloc.get('leaps_dollars')} for LEAPS/PMCC and keeps "
-        f"{alloc.get('cash_dollars')} in reserve. The VIX reading of {regime.get('vix')} sits at the "
-        f"{regime.get('vix_percentile')} percentile of its past year, so the regime is "
-        f'{str(regime.get("label", "")).replace("_", " ")} and the tilt applied was "{alloc.get("tilt")}".'
+        "**Allocation.** With {{profile.buying_power|money}} of buying power in a "
+        "{{profile.account_type}} account and a {{profile.risk_profile}} profile, the plan sets "
+        "aside {{allocation.csp_dollars|money}} for cash-secured put collateral, "
+        "{{allocation.leaps_dollars|money}} for LEAPS/PMCC and keeps "
+        "{{allocation.cash_dollars|money}} in reserve. The VIX reading of {{regime.vix}} sits at "
+        "the {{regime.vix_percentile}} percentile of its past year, so the regime is "
+        f"{str(regime_label(payload)).replace('_', ' ')} and the tilt applied was "
+        '"{{allocation.tilt}}".'
     )
     qs = payload.get("quality_screen", {})
     if qs:
         kept = qs.get("passed", [])
-        names = ", ".join(f"{q.get('ticker')} (quality {q.get('quality_score')})" for q in kept[:8])
-        dropped = qs.get("excluded", [])
-        drop_txt = (
-            " Excluded: "
-            + "; ".join(
-                f"{q.get('ticker')} ({'; '.join(q.get('reasons', [])[:2])})" for q in dropped[:5]
-            )
-            + "."
-            if dropped
-            else ""
+        names = ", ".join(
+            f"{{{{quality_screen.passed[{k}].ticker}}}} (quality "
+            f"{{{{quality_screen.passed[{k}].quality_score}}}})"
+            for k in (_item_key(kept, i) for i in range(min(8, len(kept))))
         )
+        dropped = qs.get("excluded", [])
+        drop_parts = []
+        for i, q in enumerate(dropped[:5]):
+            k = _item_key(dropped, i)
+            reasons = "; ".join(
+                f"{{{{quality_screen.excluded[{k}].reasons[{j}]}}}}"
+                for j in range(min(2, len(q.get("reasons", []))))
+            )
+            drop_parts.append(f"{{{{quality_screen.excluded[{k}].ticker}}}} ({reasons})")
+        drop_txt = " Excluded: " + "; ".join(drop_parts) + "." if drop_parts else ""
         result(
-            f"**Quality screen.** {qs.get('passed_count')} underlying(s) passed the good-to-own gate "
-            f"(curated list plus limits on realised and implied volatility, price, liquidity and distance "
-            f"below the {qs.get('drawdown_lookback_days')}-day high): {names or 'none'}.{drop_txt} "
-            f"Only these were screened for options."
+            "**Quality screen.** {{quality_screen.passed_count}} underlying(s) passed the "
+            "good-to-own gate (curated list plus limits on realised and implied volatility, price, "
+            "liquidity and distance below the {{quality_screen.drawdown_lookback_days}}-day high): "
+            f"{names or 'none'}.{drop_txt} Only these were screened for options."
         )
     if trends:
-        tr = ", ".join(
-            f"{t.get('entity')} (score {t.get('score')}{', ' + str(t.get('ticker')) if t.get('ticker') else ', not investable'})"
-            for t in trends[:5]
-        )
+        parts = []
+        for i, t in enumerate(trends[:5]):
+            k = _item_key(trends, i)
+            tail = f", {{{{trends[{k}].ticker}}}}" if t.get("ticker") else ", not investable"
+            parts.append(f"{{{{trends[{k}].entity}}}} (score {{{{trends[{k}].score}}}}{tail})")
         result(
-            f"**Trend board.** The consumer-trend scan surfaced {tr}. Scores combine mention velocity, "
-            f"purchase intent, cross-source confirmation and the gap between social and news attention; "
-            f"stock-forum hype is penalised rather than rewarded."
+            f"**Trend board.** The consumer-trend scan surfaced {', '.join(parts)}. Scores combine "
+            "mention velocity, purchase intent, cross-source confirmation and the gap between "
+            "social and news attention; stock-forum hype is penalised rather than rewarded."
         )
     else:
         result("**Trend board.** No social trend signals were available for this run.")
     board = payload.get("bottlenecks") or {}
     if board.get("layers"):
+        layers = board["layers"]
         top = ", ".join(
-            f"{ly.get('layer')} (score {ly.get('score')}, thesis {ly.get('thesis_state')})"
-            for ly in board["layers"][:3]
+            f"{{{{bottlenecks.layers[{k}].layer}}}} (score {{{{bottlenecks.layers[{k}].score}}}}, "
+            f"thesis {{{{bottlenecks.layers[{k}].thesis_state}}}})"
+            for k in (_item_key(layers, i) for i in range(min(3, len(layers))))
         )
         comps = board.get("companies") or []
         names = (
-            ", ".join(f"{c.get('ticker')} {c.get('score')}" for c in comps[:5])
+            ", ".join(
+                f"{{{{bottlenecks.companies[{k}].ticker}}}} {{{{bottlenecks.companies[{k}].score}}}}"
+                for k in (_item_key(comps, i) for i in range(min(5, len(comps))))
+            )
             if comps
             else "none of the screened underlyings"
         )
         weakening = [
-            ly.get("layer") for ly in board["layers"] if ly.get("thesis_state") == "weakening"
+            f"{{{{bottlenecks.layers[{_item_key(layers, i)}].layer}}}}"
+            for i, ly in enumerate(layers)
+            if ly.get("thesis_state") == "weakening"
         ]
         result(
-            f"**Bottleneck board.** The supply-constraint scan is a secondary signal that re-orders "
-            f"quality-gated stocks and never adds one. Tightest layers: {top}. Curated suppliers with "
-            f"a company score: {names}."
+            "**Bottleneck board.** The supply-constraint scan is a secondary signal that re-orders "
+            f"quality-gated stocks and never adds one. Tightest layers: {top}. Curated suppliers "
+            f"with a company score: {names}."
             + (
-                f" Thesis weakening (a falsifier tripped, so scores in the layer are decayed): "
+                " Thesis weakening (a falsifier tripped, so scores in the layer are decayed): "
                 f"{', '.join(weakening)}."
                 if weakening
                 else ""
@@ -656,12 +677,14 @@ def rule_explain(user_prompt: str) -> Narrative:
     if positions:
         lines = []
         for p in positions:
+            cid = str(p.get("candidate_id"))
+            at = f"positions[{cid}]"
             payoff = p.get("payoff") or {}
             extra = ""
             if payoff.get("breakeven") is not None:
-                extra = f" Breakeven at expiry {payoff.get('breakeven')}"
+                extra = f" Breakeven at expiry {{{{{at}.payoff.breakeven|money}}}}"
                 if payoff.get("max_loss") is not None:
-                    extra += f", maximum loss {payoff.get('max_loss')}"
+                    extra += f", maximum loss {{{{{at}.payoff.max_loss|money}}}}"
                 extra += "."
             bflags = p.get("bottleneck_flags") or []
             flag_txt = ""
@@ -679,17 +702,18 @@ def rule_explain(user_prompt: str) -> Narrative:
                     )
                 flag_txt = ", flagged " + " and ".join(parts)
             lines.append(
-                f"{p.get('candidate_id')}: {p.get('contracts')} contract(s) of the {p.get('strategy')} with strike "
-                f"{p.get('strike')} expiring {p.get('expiry')}, using {p.get('capital_used')} of capital with a "
-                f"realistic loss of {p.get('realistic_loss')} if the underlying falls 30%{flag_txt}.{extra}"
+                f"{cid}: {{{{{at}.contracts}}}} contract(s) of the {{{{{at}.strategy}}}} with "
+                f"strike {{{{{at}.strike}}}} expiring {{{{{at}.expiry}}}}, using "
+                f"{{{{{at}.capital_used|money}}}} of capital with a realistic loss of "
+                f"{{{{{at}.realistic_loss|money}}}} if the underlying falls "
+                f"{{{{risk.realistic_loss_drop_pct|pct}}}}{flag_txt}.{extra}"
                 + (
-                    f" It is paired with short call {p.get('pmcc_short_call_id')}."
+                    f" It is paired with short call {{{{{at}.pmcc_short_call_id}}}}."
                     if p.get("pmcc_short_call_id")
                     else ""
                 )
                 + (
-                    f" The earnings date for {p.get('candidate_id')} is unknown and could fall "
-                    "before expiry."
+                    f" The earnings date for {cid} is unknown and could fall before expiry."
                     if p.get("earnings_unknown")
                     else ""
                 )
@@ -705,21 +729,24 @@ def rule_explain(user_prompt: str) -> Narrative:
         result(
             "**Sized positions.** No candidate fit inside the risk constraints for this profile."
         )
-    checks = risk.get("checks", [])
-    passed = sum(1 for c in checks if c.get("passed"))
     stress = risk.get("stress", [])
-    stress_txt = "; ".join(f"a {s.get('shock')} move gives {s.get('pnl')}" for s in stress)
+    stress_txt = "; ".join(
+        f"a {{{{risk.stress[{k}].shock}}}} move gives {{{{risk.stress[{k}].pnl|money}}}}"
+        for k in (_item_key(stress, i) for i in range(len(stress)))
+    )
     result(
-        f"**Risk.** {passed} of {len(checks)} constraint checks pass. Stress test with an instant move and "
-        f"an IV shock: {stress_txt}. The combined loss at a 30% drop across all positions is "
-        f"{payload.get('portfolio', {}).get('realistic_loss')}."
+        "**Risk.** {{risk.checks_passed}} of {{risk.checks_total}} constraint checks pass. Stress "
+        f"test with an instant move and an IV shock: {stress_txt or 'not run'}. The combined "
+        "realistic loss at a {{risk.realistic_loss_drop_pct|pct}} drop across all positions is "
+        "{{portfolio.realistic_loss|money}}."
     )
     warnings = risk.get("warnings", [])
     if warnings:
         paras.append(
             Paragraph(
                 mode="notice",
-                text="**Warnings and limitations.** " + " ".join(str(w) for w in warnings[:6]),
+                text="**Warnings and limitations.** "
+                + " ".join(f"{{{{risk.warnings[{i}]}}}}" for i in range(min(6, len(warnings)))),
             )
         )
     paras.append(
@@ -731,8 +758,13 @@ def rule_explain(user_prompt: str) -> Narrative:
             ),
         )
     )
-    paras.append(Paragraph(mode="notice", text=str(payload.get("disclaimer", ""))))
+    paras.append(Paragraph(mode="notice", text="{{disclaimer}}"))
     return Narrative(paragraphs=paras)
+
+
+def regime_label(payload: dict[str, Any]) -> str:
+    """The regime label as words; a label is a name, not a figure, so it is written out."""
+    return str((payload.get("regime") or {}).get("label", ""))
 
 
 def _tag(user_prompt: str, tag: str) -> str:

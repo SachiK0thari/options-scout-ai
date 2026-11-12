@@ -21,6 +21,26 @@ from datetime import date
 from typing import Any
 
 from options_scout.config import ComplianceConfig
+from options_scout.core.grounding import (
+    CANDIDATE_ID,
+    GAIN_WORDS,
+    LOSS_WORDS,
+    Entry,
+    GroundingResult,
+    SlotError,
+    display_variants,
+    extract_numbers,
+    ground_narrative,
+    matching_paths,
+    payload_entries,
+    render_narrative,
+    render_slots,
+    scrub_identifiers,
+    short_option_losses,
+    source_entries,
+    unstated_losses,
+)
+from options_scout.core.grounding import PMCC_ID as _PMCC_ID
 from options_scout.core.models import (
     BOTTLENECK_BOARD_DOC_ID,
     SOURCE_TAG,
@@ -64,86 +84,50 @@ def banned_phrases_in(text: str) -> list[str]:
     return sorted({p for p in BANNED_PHRASES if p in low})
 
 
-CANDIDATE_ID = re.compile(r"\b(?:CSP|LEAPS|PMCC|PMCCSC)-[A-Z.\-]+?-\d{4}-\d{2}-\d{2}-[\d.]+[CP]\b")
-_PMCC_ID = re.compile(r"\bPMCC-[A-Z.]+-\d{4}-\d{2}-\d{2}-[\d.]+C-\d{4}-\d{2}-\d{2}-[\d.]+C\b")
-_DATE = re.compile(r"\b\d{4}-\d{2}-\d{2}\b")
-_YEAR = re.compile(r"\b(19|20)\d{2}\b")
-_NUMBER = re.compile(r"(?<![\w.])[-+−]?\$?\s?(?:\d{1,3}(?:,\d{3})+|\d+)(?:\.\d+)?%?")
-_ORDINAL = re.compile(r"\b\d+(st|nd|rd|th)\b")
+__all__ = [
+    "CANDIDATE_ID",
+    "GroundingResult",
+    "SlotError",
+    "ground_narrative",
+    "render_narrative",
+    "render_slots",
+]
+
 _SOURCE_TAG = re.compile(SOURCE_TAG)
-_CODE_SPAN = re.compile(r"`[^`\n]*`")  # run ids, thread ids, config keys: identifiers, not claims
-
-
-def _to_float(token: str) -> tuple[float, bool] | None:
-    t = token.replace("−", "-").replace("$", "").replace(",", "").replace(" ", "")
-    pct = t.endswith("%")
-    t = t.rstrip("%")  # pragma: no mutate (tokens from _NUMBER never end in X)
-    try:
-        return float(t), pct
-    except ValueError:
-        return None
+_ABS_TOL = 1e-9  # W14: was 0.0051, which matched anything near zero
 
 
 def collect_payload_numbers(payload: Any, out: set[float] | None = None) -> set[float]:
-    """Recursively gather every numeric value (plus display variants) from the payload."""
+    """Every numeric value in the payload with its display roundings and, for fractions, the
+    percent forms. Kept for callers that want the flat set; the checks match by kind and sign
+    through ``core.grounding`` instead."""
     out = set() if out is None else out
-    if isinstance(payload, bool):
-        return out
-    if isinstance(payload, int | float):
-        v = float(payload)
-        if math.isfinite(v):
-            out.add(v)
-            for k in range(0, 5):
-                out.add(round(v, k))
-            if abs(v) <= 1.5:  # fractions may be written as percents
-                out.add(round(v * 100, 2))
-                out.add(round(v * 100, 1))
-                out.add(round(v * 100, 0))
-            out.add(abs(v))
-    elif isinstance(payload, dict):
-        for v in payload.values():
-            collect_payload_numbers(v, out)
-    elif isinstance(payload, list | tuple | set):
-        for v in payload:
-            collect_payload_numbers(v, out)
-    elif isinstance(payload, str):
-        for tok in _NUMBER.findall(payload):
-            parsed = _to_float(tok)
-            if parsed:
-                out.add(parsed[0])
-                out.add(abs(parsed[0]))
+    for e in payload_entries(payload, skip=frozenset()):
+        out.update(display_variants(e.value))
+        if abs(e.value) <= 1.5:  # fractions may be written as percents
+            out.update(display_variants(e.value * 100)[1:])
     return out
 
 
 def extract_narrative_numbers(text: str) -> list[tuple[str, float, bool]]:
-    """Numbers in the narrative, excluding candidate ids, dates and ordinals."""
-    scrubbed = _CODE_SPAN.sub(" ", text)
-    scrubbed = _PMCC_ID.sub(" ", scrubbed)
-    scrubbed = _SOURCE_TAG.sub(" ", scrubbed)  # [S3] is a citation, not a claim
-    scrubbed = CANDIDATE_ID.sub(" ", scrubbed)
-    scrubbed = _DATE.sub(" ", scrubbed)
-    scrubbed = _ORDINAL.sub(" ", scrubbed)
-    scrubbed = re.sub(r"\*\*|__", " ", scrubbed)
-    out: list[tuple[str, float, bool]] = []
-    for m in _NUMBER.finditer(scrubbed):
-        tok = m.group(0).strip()
-        parsed = _to_float(tok)
-        if parsed is None:
-            continue  # pragma: no mutate (a _NUMBER token always parses)
-        val, pct = parsed
-        if _YEAR.fullmatch(tok.strip("$ ")) and 1990 <= val <= 2100:
-            continue  # bare years are not claims
-        out.append((tok, val, pct))
-    return out
+    """Numbers in the narrative as ``(token, value, is_percent)``: digits with unit suffixes,
+    number words and multipliers; candidate ids, dates, bare years and day ordinals excluded."""
+    return [(n.text, n.value, n.kind == "pct") for n in extract_numbers(text)]
 
 
 def _matches(value: float, allowed: Iterable[float], rel_tol: float) -> bool:
-    for a in allowed:
-        if a == value:
-            return True
-        if math.isclose(a, value, rel_tol=rel_tol, abs_tol=0.0051):
-            return True
-    return False
+    return any(
+        a == value or math.isclose(a, value, rel_tol=rel_tol, abs_tol=_ABS_TOL) for a in allowed
+    )
+
+
+def _loss_near(text: str, start: int, end: int) -> bool:
+    return bool(LOSS_WORDS.search(text[max(0, start - 60) : start] + " " + text[end : end + 30]))
+
+
+def _gain_before(text: str, start: int) -> bool:
+    window = text[max(0, start - 40) : start]
+    return bool(GAIN_WORDS.search(window)) and not LOSS_WORDS.search(window)
 
 
 def unknown_source_tags(text: str, source_count: int) -> list[str]:
@@ -172,22 +156,6 @@ def _evidence_texts(payload: dict[str, Any]) -> list[str]:
         for src in payload.get("sources") or []
         if isinstance(src, dict) and src.get("kind") == "evidence"
     ]
-
-
-def _without_evidence_text(payload: dict[str, Any]) -> dict[str, Any]:
-    """The payload minus the text of third-party sources (posts, headlines, filing excerpts):
-    a number someone else wrote must not ground a claim (W13). Knowledge-base and run-facts
-    sources keep their text."""
-    sources = payload.get("sources")
-    if not isinstance(sources, list):
-        return payload
-    kept = [
-        {k: v for k, v in src.items() if k != "text"}
-        if isinstance(src, dict) and src.get("kind") == "evidence"
-        else src
-        for src in sources
-    ]
-    return {**payload, "sources": kept}
 
 
 def _without_verbatim_quotes(narrative: str, payload: dict[str, Any]) -> str:
@@ -221,18 +189,21 @@ def verify_narrative(
     ``source_count`` is the number of ``[Sn]`` sources the text was allowed to cite (defaults to
     ``len(payload["sources"])``); a tag outside that range fails the check.
     """
-    allowed = collect_payload_numbers(_without_evidence_text(payload))
-    found = extract_narrative_numbers(_without_verbatim_quotes(narrative, payload))
+    allowed: list[Entry] = payload_entries(payload) + source_entries(payload)
+    body = scrub_identifiers(_without_verbatim_quotes(narrative, payload))
+    found = extract_numbers(body, scrubbed=True)
     if source_count is None:
         source_count = len(payload.get("sources") or [])
     unknown = unknown_source_tags(narrative, source_count)
     ungrounded: list[str] = []
-    for tok, val, pct in found:
-        candidates = [val, -val]
-        if pct:
-            candidates += [val / 100.0, -val / 100.0]
-        if not any(_matches(c, allowed, rel_tol) for c in candidates):
-            ungrounded.append(tok)
+    for tok in found:
+        loss = (
+            False
+            if (not tok.sign and _gain_before(body, tok.start))
+            else _loss_near(body, tok.start, tok.end)
+        )
+        if not matching_paths(tok, allowed, rel_tol, loss_context=loss):
+            ungrounded.append(tok.text)
     banned = banned_phrases_in(narrative)
     disclaimer_present = _normalise(disclaimer)[:60] in _normalise(narrative)
     cited = sorted(set(CANDIDATE_ID.findall(narrative)) | set(_PMCC_ID.findall(narrative)))
@@ -255,7 +226,6 @@ def _normalise(s: str) -> str:
 
 
 # ====================================================================== 13.1: the eight checks
-_SHORT_OPTION_ID = re.compile(r"\b(?:CSP|PMCCSC)-[A-Z.\-]+?-\d{4}-\d{2}-\d{2}-[\d.]+[CP]\b")
 _HANDLE = re.compile(r"(?<![\w/.])@[A-Za-z0-9_]{2,}|\b[ur]/[A-Za-z0-9_\-]{2,}")
 _EMAIL = re.compile(r"[A-Za-z0-9._%+-]+@[A-Za-z0-9.-]+\.[A-Za-z]{2,}")
 _SENTENCE = re.compile(r"(?<=[.!?])\s+")
@@ -287,7 +257,7 @@ def check_numbers(verification: VerificationResult) -> ComplianceCheck:
         passed=not bad,
         detail=(
             f"{verification.numbers_checked} numbers checked, "
-            + (f"not in payload: {', '.join(bad)}" if bad else "all grounded")
+            + (f"not grounded: {'; '.join(bad)}" if bad else "all grounded")
         ),
         locations=list(bad),
     )
@@ -360,15 +330,7 @@ def check_education_only(
     ticker_re = (
         re.compile(r"\b(?:" + "|".join(map(re.escape, tickers)) + r")\b") if tickers else None
     )
-    losses = {
-        str(p.get("candidate_id")): p.get("realistic_loss")
-        for p in payload.get("positions", [])
-        if isinstance(p, dict)
-    }
-    # W11: a candidate that did not fit is described with the realistic loss of one contract
-    for s in payload.get("skipped_candidates", []):
-        if isinstance(s, dict) and str(s.get("candidate_id")) not in losses:
-            losses[str(s.get("candidate_id"))] = s.get("realistic_loss_per_contract")
+    losses = short_option_losses(payload)
     for i, p in enumerate(narrative.paragraphs):
         if p.mode == "education":
             ids = CANDIDATE_ID.findall(p.text)
@@ -386,20 +348,12 @@ def check_education_only(
                     locations.append(_loc(i))
                     break
         elif p.mode == "screen_result":
-            low = p.text.lower()
-            for cid in _SHORT_OPTION_ID.findall(p.text):
-                loss = losses.get(cid)
-                has_phrase = "realistic loss" in low or "loss at" in low or "modelled loss" in low
-                has_number = loss is not None and any(
-                    _matches(val, [float(loss)], rel_tol)
-                    for _, val, _ in extract_narrative_numbers(p.text)
+            for cid in unstated_losses(p, payload, rel_tol=rel_tol, losses=losses):
+                why = "" if cid in losses else " (the payload has no realistic loss for it)"
+                problems.append(
+                    f"{_loc(i)}: short option {cid} described without its own realistic loss{why}"
                 )
-                if not (has_phrase or has_number):
-                    problems.append(
-                        f"{_loc(i)}: short option {cid} described without its realistic loss"
-                    )
-                    locations.append(_loc(i))
-                    break
+                locations.append(_loc(i))
     return ComplianceCheck(
         name="check_education_only",
         passed=not problems,
@@ -862,6 +816,15 @@ def run_compliance(
         rel_tol=rel_tol,
         attempts=attempts,
         source_count=len(sources),
+    )
+    # W14: figures are checked per paragraph (slot mode for templated paragraphs, the run's own
+    # data only for screen_result and notice text, label-aware for the dangerous labels)
+    grounding = ground_narrative(narrative, payload, cfg=cfg.grounding, rel_tol=rel_tol)
+    verification = verification.model_copy(
+        update={
+            "numbers_checked": grounding.numbers_checked,
+            "ungrounded_numbers": grounding.problems,
+        }
     )
     citations = resolve_citations(narrative, list(sources))
     checks = [

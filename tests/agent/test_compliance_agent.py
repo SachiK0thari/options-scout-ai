@@ -388,3 +388,161 @@ def test_the_payload_names_every_skipped_candidate_a_warning_mentions(deps: Deps
     assert named - sized <= set(skipped)
     assert all(s["realistic_loss_per_contract"] > 0 for s in skipped.values())
     assert len(skipped) <= 8 + len(named)
+
+
+# ------------------------------------- W14: failing paragraphs replaced, not the whole narrative
+def _model_writes(deps: Deps, monkeypatch: pytest.MonkeyPatch, edit: Any) -> dict[str, int]:
+    """The live model returns the rule writer's narrative with ``edit`` applied to its
+    paragraph list; returns a call counter."""
+    from options_scout.agent.nodes.explainer import rule_prompt
+    from options_scout.llm.rules import rule_explain
+
+    calls = {"n": 0}
+
+    def written(payload: dict[str, Any], block: str, **_k: object) -> Narrative:
+        calls["n"] += 1
+        paragraphs = list(rule_explain(rule_prompt(payload, block)).paragraphs)
+        return Narrative(paragraphs=edit(paragraphs))
+
+    monkeypatch.setattr(deps.llm, "explain", written)
+    monkeypatch.setattr(type(deps.llm), "is_live", property(lambda _self: True))
+    return calls
+
+
+TYPED = Paragraph(mode="screen_result", text="Two caveats apply to this screen.")
+
+
+def test_one_failing_paragraph_is_dropped_and_the_rest_kept(
+    deps: Deps, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    calls = _model_writes(deps, monkeypatch, lambda ps: [*ps[:2], TYPED, *ps[2:]])
+    _visited, final = _run(deps, REQUEST, "t-mixed-one")
+    rep: ScreeningReport = final["report"]
+    assert calls["n"] == deps.cfg.settings.agent.max_explainer_retries + 1
+    assert rep.metadata.narrative_source == "mixed"
+    assert rep.metadata.rules_paragraphs == 0
+    assert rep.metadata.narrative_patches == [
+        "paragraph 3 of the model's text dropped (failed compliance)"
+    ]
+    assert "Two caveats" not in rep.narrative_markdown
+    assert rep.compliance is not None and rep.compliance.passed
+    assert rep.audit_log[-1].passed and not any(a.passed for a in rep.audit_log[:-1])
+    assert any("1 paragraph(s) dropped and 0 deterministic" in e for e in rep.errors)
+
+
+def test_a_dropped_disclaimer_comes_back_from_the_rule_writer(
+    deps: Deps, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    def spoil_last(ps: list[Paragraph]) -> list[Paragraph]:
+        last = ps[-1]
+        return [*ps[:-1], last.model_copy(update={"text": "Two caveats. " + last.text})]
+
+    _model_writes(deps, monkeypatch, spoil_last)
+    _visited, final = _run(deps, REQUEST, "t-mixed-disclaimer")
+    rep: ScreeningReport = final["report"]
+    assert rep.metadata.narrative_source == "mixed"
+    assert rep.metadata.rules_paragraphs == 1
+    assert rep.metadata.narrative_patches[-1].endswith("of the deterministic text added")
+    assert "Two caveats" not in rep.narrative_markdown
+    assert rep.narrative_markdown.count(deps.cfg.settings.disclaimer[:60]) == 1
+    assert rep.compliance is not None and rep.compliance.passed
+
+
+def test_too_many_failing_paragraphs_fall_back_to_the_whole_rule_narrative(
+    deps: Deps, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    _model_writes(deps, monkeypatch, lambda ps: [TYPED, *ps[:3], TYPED, *ps[3:6], TYPED, *ps[6:]])
+    _visited, final = _run(deps, REQUEST, "t-mixed-many")
+    rep: ScreeningReport = final["report"]
+    assert rep.metadata.narrative_source == "rules"
+    assert rep.metadata.rules_paragraphs == 0 and rep.metadata.narrative_patches == []
+    assert any("deterministic narrative used (passed=True)" in e for e in rep.errors)
+
+
+def test_a_short_option_without_its_loss_is_repaired_and_recorded(
+    deps: Deps, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    from options_scout.agent.nodes.explainer import rule_prompt
+    from options_scout.llm.rules import rule_explain
+
+    def written(payload: dict[str, Any], block: str, **_k: object) -> Narrative:
+        ids = [x["candidate_id"] for x in payload["positions"] + payload["skipped_candidates"]]
+        cid = next(i for i in ids if i.startswith("CSP-"))
+        ps = list(rule_explain(rule_prompt(payload, block)).paragraphs)
+        bare = Paragraph(mode="screen_result", text=f"{cid} is a top-ranked candidate.")
+        return Narrative(paragraphs=[*ps[:-1], bare, ps[-1]])
+
+    monkeypatch.setattr(deps.llm, "explain", written)
+    monkeypatch.setattr(type(deps.llm), "is_live", property(lambda _self: True))
+    _visited, final = _run(deps, REQUEST, "t-repair-loss")
+    rep: ScreeningReport = final["report"]
+    assert rep.metadata.narrative_source == "model", rep.errors
+    assert any("realistic loss added (1 option(s))" in n for n in rep.metadata.narrative_patches)
+    assert "is a top-ranked candidate. Realistic loss of " in rep.narrative_markdown
+
+
+def test_a_dropped_section_comes_back_from_the_rule_writer(
+    deps: Deps, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """Run 3 of the fifth live eval: the risk paragraph failed and was dropped, leaving the
+    narrative without a risk section; the rule writer's risk paragraph now takes its place."""
+
+    def spoil_risk(ps: list[Paragraph]) -> list[Paragraph]:
+        return [
+            p.model_copy(update={"text": "Two caveats. " + p.text})
+            if p.text.startswith("**Risk.**")
+            else p
+            for p in ps
+        ]
+
+    _model_writes(deps, monkeypatch, spoil_risk)
+    _visited, final = _run(deps, REQUEST, "t-mixed-section")
+    rep: ScreeningReport = final["report"]
+    assert rep.metadata.narrative_source == "mixed"
+    assert rep.metadata.rules_paragraphs == 1
+    assert rep.metadata.narrative_patches[-1].endswith("of the deterministic text added (risk)")
+    assert "Two caveats" not in rep.narrative_markdown
+    assert "**Risk.**" in rep.narrative_markdown
+    risk_at = [p.text.startswith("**Risk.**") for p in rep.narrative.paragraphs].index(True)
+    warn_at = [p.text.startswith("**Warnings") for p in rep.narrative.paragraphs]
+    assert not any(warn_at) or risk_at < warn_at.index(True)  # back where it stood
+
+
+def test_section_of_reads_the_slots() -> None:
+    from options_scout.agent.nodes.report import section_of
+
+    def para(t: str) -> Paragraph:
+        return Paragraph(mode="screen_result", text=t)
+
+    assert section_of(para("{{risk.checks_passed}} of {{portfolio.realistic_loss}}")) == "risk"
+    mostly = "{{positions[0].strike}} {{positions[0].mid}} {{risk.realistic_loss_drop_pct}}"
+    assert section_of(para(mostly)) == "positions"
+    assert section_of(para("{{risk.warnings[0]}} {{risk.warnings[1]}}")) == "warnings"
+    assert section_of(para("{{ disclaimer }}")) is None
+    assert section_of(para("Words only.")) is None
+
+
+def test_the_payload_lists_the_quality_screen_tickers(deps: Deps) -> None:
+    _visited, final = _run(deps, REQUEST, "t-qs-tickers")
+    qs = final["explain_payload"]["quality_screen"]
+    assert qs["passed_tickers"] == [q["ticker"] for q in qs["passed"]]
+    assert qs["excluded_tickers"] == [q["ticker"] for q in qs["excluded"]]
+    from options_scout.core.grounding import render_slots
+
+    assert render_slots("{{quality_screen.passed_tickers|list}}", final["explain_payload"])
+
+
+def test_a_paragraph_naming_an_invented_contract_is_dropped(
+    deps: Deps, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    invented = Paragraph(
+        mode="screen_result", text="LEAPS-ZZZZ-2028-01-21-150C also met the LEAPS criteria."
+    )
+    _model_writes(deps, monkeypatch, lambda ps: [*ps[:3], invented, *ps[3:]])
+    _visited, final = _run(deps, REQUEST, "t-invented-id")
+    rep: ScreeningReport = final["report"]
+    assert rep.metadata.narrative_source == "mixed"
+    assert "LEAPS-ZZZZ" not in rep.narrative_markdown
+    failed = rep.audit_log[0]
+    numbers = next(c for c in failed.failed_checks if c.name == "check_numbers")
+    assert "LEAPS-ZZZZ-2028-01-21-150C is not a candidate in this run's data" in numbers.detail

@@ -226,7 +226,7 @@ _Nothing sized: this account is too small for the top-ranked candidates._
 - ⚠️ This account is too small for this universe: no candidate on the 5 highest-ranked underlyings (SPY, QQQ, AAPL, MSFT, COST) fits even one contract inside the limits, so nothing was sized. The smallest account at which the top-ranked CSP-SPY-2026-11-30-735P fits is $640,477.
 
 ## Explanation
-**Allocation.** With 100000 of buying power in a margin account and a balanced profile, the plan sets aside 45000 for cash-secured put collateral, 25000 for LEAPS/PMCC and keeps 30000 in reserve. The VIX reading of 17.51 sits at the 57 percentile of its past year, so the regime is normal and the tilt applied was "none".
+**Allocation.** With $100,000 of buying power in a margin account and a balanced profile, the plan sets aside $45,000 for cash-secured put collateral, $25,000 for LEAPS/PMCC and keeps $30,000 in reserve. The VIX reading of 17.51 sits at the 57 percentile of its past year, so the regime is normal and the tilt applied was "none".
 
 **Quality screen.** 7 underlying(s) passed the good-to-own gate (curated list plus limits on realised and implied volatility, price, liquidity and distance below the 90-day high): SPY (quality 86), AAPL (quality 82), COST (quality 77), MSFT (quality 72), QQQ (quality 70), SBUX (quality 66), NKE (quality 46). Only these were screened for options.
 
@@ -242,7 +242,7 @@ _Nothing sized: this account is too small for the top-ranked candidates._
 
 **Sized positions.** None: this account is too small for the top-ranked candidates, so nothing was sized rather than filling it with lower-ranked ones. The warnings below give the account size at which the top-ranked one fits.
 
-**Risk.** 8 of 8 constraint checks pass. Stress test with an instant move and an IV shock: a -10% move gives 0; a -20% move gives 0; a -30% move gives 0. The combined loss at a 30% drop across all positions is 0.
+**Risk.** 8 of 8 constraint checks pass. Stress test with an instant move and an IV shock: a -10% move gives $0; a -20% move gives $0; a -30% move gives $0. The combined realistic loss at a 30% drop across all positions is $0.
 
 **Warnings and limitations.** This account is too small for this universe: no candidate on the 5 highest-ranked underlyings (SPY, QQQ, AAPL, MSFT, COST) fits even one contract inside the limits, so nothing was sized. The smallest account at which the top-ranked CSP-SPY-2026-11-30-735P fits is $640,477.
 
@@ -261,7 +261,7 @@ Educational screening tool. Not investment, tax or legal advice. Options involve
 ## Compliance
 PASS · audit `<audit_id>` · report · attempt 1
 
-- ✓ `check_numbers`: 41 numbers checked, all grounded
+- ✓ `check_numbers`: 39 numbers checked, all grounded
 - ✓ `check_citations`: 3 tag(s) resolve to retrieved sources
 - ✓ `check_education_only`: education paragraphs carry no run data; short options show their loss
 - ✓ `check_suitability`: suits the profile
@@ -274,11 +274,11 @@ PASS · audit `<audit_id>` · report · attempt 1
 - ✓ `tax_reply`: no tax reply to check
 
 ## Verification
-PASS: 41 numbers checked, 0 ungrounded, banned phrases: none, disclaimer present, citations 3 checked / 0 unknown, attempts 1.
+PASS: 39 numbers checked, 0 ungrounded, banned phrases: none, disclaimer present, citations 3 checked / 0 unknown, attempts 1.
 
 ## Run metadata
 - Models: {"extraction": "deepseek/deepseek-v4.1-flash", "explanation": "deepseek/deepseek-v4.1-flash", "provider": "fixture"}
-- Prompt versions: {"answer_concept": "1.3.0", "answer_tax": "1.0.0", "classify_bottleneck": "1.0.0", "classify_news": "1.1.0", "explain_goal": "1.1.0", "explain_report": "2.5.0", "extract_entities": "1.1.0", "judge_explanation": "1.0.0", "parse_goal": "1.0.0", "parse_holdings": "1.0.0", "parse_profile": "1.2.0", "route_message": "1.3.0"}
+- Prompt versions: {"answer_concept": "1.3.0", "answer_tax": "1.0.0", "classify_bottleneck": "1.0.0", "classify_news": "1.1.0", "explain_goal": "1.1.0", "explain_report": "3.3.0", "extract_entities": "1.1.0", "judge_explanation": "1.0.0", "parse_goal": "1.0.0", "parse_holdings": "1.0.0", "parse_profile": "1.2.0", "route_message": "1.3.0"}
 - Config hash: `<config_hash>`
 - Data sources: {"AAPL": "ok", "COST": "ok", "MSFT": "ok", "NKE": "ok", "QQQ": "ok", "SBUX": "ok", "SPY": "ok", "bottleneck": "ran (274 snippets, 8 layers, 30 companies)", "bottleneck:csv_series": "ok", "bottleneck:edgar": "ok", "bottleneck:fred": "ok", "bottleneck:google_trends": "ok", "bottleneck:news": "ok", "bottleneck:reddit": "ok", "bottleneck:transcripts": "disabled", "google_trends": "ok", "market_data": "fixture", "news": "ok", "news_alphavantage_news": "ok", "news_desk": "41 headlines for 7 ticker(s)", "news_rss": "ok", "reddit": "ok", "sec": "ok", "social": "ran (7095 posts, 28 entities)", "wikipedia": "ok", "x": "ok"}
 - Tokens: 0 in / 0 out · cost $0.0000

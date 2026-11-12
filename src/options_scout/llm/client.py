@@ -34,6 +34,7 @@ from options_scout.core.models import (
     GoalParse,
     HoldingsParse,
     Narrative,
+    NarrativeDraft,
     NewsClassificationBatch,
     NewsItem,
     ProfileParse,
@@ -373,8 +374,8 @@ class RuleBasedProvider:
         if handler is None:
             raise RuntimeError(f"rule-based provider has no handler for task={task}")
         out = handler(user)
-        if not isinstance(out, schema):
-            out = schema.model_validate(out.model_dump())
+        if not isinstance(out, schema):  # e.g. a Narrative handed back as the NarrativeDraft
+            out = schema.model_validate(out.model_dump(exclude_unset=True))
         return out, TokenUsage(model="rule_based", task=task, cached=False)
 
 
@@ -382,6 +383,10 @@ _LIVE_PROVIDERS: dict[LLMProviderName, Callable[[LLMProviderSettings], LLMProvid
     "anthropic": AnthropicProvider,
     "openrouter": OpenRouterProvider,
 }
+
+
+# The schema the model is given for an output type, when the app keeps more than the model writes.
+_LLM_SCHEMAS: dict[type[BaseModel], type[BaseModel]] = {Narrative: NarrativeDraft}
 
 
 # ------------------------------------------------------------------------------------ facade
@@ -434,15 +439,20 @@ class LLMClient:
     def _run(self, task: str, model: str, prompt: Prompt, schema: type[T], **vars: str) -> T:
         user = prompt.render(**vars)
         system = f"[{prompt.name} v{prompt.version}] {prompt.task}"
+        # W14: the model writes a NarrativeDraft; fields only this app sets (a paragraph's
+        # template) are never in the schema it is given
+        wire: type[BaseModel] = _LLM_SCHEMAS.get(schema, schema)
         out, usage = self.provider.complete(
             task=task,
             model=model,
             system=system,
             user=user,
-            schema=schema,
+            schema=wire,
             max_tokens=self.cfg.settings.llm.max_output_tokens,
         )
         self.usage.append(usage)
+        if not isinstance(out, schema):
+            return schema.model_validate(out.model_dump())
         return out
 
     # -- tasks -----------------------------------------------------------------------

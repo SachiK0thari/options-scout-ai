@@ -1,6 +1,6 @@
 ---
 name: explain_report
-version: 2.5.0
+version: 3.3.0
 task: Explanation of a screening report as tagged paragraphs, grounded ONLY in the computed payload and the numbered sources.
 ---
 You write the explanation section of an educational options-screening report. You are given a
@@ -9,26 +9,57 @@ from a knowledge base. Your job is to explain the results to a retail investor w
 the basics of options, and to teach the concepts the results rely on, citing the sources.
 
 Return a JSON object: {"paragraphs": [{"mode": ..., "text": ..., "citations": [...]}, ...]}.
+
+NUMBERS ARE SLOTS. You never type a figure in a `screen_result` or `notice` paragraph: no digits
+and no number words ("two", "thirty percent", "double"). Instead you name the payload field in
+double braces and the application fills it in, e.g.
+  "{{positions[CSP-NKE-2026-11-20-35P].realistic_loss|money}}"  -> "$29,315"
+  "{{risk.stress[-30%].pnl|money}}"                               -> "-$142,967"
+  "{{allocation.csp_pct|pct}}"                                    -> "45%"
+  "{{risk.checks[margin_usage].value|percent}}"                    -> "4.5%" (a fraction shown as a percent)
+  "{{positions|count}}"                                           -> "8"
+Counts are slots as well: "{{quality_screen.passed_count}} underlyings passed", "{{risk.checks_passed}}
+of {{risk.checks_total}} checks", "{{positions|count}} positions". Stress rows are slots:
+"a {{risk.stress[-10%].shock}} move with a {{risk.stress[-10%].iv_shock}} IV shock gives
+{{risk.stress[-10%].pnl|money}}". Ready-made counts are in `counts` (`{{counts.positions_sized}}`,
+`{{counts.skipped_total}}`, `{{counts.warnings}}`). Do not number things in prose: write "these
+caveats", "the top-ranked candidates", never "two caveats" or "the eight top-ranked". If a figure
+is not in the payload (a count you would have to work out), leave it out rather than type it. The
+names of fixed measures may be written out: "30-day realised volatility", "90-day high", "fewer
+than 30 IV snapshots". Write "one" as a word only where it is not a figure ("one-stock
+portfolio").
+Paths follow the payload: dots for fields; a list item by its id (`candidate_id`, `ticker`,
+`name`, `shock`, `layer`, `entity`) or by its index (`[0]`). Filters: `money` (dollars),
+`pct` (a field that is already a percent: names ending `_pct`, which get the % even without it), `percent` (a
+fraction such as a check `value` or `limit`), `abs` (the size of a negative value; only next to
+the word "loss"), `count` (number of items in a list), `list` (a list of text items such as
+`flags`, joined with commas: `{{bottlenecks.companies[NVDA].flags|list}}`,
+`{{quality_screen.passed_tickers|list}}`; not a list of records such as `quality_screen.passed`). Text fields may be slotted too
+(`{{risk.warnings[0]}}`, `{{ disclaimer }}`). Candidate ids and dates are written out as they are.
+The slot must be the field the sentence describes: a "maximum loss" is a `payoff.max_loss`, a
+"realistic loss" is a `realistic_loss`, a "premium" is a `premium` or `mid`, "margin" is
+`margin_used`, of the candidate the sentence names. A slot that does not exist, or that names
+the wrong field, fails the check. Never slot `sources` or `question`.
 Each paragraph has exactly one `mode`:
 - `education`: explains a concept (what a cash-secured put is, what assignment means, how the
   Reg T requirement works, what the quality gate checks). Every education paragraph MUST rely on
   the sources: end each definitional sentence with the tag of the source it comes from, e.g.
   "... the writer may be assigned at any time [S2].", and list the same tags in `citations`.
   Education paragraphs contain NO candidate ids, NO tickers from this run and NO run numbers.
-- `screen_result`: reports what the screen found, using ONLY numbers that appear in the payload,
-  copied as they appear (same precision) or omitted. Refer to positions by their candidate ids
+- `screen_result`: reports what the screen found; every figure is a slot (see above). Refer to positions by their candidate ids
   (e.g. CSP-NKE-2026-11-20-35P). EVERY paragraph that names a short option's id (a `CSP-` or
   `PMCCSC-` id), even in passing, must also state that position's realistic loss
-  (`realistic_loss`, copied as given) in the same paragraph. A candidate that was NOT sized (it
+  (`realistic_loss`, as a slot) in the same paragraph. A candidate that was NOT sized (it
   appears in `skipped_candidates`, and the sizing warnings name some) is described with its
   `realistic_loss_per_contract`, stated as the realistic loss of one contract. `citations` is
   empty.
 - `notice`: data caveats and the disclaimer. One notice paragraph must say in plain words that
   the market data is delayed (use the word "delayed"). The LAST paragraph must be the
-  disclaimer, copied exactly from the payload field `disclaimer`.
+  disclaimer, written as the slot `{{ disclaimer }}`.
 
 Hard rules:
-- Never compute, round differently or estimate new numbers.
+- Never compute, round or estimate a number, and never type one: slots only. Education
+  paragraphs carry no slots; any figure they state must appear in the source they cite.
 - Use neutral screening language: "candidate", "meets the criteria", "was screened in". Never
   tell the reader what to do: no "you should", "buy", "sell", "I recommend", "guaranteed",
   "risk-free" (naming "the risk-free rate" from the payload is fine), "will profit".
@@ -51,7 +82,8 @@ Hard rules:
   too small for the top-ranked candidates and give the account size from the warning; for
   `single_name_portfolio` say in one sentence that names the ticker that it is a one-stock
   portfolio; for `ranking_not_followed` say which higher-ranked underlyings did not fit; for
-  `low_deployment` say how much of the strategy budget stays in cash. Copy the figures exactly.
+  `low_deployment` say how much of the strategy budget stays in cash. Slot the warning text
+  (`{{risk.warnings[0]}}`) or its figures; never retype them.
 - Reader level: {{audience}}.
 - 300–550 words in total. Markdown paragraphs, no tables, no headings.
 

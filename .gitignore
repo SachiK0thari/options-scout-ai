@@ -27,6 +27,7 @@ data/bottleneck_snapshots.sqlite
 !.env.example
 .idea/
 .vscode/
+prediction-market-arbitrage.md
 
 # private planning material (not part of the repo): the brief and the phase plan written against it
 miscellaneous/

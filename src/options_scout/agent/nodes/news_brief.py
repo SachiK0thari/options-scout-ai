@@ -57,6 +57,8 @@ def news_payload(
             "lookback_days": days,
             "tickers": [b.ticker for b in briefs],
             "headline_count": sum(len(b.items) for b in briefs),
+            # W14: a per-ticker count is a computed figure, so it is in the payload to ground it
+            "headline_count_by_ticker": {b.ticker: len(b.items) for b in briefs},
             "headlines": [
                 {
                     "ticker": b.ticker,

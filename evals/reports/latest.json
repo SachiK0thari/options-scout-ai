@@ -2,7 +2,7 @@
  {
   "section": "11.1 Deterministic",
   "name": "Golden-value + property tests (tests/unit)",
-  "value": "675 passed",
+  "value": "827 passed",
   "target": "all pass",
   "status": "PASS",
   "detail": ""
@@ -10,18 +10,18 @@
  {
   "section": "Quality",
   "name": "Offline test suite (unit + agent + API + UI + MCP)",
-  "value": "928 passed",
+  "value": "1090 passed",
   "target": "all pass",
   "status": "PASS",
-  "detail": "362s"
+  "detail": "411s"
  },
  {
   "section": "Quality",
   "name": "Line coverage on core/, rag/, agent/, bottleneck/ (pytest --cov, same run)",
-  "value": "95.7%",
+  "value": "95.8%",
   "target": "\u2265 85%",
   "status": "PASS",
-  "detail": "whole package 93.4%"
+  "detail": "whole package 93.7%"
  },
  {
   "section": "11.2 Entity extraction",
@@ -45,7 +45,7 @@
   "value": "P 0.77 / R 0.95 / F1 0.85",
   "target": "F1 \u2265 0.80",
   "status": "PASS",
-  "detail": "tp=170 fp=52 fn=9"
+  "detail": "tp=170 fp=50 fn=9"
  },
  {
   "section": "11.2 Entity extraction",
@@ -141,7 +141,7 @@
   "value": "100.0%",
   "target": "100%",
   "status": "PASS",
-  "detail": "357/357 numbers over 6 runs"
+  "detail": "275/275 numbers over 6 runs"
  },
  {
   "section": "11.3 Agent",
@@ -202,7 +202,7 @@
  {
   "section": "11.3 Agent",
   "name": "Latency per run (fixture mode) \u00b7 rule-based writer",
-  "value": "mean 0.64s \u00b7 p95 2.43s",
+  "value": "mean 0.71s \u00b7 p95 2.55s",
   "target": "report",
   "status": "INFO",
   "detail": ""
@@ -229,7 +229,7 @@
   "value": "100.0%",
   "target": "100%",
   "status": "PASS",
-  "detail": "341/341 numbers over 6 runs"
+  "detail": "183/183 numbers over 6 runs"
  },
  {
   "section": "11.3 Agent",
@@ -241,8 +241,16 @@
  },
  {
   "section": "11.3 Agent",
+  "name": "Released paragraphs written by the model (failing ones replaced) \u00b7 LLM deepseek/deepseek-v4.1-flash",
+  "value": "57/57",
+  "target": "report",
+  "status": "INFO",
+  "detail": "mixed narratives: none"
+ },
+ {
+  "section": "11.3 Agent",
   "name": "Compliance checks the model's attempts failed (all attempts, all runs) \u00b7 LLM deepseek/deepseek-v4.1-flash",
-  "value": "check_education_only \u00d74",
+  "value": "check_citations \u00d71",
   "target": "report",
   "status": "INFO",
   "detail": "per-attempt details: evals/reports/agent_llm_failures.json"
@@ -253,12 +261,12 @@
   "value": "100.0%",
   "target": "report",
   "status": "INFO",
-  "detail": "341/341 numbers over 6 runs"
+  "detail": "183/183 numbers over 6 runs"
  },
  {
   "section": "11.3 Agent",
   "name": "Narratives passing verifier on first attempt \u00b7 LLM deepseek/deepseek-v4.1-flash",
-  "value": "3/6",
+  "value": "5/6",
   "target": "report",
   "status": "INFO",
   "detail": ""
@@ -298,7 +306,7 @@
  {
   "section": "11.3 Agent",
   "name": "Latency per run (fixture mode) \u00b7 LLM deepseek/deepseek-v4.1-flash",
-  "value": "mean 22.01s \u00b7 p95 30.68s",
+  "value": "mean 21.53s \u00b7 p95 27.71s",
   "target": "report",
   "status": "INFO",
   "detail": ""
@@ -306,7 +314,7 @@
  {
   "section": "11.3 Agent",
   "name": "Cost per run \u00b7 LLM deepseek/deepseek-v4.1-flash",
-  "value": "mean $0.0049 \u00b7 input tokens mean 16587",
+  "value": "mean $0.0031 \u00b7 input tokens mean 13880",
   "target": "report",
   "status": "INFO",
   "detail": "llm_mode=live"
@@ -328,6 +336,22 @@
   "detail": ""
  },
  {
+  "section": "11.3a Compliance",
+  "name": "Wrong-but-plausible figures caught, free-text checker (W14; pre-W14 bag check in notes)",
+  "value": "17/19 caught \u00b7 0/6 right rejected",
+  "target": "report (no target: free text keeps known gaps)",
+  "status": "INFO",
+  "detail": "pre-W14 bag check caught 0/19. Missed: free-08 (number words); free-18 (wrong stress row)"
+ },
+ {
+  "section": "11.3a Compliance",
+  "name": "Wrong-but-plausible figures caught, slot mode (the report explainer, W14)",
+  "value": "13/13 caught \u00b7 0/5 right rejected",
+  "target": "100% caught, 0 right rejected",
+  "status": "PASS",
+  "detail": ""
+ },
+ {
   "section": "11.3a Conversation",
   "name": "Intent routing accuracy (rule-based router)",
   "value": "100/100 = 100%",
@@ -338,7 +362,7 @@
  {
   "section": "11.3a Conversation",
   "name": "Intent routing accuracy (LLM router)",
-  "value": "100/100 = 100%",
+  "value": "97/100 = 97%",
   "target": "\u2265 90%",
   "status": "PASS",
   "detail": ""
@@ -346,7 +370,7 @@
  {
   "section": "11.3a Retrieval",
   "name": "Retrieval quality: recall@6 on 63 labelled questions (hash embedder, CI default)",
-  "value": "0.83 (52/63) \u00b7 MRR 0.59",
+  "value": "0.83 (52/63) \u00b7 MRR 0.58",
   "target": "recall@6 \u2265 0.70",
   "status": "PASS",
   "detail": "document-level recall 55/63; chunk misses: rag-05, rag-07, rag-11, rag-16, rag-23, rag-25, rag-26, rag-27, rag-30, rag-42, rag-58"
@@ -450,7 +474,7 @@
  {
   "section": "12.5 News desk",
   "name": "Headline category accuracy on 70 labelled headlines (LLM classifier)",
-  "value": "69/70 = 99%",
+  "value": "70/70 = 100%",
   "target": "\u2265 85%",
   "status": "PASS",
   "detail": ""
@@ -514,7 +538,7 @@
  {
   "section": "11.2 Constraint classification",
   "name": "Layer macro-F1 on 100 snippets, no search hint given (LLM deepseek/deepseek-v4.1-flash)",
-  "value": "0.98",
+  "value": "1.00",
   "target": "\u2265 0.80",
   "status": "PASS",
   "detail": ""

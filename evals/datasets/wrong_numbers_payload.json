@@ -1,0 +1,95 @@
+{
+ "profile": {
+  "buying_power": 100000,
+  "account_type": "margin",
+  "risk_profile": "balanced"
+ },
+ "allocation": {
+  "csp_pct": 45,
+  "csp_dollars": 45000
+ },
+ "positions": [
+  {
+   "candidate_id": "CSP-NKE-2026-11-20-35P",
+   "strategy": "csp",
+   "ticker": "NKE",
+   "contracts": 3,
+   "strike": 35.0,
+   "expiry": "2026-11-20",
+   "mid": 0.56,
+   "capital_used": 10500,
+   "margin_used": 1700,
+   "realistic_loss": 2443,
+   "premium": 169,
+   "payoff": {
+    "breakeven": 34.44,
+    "max_loss": 10330,
+    "max_gain": 169
+   }
+  },
+  {
+   "candidate_id": "CSP-COST-2026-12-18-850P",
+   "strategy": "csp",
+   "ticker": "COST",
+   "contracts": 1,
+   "strike": 850.0,
+   "expiry": "2026-12-18",
+   "mid": 12.5,
+   "capital_used": 85000,
+   "margin_used": 17000,
+   "realistic_loss": 25725,
+   "premium": 1250,
+   "payoff": {
+    "breakeven": 837.5,
+    "max_loss": 83750,
+    "max_gain": 1250
+   }
+  }
+ ],
+ "portfolio": {
+  "capital_used": 95500,
+  "margin_used": 18700,
+  "realistic_loss": 28168,
+  "premium_income": 1419
+ },
+ "risk": {
+  "checks_passed": 8,
+  "checks_total": 8,
+  "realistic_loss_drop_pct": 30,
+  "checks": [
+   {
+    "name": "margin_usage",
+    "value": 0.017,
+    "limit": 0.4,
+    "passed": true
+   },
+   {
+    "name": "portfolio_loss",
+    "value": 0.282,
+    "limit": 0.3,
+    "passed": true
+   }
+  ],
+  "stress": [
+   {
+    "shock": "-10%",
+    "iv_shock": "+50%",
+    "pnl": -1012
+   },
+   {
+    "shock": "-30%",
+    "iv_shock": "+50%",
+    "pnl": -3140
+   }
+  ],
+  "warnings": []
+ },
+ "disclaimer": "Educational screening tool. Not investment, tax or legal advice.",
+ "sources": [
+  {
+   "tag": "S1",
+   "kind": "concepts",
+   "text": "A contract covers 100 shares; screens use 30\u201345 DTE."
+  }
+ ]
+}

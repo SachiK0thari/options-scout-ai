@@ -597,12 +597,12 @@ class Citation(Model):
     as_of: date | None = None  # the source document's date (freshness check)
 
 
-class Paragraph(Model):
+class ParagraphDraft(Model):
     """One narrative paragraph tagged by the LLM (section 13.1).
 
     ``education`` explains a concept and must carry ≥ 1 citation tag; ``screen_result`` reports
     computed numbers only; ``notice`` holds the disclaimer and data caveats (neither a definitional
-    claim nor run data).
+    claim nor run data). This is the shape the model writes; ``Paragraph`` adds what the app keeps.
     """
 
     mode: ParagraphMode
@@ -618,6 +618,21 @@ class Paragraph(Model):
             if t.startswith("S") and t[1:].isdigit() and t not in out:
                 out.append(t)
         return out
+
+
+class Paragraph(ParagraphDraft):
+    """A narrative paragraph as the app keeps it."""
+
+    # W14: the paragraph as written, with its ``{{slot}}`` placeholders, kept by
+    # ``core.grounding.render_narrative`` so the Compliance agent can tell slot-filled figures from
+    # typed ones. Set by this app, never by the model: the model is given ``NarrativeDraft``.
+    template: str | None = None
+
+
+class NarrativeDraft(Model):
+    """The structured output schema the model is given for a ``Narrative`` (no templates)."""
+
+    paragraphs: list[ParagraphDraft] = Field(default_factory=list)
 
 
 class Narrative(Model):
@@ -1072,8 +1087,13 @@ class RunMetadata(Model):
     agents_visited: list[str] = Field(default_factory=list)
     # W11: who wrote the released narrative. "model": a live LLM; "fixture": fixture-mode replay
     # (a recorded reply or its rule-based stand-in); "rules": the deterministic narrative after
-    # the model failed (schema, cut-off or compliance); "withheld": the fixed W12 notice
-    narrative_source: Literal["model", "fixture", "rules", "withheld"] = "rules"
+    # the model failed (schema, cut-off or compliance); "withheld": the fixed W12 notice;
+    # "mixed" (W14): the model's narrative with failing paragraphs replaced by the rule writer's
+    narrative_source: Literal["model", "fixture", "rules", "withheld", "mixed"] = "rules"
+    # W14: paragraphs of the released narrative that came from the rule writer ("mixed" only),
+    # and every repair or replacement made to the writer's text, in order
+    rules_paragraphs: int = 0
+    narrative_patches: list[str] = Field(default_factory=list)
 
 
 class ScreeningReport(Model):

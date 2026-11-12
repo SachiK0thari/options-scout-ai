@@ -1107,7 +1107,7 @@ Options are higher-risk than equities, so the Compliance agent is the **most imp
 
 | Check | What it does | Severity |
 |---|---|---|
-| `check_numbers` | Existing verifier: every number in the text exists in the computed payload (rounding tolerance). | block |
+| `check_numbers` | Report narratives are written in slots that Python fills (W14): a typed figure, an unknown slot or a slot naming the wrong field for its label fails. Other texts: every figure, with its unit, sign and percent sign, matches a value of the run's own data (rounding tolerance); a figure next to a dangerous label must be that label's field. | block |
 | `check_citations` | Every `[Sn]` tag exists in retrieved sources; every `education` sentence with a definitional/regulatory claim has a tag; quotes match chunk text. | block |
 | `check_education_only` | Mode-tag rules above (no run data in `education`, no directives anywhere). | block |
 | `check_suitability` | Strategy vs. account type (no margin strategies on `cash`), realistic loss ≤ profile limit, max positions, PMCC only with LEAPS requested, conservative + earnings-inside-DTE must be flagged, buying power ≥ configured minimum for the strategy. Uses `risk.suitability_facts` computed by the Risk agent. | block |

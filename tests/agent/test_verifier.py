@@ -49,10 +49,10 @@ def test_banned_phrase_and_missing_disclaimer_fail() -> None:
 
 
 def test_ids_dates_years_are_not_claims() -> None:
-    nums = extract_narrative_numbers(
-        "CSP-NKE-2026-11-20-35P expires 2026-11-20, in 2026, the 57th percentile"
-    )
+    nums = extract_narrative_numbers("CSP-NKE-2026-11-20-35P expires 2026-11-20, in 2026, the 3rd")
     assert nums == []
+    # W14: a percentile rank is a figure, not a day of the month
+    assert extract_narrative_numbers("the 57th percentile") == [("57", 57.0, False)]
 
 
 def test_payload_numbers_include_percent_variants() -> None:

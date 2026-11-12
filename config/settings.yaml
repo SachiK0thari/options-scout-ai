@@ -37,9 +37,11 @@ llm:
       # unset (and at "low", measured 2026-11-10) a report narrative could run out of tokens with
       # 0 characters written (finish_reason=length). "none" turns reasoning off.
       reasoning_effort: none
-      # $ per 1M tokens, fallback for cost accounting when OpenRouter omits usage.cost (2026-10-28)
+      # $ per 1M tokens, fallback for cost accounting when OpenRouter omits usage.cost: OpenRouter's
+      # list prices on 2026-11-12 (the billed cost can be lower when it routes to a cheaper host)
       pricing:
-        deepseek/deepseek-v4.1-flash: {input: 0.14, output: 0.42}
+        deepseek/deepseek-v4.1-flash: {input: 0.30, output: 1.20}
+        anthropic/claude-haiku-5.5: {input: 0.10, output: 0.50}
     anthropic:
       extraction_model: claude-haiku-5-5      # small/cheap: entity extraction, profile parsing
       explanation_model: claude-opus-5-5      # stronger: narrative

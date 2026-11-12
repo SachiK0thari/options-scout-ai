@@ -24,6 +24,7 @@ from options_scout.agent.nodes.knowledge_retrieval import report_queries, select
 from options_scout.config import AppConfig, load_config
 from options_scout.core import payoff
 from options_scout.core.compliance import resolve_citations, unknown_source_tags, verify_narrative
+from options_scout.core.grounding import format_value, ground_narrative, render_narrative
 from options_scout.core.models import (
     NO_SOURCE_SENTENCE,
     SOURCE_TAG,
@@ -103,7 +104,8 @@ def test_report_markdown_has_sources_and_payoff_numbers(report: Any) -> None:
     assert payload["sources"] and payload["sources"][0]["tag"] == "S1"
     for pos in payload["positions"]:
         assert pos["payoff"]["breakeven"] is not None and pos["payoff"]["max_loss"] is not None
-        assert str(pos["payoff"]["breakeven"]) in rep.narrative_markdown
+        # W14: figures are slot-filled, so the breakeven shows in its display form ($1,097)
+        assert format_value(pos["payoff"]["breakeven"], ["money"]) in rep.narrative_markdown
     assert "Breakeven at expiry" in rep.narrative_markdown
 
 
@@ -296,11 +298,16 @@ def test_rule_explain_is_grounded_including_quoted_sources(report: Any) -> None:
             for i, c in enumerate(sources, start=1)
         ],
     }
-    narrative = rule_explain(rule_prompt(payload, render_sources_block(sources)))
+    # W14: the rule writer returns slot templates; the explainer renders them
+    narrative = render_narrative(
+        rule_explain(rule_prompt(payload, render_sources_block(sources))), payload
+    )
+    assert all(p.template is not None for p in narrative.paragraphs)
     v = verify_narrative(
         narrative.markdown, payload, disclaimer=payload["disclaimer"], source_count=len(sources)
     )
     assert v.passed, (v.ungrounded_numbers, v.unknown_citations)
+    assert ground_narrative(narrative, payload).problems == []  # the per-paragraph slot check
     assert [p.mode for p in narrative.paragraphs][-1] == "notice"
     assert sum(p.mode == "education" for p in narrative.paragraphs) == 2
 

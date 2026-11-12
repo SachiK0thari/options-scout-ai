@@ -1,0 +1,45 @@
+{"id": "free-01", "trick": "swapped fields", "label": "wrong", "mode": "free", "text": "For CSP-NKE-2026-11-20-35P the maximum loss on this position is 169 … the premium collected is 10330."}
+{"id": "free-02", "trick": "sign", "label": "wrong", "mode": "free", "text": "A −30% move gives +3140."}
+{"id": "free-03", "trick": "sign", "label": "wrong", "mode": "free", "text": "A −30% move gives a gain of 3140."}
+{"id": "free-04", "trick": "unit suffix", "label": "wrong", "mode": "free", "text": "The account could plausibly grow to $3M within 2 years."}
+{"id": "free-05", "trick": "multiplier", "label": "wrong", "mode": "free", "text": "That would be a 10x return on the premium."}
+{"id": "free-06", "trick": "multiplier", "label": "wrong", "mode": "free", "text": "The premium income could double next year."}
+{"id": "free-07", "trick": "number words", "label": "wrong", "mode": "free", "text": "There is a ninety-nine percent chance of profit."}
+{"id": "free-08", "trick": "number words", "label": "wrong", "mode": "free", "text": "About forty percent of the account is at risk."}
+{"id": "free-09", "trick": "limit as value", "label": "wrong", "mode": "free", "text": "Margin usage is 40% of the account."}
+{"id": "free-10", "trick": "code span", "label": "wrong", "mode": "free", "text": "The realistic loss is `98765`."}
+{"id": "free-11", "trick": "glued digits", "label": "wrong", "mode": "free", "text": "The realistic loss is USD98765."}
+{"id": "free-12", "trick": "wrong field", "label": "wrong", "mode": "free", "text": "CSP-NKE-2026-11-20-35P carries a realistic loss of $10,500."}
+{"id": "free-13", "trick": "wrong field", "label": "wrong", "mode": "free", "text": "CSP-NKE-2026-11-20-35P breaks even at 35 at expiry, so its breakeven is 35."}
+{"id": "free-14", "trick": "wrong field", "label": "wrong", "mode": "free", "text": "CSP-NKE-2026-11-20-35P posts collateral of $2,443."}
+{"id": "free-15", "trick": "wrong candidate", "label": "wrong", "mode": "free", "text": "CSP-NKE-2026-11-20-35P has a realistic loss of $25,725."}
+{"id": "free-16", "trick": "percent as count", "label": "wrong", "mode": "free", "text": "The portfolio loss check uses 3% of the account."}
+{"id": "free-17", "trick": "unasked label", "label": "wrong", "mode": "free", "text": "The annualised return on this put is 8%."}
+{"id": "free-18", "trick": "wrong stress row", "label": "wrong", "mode": "free", "text": "At a -10% move the stress loss is $3,140."}
+{"id": "free-19", "trick": "percent as dollar label", "label": "wrong", "mode": "free", "text": "CSP-NKE-2026-11-20-35P has a realistic loss of 30%."}
+{"id": "free-20", "trick": "invented id", "label": "wrong", "mode": "free", "text": "LEAPS-AAPL-2028-01-21-150C also met the LEAPS criteria."}
+{"id": "free-r1", "trick": "right", "label": "right", "mode": "free", "text": "For CSP-NKE-2026-11-20-35P the maximum loss is $10,330 and the premium collected is $169."}
+{"id": "free-r2", "trick": "right", "label": "right", "mode": "free", "text": "A −30% move gives -$3,140, a loss of $3,140."}
+{"id": "free-r3", "trick": "right", "label": "right", "mode": "free", "text": "Margin usage is 1.7% of the account, under its 40% limit."}
+{"id": "free-r4", "trick": "right", "label": "right", "mode": "free", "text": "CSP-NKE-2026-11-20-35P: a realistic loss of $2,443 if the stock falls 30%."}
+{"id": "free-r5", "trick": "right", "label": "right", "mode": "free", "text": "CSP-COST-2026-12-18-850P breaks even at 837.5; its breakeven is 837.5."}
+{"id": "free-r6", "trick": "right", "label": "right", "mode": "free", "text": "8 of 8 constraint checks pass and 45% of buying power is set aside."}
+{"id": "slot-01", "trick": "wrong slot", "label": "wrong", "mode": "slot", "text": "CSP-NKE-2026-11-20-35P has a maximum loss of {{positions[CSP-NKE-2026-11-20-35P].premium|money}}."}
+{"id": "slot-02", "trick": "wrong slot", "label": "wrong", "mode": "slot", "text": "CSP-NKE-2026-11-20-35P collects a premium of {{positions[CSP-NKE-2026-11-20-35P].payoff.max_loss|money}}."}
+{"id": "slot-03", "trick": "limit as value", "label": "wrong", "mode": "slot", "text": "Margin usage is {{risk.checks[margin_usage].limit|percent}}."}
+{"id": "slot-04", "trick": "typed figure", "label": "wrong", "mode": "slot", "text": "CSP-NKE-2026-11-20-35P collects a premium of $169."}
+{"id": "slot-05", "trick": "typed word", "label": "wrong", "mode": "slot", "text": "Three positions were sized."}
+{"id": "slot-06", "trick": "sign", "label": "wrong", "mode": "slot", "text": "A -30% move gives a gain of {{risk.stress[-30%].pnl|money}}."}
+{"id": "slot-07", "trick": "sign", "label": "wrong", "mode": "slot", "text": "A -30% move moves the book by {{risk.stress[-30%].pnl|abs|money}}."}
+{"id": "slot-08", "trick": "unknown slot", "label": "wrong", "mode": "slot", "text": "CSP-NKE-2026-11-20-35P has a realistic loss of {{positions[CSP-NKE-2026-11-20-35P].realistic_losses|money}}."}
+{"id": "slot-09", "trick": "forbidden slot", "label": "wrong", "mode": "slot", "text": "The source says {{sources[0].text}}."}
+{"id": "slot-10", "trick": "wrong slot", "label": "wrong", "mode": "slot", "text": "CSP-NKE-2026-11-20-35P has a realistic loss of {{positions[CSP-NKE-2026-11-20-35P].capital_used|money}}."}
+{"id": "slot-11", "trick": "wrong slot", "label": "wrong", "mode": "slot", "text": "CSP-NKE-2026-11-20-35P has its breakeven at {{positions[CSP-NKE-2026-11-20-35P].strike|money}}."}
+{"id": "slot-12", "trick": "wrong candidate", "label": "wrong", "mode": "slot", "text": "CSP-NKE-2026-11-20-35P has a realistic loss of {{positions[CSP-COST-2026-12-18-850P].realistic_loss|money}}."}
+{"id": "slot-13", "trick": "typed unit", "label": "wrong", "mode": "slot", "text": "The account could grow to $3M."}
+{"id": "slot-14", "trick": "invented id", "label": "wrong", "mode": "slot", "text": "CSP-CSCO-2026-11-20-35P has a realistic loss of {{positions[CSP-NKE-2026-11-20-35P].realistic_loss|money}}."}
+{"id": "slot-r1", "trick": "right", "label": "right", "mode": "slot", "text": "CSP-NKE-2026-11-20-35P has a maximum loss of {{positions[CSP-NKE-2026-11-20-35P].payoff.max_loss|money}} and a premium of {{positions[CSP-NKE-2026-11-20-35P].premium|money}}."}
+{"id": "slot-r2", "trick": "right", "label": "right", "mode": "slot", "text": "A {{risk.stress[-30%].shock}} move gives {{risk.stress[-30%].pnl|money}}, a loss of {{risk.stress[-30%].pnl|abs|money}}."}
+{"id": "slot-r3", "trick": "right", "label": "right", "mode": "slot", "text": "Margin usage is {{risk.checks[margin_usage].value|percent}} against a limit of {{risk.checks[margin_usage].limit|percent}}."}
+{"id": "slot-r4", "trick": "right", "label": "right", "mode": "slot", "text": "CSP-COST-2026-12-18-850P has a realistic loss of {{positions[CSP-COST-2026-12-18-850P].realistic_loss|money}} at a {{risk.realistic_loss_drop_pct|pct}} drop."}
+{"id": "slot-r5", "trick": "right", "label": "right", "mode": "slot", "text": "{{risk.checks_passed}} of {{risk.checks_total}} checks pass; screens use 30–45 DTE."}

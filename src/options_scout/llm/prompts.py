@@ -18,12 +18,13 @@ class Prompt:
     body: str
 
     def render(self, **kwargs: str) -> str:
+        # judged on the body: a substituted value (a payload, retry feedback) may contain braces
+        leftover = sorted(set(re.findall(r"{{(\w+)}}", self.body)) - set(kwargs))
+        if leftover:
+            raise KeyError(f"prompt {self.name} missing values for {leftover}")
         text = self.body
         for key, value in kwargs.items():
             text = text.replace("{{" + key + "}}", value)
-        leftover = re.findall(r"{{(\w+)}}", text)
-        if leftover:
-            raise KeyError(f"prompt {self.name} missing values for {leftover}")
         return text
 
 

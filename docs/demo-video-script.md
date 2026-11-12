@@ -315,10 +315,10 @@ check("The screen found CSP-COST-2026-12-18-850P, a cash-secured put at the 850 
 PY
 ```
 
-Output from the current code (recorded 2026-11-06):
+Output from the current code (recorded 2026-11-12, after W14):
 
 ```
-False ['check_numbers: 2 numbers checked, not in payload: 9%', 'check_education_only: paragraph 1: short option CSP-COST-2026-12-18-850P described without its realistic loss', "check_language: paragraph 1: certainty ('risk-free'); paragraph 1: directive ('You should'); paragraph 1: superlative ('great setup')"]
+False ['check_numbers: 2 numbers checked, not grounded: 9%', 'check_education_only: paragraph 1: short option CSP-COST-2026-12-18-850P described without its own realistic loss', "check_language: paragraph 1: certainty ('risk-free'); paragraph 1: directive ('You should'); paragraph 1: superlative ('great setup')"]
 True []
 ```
 

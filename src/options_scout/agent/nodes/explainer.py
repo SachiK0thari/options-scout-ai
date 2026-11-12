@@ -18,6 +18,7 @@ from options_scout.agent.nodes.knowledge_retrieval import audience_for
 from options_scout.agent.state import AgentState
 from options_scout.core import payoff
 from options_scout.core.compliance import resolve_citations
+from options_scout.core.grounding import add_missing_realistic_losses, render_narrative
 from options_scout.core.models import (
     BottleneckSignal,
     Narrative,
@@ -77,6 +78,9 @@ def _quality_section(state: AgentState) -> dict[str, Any]:
         "passed_count": len(passed),
         "excluded_count": len(failed),
         "drawdown_lookback_days": 90,
+        # W14: plain names for the `list` slot filter (`passed` and `excluded` hold records)
+        "passed_tickers": [q.ticker for q in passed],
+        "excluded_tickers": [q.ticker for q in failed],
         "passed": [
             {
                 "ticker": q.ticker,
@@ -305,6 +309,16 @@ def build_explain_payload(
         "errors": state.get("errors", [])[:8],
         "disclaimer": disclaimer,
     }
+    # W14: ready-made counts, so the writer slots a count instead of working it out
+    payload["counts"] = {
+        "positions_sized": len(payload["positions"]),
+        "skipped_total": len(portfolio.skipped),
+        "skipped_listed": len(payload["skipped_candidates"]),
+        "warnings": len(risk.warnings),
+        "underlyings_screened": len(payload["universe"]),
+        "quality_passed": payload["quality_screen"]["passed_count"],
+        "quality_excluded": payload["quality_screen"]["excluded_count"],
+    }
     if state.get("bottlenecks"):  # Phase 11: the board, when the engine produced one
         payload["bottlenecks"] = bottleneck_section(list(state["bottlenecks"]))
     plan = state.get("goal_plan")
@@ -341,10 +355,17 @@ def make(deps: Deps) -> Callable[[AgentState], dict[str, Any]]:
             errors.append(f"explainer: LLM failed ({exc}); using deterministic narrative")
             narrative = rule_explain(rule_prompt(payload, block))
             source = "rules"
+        # W14: the writer names payload fields as {{slots}}; Python fills them and each paragraph
+        # keeps its template, so the Compliance agent can tell filled figures from typed ones
+        # a short option named without its realistic loss gets that slot added (the figure still
+        # comes from the payload); the report records the repair
+        narrative, patches = add_missing_realistic_losses(narrative, payload)
+        narrative = render_narrative(narrative, payload)
         citations = resolve_citations(narrative, [citation_of(c) for c in sources])
         return {
             "narrative": narrative,
             "narrative_source": source,
+            "narrative_patches": patches,
             "citations": citations,
             "explain_payload": payload,
             "token_usage": deps.llm.usage[usage_before:],

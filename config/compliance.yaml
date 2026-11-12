@@ -72,3 +72,48 @@ goal:
 tax:
   disclaimer: "This is education, not tax advice; rules change and individual situations differ, so confirm with a tax professional or the IRS publication cited."
   forbid_rates: true
+
+# Check 1 (W14): number grounding. The report explainer writes figures as slots
+# ({{positions[CSP-...].realistic_loss|money}}) that Python fills; any other figure in its
+# screen_result and notice paragraphs is a violation unless it matches `literal_allow`. In every
+# text, a figure next to one of these labels (the nearest in the same clause, after the label,
+# else before it) must be that label's field, of the candidate the sentence names if it names
+# one. `fields` are globs over payload paths; `*` matches anything. Order matters: the first label
+# that covers a phrase owns it.
+grounding:
+  labels:
+    - label: maximum loss
+      pattern: "\\bmax(?:imum)?\\.?\\s+loss\\b"
+      fields: ["*max_loss"]
+    - label: realistic loss
+      pattern: "\\b(?:realistic|modell?ed)\\s+loss\\b"
+      fields: ["*realistic_loss", "*realistic_loss_per_contract"]
+    - label: breakeven
+      pattern: "\\bbreak[- ]?even\\b"
+      fields: ["*breakeven", "*break_even*"]
+    - label: premium
+      pattern: "\\bpremiums?\\b"
+      fields: ["*.premium", "*premium_income", "*.mid", "*max_gain", "*premium_per_contract"]
+    - label: collateral
+      pattern: "\\bcollateral\\b"
+      fields: ["*capital_used", "*csp_dollars", "*short_put_notional", "*assignment_cash", "*collateral*"]
+    - label: margin
+      pattern: "\\bmargin\\b(?!\\s+accounts?\\b)"
+      fields: ["*margin_used", "risk.checks[margin_usage].value", "*margin_requirement*"]
+    - label: probability
+      pattern: "\\b(?:probability|chance|likelihood|odds)\\b"
+      fields: ["*prob*", "*.pop"]
+      require_field: true
+    - label: annualised return
+      pattern: "\\bannuali[sz]ed\\s+(?:return|yield)\\b|\\bannual\\s+return\\b"
+      fields: ["*annuali*", "*return_pct", "*yield*"]
+      require_field: true
+  literal_allow:
+    - "\\b\\d{1,2}[–-]\\d{1,2} DTE\\b"   # the screening window as rule text ("30–45 DTE")
+    # Method terms: the names of fixed measures, which the app's own warnings and reasons use.
+    # Each number is a constant in code, pinned by tests/unit/test_grounding.py.
+    - "\\b30[- ]day[\\s-]+(?:(?:realised|realized|historical)[\\s-]+)?(?:volatility|vol|measure|window|HV|figure|proxy)\\b"  # hist_vol(window=30)
+    - "\\b90[- ]day\\s+(?:closing\\s+)?(?:high|drawdown|lookback|look-back|window)\\b"  # quality gate drawdown
+    - "\\b30\\+?\\s+(?:stored\\s+)?IV\\s+snapshots\\b"   # snapshot_iv.MIN_HISTORY before IV rank uses history
+    # Index names: a name, not a figure
+    - "\\bS&P\\s?500\\b|\\bNasdaq[- ]100\\b|\\bRussell\\s2000\\b"

@@ -1239,8 +1239,8 @@ collection has that name) marks the run-facts chunk and the bottleneck board-fac
 (`social/pipeline.py`) and from every bottleneck snippet (`make_snippet`). Grounding:
 `verify_narrative` no longer counts numbers from `evidence` sources as grounded, except inside a
 quotation copied verbatim from a cited evidence source (quoting a post is not a claim; an altered
-quote is still checked). This is a narrow piece of W14 step 4, which remains open for the user's
-question and the other paths. Step 4 skipped because the rule-based writers stand in for the LLM
+quote is still checked). This is a narrow piece of W14 step 4; W14 later closed the rest (the
+user's question and the other paths). Step 4 skipped because the rule-based writers stand in for the LLM
 and must read the same rendered prompt; with escaping the block can no longer be forged, so
 passing `list[Chunk]` would add a second path without closing anything. Tests: four in
 `tests/agent/test_verifier.py` (the step 1 test, kind not title, evidence numbers, ingestion)
@@ -1303,6 +1303,127 @@ free-text numbers.
    existing row.
 
 Suggested commit: `feat(compliance): slot-filled numbers; label-aware grounding for loss, premium and probability`
+
+**Status, 2026-11-12:** done in the working tree, steps 1 to 6, plus the fixes the live runs
+found (below). New module `core/grounding.py`; `core/compliance.py` re-exports `render_slots`, `render_narrative` and
+`ground_narrative`, and `run_compliance` now takes the numbers fields of its
+`VerificationResult` from `ground_narrative`.
+- **Step 1 (slots):** `prompts/explain_report.md` is 3.0.0. The model writes
+  `{{positions[CSP-...].realistic_loss|money}}`, `{{risk.stress[-30%].pnl|money}}`,
+  `{{positions|count}}` and so on. Lists are addressed by their identity field (`candidate_id`,
+  `ticker`, `name`, `shock`, `layer`, `entity`) or by index; the filters are `money`, `pct`,
+  `percent`, `abs` and `count`. `render_slots` raises `SlotError` on an unknown path, an unknown
+  filter, a list or object, or a path into `sources`, `question` or `previous_attempt_problems`.
+  The explainer node calls `render_narrative`, which keeps each paragraph's text as
+  `Paragraph.template`. The model never sees that field: `LLMClient._run` gives it
+  `NarrativeDraft`/`ParagraphDraft` and converts back, so public schemas (MCP, API) stay
+  truthful. A templated paragraph is checked in slot mode: a typed digit or number word in
+  `screen_result` or `notice` text fails, as do a slot in `education` text and a text that differs
+  from its re-rendered template. The only literal figures allowed are in
+  `grounding.literal_allow` (`30–45 DTE`). `rule_explain` now writes slots too, so fixture runs
+  take the slot path; it returns templates, and the explainer and the report fallback render
+  them.
+- **Step 2 (tests first):** `tests/unit/test_grounding.py` (36 tests). Each of the audit's seven
+  passing sentences fails, the right figures pass, plus slot rendering, failures and idempotence.
+- **Step 3 (parsing):** `extract_numbers` reads `3M`, `5k`, `2 billion`, `10x`, `-fold`,
+  `times`, number words from two to ninety-nine (a bare "one" is not a figure), `double` and
+  `tenfold`, signs, `%` and "percent", and currency codes glued to digits (`USD3140`). The
+  code-span exemption is gone. A figure must end at a word boundary, so an id like `14bf735b` or
+  `run-7` is not a claim, while ordinals above 31 ("57th percentile") now are.
+- **Step 4 (smaller allowed set):** `screen_result` and `notice` figures in free-text mode match
+  the run's own data plus `run`-kind sources only, never the question or retrieved text.
+  `abs_tol` is 1e-9 (was 0.0051). A rounding to zero is no longer a display variant, and values
+  under 10 are not rounded to whole numbers. Signs count: an unsigned figure stands for a
+  negative value only next to a loss word, and never after a gain word. Percent is not a count:
+  `40%` is 0.4 or a percent-named field of 40, and a bare `40` is never 0.4.
+- **Step 5 (labels):** `config/compliance.yaml` → `grounding.labels` covers maximum loss,
+  realistic loss, breakeven, premium, collateral, margin (not "margin account"), probability
+  and annualised return (the last two with `require_field`). The nearest eligible figure in
+  the label's clause must be one of the label's fields, of the candidate the sentence names.
+  In slot mode that is checked by slot path; in free text, by value.
+- **Step 6 (eval):** `eval_grounding` in `evals/run_evals.py`, with
+  `evals/datasets/wrong_numbers.jsonl` (43 rows) and `wrong_numbers_payload.json`, run
+  standalone 2026-11-11 (fixture mode, no LLM): slot mode **13/13 caught, 0/5 right rejected**;
+  free-text checker **16/19 caught, 0/6 right rejected**; the pre-W14 bag check, reimplemented
+  in the eval for comparison, **0/19**. The three free-text misses are reported, not hidden:
+  "forty percent of the account" (40% is a limit in the payload), "at a -10% move the stress loss
+  is $3,140" (the -30% row's figure), "a realistic loss of 30%". Slots exist because free text
+  cannot close those gaps.
+- **Found on the way:** the News Desk wrote a per-ticker headline count that was not in the
+  payload; it passed only because a sentiment of 0.06 read as "6". The payload now carries
+  `headline_count_by_ticker`. Knowledge-base document titles now ground a cited excerpt
+  written under them ("60/40 treatment").
+- **Display change:** report figures now carry units ("$12,337", "-$42,467", "$730.90" for a
+  breakeven), so the golden report changed (Part B step 2), and the `formulas` rules page text
+  changed (`make index`).
+- **Added after step 6, from six live agent-eval runs (2026-11-11 to 2026-11-12):** each one
+  is covered by tests in `tests/unit/test_grounding.py` and `tests/agent/test_compliance_agent.py`.
+  - *Retry feedback:* the feedback once contained `{{path}}`, which the prompt renderer read as a
+    missing placeholder, so every retry crashed (first live run: 0/6 by the model).
+    `Prompt.render` now judges missing placeholders on the prompt body only, and the feedback
+    quotes the offending phrase and lists the allowed filters.
+  - *Slots:* filters are now `money`, `pct`, `percent`, `abs`, `count` and `list` (a list of text
+    items such as flags or `quality_screen.passed_tickers`; records and numbers are refused). A
+    field named `*_pct` gets `%` and counts as a percent without `|pct`; a slot followed by a
+    typed `%` is a percent. The payload carries a `counts` block and
+    `quality_screen.passed_tickers` / `excluded_tickers`. Prompt `explain_report` is 3.3.0: no
+    numbering things in prose ("two caveats"), the method terms and the `list` filter.
+  - *Allowed literals* (`grounding.literal_allow`): "30–45 DTE"; the fixed measures "30-day
+    realised volatility / measure / figure / proxy", "90-day high / drawdown / lookback" and
+    "(fewer than) 30 IV snapshots", pinned by a test to `hist_vol`'s window,
+    `snapshot_iv.MIN_HISTORY` and the quality payload's lookback; index names (S&P 500,
+    Nasdaq-100, Russell 2000). A verbatim quote of a payload text may carry its figures.
+  - *Labels:* a slot of the label's own field is always its figure (a margin usage of 0 once
+    failed); a percent given as a dollar label's value ("the realistic loss is 45%") fails, one
+    that sets the scenario ("at a 30% drop") does not.
+  - *Realistic loss per option* (`short_option_losses`, `unstated_losses`, shared by
+    `check_education_only` and the repair): each short option a `screen_result` paragraph names
+    needs its own figure (its slot, or in free text a matching figure from the payload or this
+    app's run facts); a PMCC short call is covered by its pair's position; the phrase alone,
+    "loss at", or another option's figure no longer passes. Before the check the explainer adds
+    each missing one as a slot (`add_missing_realistic_losses`), recorded in
+    `RunMetadata.narrative_patches`.
+  - *Invented ids:* `check_numbers` fails a `screen_result` or `notice` paragraph naming a
+    candidate id the run never produced (`run_candidate_ids`, `unknown_candidate_ids`); the model
+    once wrote `CSP-CSCO-2026-11-20-35P`, copying NKE's date and strike for a ticker that was
+    never screened.
+  - *Paragraph fallback* (`mixed_narrative` in `report_node`): for a live model's last attempt,
+    when every blocking failure names a paragraph and at most 2 (and at most a quarter) fail,
+    those paragraphs are dropped. The rule writer's paragraph for a section the dropped ones
+    covered and no kept one does (`section_of`: allocation, quality, trends, bottlenecks,
+    positions, risk, warnings) goes back where it stood; otherwise deterministic paragraphs are
+    added only where the full check still finds something missing (the disclaimer), at most one
+    per dropped paragraph. The result must pass the full check. Released as
+    `narrative_source: "mixed"` with `rules_paragraphs`; otherwise the whole deterministic
+    narrative, as before. The agent eval reports the share of released paragraphs by the model.
+- **Measured** (agent eval, fixture market data, OpenRouter; per-attempt details in
+  `evals/reports/agent_llm_failures.json`). Early runs with checker false positives went 1/6
+  and 3/6 by the model. With the checker settled, three runs per model:
+
+  | 18 reports each | DeepSeek v4.1 Flash | Claude Haiku 5.5 |
+  |---|---|---|
+  | Written fully by the model | 17/18 | 12/18 |
+  | Passed on the first attempt | 14/18 | 10/18 |
+  | Released paragraphs by the model | 160/172 | 160/168 |
+  | Cost (3 runs) | $0.086 | $0.092 |
+
+  Decision: keep DeepSeek for every task. Haiku's failures were mostly typed counts, list slots
+  without `|list` and typed stress shocks. `make eval` on 2026-11-12 (live DeepSeek): no FAIL
+  rows; 6/6 narratives by the model, 57/57 paragraphs, 183/183 figures grounded, 5/6 first-pass.
+  The grounding eval (45 rows) now reads slot mode **14/14 caught, 0/5 right rejected**, free
+  text **18/20, 0/6**, the pre-W14 bag check 0/20; `latest.md` still shows 13/13 and 17/19 (it
+  predates the two invented-id rows) until the next `make eval`. Every report in every run
+  passed compliance and constraints. The fallback prices in `config/settings.yaml` are
+  OpenRouter's 2026-11-12 list.
+- **Known limits:** free text misses number words ("forty percent", free-08) and a figure from
+  the wrong stress row (free-18); the report narrative uses slots, which close both. The
+  realistic-loss rule covers `screen_result` paragraphs only: a short put named in a `notice`
+  needs no loss, and extending it would also catch the rule writer's warnings paragraph (open
+  decision). A mixed narrative can read unevenly where a rule-writer paragraph stands in.
+  OpenRouter's Haiku 5.5 rejects `temperature`, which `parse_profile`, `extract_entities` and
+  `route_message` send, so moving extraction to it would need that dropped.
+- **Not done here:** the README and PRD headline grounding figures (W35). The committed
+  "100% numeric grounding" still comes from the rule-based writer, which now writes slots.
 
 ---
 

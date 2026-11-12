@@ -12,6 +12,7 @@ with coverage, so one ``make eval`` produces every number the README quotes.
 from __future__ import annotations
 
 import json
+import math
 import os
 import re
 import statistics
@@ -52,6 +53,7 @@ from options_scout.core.models import (  # noqa: E402
     SOURCE_TAG,
     Citation,
     Narrative,
+    Paragraph,
     SocialPost,
     SuitabilityFacts,
 )
@@ -475,6 +477,8 @@ def eval_agent(res: Results, cfg: Any, deps: Deps, writer: str | None = None) ->
     trajectories_ok = 0
     audited = 0
     model_written = 0  # final narratives the model wrote (no deterministic fallback)
+    mixed: list[str] = []  # W14: the model's narrative with failing paragraphs replaced
+    model_paragraphs = released_paragraphs = 0
     # every failed check on a model-written attempt, and which runs fell back and why
     failed_tally: dict[str, int] = {}
     fallbacks: list[dict[str, Any]] = []
@@ -512,7 +516,14 @@ def eval_agent(res: Results, cfg: Any, deps: Deps, writer: str | None = None) ->
         grounded += v.numbers_checked - len(v.ungrounded_numbers)
         # the explainer and the report node both substitute the rule-based narrative when the
         # model fails, so a live pass must say how many final narratives the model wrote
+        n_paras = len(rep.narrative.paragraphs) if rep.narrative else 0
+        released_paragraphs += n_paras
+        if rep.metadata.narrative_source == "mixed":
+            kept = n_paras - rep.metadata.rules_paragraphs
+            model_paragraphs += kept
+            mixed.append(f"run {i} ({kept} of {n_paras} paragraphs by the model)")
         if rep.metadata.narrative_source == "model":
+            model_paragraphs += n_paras
             model_written += 1
             model_checked += v.numbers_checked
             model_grounded += v.numbers_checked - len(v.ungrounded_numbers)
@@ -535,6 +546,7 @@ def eval_agent(res: Results, cfg: Any, deps: Deps, writer: str | None = None) ->
                         "request": text,
                         "narrative_source": rep.metadata.narrative_source,
                         "failed_attempts": attempts,
+                        "narrative_patches": rep.metadata.narrative_patches,
                         "model_errors": [
                             e for e in rep.errors if e.startswith(("explainer:", "report:"))
                         ],
@@ -583,7 +595,7 @@ def eval_agent(res: Results, cfg: Any, deps: Deps, writer: str | None = None) ->
                 "fell back: "
                 + (
                     "; ".join(
-                        f"run {f['run']} ({len(f['failed_attempts'])} failed attempt(s)"
+                        f"run {f['run']} ({f['narrative_source']}, {len(f['failed_attempts'])} failed attempt(s)"
                         + (
                             ", model error"
                             if any("LLM failed" in e for e in f["model_errors"])
@@ -596,6 +608,14 @@ def eval_agent(res: Results, cfg: Any, deps: Deps, writer: str | None = None) ->
                 )
                 + ". The grounding row above counts the fallbacks too."
             ),
+        )
+        res.add(
+            "11.3 Agent",
+            f"Released paragraphs written by the model (failing ones replaced) · {tag}",
+            f"{model_paragraphs}/{released_paragraphs}",
+            "report",
+            "INFO",
+            "mixed narratives: " + ("; ".join(mixed) or "none"),
         )
         res.add(
             "11.3 Agent",
@@ -793,6 +813,114 @@ def eval_compliance(res: Results, cfg: Any) -> None:
         "100%",
         "PASS" if correct == len(cases) else "FAIL",
         "; ".join(wrong),
+    )
+
+
+# ------------------------------------------------------------- W14 number grounding
+_OLD_NUMBER = re.compile(r"(?<![\w.])[-+−]?\$?\s?(?:\d{1,3}(?:,\d{3})+|\d+)(?:\.\d+)?%?")
+_OLD_SCRUB = re.compile(
+    r"`[^`\n]*`|\b(?:CSP|LEAPS|PMCC|PMCCSC)-[A-Z.\-]+?-\d{4}-\d{2}-\d{2}-[\d.]+[CP]\b"
+    r"|\[S\d+\]|\b\d{4}-\d{2}-\d{2}\b|\b\d+(?:st|nd|rd|th)\b|\*\*|__"
+)
+
+
+def _old_bag_catches(text: str, payload: dict[str, Any]) -> bool:
+    """The checker before W14, kept here only to measure against: a figure passed if it matched
+    any payload number (either sign, any rounding, abs_tol 0.0051), code spans exempt."""
+
+    def to_float(tok: str) -> tuple[float, bool] | None:
+        t = tok.replace("−", "-").replace("$", "").replace(",", "").replace(" ", "")
+        try:
+            return float(t.rstrip("%")), t.endswith("%")
+        except ValueError:
+            return None
+
+    allowed: set[float] = set()
+
+    def walk(x: Any) -> None:
+        if isinstance(x, bool):
+            return
+        if isinstance(x, int | float):
+            v = float(x)
+            allowed.update({v, abs(v), *(round(v, k) for k in range(5))})
+            if abs(v) <= 1.5:
+                allowed.update(round(v * 100, k) for k in (0, 1, 2))
+        elif isinstance(x, dict):
+            for v in x.values():
+                walk(v)
+        elif isinstance(x, list | tuple):
+            for v in x:
+                walk(v)
+        elif isinstance(x, str):
+            for tok in _OLD_NUMBER.findall(x):
+                if (parsed := to_float(tok)) is not None:
+                    allowed.update({parsed[0], abs(parsed[0])})
+
+    walk(payload)
+    for tok in _OLD_NUMBER.findall(_OLD_SCRUB.sub(" ", text)):
+        parsed = to_float(tok.strip())
+        if parsed is None:
+            continue
+        val, pct = parsed
+        if re.fullmatch(r"(19|20)\d{2}", tok.strip("$ ")) and 1990 <= val <= 2100:
+            continue
+        cands = [val, -val] + ([val / 100, -val / 100] if pct else [])
+        if not any(
+            math.isclose(a, c, rel_tol=0.01, abs_tol=0.0051) for c in cands for a in allowed
+        ):
+            return True
+    return False
+
+
+def eval_grounding(res: Results, cfg: Any) -> None:
+    """W14 step 6: hand-written wrong-but-plausible figures (swapped fields, wrong sign, unit
+    tricks, number words, wrong slot), plus right ones for the false-positive rate. Free-text rows
+    go through the hardened checker (and the pre-W14 bag check, for comparison); slot rows through
+    slot mode, where the writer names payload fields instead of typing figures."""
+    from options_scout.core.grounding import ground_narrative, render_narrative
+
+    payload = json.loads((DATASETS / "wrong_numbers_payload.json").read_text())
+    rows = _jsonl(DATASETS / "wrong_numbers.jsonl")
+    tally: dict[str, dict[str, int]] = {
+        m: {"caught": 0, "wrong": 0, "fp": 0, "right": 0, "old": 0} for m in ("free", "slot")
+    }
+    missed: dict[str, list[str]] = {"free": [], "slot": []}
+    for row in rows:
+        para = Paragraph(mode="screen_result", text=row["text"])
+        narrative = Narrative(paragraphs=[para])
+        if row["mode"] == "slot":
+            narrative = render_narrative(narrative, payload)
+        caught = bool(ground_narrative(narrative, payload, cfg=cfg.compliance.grounding).problems)
+        t = tally[row["mode"]]
+        if row["label"] == "wrong":
+            t["wrong"] += 1
+            t["caught"] += int(caught)
+            if row["mode"] == "free":
+                t["old"] += int(_old_bag_catches(row["text"], payload))
+            if not caught:
+                missed[row["mode"]].append(f"{row['id']} ({row['trick']})")
+        else:
+            t["right"] += 1
+            t["fp"] += int(caught)
+            if caught:
+                missed[row["mode"]].append(f"{row['id']} (false positive)")
+    f, sl = tally["free"], tally["slot"]
+    res.add(
+        "11.3a Compliance",
+        "Wrong-but-plausible figures caught, free-text checker (W14; pre-W14 bag check in notes)",
+        f"{f['caught']}/{f['wrong']} caught · {f['fp']}/{f['right']} right rejected",
+        "report (no target: free text keeps known gaps)",
+        "INFO",
+        f"pre-W14 bag check caught {f['old']}/{f['wrong']}. Missed: "
+        + ("; ".join(missed["free"]) or "none"),
+    )
+    res.add(
+        "11.3a Compliance",
+        "Wrong-but-plausible figures caught, slot mode (the report explainer, W14)",
+        f"{sl['caught']}/{sl['wrong']} caught · {sl['fp']}/{sl['right']} right rejected",
+        "100% caught, 0 right rejected",
+        "PASS" if sl["caught"] == sl["wrong"] and sl["fp"] == 0 else "FAIL",
+        "; ".join(missed["slot"]),
     )
 
 
@@ -1450,6 +1578,7 @@ def main() -> int:
         if llm is not None:  # W11 step 3: the same runs with the model writing the narrative
             eval_agent(res, cfg, replace(deps, llm=llm), writer=llm.models.explanation_model)
         eval_compliance(res, cfg)
+        eval_grounding(res, cfg)
         eval_routing(res, llm)
         eval_retrieval(res, cfg, tmp)
         eval_education(res, cfg, deps)

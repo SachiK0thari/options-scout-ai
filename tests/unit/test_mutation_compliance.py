@@ -10,6 +10,7 @@ import pytest
 
 from options_scout.config import AppConfig, ComplianceConfig
 from options_scout.core import compliance as cc
+from options_scout.core.grounding import extract_numbers
 from options_scout.core.models import (
     BOTTLENECK_BOARD_DOC_ID,
     Citation,
@@ -65,10 +66,32 @@ def _vr(**over: Any) -> VerificationResult:
         ("-$ 5", (-5.0, False)),
         ("12%", (12.0, True)),
         ("-$1,234.5%", (-1234.5, True)),
+        # W14 step 3: unit suffixes, number words and multipliers are figures too
+        ("$3M", (3_000_000.0, False)),
+        ("5k", (5000.0, False)),
+        ("2 billion", (2e9, False)),
+        ("ninety-nine percent", (99.0, True)),
+        ("forty", (40.0, False)),
+        ("USD3140", (3140.0, False)),
     ],
 )
-def test_to_float_parses_display_forms(token: str, expected: tuple[float, bool]) -> None:
-    assert cc._to_float(token) == expected
+def test_extract_numbers_parses_display_forms(token: str, expected: tuple[float, bool]) -> None:
+    [(_, value, pct)] = cc.extract_narrative_numbers(token)
+    assert (value, pct) == expected
+
+
+@pytest.mark.parametrize(
+    ("text", "value"),
+    [("a 10x return", 10.0), ("it would double", 2.0), ("a tenfold gain", 10.0), ("3 times", 3.0)],
+)
+def test_multipliers_are_figures(text: str, value: float) -> None:
+    [n] = extract_numbers(text)
+    assert (n.value, n.kind) == (value, "multiple")
+
+
+def test_not_figures_a_bare_one_identifiers_and_day_ordinals() -> None:
+    assert cc.extract_narrative_numbers("one of the one-stock names, run-7, W-2, the 21st") == []
+    assert cc.extract_narrative_numbers("the 57th percentile") == [("57", 57.0, False)]
 
 
 def test_collect_payload_numbers_exact_variants() -> None:
@@ -80,21 +103,23 @@ def test_collect_payload_numbers_exact_variants() -> None:
         1234.568,
         1234.5679,
     }
-    # fractions up to 1.5 also appear as percents at 2, 1 and 0 decimals
+    # fractions up to 1.5 also appear as percents; a rounding to zero is no variant (W14), and
+    # values under 10 are not rounded to whole numbers
     assert cc.collect_payload_numbers(0.123456) == {
         0.123456,
-        0.0,
         0.1,
         0.12,
         0.123,
         0.1235,
-        12.35,
-        12.3,
+        12.3456,
         12.0,
+        12.3,
+        12.35,
+        12.346,
     }
-    assert cc.collect_payload_numbers(1.5) == {1.5, 2.0, 150.0}
+    assert cc.collect_payload_numbers(1.5) == {1.5, 150.0}
     assert cc.collect_payload_numbers(2.0) == {2.0}
-    assert cc.collect_payload_numbers("price -42") == {-42.0, 42.0}
+    assert cc.collect_payload_numbers("price -42") == {-42.0}  # the sign is kept
 
 
 @pytest.mark.parametrize(
@@ -116,7 +141,7 @@ def test_extract_numbers_scrubbed_spans_leave_a_single_space(text: str) -> None:
 def test_extract_numbers_bold_underscores_and_years() -> None:
     assert cc.extract_narrative_numbers("__5__") == [("5", 5.0, False)]
     assert cc.extract_narrative_numbers("$2,000 of cash") == [("$2,000", 2000.0, False)]
-    assert cc.extract_narrative_numbers("in $2026") == []
+    assert cc.extract_narrative_numbers("in $2026") == [("$2026", 2026.0, False)]  # money
     assert cc.extract_narrative_numbers("since 1990") == []
     assert cc.extract_narrative_numbers("since 1989") == [("1989", 1989.0, False)]
     assert cc.extract_narrative_numbers("In 2026 the premium was $5") == [("$5", 5.0, False)]
@@ -125,7 +150,7 @@ def test_extract_numbers_bold_underscores_and_years() -> None:
 def test_matches_tolerances() -> None:
     assert cc._matches(5.0, [5.0], 0.0)
     assert cc._matches(100.5, [100.0], 0.01)  # relative tolerance
-    assert cc._matches(0.005, [0.0], 0.01)  # absolute tolerance near zero
+    assert not cc._matches(0.005, [0.0], 0.01)  # W14: no absolute tolerance near zero
     assert not cc._matches(0.5, [0.0], 0.01)
 
 
@@ -187,11 +212,16 @@ def test_evidence_source_without_text_or_a_non_dict_source() -> None:
 
 # ------------------------------------------------------------------------- verify_narrative
 def test_verify_narrative_signed_and_percent_candidates() -> None:
-    payload = {"x": 5, "f": 2.5}
-    assert _ungrounded(f"It fell -5. {DISC}", payload) == []
+    payload = {"x": 5, "f": 2.5, "pnl": -7}
+    assert _ungrounded(f"It is 5. {DISC}", payload) == []
+    assert _ungrounded(f"It fell -5. {DISC}", payload) == ["-5"]  # W14: the sign counts
     assert _ungrounded(f"Up 250%. {DISC}", payload) == []
-    assert _ungrounded(f"Down -250%. {DISC}", payload) == []
-    r = cc.verify_narrative(f"Up 250%. Down -250%. {DISC}", payload, disclaimer=DISC, rel_tol=0.001)
+    assert _ungrounded(f"Down -250%. {DISC}", payload) == ["-250%"]
+    assert _ungrounded(f"A loss of 7. {DISC}", payload) == []  # magnitude next to a loss word
+    assert _ungrounded(f"A gain of 7. {DISC}", payload) == ["7"]
+    assert _ungrounded(f"It came to 7. {DISC}", payload) == ["7"]
+    assert _ungrounded(f"Up 5%. {DISC}", payload) == ["5%"]  # a percent is not the count 5
+    r = cc.verify_narrative(f"Up 250%. Down -7. {DISC}", payload, disclaimer=DISC, rel_tol=0.001)
     assert r.ungrounded_numbers == []
     r = cc.verify_narrative(f"Up 249%. {DISC}", payload, disclaimer=DISC, rel_tol=0.001)
     assert r.ungrounded_numbers == ["249%"]
@@ -236,7 +266,7 @@ def test_disclaimer_prefix_is_sixty_normalised_characters() -> None:
 def test_check_numbers_detail() -> None:
     assert cc.check_numbers(_vr()).detail == "3 numbers checked, all grounded"
     bad = cc.check_numbers(_vr(ungrounded_numbers=["23.7%", "99"]))
-    assert bad.detail == "3 numbers checked, not in payload: 23.7%, 99"
+    assert bad.detail == "3 numbers checked, not grounded: 23.7%; 99"
 
 
 # --------------------------------------------------------------------- 2 check_citations
@@ -288,10 +318,18 @@ def test_education_only_run_data() -> None:
     assert _edu_check("About 85,500 [S1].", rel_tol=0.001).passed
 
 
-@pytest.mark.parametrize("phrase", ["Realistic Loss", "Loss At", "Modelled Loss"])
-def test_short_option_loss_phrases(phrase: str) -> None:
-    n = Narrative(paragraphs=[res(f"{CSP} passed; {phrase} shown in the table.")])
+def test_short_option_loss_needs_its_own_figure() -> None:
+    n = Narrative(paragraphs=[res(f"{CSP} passed; its realistic loss is $12,345.")])
     assert cc.check_education_only(n, EDU_PAYLOAD, []).passed
+
+
+@pytest.mark.parametrize(
+    "phrase",
+    ["Realistic Loss", "Modelled Loss", "Loss At", "maximum loss at expiry", "unrealistic losses"],
+)
+def test_other_loss_wording_does_not_state_the_realistic_loss(phrase: str) -> None:
+    n = Narrative(paragraphs=[res(f"{CSP} passed; {phrase} shown in the table.")])
+    assert not cc.check_education_only(n, EDU_PAYLOAD, []).passed
 
 
 def test_education_only_detail_join_and_pass_text() -> None:
@@ -299,7 +337,7 @@ def test_education_only_detail_join_and_pass_text() -> None:
     c = cc.check_education_only(n, EDU_PAYLOAD, [])
     assert c.detail == (
         f"paragraph 1: candidate id in education paragraph ({CSP}); "
-        f"paragraph 2: short option {CSP} described without its realistic loss"
+        f"paragraph 2: short option {CSP} described without its own realistic loss"
     )
     assert c.locations == ["paragraph 1", "paragraph 2"]
     ok = cc.check_education_only(Narrative(paragraphs=[notice()]), EDU_PAYLOAD, [])

@@ -196,8 +196,10 @@ def _values_3_6(cfg: AppConfig) -> str:
         f"expiry and shrinks as the square root of {s.risk.stress_iv_shock_ref_dte} / DTE for "
         f"longer-dated legs, since long-dated vol moves less in a selloff. Each leg is priced "
         f"before and after with the same model, so the P&L is model-after minus model-before.\n\n"
-        f"The compliance check matches every number in a narrative against the computed payload "
-        f"with a relative tolerance of {s.agent.verifier_number_tolerance:g}."
+        f"The compliance check reads every figure in a report narrative from a named payload "
+        f"field that the application fills in (the writer never types one), and matches every "
+        f"figure in other texts against the run's computed values, sign and unit included, with "
+        f"a relative tolerance of {s.agent.verifier_number_tolerance:g}."
     )
 
 

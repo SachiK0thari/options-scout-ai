@@ -1138,6 +1138,27 @@ class TaxComplianceConfig(_Strict):
     )
 
 
+class GroundingLabel(_Strict):
+    """W14 step 5: a dangerous label and the payload fields a figure next to it must come from.
+    ``fields`` are globs over payload paths (``positions[*].payoff.max_loss``; ``*`` matches any
+    characters). ``require_field``: a figure under this label fails when the payload has no such
+    field at all (the app never computes it, so any figure is invented)."""
+
+    label: str
+    pattern: str
+    fields: list[str]
+    require_field: bool = False
+
+
+class GroundingConfig(_Strict):
+    """W14: number grounding. ``labels`` are checked in order (the first label that covers a
+    phrase owns it); ``literal_allow`` are regexes for figures a slot-mode ``screen_result`` or
+    ``notice`` paragraph may type itself."""
+
+    labels: list[GroundingLabel] = Field(default_factory=list)
+    literal_allow: list[str] = Field(default_factory=list)
+
+
 class ComplianceConfig(_Strict):
     """Section 13.1 rules: banned patterns with an allow-list, suitability limits, freshness."""
 
@@ -1150,6 +1171,7 @@ class ComplianceConfig(_Strict):
     suitability: SuitabilityConfig
     goal: GoalComplianceConfig = Field(default_factory=GoalComplianceConfig)  # check 9 (Phase 12)
     tax: TaxComplianceConfig = Field(default_factory=TaxComplianceConfig)  # check 11 (Phase 12)
+    grounding: GroundingConfig = Field(default_factory=GroundingConfig)  # check 1 (W14)
 
     @model_validator(mode="after")
     def _patterns_compile(self) -> ComplianceConfig:
@@ -1162,6 +1184,10 @@ class ComplianceConfig(_Strict):
         re.compile(self.goal.promise_pattern, re.IGNORECASE)
         re.compile(self.tax.rate_pattern, re.IGNORECASE)
         re.compile(self.tax.imperative_pattern, re.IGNORECASE)
+        for lb in self.grounding.labels:
+            re.compile(lb.pattern, re.IGNORECASE)
+        for a in self.grounding.literal_allow:
+            re.compile(a, re.IGNORECASE)
         return self
 
 
