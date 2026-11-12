@@ -16,7 +16,7 @@ from typing import Any
 from pydantic import BaseModel
 from vaderSentiment.vaderSentiment import SentimentIntensityAnalyzer
 
-from options_scout.config import AppConfig
+from options_scout.config import AppConfig, ComplianceConfig
 from options_scout.core.models import (
     NO_SOURCE_SENTENCE,
     AccountType,
@@ -444,6 +444,13 @@ def scrub_injections(text: str) -> str:
 
 
 @lru_cache(maxsize=1)
+def _compliance_config() -> ComplianceConfig:
+    from options_scout.config import load_config
+
+    return load_config().compliance
+
+
+@lru_cache(maxsize=1)
 def _vader() -> SentimentIntensityAnalyzer:
     return SentimentIntensityAnalyzer()
 
@@ -541,11 +548,12 @@ def _first_sentences(text: str, limit: int = 420) -> str:
 def education_paragraphs(sources: list[dict[str, str]], limit: int = 3) -> list[Paragraph]:
     """One cited education paragraph per source (verbatim excerpt, so every number is grounded).
 
-    An excerpt that happens to contain a banned phrase (a 10-K saying "we cannot guarantee…") is
-    skipped so the deterministic stand-in always passes the language check; the allow-list for
-    quoted sources arrives with the Compliance agent in step 10.4.
+    An excerpt that happens to contain a banned phrase (a 10-K saying "we cannot guarantee…") or
+    that ``check_language`` would reject (a post saying a ticker "is the one to own", W15) is
+    skipped, so the deterministic stand-in always passes the language check and never relays
+    third-party advice.
     """
-    from options_scout.core.compliance import banned_phrases_in
+    from options_scout.core.compliance import banned_phrases_in, language_violations
 
     out: list[Paragraph] = []
     seen_titles: set[str] = set()
@@ -553,16 +561,17 @@ def education_paragraphs(sources: list[dict[str, str]], limit: int = 3) -> list[
         if src["title"] in seen_titles:
             continue
         excerpt = _first_sentences(src["text"])
-        if banned_phrases_in(excerpt):
+        para = Paragraph(
+            mode="education",
+            text=f"**{src['title']}.** {excerpt} [{src['tag']}]",
+            citations=[src["tag"]],
+        )
+        if banned_phrases_in(excerpt) or language_violations(
+            Narrative(paragraphs=[para]), _compliance_config()
+        ):
             continue
         seen_titles.add(src["title"])
-        out.append(
-            Paragraph(
-                mode="education",
-                text=f"**{src['title']}.** {excerpt} [{src['tag']}]",
-                citations=[src["tag"]],
-            )
-        )
+        out.append(para)
         if len(out) >= limit:
             break
     return out
@@ -814,12 +823,26 @@ def why_paragraphs(sources: list[dict[str, str]], question: str) -> list[Paragra
             )
         )
     if posts:
-        quoted = " ".join(f"“{_first_sentences(p['text'], 200)}” [{p['tag']}]" for p in posts[:2])
+        from options_scout.core.compliance import language_violations
+
+        def reads_as_advice(post: dict[str, str]) -> bool:
+            excerpt = Paragraph(mode="screen_result", text=_first_sentences(post["text"], 200))
+            return bool(language_violations(Narrative(paragraphs=[excerpt]), _compliance_config()))
+
+        # W15: a post that tells the reader what to buy is not quoted, it is counted
+        quotable = [p for p in posts if not reads_as_advice(p)][:2]
+        held_back = sum(reads_as_advice(p) for p in posts)
+        quoted = " ".join(f"“{_first_sentences(p['text'], 200)}” [{p['tag']}]" for p in quotable)
+        note = (
+            f" {held_back} post(s) not quoted because they read as trading advice."
+            if held_back
+            else ""
+        )
         out.append(
             Paragraph(
                 mode="screen_result",
-                text=f"**Evidence behind the signal.** {quoted}",
-                citations=[p["tag"] for p in posts[:2]],
+                text=f"**Evidence behind the signal.** {quoted}{note}".replace("  ", " "),
+                citations=[p["tag"] for p in quotable],
             )
         )
     return out

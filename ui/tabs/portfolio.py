@@ -5,6 +5,7 @@ from __future__ import annotations
 import pandas as pd
 import streamlit as st
 
+from options_scout.agent.nodes.holdings_reply import DIVERSIFICATION_CAPTION
 from options_scout.core import report as report_md
 from options_scout.core.compliance import WITHHELD_NOTICE
 from ui import charts, compute, session, theme
@@ -47,18 +48,36 @@ def _holdings_section(view: session.View) -> None:
         return
     m1, m2, m3, m4 = st.columns(4)
     m1.metric("Holdings value", money(analysis.total_value))
-    m2.metric("Diversification", f"{analysis.diversification_score:.0f} / 100")
-    m3.metric(
-        "Weighted expense ratio",
-        "n/a"
-        if analysis.weighted_expense_ratio is None
-        else pct(analysis.weighted_expense_ratio, 3),
+    m2.metric(
+        "Diversification",
+        f"{analysis.diversification_score:.0f} / 100",
+        help=DIVERSIFICATION_CAPTION,
     )
+    m3.metric(
+        "Expense ratio (ETFs)",
+        "n/a" if analysis.etf_expense_ratio is None else pct(analysis.etf_expense_ratio, 3),
+        help=(
+            "Value-weighted across the ETF holdings. Drag on the whole portfolio: "
+            + (
+                "n/a"
+                if analysis.weighted_expense_ratio is None
+                else pct(analysis.weighted_expense_ratio, 3)
+            )
+            + " a year."
+        ),
+    )
+    lo, hi = analysis.beta_weighted_exposure_low, analysis.beta_weighted_exposure_high
     m4.metric(
         "Beta-weighted exposure",
         "n/a"
         if analysis.beta_weighted_exposure is None
         else f"{analysis.beta_weighted_exposure:.2f}",
+        help=(
+            f"{(analysis.beta_interval or 0.95):.0%} range {lo:.2f} to {hi:.2f}: one regression of "
+            "the portfolio's weighted daily returns on the index, so it is an estimate."
+            if lo is not None and hi is not None
+            else "Beta needs dated daily closes; the bundled sample data has none."
+        ),
     )
     h1, h2 = st.columns(2)
     with h1:
@@ -82,6 +101,11 @@ def _holdings_section(view: session.View) -> None:
                     "Unrealised P&L": p.unrealised_pnl,
                     "Expense ratio": None if p.expense_ratio is None else f"{p.expense_ratio:.3%}",
                     "Beta": None if p.beta is None else round(p.beta, 2),
+                    "Beta range": (
+                        f"{p.beta_low:.2f} to {p.beta_high:.2f}"
+                        if p.beta_low is not None and p.beta_high is not None
+                        else None
+                    ),
                     "Covered-call lots": p.covered_call_lots,
                 }
                 for p in analysis.positions

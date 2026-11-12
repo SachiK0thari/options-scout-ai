@@ -6,7 +6,8 @@ max_snapshot_age_days: 7     # a cited bottleneck board whose snapshot `as_of` i
 reminder: "Education, not advice."   # one-line closer required on chat replies that name a specific option
 require_delayed_data_statement: true # report narratives must say the data is delayed
 
-# Regexes (case-insensitive) that block a paragraph in any mode. `label` groups them for the audit log.
+# Regexes (case-insensitive) that block a paragraph in any mode, run on the normalised text
+# (core/compliance.py:normalise_for_language, W15). `label` groups them for the audit log.
 banned_patterns:
   # certainty
   - {label: certainty, pattern: "\\bguarantee[ds]?\\b"}
@@ -23,8 +24,9 @@ banned_patterns:
   - {label: directive, pattern: "\\byou(?:'d| would) (?:want|do well|be wise) to\\b"}
   - {label: directive, pattern: "\\b(?:i|we)(?:'d| would)? recommend\\b"}
   - {label: directive, pattern: "\\bi'?d go with\\b"}
-  # imperative with an object; "to roll the short call" (infinitive, descriptive) is exempt
-  - {label: directive, pattern: "(?<!to )\\b(?:buy|sell|open|enter|roll|take|grab|load up on|pick up) (?:the|this|that|these|those|a|an|some|your) (?:[^\\s.;:!?*]+ ){0,3}?(?:puts?|calls?|positions?|trades?|spreads?|contracts?|leaps|pmcc)\\b"}
+  # imperative with an object, at the start of a sentence (W15): "Traders buy the puts" and
+  # "writers who roll a position" have a subject and describe; "to roll the short call" is an infinitive
+  - {label: directive, pattern: "(?:^|[.!?;:]\\s+|\\b(?:just|so|then|now|please|go)\\s+)(?:buy|sell|open|enter|roll|take|grab|load up on|pick up) (?:the|this|that|these|those|a|an|some|your) (?:[^\\s.;:!?*]+ ){0,3}?(?:puts?|calls?|positions?|trades?|spreads?|contracts?|leaps|pmcc)\\b"}
   - {label: directive, pattern: "\\bstrong buy\\b"}
   - {label: directive, pattern: "\\bmust buy\\b"}
   - {label: directive, pattern: "\\b(?:buy|get in|act) now\\b"}
@@ -39,17 +41,54 @@ banned_patterns:
   - {label: urgency, pattern: "\\bbefore it'?s too late\\b"}
   - {label: urgency, pattern: "\\bhurry\\b"}
   - {label: urgency, pattern: "\\bget in before\\b"}
+  # W15: widened by intent, not by sentence
+  - {label: certainty, pattern: "\\bzero[- ]risk\\b"}
+  - {label: certainty, pattern: "\\bno (?:real |actual )?(?:downside|risk to (?:you|the trade))\\b"}
+  - {label: certainty, pattern: "\\bwithout (?:any )?(?:risk|downside)\\b"}
+  - {label: certainty, pattern: "\\bcan(?:'|no)?t (?:fail|go down|lose money|go wrong)\\b"}
+  - {label: certainty, pattern: "\\b(?:100|one hundred) ?(?:%|percent) (?:safe|sure|certain|guaranteed)\\b"}
+  - {label: certainty, pattern: "\\b(?:basically|essentially|practically|virtually) (?:free|risk ?less|guaranteed|certain)\\b"}
+  - {label: certainty, pattern: "\\bfree (?:income|cash|premium)\\b"}
+  - {label: directive, pattern: "\\b(?:load up on|pull the trigger|back up the truck|pile into|jump on|scoop up|snap up|grab (?:it|them|this|these))\\b"}
+  - {label: directive, pattern: "(?:^|[.!?;:]\\s+)(?:buy|sell|write|short|add|grab|take|open|enter|roll)(?:\\s+to\\s+(?:open|close))?\\s+(?:\\d+\\s+(?:contracts?\\s+)?(?:of\\s+)?)?(?:(?:the|this|that|these|those|some|a|an)\\s+)?(?-i:[A-Z]{2,5}\\b|(?:CSP|LEAPS|PMCCSC|PMCC)-)"}
+  - {label: directive, pattern: "\\b(?:i|we)(?:'d| would)? (?:suggest|advise|urge)\\b"}
+  - {label: directive, pattern: "\\b(?:i|we)(?:'d| would) (?:buy|sell|write|open|take|roll|grab|add|pick|choose)\\b"}
+  - {label: directive, pattern: "\\bif i were you\\b"}
+  - {label: directive, pattern: "\\b(?:my|our) (?:advice|suggestion|recommendation|(?:top )?pick|favou?rite)\\b"}
+  - {label: directive, pattern: "\\byou ought to\\b"}
+  - {label: directive, pattern: "\\byou(?:'ll| will| might| may) want to\\b"}
+  - {label: directive, pattern: "\\b(?:make|be) sure (?:to|you) (?:buy|sell|write|open|enter|roll|close|take|grab|add|get in)\\b"}
+  - {label: directive, pattern: "(?:^|[.!?;:]\\s+|\\b(?:it'?s|now is|this is)\\s+)(?:the |a )?(?:good |right |perfect |ideal )?time to (?:buy|sell|write|open|enter|get in|load up|add|roll)\\b"}
+  - {label: directive, pattern: "\\bconsider (?:buying|selling|writing|opening|adding|entering)\\b"}
+  - {label: directive, pattern: "(?<!to )\\bgo with (?:the|this|that|these|those)\\b"}
+  - {label: superlative, pattern: "\\bsmart (?:move|play|trade|money|bet|choice)\\b"}
+  - {label: superlative, pattern: "\\bthe (?:one|name|stock|put|call|trade|contract)s? to (?:own|buy|sell|write|pick|choose|hold)\\b"}
+  - {label: superlative, pattern: "\\b(?:top|best) (?:pick|idea|choice|buy)\\b"}
+  - {label: superlative, pattern: "\\b(?:a|an absolute|a real) steal\\b"}
+  - {label: superlative, pattern: "\\bhigh[- ]conviction\\b"}
+  - {label: superlative, pattern: "\\bmust-(?:own|have)\\b|\\ba must (?:own|have)\\b"}
+  - {label: superlative, pattern: "\\b(?:would be|is) wise\\b"}
+  - {label: rating, pattern: "(?:^|[.!?;|]\\s*)(?:rating|recommendation|verdict|our call|my call)\\s*:"}
+  - {label: rating, pattern: "\\b(?:buy|sell|outperform|overweight|accumulate) rating\\b"}
+  - {label: urgency, pattern: "\\bwon'?t last\\b"}
+  - {label: urgency, pattern: "\\bwhile (?:it|they|supplies) lasts?\\b"}
+  - {label: urgency, pattern: "\\bbefore (?:it'?s|they'?re) gone\\b"}
 
-# Inside an `education` paragraph that carries a citation, these spans are removed before the
-# banned patterns are applied: quoted terminology and "X is the term for…" definitions.
+# Inside an `education` paragraph that carries a citation, these exact glossary terms are removed
+# before the banned patterns are applied (W15): plain text matched whole, quoted or not, with
+# spaces and hyphens interchangeable. Nothing else is exempt: no quoted span, no "X is the term
+# for" clause, so advice inside quotes or after a definition still fails. "The risk-free rate" is
+# handled by the certainty pattern itself, in every paragraph.
 # Reviewed against the thesis-monitor vocabulary of the bottleneck board (Phase 11, step 11.5):
 # "holding", "tripped since <date>", "thesis weakening", "easing", "new supply" are reports of
-# state, match no banned pattern and need no allow-list entry; the board never says exit, sell or
-# take profits (tests/unit/test_compliance.py::test_thesis_monitor_vocabulary_is_not_advice).
-allow_list:
-  - "[\"“][^\"”]{1,80}[\"”]"
-  - "\\b\\S+(?:[- ]\\S+){0,3} is the (?:term|name|phrase|order type|order) (?:for|used|brokers use)\\b[^.]*"
-  - "\\brisk[- ]free rate\\b"
+# state, match no banned pattern and need no entry; the board never says exit, sell or take
+# profits (tests/unit/test_compliance.py::test_thesis_monitor_vocabulary_is_not_advice).
+allow_terms:
+  - "sell to open"
+  - "buy to open"
+  - "sell to close"
+  - "buy to close"
+  - "buy the call"
 
 # Conservative defaults (13.1) applied with the Risk agent's suitability facts.
 suitability:

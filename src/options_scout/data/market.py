@@ -176,6 +176,11 @@ class FixtureSource:
         hist: list[float] = self._fx(ticker).close_history
         return hist[-days:]
 
+    def get_dated_close_history(self, ticker: str, days: int) -> list[tuple[date, float]]:
+        """The bundled closes were recorded without dates, so they cannot be joined on date with
+        another ticker's; a beta from them would be a guess (W25), so none is given."""
+        raise MarketDataError("fixture closes carry no dates")
+
     def get_dividend_yield(self, ticker: str) -> float:
         return float(self._fx(ticker).snapshot.dividend_yield)
 
@@ -581,6 +586,22 @@ class MarketDataAppSource:
         series = self._year_series(sym, raw=False)
         return [_f(c) for c in self._col(series, "c") if _f(c) > 0][-days:]
 
+    def get_dated_close_history(self, ticker: str, days: int) -> list[tuple[date, float]]:
+        """Closes with their session dates (candle ``t``), from the same once-a-day year series,
+        so a dated beta costs no extra request (W25)."""
+        sym = ticker.upper()
+        body = (
+            self._candles("stocks", sym, days)
+            if days > self.HISTORY_DAYS
+            else self._year_series(sym, raw=False)
+        )
+        out: list[tuple[date, float]] = []
+        for t, c in zip(self._col(body, "t"), self._col(body, "c"), strict=False):
+            d = _as_date(t)
+            if d is not None and _f(c) > 0:
+                out.append((d, _f(c)))
+        return out[-days:]
+
     def get_dividend_yield(self, ticker: str) -> float:
         """Trailing yield implied by dividend adjustment: 1 - adjusted/split-only first close.
 
@@ -788,6 +809,23 @@ class TradierSource:
         closes = [_f(r.get("close")) for r in rows if _f(r.get("close")) > 0]
         return closes[-days:]
 
+    def get_dated_close_history(self, ticker: str, days: int) -> list[tuple[date, float]]:
+        end = datetime.now(tz=UTC).date()
+        start = end - timedelta(days=int(days * 1.6) + 7)  # trading days → calendar days
+        data = self._get(
+            "/markets/history",
+            symbol=ticker.upper(),
+            interval="daily",
+            start=start.isoformat(),
+            end=end.isoformat(),
+        )
+        out: list[tuple[date, float]] = []
+        for r in self._as_list((data.get("history") or {}).get("day")):
+            d = _as_date(r.get("date"))
+            if d is not None and _f(r.get("close")) > 0:
+                out.append((d, _f(r.get("close"))))
+        return out[-days:]
+
     def get_dividend_yield(self, ticker: str) -> float:
         """Trailing 12-month cash dividends / price via the beta fundamentals endpoint.
 
@@ -901,6 +939,9 @@ class UnavailableSource:
         raise self._fail()
 
     def get_close_history(self, ticker: str, days: int) -> list[float]:
+        raise self._fail()
+
+    def get_dated_close_history(self, ticker: str, days: int) -> list[tuple[date, float]]:
         raise self._fail()
 
     def get_dividend_yield(self, ticker: str) -> float:
@@ -1099,6 +1140,20 @@ class MarketData:
             lambda: self.source.get_close_history(ticker, days),
             lambda v: [float(x) for x in v],
         )
+
+    def get_dated_close_history(self, ticker: str, days: int = 90) -> list[tuple[date, float]]:
+        """Closes with their session dates, for anything that joins two series (W25 beta).
+        Raises ``MarketDataError`` when the source has no dates (the bundled fixtures)."""
+        fetch = getattr(self.source, "get_dated_close_history", None)
+        if fetch is None:
+            raise MarketDataError(f"{self.source.name} has no dated close history")
+        rows = self._cached(
+            f"dated_closes:{ticker}:{days}",
+            "history",
+            lambda: [[d.isoformat(), float(v)] for d, v in fetch(ticker, days)],
+            lambda v: [[str(a), float(b)] for a, b in v],
+        )
+        return [(date.fromisoformat(a), float(b)) for a, b in rows]
 
     def get_hist_vol(self, ticker: str, window: int = 30) -> float | None:
         closes = self.get_close_history(ticker, window + 10)

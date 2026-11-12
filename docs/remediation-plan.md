@@ -1477,6 +1477,58 @@ Also passing: a non-breaking or doubled space inside "you should", a zero-width 
    that is never used when editing patterns, and report both numbers in
    `evals/reports/latest.md`. Replace the README line "34/34 advice caught" with both.
 
+**Status, 2026-11-12:** steps 1 to 5 and 7 done in the working tree; step 6 (the LLM judge)
+not started, it adds a model call per paragraph in live mode and waits on the user.
+- **Held-out sets.** The audit's 30 sentences were not saved (only the five above are quoted).
+  Two new sets: `evals/datasets/advice_dev.jsonl` (30 advice + 12 clean), written before any
+  pattern change but by the same author as the patterns, so effectively in-sample; and
+  `evals/datasets/advice_blind.jsonl` (40 advice in six categories + 15 clean), written by a
+  separate agent that read no pattern or check code, and never read when editing patterns. The
+  eval prints the blind set's ids only, never its text. On the dev and blind sets only
+  `check_language` decides: their rows name contracts and tags the eval's fixed payload lacks,
+  which made `check_education_only`/`check_citations` reject 10 of the 15 blind clean rows.
+- **Result, `check_language` alone:**
+
+  | Set | Before W15 | After |
+  |---|---|---|
+  | in-sample (`advice_narratives`, 30 language rows + 4 mode rows) | 30/34 caught, 0/10 FP | 30/34, 0/10 (34/34 with the other checks) |
+  | dev (same author as the patterns) | 0/30 caught, 1/12 FP | 30/30, 0/12 |
+  | **blind** | **12/40 caught, 3/15 FP** | **23/40, 3/15** |
+
+  Blind by category after: directive 4/7, endorsement 1/7, certainty 4/6, urgency 5/6, rating
+  5/6, evasion 5/8 (counts only; the misses were not read, so the set stays usable). It
+  was 24/40 before the imperative pattern was anchored to the start of a sentence; that change
+  was made for two false positives found elsewhere ("Writers who roll a position", "Traders buy
+  the protective puts"), not from the blind set. A regex floor at 58% on fluent advice is why
+  step 6 matters.
+- **Step 2:** `core/compliance.py:normalise_for_language` (NFKC, invisible characters deleted,
+  curly quotes and dashes to ASCII, accents stripped, a small Cyrillic/Greek look-alike table,
+  HTML tags and Markdown emphasis removed, whitespace collapsed; case kept so ticker patterns
+  can use `(?-i:[A-Z]{2,5})`). `language_violations` and `banned_phrases_in` run on it.
+- **Step 3:** `allow_list` (regexes) became `allow_terms` (exact glossary terms: sell/buy to
+  open/close, "buy the call"), matched whole, quoted or not, in cited education only. The
+  generic quoted-span and "is the term for" scrubs are gone.
+- **Step 4:** 31 patterns added by intent (certainty, directive idioms, sentence-initial verb
+  plus ticker or contract id, "I'd suggest", "if I were you", "make sure to buy", "time to sell",
+  evaluative "smart move"/"the one to own"/"top pick"/"high-conviction", rating labels at the
+  start of a sentence, "won't last"). Two false positives found by the suite and fixed: "must
+  own the shares" (dividend dates) now needs the hyphenated "must-own"; "none of them a
+  recommendation:" (goal levers) needs the label at a sentence start. The old imperative
+  pattern now fires only at a sentence start or after "just/so/then/now/please/go".
+- **Step 5:** `non_english(text)`: over 30% non-Latin letters, or at least 3 Spanish, French,
+  German, Italian or Portuguese function words outnumbering English ones, fails as
+  `non_english` (notice paragraphs exempt).
+- **Knock-on in the rule writer:** `llm/rules.py` no longer quotes a source excerpt or social
+  post that `check_language` would reject; the "Evidence behind the signal" paragraph says how
+  many posts were held back. The W13 hostile post ("NKE is the one to own") is now counted, not
+  quoted (`test_chat.py`).
+- **Step 7:** `evals/run_evals.py` reports the three sets as separate rows (in-sample gated,
+  dev and blind INFO). README and PRD give the in-sample and blind numbers.
+  `evals/reports/latest.md` has not been regenerated (`make eval`).
+- Tests: 25 new cases in `test_compliance.py` (evasions, closed allow-list holes,
+  the five audit misses, normalisation), `test_mutation_compliance.py` and `docs/compliance.md`
+  rows 7 and 8 updated for the closed holes.
+
 Suggested commit: `fix(compliance): normalise text before language checks; held-out advice eval`
 
 ---
@@ -2026,6 +2078,72 @@ unchanged at 28.
 
 Suggested commit: `fix(math): dated beta, model probability in LEAPS ranking, stale-quote guard`
 
+**Status, 2026-11-12:** all seven steps done in the working tree.
+- **Diagnosis on the fixtures:** returns of QQQ correlate 0.90 with SPY at lag 0, but AAPL's
+  correlate about 0 at every lag from −3 to +3 and COST's −0.22 at lag 0, so the undated
+  yfinance closes cannot be aligned and gave AAPL −0.01 and COST −0.39.
+- `core/holdings.beta(closes, index, *, min_returns)` takes `(date, close)` pairs, joins on the
+  dates both have and needs `holdings.beta_min_returns` (60, new in `config/holdings.yaml`)
+  common returns, else `None`. `MIN_BETA_POINTS` (20) is gone.
+- `get_dated_close_history` on `MarketDataAppSource` (candle `t` of the same once-a-day year
+  series, so no extra credits), `TradierSource` (row `date`), `UnavailableSource` (fails), and
+  the facade (cached as ISO pairs). `FixtureSource` raises "fixture closes carry no dates": on
+  fixtures every beta is `None` and the analysis notes "beta not computed: no dated SPY closes";
+  the reply drops the beta-weighted line, which it already did for `None`.
+- `holdings_analysis._betas` uses dated closes for the stock and for `beta_index` (no longer the
+  index-history path), and notes the tickers left without a beta.
+- Tests: `test_holdings.py` (dated scale test, a gap near the end that the old truncation got
+  wrong by more than 0.5, disjoint dates, fixture refusal), dated rows in
+  `test_marketdata_source.py` and `test_tradier_source.py` (its fake history now has distinct
+  dates), and the chat holdings turn asserts no beta on fixtures.
+- **Step 1 follow-up (user, 2026-11-12): beta ranges, a year of history, one portfolio
+  regression.** `core/holdings.beta_fit` returns the OLS slope with its standard error
+  (`BetaFit.interval`, normal approximation); `HoldingValue.beta_low/beta_high` carry the
+  `holdings.beta_interval` (0.95, new) range. `portfolio_beta_fit` regresses the portfolio's
+  value-weighted daily returns on the index over the dates all holdings share: its slope equals
+  the weighted sum of betas, and its range counts the holdings moving together;
+  `HoldingsAnalysis.beta_weighted_exposure` (with `_low`, `_high`, `beta_interval`) now comes
+  from it. `beta_lookback_days` 90 → 252 (MarketData.app slices the year it already fetches, so no
+  extra credits; the range narrows about 1.7x). The reply says "beta-weighted exposure to the
+  index is X (95% range L to H, estimated from daily returns)", with the range figures in the
+  payload so number grounding checks them; the Portfolio tab adds a "Beta range" column and the
+  exposure range in the metric's help; the generated holdings rules page describes the method.
+  Fixture runs are unchanged (no dates, no beta). Tests: the OLS standard error against a
+  hand computation, a noise-free series giving a zero-width range, the portfolio slope equal to
+  the weighted betas, `analyse_holdings` ranges, and a chat holdings turn on dated closes whose
+  range text passes compliance.
+- **Step 2:** `ranking.option_quality` scores a LEAPS on `1 − prob_otm` (the BSM probability of
+  finishing in the money from the same inputs as the price), not delta. **Knock-on:** the
+  LEAPS-led names fall and NKE, whose best line is a put, rises from sixth to third
+  underlying (SPY, QQQ, NKE, AAPL, COST). A $100k balanced margin account now sizes 3 NKE
+  puts and 1 NKE LEAPS instead of nothing (`test_100k_sizes_nke_once_leaps_rank_on_their_model_probability`;
+  policy B is still pinned with a top-2 test). The $1M golden re-recorded: SPY's LEAPS line is
+  now the 2028-01-21 600C, capital used $169,028 (was $175,726), 8 of 8 pass.
+- **Step 3:** a LEAPS mid more than `leaps.intrinsic_tolerance` (0.05 $/share, new) below
+  intrinsic is rejected as stale; within it the extrinsic is 0 and the candidate flagged
+  `mid_at_intrinsic`. The extrinsic sort tests `is None` explicitly (a zero sorts first).
+- **Step 4:** `HoldingsAnalysis.etf_expense_ratio` (value-weighted across the ETFs) beside
+  `weighted_expense_ratio` (the portfolio-wide drag). The reply says "the ETF holdings carry an
+  average expense ratio of 0.095% a year, a drag of 0.018% a year on the whole portfolio"; the
+  UI metric is "Expense ratio (ETFs)" with the drag in its help. Found on the way: the reply's
+  `str.capitalize()` lower-cased the whole sentence ("The etfs", "covered call: aapl"); fixed.
+- **Step 5:** the caption "The score counts each ticker as one position: an index fund is
+  treated as a single holding." in the reply and as the UI metric's help.
+- **Step 6:** confirmed: Rev. Rul. 66-7 counts in calendar months, and *Caspe v. United States*,
+  694 F.2d 1116 (8th Cir. 1982), held that property bought 30 November was held more than six
+  months only from 1 June. `tax.long_term_threshold` now gives an asset acquired on the last day
+  of a month long-term status from the first day of the month after the twelfth (2023-02-28 →
+  2024-03-01, was 2024-02-29); other dates keep the day after the anniversary. The
+  `config/tax.yaml` comment no longer says "at least 366 days"; `knowledge/tax/short_term_vs_long_term.md`
+  gains the month-end sentence and the ruling as a source (`make index` rerun). Eight
+  parametrised cases in `test_tax.py`. Caspe applied the old six-month test; the one-year
+  application is the same count but has not been checked by a tax professional.
+- **Step 7:** `reporting.pmcc_min_options_level` (3, new): a sized PMCC with no stated options
+  level, or a lower one, gets a risk warning that a diagonal needs spread approval, usually at
+  that level and often only in a margin account. Tests in `test_mutation_risk.py`.
+- `docs/demo-video-script.md` section 0.4 rechecked: the puts-only figures are unchanged; with
+  LEAPS and PMCC left in, $100k now also sizes 1 NKE LEAPS and NKE is no longer last.
+
 ---
 
 ### W26. Knowledge-base corrections
@@ -2391,6 +2509,21 @@ short put without its realistic loss, so asking about a put that was not sized f
 `check_education_only` three times and fell back to "could not produce an explanation". Each
 CSP rank line now carries its per-contract realistic loss at the −30% move
 (`run_facts_chunk(rep, realistic_loss_drop=...)`), with an assertion in `test_education.py`.
+**Decided (user, 2026-11-12): the demo runs at $1,000,000.** `cli.py` defaults `--buying-power`
+to 1,000,000 for `demo` and `demo-core`, and `test_agents.py:DEMO_REQUEST` matches. The golden
+report was re-recorded: 8 positions sized (SPY, QQQ, AAPL, MSFT, COST, NKE; 3 puts, 5 LEAPS),
+8 of 8 constraints pass with `max_loss_per_position` (0.030) and `portfolio_loss` (0.197 of 0.200)
+binding, stress −14.3% at −30%, 95 numbers grounded. The $100k "too small" path stays pinned
+by `test_ranking_sizing_risk.py`. `docs/demo-video-script.md` (section 0.4, 2026-11-12) now
+records at $50,000 or $100,000 with the figures each produces: the scene profile is
+cash-secured puts only, which sizes 1 or 2 NKE puts, and the scene 4 what-if is $60,000 margin
+(1 NKE put, Reg T $552 beside $814). Found on the way and fixed: a "why" turn about an unsized
+put failed `check_education_only` and fell back, because the run-facts "Skipped in sizing"
+line named the put without its loss (`knowledge_retrieval.py:run_facts_chunk`; test
+`test_chat.py::test_why_about_an_unsized_put_passes_compliance`). Also found and fixed the same
+day: the fixture betas for AAPL (−0.01) and COST (−0.39) (W25 step 1, see there), and the margin
+warning, the `assignment_cash_x` detail and the report row naming "LEAPS debits" for a
+puts-only book (now only when `leaps_cost > 0`; test in `test_mutation_risk.py`).
 
 Suggested commit: `fix(universe): signals promote only above a threshold; a low score no longer penalises`
 

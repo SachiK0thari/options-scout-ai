@@ -209,7 +209,8 @@ Measured by `make eval` on 2026-11-08 in fixture data mode with the hash embedde
 | Prompt injection (30 adversarial posts), rule-based / LLM | 0/30 / 0/30 | 0 influenced |
 | Numeric grounding rate (6 end-to-end runs) | 100.0% | 100% |
 | Constraint / policy / trajectory compliance | 6/6 / 6/6 / 6/6 | 6/6 each |
-| Education-vs-advice separation (34 advice + 10 clean narratives) | 34/34 advice caught · 0/10 clean rejected | 100% caught, ≤ 1 false positive |
+| Education-vs-advice separation, in-sample (34 advice + 10 clean narratives; rows mirror the patterns) | 34/34 advice caught · 0/10 clean rejected | 100% caught, ≤ 1 false positive |
+| Advice language, blind held-out (40 advice + 15 clean, written without seeing the patterns; `check_language` only) | 23/40 advice caught · 3/15 clean rejected | reported (was 12/40 before W15) |
 | Suitability gate (20 synthetic reports) | 20/20 | 100% |
 | Intent routing (100 messages, ten intents), rule-based / LLM | 100% / 100% | ≥ 90% |
 | Retrieval recall@6 on 63 labelled questions, hash embedder | 0.84 (53/63) · MRR 0.60 | ≥ 0.70 (hash) |

@@ -108,7 +108,7 @@ def test_an_empty_book_checks_zero_everywhere_with_exact_details() -> None:
         "portfolio_loss": (0.0, "every position at -30% together: $0 of $100,000"),
         "assignment_cash_x": (
             0.0,
-            "cash if every put is assigned plus LEAPS debits: $0 vs buying power $50,000",
+            "cash if every put is assigned: $0 vs buying power $50,000",
         ),
         "dollar_delta_x": (0.0, "net dollar delta $0"),
         "ticker_concentration_after_assignment": (
@@ -461,6 +461,16 @@ def test_report_margin_warning(account: str, margin_used: float, expected: list[
     assert rep.warnings == expected
 
 
+def test_report_margin_warning_names_leaps_debits_only_when_there_are_any() -> None:
+    """A puts-only margin book is not told about LEAPS debits it does not have."""
+    port, profile, _ = _book()
+    totals = port.totals.model_copy(update={"margin_used": 5_500, "leaps_cost": 0.0})
+    port = port.model_copy(update={"totals": totals})
+    profile = profile.model_copy(update={"account_type": "margin"})
+    (text,) = risk.build_risk_report(port, profile, _LOOSE, [], {}).warnings
+    assert "assignment of every put would need $" in text and "LEAPS" not in text
+
+
 def test_report_margin_warning_on_cents_of_margin() -> None:
     port, profile, _ = _book()
     port = port.model_copy(update={"totals": port.totals.model_copy(update={"margin_used": 0.5})})
@@ -605,3 +615,49 @@ def test_suitability_facts_empty_book(strategies: set[str], leaps_requested: boo
     assert facts.leaps_requested is leaps_requested
     assert facts.single_ticker is None and facts.ranking_not_followed is False
     assert facts.account_too_small is True
+
+
+# --------------------------------------------- W25 step 7: a sized PMCC needs spread approval
+def _pmcc_book() -> SizedPortfolio:
+    lp = _pos(
+        "LEAPS-AAA", "leaps", "AAA", "Tech", notional=5_000, margin_used=0, loss=5_000, ddelta=0
+    )
+    lp = lp.model_copy(update={"pmcc_short_call_id": "PMCCSC-AAA"})
+    return SizedPortfolio(positions=[lp], totals=_ZERO)
+
+
+@pytest.mark.parametrize(
+    ("level", "expected"),
+    [
+        (
+            None,
+            "LEAPS-AAA is sized as a poor man's covered call, a diagonal spread: brokers approve "
+            "spreads separately, usually at options level 3, and many only in a margin account. "
+            "No options approval level was given.",
+        ),
+        (
+            2,
+            "LEAPS-AAA is sized as a poor man's covered call, a diagonal spread: brokers approve "
+            "spreads separately, usually at options level 3, and many only in a margin account. "
+            "The stated options level is 2.",
+        ),
+        (3, None),
+    ],
+)
+def test_report_notes_spread_approval_for_a_sized_pmcc(
+    level: int | None, expected: str | None
+) -> None:
+    profile = _profile_for(100_000).model_copy(update={"options_level": level})
+    rep = risk.build_risk_report(_pmcc_book(), profile, _LOOSE, [], {})
+    notes = [w for w in rep.warnings if "poor man's covered call" in w]
+    assert notes == ([expected] if expected else [])
+
+
+def test_plain_leaps_needs_no_spread_note() -> None:
+    lp = _pos(
+        "LEAPS-AAA", "leaps", "AAA", "Tech", notional=5_000, margin_used=0, loss=5_000, ddelta=0
+    )
+    rep = risk.build_risk_report(
+        SizedPortfolio(positions=[lp], totals=_ZERO), _profile_for(100_000), _LOOSE, [], {}
+    )
+    assert not any("poor man's covered call" in w for w in rep.warnings)

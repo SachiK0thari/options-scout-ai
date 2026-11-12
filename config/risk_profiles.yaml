@@ -48,5 +48,6 @@ reporting:
   top_tickers: 5              # the ranking is judged on its best 5 distinct underlyings
   require_top_ranked: true    # none of those fits -> size nothing, say the account is too small
   low_deployment_pct: 0.50    # capital used below half the requested buckets is reported
+  pmcc_min_options_level: 3   # W25: a sized PMCC is a spread; a lower or missing stated level is noted
 
 realistic_loss_drop: 0.30   # CSP realistic loss = loss if the stock drops 30% at expiry

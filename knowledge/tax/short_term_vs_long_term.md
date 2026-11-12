@@ -1,11 +1,11 @@
 ---
 id: short-term-vs-long-term
 title: "Short-term vs long-term: the more-than-one-year test for shares and LEAPS"
-source: "IRS Tax Topic 409, Capital gains and losses; IRS Publication 550, chapter 4, Holding Period"
+source: "IRS Tax Topic 409, Capital gains and losses; IRS Publication 550, chapter 4, Holding Period; Rev. Rul. 66-7, 1966-1 C.B. 188"
 url: https://www.irs.gov/taxtopics/tc409
 kind: tax
 level: beginner
-as_of: 2026-11-04
+as_of: 2026-11-12
 ---
 
 # Short-term vs long-term: the more-than-one-year test for shares and LEAPS
@@ -14,7 +14,7 @@ When a capital asset such as a share or an option is sold, the gain or loss is l
 
 ## Counting the days
 
-IRS Publication 550's "Holding Period" section explains how to count. The holding period begins on the day **after** the asset is acquired and includes the day it is sold. To be long-term, the sale must occur after the same calendar date in the following year. Suppose shares were acquired on 10 March; a sale on 10 March of the next year is still one year, so short-term, while a sale on 11 March is more than one year, so long-term. There is no rounding; one day decides the label.
+IRS Publication 550's "Holding Period" section explains how to count. The holding period begins on the day **after** the asset is acquired and includes the day it is sold. To be long-term, the sale must occur after the same calendar date in the following year. Suppose shares were acquired on 10 March; a sale on 10 March of the next year is still one year, so short-term, while a sale on 11 March is more than one year, so long-term. There is no rounding; one day decides the label. The count is in calendar months, so an asset acquired on the last day of a month is long-term from the first day of the month after the twelfth: bought on 28 February 2023, it is long-term from 1 March 2024, not from 29 February (Revenue Ruling 66-7).
 
 ## Shares acquired by assignment
 

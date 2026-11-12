@@ -35,6 +35,7 @@ leaps:
   # max_extrinsic_per_year_pct above stays the hard filter.
   rank_by: carry                      # carry | extrinsic
   carry_score_cap: 0.05               # a carry at or above this scores 0 on the cost term
+  intrinsic_tolerance: 0.05           # W25: $/share a mid may sit below intrinsic (S - K) before the quote counts as stale
 
 pmcc:
   dte_min: 30

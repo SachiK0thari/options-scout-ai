@@ -455,7 +455,11 @@ def render_portfolio(
             ["Net dollar delta", f"{t.dollar_delta:,.0f}"],
             ["Net premium (income − debits)", f"{t.premium_income:,.0f}"],
             [reserve_label(account_type), money(t.cash_reserve)],
-            ["Cash needed if every put is assigned (+ LEAPS debits)", money(t.assignment_cash)],
+            [
+                "Cash needed if every put is assigned"
+                + (" (+ LEAPS debits)" if t.leaps_cost > 0 else ""),
+                money(t.assignment_cash),
+            ],
         ],
     )
     if account_type == "portfolio_margin":

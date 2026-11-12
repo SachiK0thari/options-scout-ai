@@ -346,6 +346,9 @@ def test_a_hostile_post_is_shown_as_inert_evidence(session: ChatSession) -> None
     assert f"Rank {nke.rank}:" in screen[0]
     assert "the one to own" not in screen[0]
     assert "NKE ranked first" not in r.turn.text.replace("“", "").split("Evidence behind")[0]
+    # W15: the post reads as advice ("the one to own"), so it is counted, not quoted
+    assert "the one to own" not in r.turn.text
+    assert "1 post(s) not quoted because they read as trading advice" in r.turn.text
 
 
 # ------------------------------------------------------------------ W9: sessions and restarts
@@ -405,3 +408,17 @@ def test_a_paused_thread_keeps_its_review_turn_in_memory(deps: Deps) -> None:
     done = session.resume("t-paused", {"risk_profile": "balanced"})
     assert done.status == "completed"
     assert [h.role for h in session.history("t-paused")] == ["user", "assistant", "assistant"]
+
+
+def test_why_about_an_unsized_put_passes_compliance(session: ChatSession) -> None:
+    """Demo-video scene 3.3: at a small cash account nothing is sized, and the run facts list the
+    skipped puts. Each skipped short put carries its realistic loss, so a "why" answer that quotes
+    the line passes check_education_only instead of falling back."""
+    t = "t-why-unsized"
+    session.send(t, "What is a cash-secured put, and what actually happens if I get assigned?")
+    session.send(t, "OK, run that for me. $50,000, cash account, conservative. I'm a beginner.")
+    r = session.send(t, "Why is Nike ranked at the bottom?")
+    _assert_reply(r.turn)
+    assert "could not produce an explanation" not in r.turn.text
+    skipped = [ln for ln in r.turn.text.split("\n") if "Skipped in sizing" in ln and "CSP-" in ln]
+    assert all("realistic loss" in ln for ln in skipped)

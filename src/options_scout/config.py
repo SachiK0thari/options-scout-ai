@@ -300,6 +300,9 @@ class SizingReporting(_Strict):
     require_top_ranked: bool = True
     # capital used below this share of the requested strategy buckets is reported
     low_deployment_pct: float = Field(default=0.5, ge=0.0, le=1.0)
+    # W25 step 7: a sized PMCC is a diagonal spread; below this stated options level (or with
+    # none stated) the report notes that spread approval is needed
+    pmcc_min_options_level: int = Field(default=3, ge=1)
 
 
 class RiskProfiles(_Strict):
@@ -344,6 +347,9 @@ class LEAPSRules(_Strict):
     # W3: sort and score on carry (dividends forgone, interest saved) or on raw extrinsic
     rank_by: Literal["carry", "extrinsic"] = "carry"
     carry_score_cap: float = Field(default=0.05, gt=0)  # carry at or above this scores 0
+    # W25: a mid more than this ($ per share) below intrinsic is a stale quote and is rejected;
+    # within it the extrinsic is taken as 0 and the candidate flagged mid_at_intrinsic
+    intrinsic_tolerance: float = Field(default=0.05, ge=0)
 
 
 class PMCCRules(_Strict):
@@ -1003,6 +1009,8 @@ class HoldingsConfig(_Strict):
     covered_call_lot: int = Field(ge=1)
     beta_lookback_days: int = Field(ge=10)
     beta_index: str = Field(min_length=1)
+    beta_min_returns: int = Field(ge=2)  # W25: common dated returns needed for a beta
+    beta_interval: float = Field(default=0.95, gt=0, lt=1)  # confidence level of the ranges
     expense_ratios_pct: dict[str, float] = Field(default_factory=dict)
     sectors: dict[str, str] = Field(default_factory=dict)
 
@@ -1167,7 +1175,8 @@ class ComplianceConfig(_Strict):
     reminder: str = "Education, not advice."
     require_delayed_data_statement: bool = True
     banned_patterns: list[BannedPattern]
-    allow_list: list[str] = Field(default_factory=list)
+    # W15: exact glossary terms exempt inside cited education paragraphs; plain text, not regexes
+    allow_terms: list[str] = Field(default_factory=list)
     suitability: SuitabilityConfig
     goal: GoalComplianceConfig = Field(default_factory=GoalComplianceConfig)  # check 9 (Phase 12)
     tax: TaxComplianceConfig = Field(default_factory=TaxComplianceConfig)  # check 11 (Phase 12)
@@ -1179,8 +1188,6 @@ class ComplianceConfig(_Strict):
 
         for bp in self.banned_patterns:
             re.compile(bp.pattern, re.IGNORECASE)
-        for a in self.allow_list:
-            re.compile(a, re.IGNORECASE)
         re.compile(self.goal.promise_pattern, re.IGNORECASE)
         re.compile(self.tax.rate_pattern, re.IGNORECASE)
         re.compile(self.tax.imperative_pattern, re.IGNORECASE)

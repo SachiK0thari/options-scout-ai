@@ -72,7 +72,7 @@ from tests.conftest import REPO_ROOT
 
 GOLDEN = REPO_ROOT / "tests" / "fixtures" / "reports" / "phase9_demo_report.md"
 DEMO_REQUEST = (  # what `make demo` sends with its defaults
-    "I have $100,000 of buying power in a margin account, balanced risk tolerance. "
+    "I have $1,000,000 of buying power in a margin account, balanced risk tolerance. "
     "Show me CSPs and LEAPS/PMCC ideas."
 )
 PHASE9_NODE_SEQUENCE = [  # recorded from the Phase 9 graph on the same request

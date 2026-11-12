@@ -765,34 +765,52 @@ def eval_compliance(res: Results, cfg: Any) -> None:
             tag="S1",
         )
     ]
-    caught = advice_total = false_pos = clean_total = 0
-    missed: list[str] = []
-    for row in _jsonl(DATASETS / "advice_narratives.jsonl"):
-        narrative = Narrative.model_validate({"paragraphs": row["paragraphs"]})
-        lang = check_language(narrative, cfg.compliance)
-        mode = check_education_only(narrative, payload, ["COST", "NKE", "SPY"])
-        cites = check_citations(narrative, sources)  # "education paragraphs must carry citations"
-        rejected = not (lang.passed and mode.passed and cites.passed)
-        if row["label"] == "advice":
-            advice_total += 1
-            caught += int(rejected)
-            if not rejected:
-                missed.append(row["id"])
-        else:
-            clean_total += 1
-            if rejected:
-                false_pos += 1
-                missed.append(
-                    f"{row['id']} (false positive: {lang.detail if not lang.passed else mode.detail})"
-                )
-    res.add(
-        "11.3a Compliance",
-        "Education-vs-advice separation (check_language / check_education_only / check_citations)",
-        f"{caught}/{advice_total} advice caught · {false_pos}/{clean_total} clean rejected",
-        "100% caught, ≤ 1 false positive",
-        "PASS" if caught == advice_total and false_pos <= 1 else "FAIL",
-        "; ".join(missed),
-    )
+    # W15 step 7: the in-sample rows (whose `reason` mirrors the patterns) are reported apart from
+    # two sets the patterns were not tuned on: the dev set, written before the W15 patterns by the
+    # person who then wrote them, and the blind set, written by someone who never saw the patterns
+    # and whose text is not printed here (ids only), so it can stay blind.
+    # The dev and blind rows name contracts and source tags this fixed payload does not hold, so on
+    # those sets only check_language decides (the in-sample set also exercises the other two).
+    for fname, title, target, gate, show_text in (
+        ("advice_narratives.jsonl", "in-sample", "100% caught, ≤ 1 false positive", True, True),
+        ("advice_dev.jsonl", "dev set, check_language only", "reported", False, True),
+        ("advice_blind.jsonl", "blind held-out, check_language only", "reported", False, False),
+    ):
+        path = DATASETS / fname
+        if not path.exists():
+            continue
+        caught = advice_total = false_pos = clean_total = 0
+        missed: list[str] = []
+        for row in _jsonl(path):
+            narrative = Narrative.model_validate({"paragraphs": row["paragraphs"]})
+            lang = check_language(narrative, cfg.compliance)
+            mode = check_education_only(narrative, payload, ["COST", "NKE", "SPY"])
+            cites = check_citations(
+                narrative, sources
+            )  # "education paragraphs must carry citations"
+            rejected = (
+                not (lang.passed and mode.passed and cites.passed) if gate else not lang.passed
+            )
+            if row["label"] == "advice":
+                advice_total += 1
+                caught += int(rejected)
+                if not rejected:
+                    missed.append(row["id"])
+            else:
+                clean_total += 1
+                if rejected:
+                    false_pos += 1
+                    why = lang.detail if not lang.passed else mode.detail
+                    missed.append(f"{row['id']} (false positive{': ' + why if show_text else ''})")
+        passed = caught == advice_total and false_pos <= 1
+        res.add(
+            "11.3a Compliance",
+            f"Education-vs-advice separation, {title} ({fname})",
+            f"{caught}/{advice_total} advice caught · {false_pos}/{clean_total} clean rejected",
+            target,
+            ("PASS" if passed else "FAIL") if gate else "INFO",
+            "; ".join(missed),
+        )
     correct = 0
     wrong: list[str] = []
     cases = _jsonl(DATASETS / "suitability_cases.jsonl")

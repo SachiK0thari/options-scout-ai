@@ -157,9 +157,26 @@ def _anniversary(d: date) -> date:
         return d.replace(year=d.year + 1, day=28)
 
 
+def _is_month_end(d: date) -> bool:
+    return (d + timedelta(days=1)).month != d.month
+
+
 def long_term_threshold(acquired: date) -> date:
-    """The first sale date whose gain is long-term: the holding period starts the day after
-    acquisition, and "more than one year" is met the day after the first anniversary."""
+    """The first sale date whose gain is long-term ("held more than one year"). The holding
+    period starts the day after acquisition and is counted in calendar months (Rev. Rul. 66-7).
+
+    For property acquired on the last day of a month the months run from the next month, so the
+    gain is long-term from the first day of the month after the twelfth (W25 step 6). This
+    differs from "the day after the anniversary" only when the twelfth month is a leap February:
+    acquired 2023-02-28, long-term from 2024-03-01, not 2024-02-29. Caspe v. United States,
+    694 F.2d 1116 (8th Cir. 1982), applies the same count to the old six-month test: bought
+    30 November, held more than six months only from 1 June.
+    """
+    if _is_month_end(acquired):
+        year, month = (acquired.year + 1, acquired.month + 1)
+        if month == 13:
+            year, month = year + 1, 1
+        return date(year, month, 1)
     return _anniversary(acquired) + timedelta(days=1)
 
 

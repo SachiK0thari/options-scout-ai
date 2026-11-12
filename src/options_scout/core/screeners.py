@@ -32,6 +32,9 @@ FLAG_IV_DISAGREES = "iv_disagrees"  # provider and solved figures differ by more
 FLAG_EARNINGS_UNKNOWN = "earnings_unknown"  # single stock with no known earnings date
 FLAG_EARNINGS_ESTIMATED = "earnings_estimated"  # date estimated from the reporting cadence
 FLAG_DIVIDEND_UNKNOWN = "dividend_unknown"  # dividend lookup failed; yield assumed 0.0
+FLAG_MID_AT_INTRINSIC = (
+    "mid_at_intrinsic"  # LEAPS mid at or just below S - K; extrinsic taken as 0 (W25)
+)
 _DEFAULT_IV_RULES = ImpliedVolRules()
 
 
@@ -290,7 +293,12 @@ def screen_leaps(
             if c is None or not (rules.delta_min <= c.delta <= rules.delta_max):
                 continue
             c.intrinsic = margin.leaps_intrinsic(snap.spot.price, c.strike)
-            c.extrinsic = margin.leaps_extrinsic(snap.spot.price, c.strike, c.mid)
+            extrinsic = margin.leaps_extrinsic(snap.spot.price, c.strike, c.mid)
+            if extrinsic < -rules.intrinsic_tolerance:
+                continue  # W25: quoted below intrinsic, an arbitrage nobody offers: stale quote
+            if extrinsic < 0:
+                c.flags.append(FLAG_MID_AT_INTRINSIC)  # within the tolerance: treated as zero
+            c.extrinsic = max(extrinsic, 0.0)
             c.extrinsic_per_year_pct = margin.extrinsic_per_year_pct(
                 snap.spot.price, c.extrinsic, c.dte
             )
@@ -322,7 +330,13 @@ def screen_leaps(
             )
         )
     else:
-        out.sort(key=lambda c: ((c.extrinsic_per_year_pct or 0.0), -c.dte))
+        out.sort(  # an extrinsic of exactly 0 is the cheapest, not missing (W25)
+            key=lambda c: (
+                c.extrinsic_per_year_pct is None,
+                c.extrinsic_per_year_pct if c.extrinsic_per_year_pct is not None else 0.0,
+                -c.dte,
+            )
+        )
     return out
 
 

@@ -64,7 +64,7 @@ class UserProfile(Model):
     watchlist: list[str] = Field(default_factory=list)
     exclude: list[str] = Field(default_factory=list)
     max_positions: int = Field(default=8, ge=1, le=50)
-    options_level: int | None = None  # broker approval level, informational only
+    options_level: int | None = None  # broker approval level; a sized PMCC below it is noted (W25)
     knowledge_level: KnowledgeLevel | None = None  # Phase 12: caps retrieval, sets the prose level
 
     @field_validator("watchlist", "exclude", mode="before")
@@ -976,6 +976,8 @@ class HoldingValue(Model):
     expense_ratio: float | None  # fraction per year, ETFs only
     beta: float | None
     covered_call_lots: int
+    beta_low: float | None = None  # the beta's range at HoldingsAnalysis.beta_interval
+    beta_high: float | None = None
 
 
 class PostAssignment(Model):
@@ -996,8 +998,12 @@ class HoldingsAnalysis(Model):
     hhi: float
     effective_positions: float
     diversification_score: float  # 0-100 = 100 x (1 - HHI)
-    weighted_expense_ratio: float | None
+    weighted_expense_ratio: float | None  # portfolio-wide drag: sum of weight x ratio (W25)
+    etf_expense_ratio: float | None = None  # value-weighted ratio across the ETF holdings only
     beta_weighted_exposure: float | None  # sum of weight x beta over positions with a beta
+    beta_weighted_exposure_low: float | None = None  # range of the portfolio regression
+    beta_weighted_exposure_high: float | None = None
+    beta_interval: float | None = None  # confidence level of the ranges, e.g. 0.95
     largest_position: str | None
     largest_sector: str | None
     covered_call_eligible: list[str]

@@ -543,3 +543,49 @@ def test_bottleneck_flags_thresholds_earnings_catalyst_and_count() -> None:
         [lone], [], [_signal("TEST", 70.0)], {}, rules=rules, today=TODAY
     )
     assert n2 == 1 and lone.flags == [screeners.FLAG_BOTTLENECK_SUPPORT]
+
+
+# ------------------------------------------------------------ W25 step 3: stale LEAPS quotes
+def test_leaps_quote_below_intrinsic_is_rejected_as_stale() -> None:
+    """A deep ITM call quoted below its intrinsic value (S − K) is an arbitrage the market does
+    not offer: the quote is stale. It used to give a negative extrinsic and rank first."""
+    wide = LEAPS.model_copy(update={"max_spread_pct": 1.0})
+    # S 100, K 80: intrinsic 20. Mid 19.00 is a full dollar below it: rejected.
+    stale = _raw("call", 80, 600, bid=18.9, ask=19.1, iv=0.3)
+    assert _leaps(_snap([_chain(600, calls=[stale])]), wide) == []
+    # mid 19.98, within the 0.05 tolerance: kept, extrinsic clamped to 0 and flagged
+    (at,) = _leaps(_snap([_chain(600, calls=[_raw("call", 80, 600, 19.93, 20.03, 0.3)])]), wide)
+    assert at.extrinsic == 0.0 and at.extrinsic_per_year_pct == 0.0
+    assert "mid_at_intrinsic" in at.flags
+    # a normal quote above intrinsic carries no flag
+    (ok,) = _leaps(_snap([_chain(600, calls=[_raw("call", 80, 600, 23.9, 24.1, 0.3)])]), wide)
+    assert ok.extrinsic > 0 and "mid_at_intrinsic" not in ok.flags
+
+
+def test_leaps_extrinsic_sort_keeps_a_zero_extrinsic_first() -> None:
+    """An extrinsic of exactly 0 is the cheapest possible, not a missing value (W25 step 3)."""
+    wide = LEAPS.model_copy(update={"max_spread_pct": 1.0, "rank_by": "extrinsic"})
+    chain = _chain(
+        600,
+        calls=[
+            _raw("call", 80, 600, 23.9, 24.1, 0.3),  # extrinsic 4
+            _raw("call", 75, 600, 24.99, 25.01, 0.3),  # at intrinsic 25: extrinsic 0
+        ],
+    )
+    out = _leaps(_snap([chain]), wide)
+    assert [c.strike for c in out] == [75, 80]
+
+
+def test_leaps_probability_term_is_the_model_probability_of_finishing_itm() -> None:
+    """W25 step 2: delta (about 0.83 for a deep ITM call) overstates the chance of finishing in
+    the money (about 0.69 for the audit's SPY 555C); the ranking now uses 1 − prob_otm."""
+    from options_scout.config import OptionQualityWeights, ScreenerRules
+    from options_scout.core import ranking
+
+    (c,) = _leaps(_snap([_chain(600, calls=[_raw("call", 80, 600, 23.9, 24.1, 0.3)])]))
+    c = c.model_copy(update={"delta": 0.83, "prob_otm": 0.31})
+    only_prob = OptionQualityWeights(
+        annualized_return=0.0, prob_otm=1.0, liquidity=0.0, iv_rank_fit=0.0
+    )
+    rules = ScreenerRules(csp=CSP, leaps=LEAPS, pmcc=PMCC)
+    assert ranking.option_quality(c, only_prob, rules) == pytest.approx(0.69)

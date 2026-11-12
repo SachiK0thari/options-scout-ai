@@ -10,6 +10,9 @@ from __future__ import annotations
 
 import math
 from collections.abc import Iterable, Mapping, Sequence
+from dataclasses import dataclass
+from datetime import date
+from statistics import NormalDist
 
 from options_scout.config import HoldingsConfig
 from options_scout.core.models import (
@@ -20,8 +23,6 @@ from options_scout.core.models import (
     PostAssignment,
 )
 from options_scout.core.sizing import concentration_base
-
-MIN_BETA_POINTS = 20
 
 
 def merge_holdings(holdings: Iterable[Holding]) -> list[Holding]:
@@ -65,24 +66,104 @@ def diversification_score(hhi_value: float) -> float:
     return 100.0 * (1.0 - min(max(hhi_value, 0.0), 1.0))
 
 
-def beta(closes: Sequence[float], index_closes: Sequence[float]) -> float | None:
-    """Slope of daily log returns on the index's: cov / var. ``None`` with too little history."""
-    n = min(len(closes), len(index_closes))
-    if n < MIN_BETA_POINTS:
+@dataclass(frozen=True)
+class BetaFit:
+    """An OLS beta of daily log returns on the index's, with its standard error."""
+
+    beta: float
+    se: float
+    n_returns: int
+
+    def interval(self, level: float) -> tuple[float, float]:
+        """The two-sided ``level`` range, beta ± z·se (normal approximation; with the 60 or more
+        returns ``beta_min_returns`` requires, t and z differ in the second decimal)."""
+        z = NormalDist().inv_cdf(0.5 + level / 2.0)
+        return self.beta - z * self.se, self.beta + z * self.se
+
+
+def _log_returns(series: Mapping[date, float], common: Sequence[date]) -> list[float]:
+    return [math.log(series[common[i]] / series[common[i - 1]]) for i in range(1, len(common))]
+
+
+def _ols(y: Sequence[float], x: Sequence[float]) -> BetaFit | None:
+    n = len(x)
+    if n < 3:
         return None
-    a = closes[-n:]
-    b = index_closes[-n:]
-    if any(x <= 0 for x in a) or any(x <= 0 for x in b):
+    mx, my = sum(x) / n, sum(y) / n
+    sxx = sum((v - mx) ** 2 for v in x)
+    if sxx <= 0:
         return None
-    ra = [math.log(a[i] / a[i - 1]) for i in range(1, n)]
-    rb = [math.log(b[i] / b[i - 1]) for i in range(1, n)]
-    mean_a = sum(ra) / len(ra)
-    mean_b = sum(rb) / len(rb)
-    var_b = sum((y - mean_b) ** 2 for y in rb)
-    if var_b <= 0:
+    slope = sum((a - mx) * (b - my) for a, b in zip(x, y, strict=True)) / sxx
+    rss = sum((b - my - slope * (a - mx)) ** 2 for a, b in zip(x, y, strict=True))
+    return BetaFit(beta=slope, se=math.sqrt(max(rss, 0.0) / (n - 2) / sxx), n_returns=n)
+
+
+def beta_fit(
+    closes: Sequence[tuple[date, float]],
+    index_closes: Sequence[tuple[date, float]],
+    *,
+    min_returns: int,
+) -> BetaFit | None:
+    """Slope of daily log returns on the index's, with its standard error, over the dates both
+    series have (W25 step 1: joined on date, never truncated to the same length, so one missing
+    bar cannot shift every later return by a day). ``None`` with fewer than ``min_returns``
+    common returns, a non-positive close or a flat index."""
+    a = dict(closes)
+    b = dict(index_closes)
+    common = sorted(a.keys() & b.keys())
+    if len(common) - 1 < max(min_returns, 2):
         return None
-    cov = sum((x - mean_a) * (y - mean_b) for x, y in zip(ra, rb, strict=True))
-    return cov / var_b
+    if any(a[d] <= 0 or b[d] <= 0 for d in common):
+        return None
+    return _ols(_log_returns(a, common), _log_returns(b, common))
+
+
+def beta(
+    closes: Sequence[tuple[date, float]],
+    index_closes: Sequence[tuple[date, float]],
+    *,
+    min_returns: int,
+) -> float | None:
+    """The point estimate of ``beta_fit``."""
+    fit = beta_fit(closes, index_closes, min_returns=min_returns)
+    return fit.beta if fit else None
+
+
+def portfolio_beta_fit(
+    weights: Mapping[str, float],
+    closes: Mapping[str, Sequence[tuple[date, float]]],
+    index_closes: Sequence[tuple[date, float]],
+    *,
+    min_returns: int,
+) -> BetaFit | None:
+    """Beta-weighted exposure as one regression: the value-weighted daily return of the holdings
+    in ``weights`` on the index's, over the dates all of them and the index share. Its slope is
+    the weighted sum of the betas (OLS is linear in the response); its standard error counts the
+    holdings moving together, which adding the separate ranges would not."""
+    if not weights:
+        return None
+    series = {t: dict(closes[t]) for t in weights if t in closes}
+    if len(series) < len(weights):
+        return None
+    idx = dict(index_closes)
+    common_set = set(idx)
+    for sr in series.values():
+        common_set &= sr.keys()
+    common = sorted(common_set)
+    if len(common) - 1 < max(min_returns, 2):
+        return None
+    if any(idx[d] <= 0 or sr[d] <= 0 for d in common for sr in series.values()):
+        return None
+    per = {t: _log_returns(sr, common) for t, sr in series.items()}
+    port = [sum(weights[t] * per[t][i] for t in per) for i in range(len(common) - 1)]
+    return _ols(port, _log_returns(idx, common))
+
+
+def _range(fit: BetaFit | None, level: float) -> tuple[float | None, float | None]:
+    if fit is None:
+        return None, None
+    lo, hi = fit.interval(level)
+    return lo, hi
 
 
 def covered_call_lots(shares: float, lot: int) -> int:
@@ -96,9 +177,28 @@ def analyse_holdings(
     sectors: Mapping[str, str],
     cfg: HoldingsConfig,
     betas: Mapping[str, float | None] | None = None,
+    *,
+    closes: Mapping[str, Sequence[tuple[date, float]]] | None = None,
+    index_closes: Sequence[tuple[date, float]] | None = None,
 ) -> HoldingsAnalysis:
-    """Value every holding at ``prices`` (tickers without a price are skipped and noted)."""
+    """Value every holding at ``prices`` (tickers without a price are skipped and noted).
+
+    With dated ``closes`` and ``index_closes`` each beta is fitted here with its
+    ``cfg.beta_interval`` range, and the beta-weighted exposure is the regression of the
+    portfolio's own weighted returns (``portfolio_beta_fit``) with its range. Without them,
+    ``betas`` are taken as given and no range is reported."""
     notes: list[str] = []
+    fits: dict[str, BetaFit | None] = {}
+    if closes is not None and index_closes is not None:
+        for t, sr in closes.items():
+            fits[t] = beta_fit(sr, index_closes, min_returns=cfg.beta_min_returns)
+        short = sorted(t for t, f in fits.items() if f is None)
+        if short:
+            notes.append(
+                f"beta unknown for {', '.join(short)}: fewer than {cfg.beta_min_returns} daily "
+                f"returns on dates shared with {cfg.beta_index}"
+            )
+        betas = {t: (f.beta if f else None) for t, f in fits.items()}
     merged = merge_holdings(holdings)
     valued: list[tuple[Holding, float]] = []
     for h in merged:
@@ -127,15 +227,31 @@ def analyse_holdings(
                 sector=sector,
                 expense_ratio=cfg.expense_ratio(h.ticker),
                 beta=(betas or {}).get(h.ticker),
+                beta_low=_range(fits.get(h.ticker), cfg.beta_interval)[0],
+                beta_high=_range(fits.get(h.ticker), cfg.beta_interval)[1],
                 covered_call_lots=covered_call_lots(h.shares, cfg.covered_call_lot),
             )
         )
         by_sector[sector] = by_sector.get(sector, 0.0) + weight
     h_index = hhi(p.weight for p in positions)
     with_er = [p for p in positions if p.expense_ratio is not None]
+    # W25 step 4: the drag on the whole portfolio, and the ratio across the ETFs alone
     weighted_er = sum(p.weight * (p.expense_ratio or 0.0) for p in with_er) if with_er else None
+    etf_weight = sum(p.weight for p in with_er)
+    etf_er = (weighted_er / etf_weight) if weighted_er is not None and etf_weight > 0 else None
     with_beta = [p for p in positions if p.beta is not None]
     beta_exposure = sum(p.weight * (p.beta or 0.0) for p in with_beta) if with_beta else None
+    exposure_range: tuple[float | None, float | None] = (None, None)
+    if fits and with_beta and closes is not None and index_closes is not None:
+        port_fit = portfolio_beta_fit(
+            {p.ticker: p.weight for p in with_beta},
+            closes,
+            index_closes,
+            min_returns=cfg.beta_min_returns,
+        )
+        if port_fit is not None:  # the one regression owns the figure and its range
+            beta_exposure = port_fit.beta
+            exposure_range = _range(port_fit, cfg.beta_interval)
     if with_beta and len(with_beta) < len(positions):
         notes.append(
             f"beta known for {len(with_beta)} of {len(positions)} positions; "
@@ -151,7 +267,11 @@ def analyse_holdings(
         effective_positions=(1.0 / h_index) if h_index > 0 else 0.0,
         diversification_score=diversification_score(h_index) if positions else 0.0,
         weighted_expense_ratio=weighted_er,
+        etf_expense_ratio=etf_er,
         beta_weighted_exposure=beta_exposure,
+        beta_weighted_exposure_low=exposure_range[0],
+        beta_weighted_exposure_high=exposure_range[1],
+        beta_interval=cfg.beta_interval if fits else None,
         largest_position=largest.ticker if largest else None,
         largest_sector=largest_sector[0] if largest_sector else None,
         covered_call_eligible=[p.ticker for p in positions if p.covered_call_lots >= 1],

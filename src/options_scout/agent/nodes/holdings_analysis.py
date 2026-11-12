@@ -10,6 +10,7 @@ computed too. No LLM.
 from __future__ import annotations
 
 from collections.abc import Callable
+from datetime import date
 from typing import Any
 
 from options_scout.agent.deps import Deps
@@ -45,23 +46,27 @@ def _prices_and_sectors(
     return prices, sectors, notes
 
 
-def _betas(deps: Deps, tickers: list[str]) -> dict[str, float | None]:
+DatedCloses = list[tuple[date, float]]
+
+
+def _dated_closes(
+    deps: Deps, tickers: list[str]
+) -> tuple[dict[str, DatedCloses] | None, DatedCloses | None, list[str]]:
+    """Dated closes of each holding and of ``beta_index`` (W25), for the betas, their ranges and
+    the portfolio regression ``analyse_holdings`` fits. A source without dates (the bundled
+    fixtures) gives none and says so, rather than a misaligned beta."""
     cfg = deps.cfg.holdings
     try:
-        index = deps.md.source.get_index_history(cfg.beta_index, cfg.beta_lookback_days)
-    except Exception:
-        try:
-            index = deps.md.get_close_history(cfg.beta_index, cfg.beta_lookback_days)
-        except Exception:
-            return {}
-    out: dict[str, float | None] = {}
+        index = deps.md.get_dated_close_history(cfg.beta_index, cfg.beta_lookback_days)
+    except Exception as exc:
+        return None, None, [f"beta not computed: no dated {cfg.beta_index} closes ({exc})"]
+    closes: dict[str, DatedCloses] = {}
     for t in tickers:
         try:
-            closes = deps.md.get_close_history(t, cfg.beta_lookback_days)
+            closes[t] = deps.md.get_dated_close_history(t, cfg.beta_lookback_days)
         except Exception:
             continue
-        out[t] = core_holdings.beta(closes, index)
-    return out
+    return closes, index, []
 
 
 def _post_assignment(state: AgentState, analysis: HoldingsAnalysis) -> list[Any]:
@@ -95,13 +100,13 @@ def make(deps: Deps) -> Callable[[AgentState], dict[str, Any]]:
             return {"holdings_analysis": None}
         tickers = sorted({h.ticker for h in holdings})
         prices, sectors, notes = _prices_and_sectors(deps, state, tickers)
-        betas = _betas(deps, [t for t in tickers if t in prices])
+        closes, index, beta_notes = _dated_closes(deps, [t for t in tickers if t in prices])
         analysis = core_holdings.analyse_holdings(
-            holdings, prices, sectors, deps.cfg.holdings, betas=betas
+            holdings, prices, sectors, deps.cfg.holdings, closes=closes, index_closes=index
         )
         post = _post_assignment(state, analysis) if analysis.positions else []
         analysis = analysis.model_copy(
-            update={"post_assignment": post, "notes": [*analysis.notes, *notes]}
+            update={"post_assignment": post, "notes": [*analysis.notes, *notes, *beta_notes]}
         )
         return {"holdings_analysis": analysis}
 

@@ -288,7 +288,7 @@ def main(argv: Sequence[str] | None = None) -> int:
         "demo", help="full agent pipeline on fixtures; prints the markdown report"
     )
     demo.add_argument("--request", default=None, help="free-text request")
-    demo.add_argument("--buying-power", type=float, default=100_000)
+    demo.add_argument("--buying-power", type=float, default=1_000_000)
     demo.add_argument("--risk", choices=["conservative", "balanced", "aggressive"])
     demo.add_argument("--account", choices=["cash", "margin", "portfolio_margin"])
     demo.add_argument(
@@ -303,7 +303,7 @@ def main(argv: Sequence[str] | None = None) -> int:
     core = sub.add_parser(
         "demo-core", help="deterministic screeners/sizing/risk, every profile × account"
     )
-    core.add_argument("--buying-power", type=float, default=100_000)
+    core.add_argument("--buying-power", type=float, default=1_000_000)
     core.add_argument("--account-value", type=float, default=None)
     core.add_argument("--risk", choices=["conservative", "balanced", "aggressive"])
     core.add_argument("--account", choices=["cash", "margin", "portfolio_margin"])

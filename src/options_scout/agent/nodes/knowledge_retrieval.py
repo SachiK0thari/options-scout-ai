@@ -18,7 +18,12 @@ from options_scout.agent.nodes.bottleneck_scout import fresh_snapshot
 from options_scout.agent.nodes.evidence_retrieval import BOARD_DOC_ID, board_chunks
 from options_scout.agent.state import AgentState
 from options_scout.core import margin
-from options_scout.core.models import BottleneckSignal, ScreeningReport, UserProfile
+from options_scout.core.models import (
+    BottleneckSignal,
+    OptionCandidate,
+    ScreeningReport,
+    UserProfile,
+)
 from options_scout.rag.models import Chunk, Kind, Level, RetrievalResult, level_rank
 from options_scout.rag.retriever import KnowledgeRetriever
 
@@ -194,17 +199,18 @@ def run_facts_chunk(rep: ScreeningReport, *, realistic_loss_drop: float) -> Chun
         if r.candidate.ticker not in tickers:
             tickers.add(r.candidate.ticker)
             shown.append(r)
+
+    def loss_of(c: OptionCandidate) -> str:
+        # a short put is never described without its loss, sized or not (check_education_only)
+        if c.strategy != "csp":
+            return ""
+        per = margin.csp_realistic_loss(c.spot, c.strike, c.mid, realistic_loss_drop, 1)
+        return f", realistic loss {per:,.0f} per contract at a -{realistic_loss_drop:.0%} move"
+
     for r in shown:
         c = r.candidate
         bflags = [f for f in c.flags if f.startswith(("bottleneck", "catalyst"))]
-        # a short put is never described without its loss, sized or not (check_education_only)
-        loss = (
-            f", realistic loss "
-            f"{margin.csp_realistic_loss(c.spot, c.strike, c.mid, realistic_loss_drop, 1):,.0f} "
-            f"per contract at a -{realistic_loss_drop:.0%} move"
-            if c.strategy == "csp"
-            else ""
-        )
+        loss = loss_of(c)
         lines.append(
             f"Rank {r.rank}: {c.id} ({c.ticker}) final score {r.final_score:.2f}, option quality "
             f"{r.option_quality:.2f}, stock quality {r.quality_score:.2f}, consumer-trend score "
@@ -214,8 +220,11 @@ def run_facts_chunk(rep: ScreeningReport, *, realistic_loss_drop: float) -> Chun
             + "."
         )
     lines.extend(bottleneck_fact_lines(rep.bottlenecks, {r.candidate.ticker for r in rep.ranked}))
+    by_id = {r.candidate.id: r.candidate for r in rep.ranked}
     for skipped in rep.portfolio.skipped:
-        lines.append(f"Skipped in sizing: {skipped}.")
+        # the skipped put carries its loss too: a "why" answer quotes this line verbatim
+        cand = by_id.get(str(skipped).split(":", 1)[0].strip())
+        lines.append(f"Skipped in sizing: {skipped}{loss_of(cand) if cand else ''}.")
     for p in rep.portfolio.positions:
         lines.append(
             f"Position {p.candidate_id}: {p.contracts} contract(s), capital used "

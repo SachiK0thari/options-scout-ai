@@ -57,8 +57,8 @@ The sentences below are checked against a fixed payload: one sized position `CSP
 | 4 | The premium is guaranteed income; realistic loss 12345. | screen_result | check_language | rejected |
 | 5 | Don't miss this one: the screen found CSP-COST-2026-12-18-850P with a realistic loss of 12345. | screen_result | check_language | rejected |
 | 6 | A cash-secured put obliges the writer to buy 100 shares per contract at the strike if assigned [S1]. | education | check_language | accepted |
-| 7 | Sell-to-open is the term for the order a put writer places; sell the put is how brokers label it [S1]. | education | check_language | accepted |
-| 8 | Sell-to-open is the term for the order a put writer places; sell the put is how brokers label it. | screen_result | check_language | rejected |
+| 7 | The order "sell to open" is how a put writer opens the position [S1]. | education | check_language | accepted |
+| 8 | Sell-to-open is the term for the order a put writer places; sell the put before Friday [S1]. | education | check_language | rejected |
 | 9 | The model drifts at the risk-free rate minus the dividend yield, not at an expected return [S1]. | education | check_language | accepted |
 | 10 | This is a risk-free way to collect premium; realistic loss 12345. | screen_result | check_language | rejected |
 | 11 | A cash-secured put on COST obliges the writer to buy the shares at the strike [S1]. | education | check_education_only | rejected |
@@ -80,7 +80,8 @@ Why each rejected row fails:
 
 - **2, 3, 4, 5, 10**: a directive ("you should"), a superlative ("great trade"), certainty ("guaranteed", "risk-free") and urgency ("don't miss") are banned in every mode.
 - **22, 23** (accepted): the thesis monitor's vocabulary (*holding*, *tripped since*, *thesis weakening*, *easing*, *new supply*) reports the state of a supply constraint and matches no banned pattern; the board never says exit, sell or take profits, so no allow-list entry was needed when the Phase 11 words were reviewed.
-- **7 vs 8**: "sell the put" is an imperative with an object. Inside a cited education paragraph the "X is the term for…" allow-list removes it before the patterns run; the same words in a `screen_result` paragraph are rejected.
+- **7 vs 8**: inside a cited education paragraph the exact glossary terms of `allow_terms` (*sell to open*, *buy to open*, *sell to close*, *buy to close*, *buy the call*) are exempt, quoted or not. Nothing else is: no quoted span and no "X is the term for…" clause, so the imperative "sell the put before Friday" in row 8 fails even after a definition (W15).
+- **Normalisation (W15)**: every pattern runs on `normalise_for_language(text)`: NFKC, zero-width and soft-hyphen characters deleted, curly quotes and dashes to ASCII, accents stripped, look-alike Cyrillic and Greek letters folded to Latin, HTML tags and Markdown emphasis removed, whitespace collapsed. "You\u00a0*should*", "guaran\u200bteed" and "Y\u043eu sh\u043euld" are caught like the plain words. A paragraph that is mostly non-Latin script, or whose function words are mostly another language's, fails as `non_english`: the product is English-only.
 - **11, 12**: an education paragraph may teach what a cash-secured put is; it may not mention this run's tickers or this run's numbers, or it has become advice about this screen.
 - **13**: a short option is never described without its realistic loss; the reader must see what a 30% drop costs next to the premium.
 - **15, 17**: definitional claims must be traceable to a retrieved source. Row 17 cites a tag that was never retrieved.

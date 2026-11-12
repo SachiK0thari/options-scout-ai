@@ -15,6 +15,7 @@ from __future__ import annotations
 
 import math
 import re
+import unicodedata
 import uuid
 from collections.abc import Iterable, Sequence
 from datetime import date
@@ -79,9 +80,173 @@ RISK_FREE_RATE_TERM = re.compile(r"\brisk[- ]?free(?:\s+interest)?\s+rates?\b", 
 
 
 def banned_phrases_in(text: str) -> list[str]:
-    """The ``BANNED_PHRASES`` that occur in ``text``, after removing the risk-free rate term."""
-    low = RISK_FREE_RATE_TERM.sub(" ", text.lower())
+    """The ``BANNED_PHRASES`` that occur in ``text`` (normalised, W15), after removing the
+    risk-free rate term."""
+    low = RISK_FREE_RATE_TERM.sub(" ", normalise_for_language(text).lower())
     return sorted({p for p in BANNED_PHRASES if p in low})
+
+
+# ------------------------------------------------------------- W15: text normalisation
+_INVISIBLE = dict.fromkeys(map(ord, "\u200b\u200c\u200d\u2060\ufeff\u00ad\u180e\u034f"))
+_ASCII_PUNCT = str.maketrans(
+    {
+        "\u2018": "'", "\u2019": "'", "\u201a": "'", "\u201b": "'", "\u2032": "'", "\u02bc": "'",
+        "\u201c": '"', "\u201d": '"', "\u201e": '"', "\u201f": '"', "\u2033": '"',
+        "\u00ab": '"', "\u00bb": '"',
+        "\u2010": "-", "\u2011": "-", "\u2012": "-", "\u2013": "-", "\u2014": "-", "\u2212": "-",
+    }
+)  # fmt: skip
+# Cyrillic and Greek letters that look like Latin ones (a small table, not the full Unicode
+# confusables list); folded so "Y\u043eu sh\u043euld" reads "You should"
+_LOOKALIKES = str.maketrans(
+    "\u0430\u0435\u043e\u0440\u0441\u0443\u0445\u0456\u0458\u0455\u0501\u04bb\u04cf\u051b\u051d\u0442\u043c\u043d\u043a\u0432"
+    "\u0410\u0412\u0415\u041a\u041c\u041d\u041e\u0420\u0421\u0422\u0425\u0423\u0406\u0408\u0405"
+    "\u03b1\u03bf\u03bd\u03c1\u03b9\u03ba\u03c5\u03b5\u03c4"
+    "\u0391\u0392\u0395\u0396\u0397\u0399\u039a\u039c\u039d\u039f\u03a1\u03a4\u03a5\u03a7",
+    "aeopcyxijsdhlqwtmhkbABEKMHOPCTXYIJSaovpikuetABEZHIKMNOPTYX",
+)
+_HTML_TAG = re.compile(r"</?[A-Za-z][^<>]{0,200}>")
+_MD_EMPHASIS = re.compile(r"[*_~`]+")
+_SPACES = re.compile(r"\s+")
+
+
+def normalise_for_language(text: str) -> str:
+    """The text the language patterns run on (W15 step 2): NFKC (full-width letters, non-breaking
+    spaces), invisible characters deleted, curly quotes and dashes to ASCII, accents stripped,
+    look-alike Cyrillic and Greek letters folded to Latin, HTML tags and Markdown emphasis
+    removed, whitespace collapsed. Case is kept (the patterns run case-insensitive, and the
+    ticker patterns need the capitals)."""
+    t = unicodedata.normalize("NFKC", text).translate(_INVISIBLE).translate(_ASCII_PUNCT)
+    t = "".join(c for c in unicodedata.normalize("NFKD", t) if not unicodedata.combining(c))
+    t = t.translate(_LOOKALIKES)
+    t = _MD_EMPHASIS.sub("", _HTML_TAG.sub("", t))
+    return _SPACES.sub(" ", t).strip()
+
+
+# Function words: a paragraph where those of other languages outnumber the English ones is not
+# English (W15 step 5). Words that are also English ("a", "in", "do", "per") are left out.
+_ENGLISH_WORDS = frozenset(
+    [
+        "the",
+        "and",
+        "of",
+        "to",
+        "is",
+        "that",
+        "for",
+        "on",
+        "with",
+        "as",
+        "it",
+        "this",
+        "are",
+        "be",
+        "at",
+        "by",
+        "or",
+        "an",
+        "if",
+        "its",
+        "from",
+        "which",
+        "not",
+        "than",
+        "when",
+        "their",
+        "was",
+        "has",
+        "have",
+        "will",
+        "can",
+        "may",
+    ]
+)
+_FOREIGN_WORDS = frozenset(
+    [
+        "el",
+        "la",
+        "los",
+        "las",
+        "del",
+        "que",
+        "y",
+        "en",
+        "un",
+        "una",
+        "por",
+        "para",
+        "con",
+        "es",
+        "se",
+        "al",
+        "lo",
+        "como",
+        "mas",
+        "pero",
+        "sus",
+        "su",
+        "muy",
+        "le",
+        "les",
+        "des",
+        "et",
+        "est",
+        "du",
+        "une",
+        "pour",
+        "dans",
+        "qui",
+        "sur",
+        "pas",
+        "avec",
+        "sont",
+        "der",
+        "die",
+        "das",
+        "und",
+        "ist",
+        "nicht",
+        "mit",
+        "ein",
+        "eine",
+        "zu",
+        "von",
+        "auf",
+        "sie",
+        "wir",
+        "il",
+        "di",
+        "che",
+        "della",
+        "sono",
+        "gli",
+        "da",
+        "em",
+        "os",
+        "ao",
+        "nao",
+        "uma",
+        "voce",
+    ]
+)
+_WORD = re.compile(r"[^\W\d_]+")
+
+
+def non_english(text: str) -> str | None:
+    """Why ``text`` does not read as English, or ``None``. The product is English-only: a
+    paragraph whose letters are mostly outside the Latin script, or whose function words are
+    mostly another language's, fails (W15 step 5)."""
+    letters = [c for c in unicodedata.normalize("NFKC", text) if c.isalpha()]
+    if len(letters) >= 8:
+        other = sum(1 for c in letters if not unicodedata.name(c, "").startswith("LATIN"))
+        if other / len(letters) > 0.3:
+            return f"{other} of {len(letters)} letters are outside the Latin script"
+    words = _WORD.findall(normalise_for_language(text).lower())
+    foreign = sum(w in _FOREIGN_WORDS for w in words)
+    english = sum(w in _ENGLISH_WORDS for w in words)
+    if len(words) >= 6 and foreign >= 3 and foreign > english:
+        return f"{foreign} non-English function words against {english} English"
+    return None
 
 
 __all__ = [
@@ -234,7 +399,6 @@ _LEVERAGE_OPPORTUNITY = re.compile(
     r"\b(?:leverage|margin)\b[^.]{0,80}\b(?:opportunit|boost|enhance|amplif|juice|free(?:s|d)? up)",
     re.IGNORECASE,
 )
-_QUOTED = re.compile(r"[\"“][^\"”]{1,80}[\"”]")
 
 
 def _loc(i: int) -> str:
@@ -551,23 +715,34 @@ def check_suitability(
 
 
 # ----------------------------------------------------------------------- 5 check_language
+def _term_pattern(term: str) -> re.Pattern[str]:
+    words = [re.escape(w) for w in re.split(r"[\s-]+", normalise_for_language(term)) if w]
+    return re.compile(r"(?<![\w-])\"?" + r"[\s-]".join(words) + r"\"?(?![\w-])", re.IGNORECASE)
+
+
 def _scrub_allowed(text: str, cfg: ComplianceConfig) -> str:
-    out = _QUOTED.sub(" ", text)
-    for pattern in cfg.allow_list:
-        out = re.sub(pattern, " ", out, flags=re.IGNORECASE)
-    return out
+    """Remove the exact glossary terms of ``cfg.allow_terms`` (quoted or not, spaces and hyphens
+    interchangeable). Nothing else is removed: no quoted span, no definition clause (W15 step 3)."""
+    for term in cfg.allow_terms:
+        text = _term_pattern(term).sub(" ", text)
+    return text
 
 
 def language_violations(narrative: Narrative, cfg: ComplianceConfig) -> list[tuple[int, str, str]]:
-    """``(paragraph index, label, matched text)`` for every banned pattern hit. Quoted terminology
-    and allow-listed phrasings are exempt inside cited education paragraphs only."""
+    """``(paragraph index, label, matched text)`` for every banned pattern hit, matched on the
+    normalised text (W15), plus a ``non_english`` hit for a paragraph that is not English. The
+    glossary terms are exempt inside cited education paragraphs only."""
     hits: list[tuple[int, str, str]] = []
     for i, p in enumerate(narrative.paragraphs):
-        text = _scrub_allowed(p.text, cfg) if (p.mode == "education" and _is_cited(p)) else p.text
+        text = normalise_for_language(p.text)
+        if p.mode == "education" and _is_cited(p):
+            text = _scrub_allowed(text, cfg)
         for bp in cfg.banned_patterns:
             m = re.search(bp.pattern, text, re.IGNORECASE)
             if m:
                 hits.append((i, bp.label, m.group(0)))
+        if p.mode != "notice" and (why := non_english(p.text)):
+            hits.append((i, "non_english", why))
     return hits
 
 
@@ -577,7 +752,7 @@ def check_language(narrative: Narrative, cfg: ComplianceConfig) -> ComplianceChe
         name="check_language",
         passed=not hits,
         detail="; ".join(f"{_loc(i)}: {label} ({text!r})" for i, label, text in hits)
-        or "no directive, certainty, superlative or urgency language",
+        or "no directive, certainty, superlative, urgency or rating language; English",
         locations=[_loc(i) for i, _, _ in hits],
     )
 

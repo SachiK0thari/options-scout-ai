@@ -44,7 +44,9 @@ def option_quality(c: OptionCandidate, w: OptionQualityWeights, rules: ScreenerR
             cap = rules.leaps.max_extrinsic_per_year_pct
             cost = c.extrinsic_per_year_pct if c.extrinsic_per_year_pct is not None else cap
         ret = _clip01(1.0 - cost / cap)  # cheaper carry = better
-        pop = c.delta  # deep ITM: delta approximates P(finish ITM)
+        # W25: the model probability of finishing in the money, not delta (0.83 vs 0.69 for a
+        # deep ITM two-year call); prob_otm comes from the same BSM inputs as the price
+        pop = 1.0 - c.prob_otm
         liq = liquidity_score(c, rules.leaps.max_spread_pct)
         iv_fit = (1.0 - c.iv_rank) if c.iv_rank is not None else 0.5  # buyers want low IV rank
     else:  # pmcc_short_call is ranked through its LEAPS; give a neutral quality

@@ -2,7 +2,7 @@
 
 from __future__ import annotations
 
-from datetime import date
+from datetime import date, timedelta
 
 import pytest
 from hypothesis import given, settings
@@ -47,6 +47,30 @@ def test_holding_period_threshold_is_day_after_anniversary() -> None:
     assert not hp.is_long_term and hp.days_remaining == 1
     hp2 = tax.holding_period(date(2026, 3, 10), date(2027, 3, 11))
     assert hp2.is_long_term and hp2.days_remaining == 0
+
+
+@pytest.mark.parametrize(
+    ("acquired", "long_term_from"),
+    [
+        # W25 step 6: acquired on the last day of a month, the months run from the next month
+        # (Rev. Rul. 66-7; Caspe v. United States, 694 F.2d 1116, 8th Cir. 1982: bought Nov 30,
+        # held more than six months only from June 1). Across a leap day that is 1 March, not
+        # 29 February.
+        (date(2023, 2, 28), date(2024, 3, 1)),
+        (date(2027, 2, 28), date(2028, 3, 1)),
+        (date(2024, 2, 29), date(2025, 3, 1)),
+        (date(2025, 2, 28), date(2026, 3, 1)),  # no leap day: same as the anniversary rule
+        (date(2026, 4, 30), date(2027, 5, 1)),
+        (date(2026, 12, 31), date(2028, 1, 1)),
+        # not a month end: the day after the anniversary
+        (date(2023, 2, 27), date(2024, 2, 28)),
+        (date(2024, 1, 31), date(2025, 2, 1)),
+    ],
+)
+def test_holding_period_month_end_convention(acquired: date, long_term_from: date) -> None:
+    assert tax.long_term_threshold(acquired) == long_term_from
+    day_before = tax.holding_period(acquired, long_term_from - timedelta(days=1))
+    assert not day_before.is_long_term and day_before.days_remaining == 1
 
 
 def test_wash_sale_window(config: AppConfig) -> None:

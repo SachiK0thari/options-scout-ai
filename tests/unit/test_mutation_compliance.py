@@ -467,9 +467,12 @@ def test_check_suitability_details_and_join(ccfg: ComplianceConfig) -> None:
 
 
 # ------------------------------------------------------------------------ 5 check_language
-def test_language_scrub_keeps_single_spaces(ccfg: ComplianceConfig) -> None:
+def test_language_descriptive_sentences_pass(ccfg: ComplianceConfig) -> None:
+    # W15: quoted spans are no longer scrubbed; a sentence with a subject is not an imperative
     quoted = Narrative(paragraphs=[edu('Traders buy the "protective" puts [S1].', "S1")])
     assert cc.check_language(quoted, ccfg).passed
+    imperative = Narrative(paragraphs=[edu('Buy the "protective" puts [S1].', "S1")])
+    assert not cc.check_language(imperative, ccfg).passed
     allowed = Narrative(paragraphs=[edu("Some buy the risk-free rate calls [S1].", "S1")])
     assert cc.check_language(allowed, ccfg).passed
     upper = Narrative(paragraphs=[edu("The Risk-Free Rate is a benchmark [S1].", "S1")])
@@ -484,7 +487,7 @@ def test_check_language_detail(ccfg: ComplianceConfig) -> None:
     )
     assert c.locations == ["paragraph 1", "paragraph 2"]
     ok = cc.check_language(Narrative(paragraphs=[res("Calm.")]), ccfg)
-    assert ok.detail == "no directive, certainty, superlative or urgency language"
+    assert ok.detail == "no directive, certainty, superlative, urgency or rating language; English"
 
 
 # ---------------------------------------------------------------------- 6 check_disclaimer

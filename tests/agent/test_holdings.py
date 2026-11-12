@@ -173,6 +173,15 @@ def test_holdings_turn_through_the_chat_session(session: ChatSession) -> None:
     assert {p.ticker for p in analysis.positions} == {"AAPL", "MSFT", "SPY", "COST"}
     assert analysis.total_value > 0 and 0 < analysis.diversification_score < 100
     assert analysis.post_assignment, "the thread's CSP candidates give post-assignment weights"
+    # W25: the fixture closes carry no dates, so no beta is guessed and the note says why
+    assert all(p.beta is None for p in analysis.positions)
+    assert analysis.beta_weighted_exposure is None
+    assert any("beta not computed" in n for n in analysis.notes)
+    assert "beta-weighted" not in r2.turn.text
+    # W25 step 4: the ETFs' own ratio and the portfolio-wide drag, with tickers kept upper-case
+    assert "ETF holdings carry an average expense ratio of 0.095% a year" in r2.turn.text
+    assert "covered call: AAPL, MSFT" in r2.turn.text
+    assert "an index fund is treated as a single holding" in r2.turn.text  # W25 step 5
     assert values["agents_visited"][-3:] == [
         "orchestrator_agent",
         "portfolio_agent",
@@ -212,3 +221,40 @@ def test_screen_seeded_with_holdings_applies_the_constraint(deps: Deps) -> None:
     assert any(c.name == "ticker_concentration_after_assignment" for c in rep.risk.checks)
     assert rep.compliance is not None and rep.compliance.passed
     assert "holdings_analysis_node" in final["nodes_visited"]
+
+
+def test_holdings_reply_states_the_beta_range_when_closes_are_dated(
+    session: ChatSession, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """W25: with dated closes (here the bundled closes given trading dates, test only) each beta
+    carries its 95% range, the exposure is one regression of the portfolio's weighted returns,
+    and the reply's range figures pass number grounding like every other figure."""
+    from datetime import date, timedelta
+
+    from options_scout.data.market import FixtureSource
+
+    def dated(self: FixtureSource, ticker: str, days: int) -> list[tuple[date, float]]:
+        closes = self.get_close_history(ticker, days)
+        out: list[date] = []
+        d = date(2026, 10, 27)
+        while len(out) < len(closes):
+            if d.weekday() < 5:
+                out.append(d)
+            d -= timedelta(days=1)
+        return list(zip(reversed(out), closes, strict=True))
+
+    monkeypatch.setattr(FixtureSource, "get_dated_close_history", dated)
+    t = "t-holdings-beta"
+    session.send(t, "$100,000 in a cash account, balanced, cash-secured puts only.")
+    r = session.send(t, "My holdings: 200 AAPL at $150, 40 SPY, 10 COST at 800.")
+    assert r.turn.intent == "holdings"
+    assert r.turn.compliance is not None and r.turn.compliance.passed, r.turn.text
+    a = session.graph.get_state(thread_config(t)).values["holdings_analysis"]
+    spy = next(p for p in a.positions if p.ticker == "SPY")
+    assert spy.beta == pytest.approx(1.0) and spy.beta_low == pytest.approx(1.0, abs=1e-6)
+    assert a.beta_interval == 0.95
+    lo, hi = a.beta_weighted_exposure_low, a.beta_weighted_exposure_high
+    assert lo is not None and hi is not None and lo < a.beta_weighted_exposure < hi
+    assert (
+        f"(95% range {round(lo, 2)} to {round(hi, 2)}, estimated from daily returns)" in r.turn.text
+    )

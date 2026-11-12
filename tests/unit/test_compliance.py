@@ -271,20 +271,74 @@ def test_check_language_catches_every_category(ccfg: ComplianceConfig) -> None:
     assert cc.check_language(clean, ccfg).passed
 
 
-def test_allow_list_only_inside_cited_education(ccfg: ComplianceConfig) -> None:
-    text = "Sell-to-open is the term for the order a put writer places; sell the put is how brokers label it [S1]."
-    cited = Narrative(paragraphs=[edu(text, "S1")])
-    assert cc.check_language(cited, ccfg).passed
-    uncited = Narrative(paragraphs=[Paragraph(mode="education", text=text.replace(" [S1]", ""))])
-    assert not cc.check_language(uncited, ccfg).passed
-    as_result = Narrative(paragraphs=[res(text)])
-    assert not cc.check_language(as_result, ccfg).passed
-    quoted = Narrative(
-        paragraphs=[edu('The phrase "buy the call" describes the long leg [S1].', "S1")]
-    )
-    assert cc.check_language(quoted, ccfg).passed
+def test_allow_terms_only_inside_cited_education(ccfg: ComplianceConfig) -> None:
+    """W15 step 3: only exact glossary terms are exempt, and only in cited education."""
+    text = "Buy the call opens the long leg of the spread [S1]."
+    assert cc.check_language(Narrative(paragraphs=[edu(text, "S1")]), ccfg).passed
+    uncited = Paragraph(mode="education", text=text.replace(" [S1]", ""))
+    assert not cc.check_language(Narrative(paragraphs=[uncited]), ccfg).passed
+    assert not cc.check_language(Narrative(paragraphs=[res(text)]), ccfg).passed
     rate = Narrative(paragraphs=[edu("d1 uses the risk-free rate r [S1].", "S1")])
     assert cc.check_language(rate, ccfg).passed
+
+
+@pytest.mark.parametrize(
+    "text",
+    [
+        # any quoted span used to be scrubbed, so advice inside quotes passed
+        'Writers say "you should buy now, guaranteed free money" [S1].',
+        # everything after "is the term for" used to be scrubbed up to the full stop
+        "Sell-to-open is the term for the order; you should buy now, it is guaranteed [S1].",
+    ],
+)
+def test_allow_list_holes_are_closed(ccfg: ComplianceConfig, text: str) -> None:
+    assert not cc.check_language(Narrative(paragraphs=[edu(text, "S1")]), ccfg).passed
+
+
+@pytest.mark.parametrize(
+    "text",
+    [
+        "You can’t lose with this one.",  # typographic apostrophe
+        "Don’t miss it.",
+        "I’d go with NKE.",
+        "You should sell the put.",  # non-breaking space
+        "You  should sell the put.",  # doubled space
+        "This is guaran​teed income.",  # zero-width space
+        "This is guaran­teed income.",  # soft hyphen
+        "You *should* sell the put.",
+        "You **should** sell the put.",
+        "You <b>should</b> sell the put.",
+        "Yоu shоuld sell the put.",  # Cyrillic o
+        "This is guаrаnteed income.",  # Cyrillic a
+        "ｙｏｕ ｓｈｏｕｌｄ sell it.",  # fullwidth letters
+        "Risk‑free income.",  # non-breaking hyphen
+        "Deberías vender la opción de venta de COST antes del viernes para cobrar la prima.",
+        "Вам стоит продать этот пут.",
+    ],
+)
+def test_evasions_are_caught(ccfg: ComplianceConfig, text: str) -> None:
+    """W15 step 2 and 5: the text is normalised before matching; non-English text fails."""
+    assert not cc.check_language(Narrative(paragraphs=[res(text)]), ccfg).passed, text
+
+
+@pytest.mark.parametrize(
+    "text",
+    [  # the five held-out misses the audit quoted (W15)
+        "Load up on COST here.",
+        "The smart move here is the COST put.",
+        "There is zero risk in this position.",
+        "Recommendation: SELL TO OPEN the COST 850P. Rating: Buy.",
+        "Pull the trigger on the COST put.",
+    ],
+)
+def test_audit_misses_are_caught(ccfg: ComplianceConfig, text: str) -> None:
+    assert not cc.check_language(Narrative(paragraphs=[res(text)]), ccfg).passed, text
+
+
+def test_normalise_for_language() -> None:
+    raw = "You  *should*​ <i>sell</i> “it” — аll"
+    assert cc.normalise_for_language(raw) == 'You should sell "it" - all'
+    assert cc.banned_phrases_in("guaran​teed") == ["guarantee", "guaranteed"]
 
 
 def test_concept_docs_pass_the_language_check_as_cited_education(

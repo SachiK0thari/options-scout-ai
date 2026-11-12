@@ -620,16 +620,35 @@ def test_the_reported_minimum_account_sizes_one_contract(
 
 
 def _top6(cfg: AppConfig) -> object:
-    """Policy B judged on the best 6 underlyings. Since W3 ranks LEAPS on carry, NKE (the dearest
-    carry) is sixth, so at $100k the default top 5 sizes nothing; with 6 the NKE lines are sized
-    and the single-name and ranking warnings can be exercised."""
+    """Policy B judged on the best 6 underlyings, so the NKE lines are sized and the single-name
+    and ranking warnings can be exercised (NKE is third since W25 step 2; sixth before)."""
     return cfg.risk.reporting.model_copy(update={"top_tickers": 6})
 
 
-def test_100k_is_too_small_for_the_top_five_underlyings(world: dict[str, object]) -> None:
+def test_100k_sizes_nke_once_leaps_rank_on_their_model_probability(
+    world: dict[str, object],
+) -> None:
+    """W25 step 2: with 1 − prob_otm (about 0.69) in place of delta (about 0.83) the LEAPS-led
+    names fall, and NKE, whose best line is a put, is third of the five best underlyings
+    (SPY, QQQ, NKE, AAPL, COST). Before, NKE was sixth and $100k sized nothing."""
     cfg: AppConfig = world["cfg"]  # type: ignore[assignment]
     ranked = _pipeline_ranked(world, _profile(100_000))
+    order: list[str] = []
+    for r in ranked:
+        if r.candidate.ticker not in order:
+            order.append(r.candidate.ticker)
+    assert order[:5] == ["SPY", "QQQ", "NKE", "AAPL", "COST"]
     port, _rep = _size(world, _profile(100_000), ranked, reporting=cfg.risk.reporting)
+    assert not port.account_too_small
+    assert {p.ticker for p in port.positions} == {"NKE"}
+
+
+def test_too_small_when_none_of_the_top_underlyings_fits(world: dict[str, object]) -> None:
+    """Policy B still holds: judged on the best 2 underlyings (SPY, QQQ), $100k sizes nothing."""
+    cfg: AppConfig = world["cfg"]  # type: ignore[assignment]
+    ranked = _pipeline_ranked(world, _profile(100_000))
+    top2 = cfg.risk.reporting.model_copy(update={"top_tickers": 2})
+    port, _rep = _size(world, _profile(100_000), ranked, reporting=top2)
     assert port.account_too_small and not port.positions
     assert any("NKE" in s and "not sized, ranked below" in s for s in port.skipped)
 

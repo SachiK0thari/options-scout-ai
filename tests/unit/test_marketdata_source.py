@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import itertools
 from datetime import UTC, date, datetime, timedelta
 
 import httpx
@@ -149,6 +150,10 @@ def test_expiries_chain_and_history(src: MarketDataAppSource) -> None:
     assert call.last == 0.0 and call.volume == 0  # null cells -> zero, not a crash
     hist = src.get_close_history("AAPL", 30)
     assert len(hist) == 30 and hist[-1] == pytest.approx(100.0 + 251)  # the year's last close
+    dated = src.get_dated_close_history("AAPL", 30)  # W25: same year series, with dates
+    assert [v for _, v in dated] == hist
+    assert dated[-1][0] == TODAY - timedelta(days=1)
+    assert all(a[0] < b[0] for a, b in itertools.pairwise(dated))
 
 
 def test_earnings_picks_next_future_report(src: MarketDataAppSource) -> None:

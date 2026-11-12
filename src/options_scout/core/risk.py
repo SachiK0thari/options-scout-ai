@@ -90,7 +90,8 @@ def check_constraints(
         "assignment_cash_x",
         assignment / profile.buying_power,
         limits.max_assignment_cash_x,
-        f"cash if every put is assigned plus LEAPS debits: ${assignment:,.0f} vs buying power "
+        f"cash if every put is assigned{' plus LEAPS debits' if t.leaps_cost > 0 else ''}: "
+        f"${assignment:,.0f} vs buying power "
         f"${profile.buying_power:,.0f}",
     )
     add(
@@ -311,14 +312,30 @@ def build_risk_report(
         warnings.append(
             f"Margin account: the puts are sized as naked puts on the Reg T requirement "
             f"(${portfolio.totals.margin_used:,.0f}), but the loss at a -30% move is "
-            f"${portfolio.totals.realistic_loss:,.0f} and assignment of every put plus the LEAPS "
-            f"debits would need ${portfolio.totals.assignment_cash:,.0f} in cash. Brokers can "
+            f"${portfolio.totals.realistic_loss:,.0f} and assignment of every put"
+            + (" plus the LEAPS debits" if portfolio.totals.leaps_cost > 0 else "")
+            + f" would need ${portfolio.totals.assignment_cash:,.0f} in cash. Brokers can "
             f"raise requirements at any time, especially in volatile markets."
             + (
                 " Sized with Reg T rules; your broker's risk-based (portfolio margin) "
                 "requirement will differ."
                 if profile.account_type == "portfolio_margin"
                 else ""
+            )
+        )
+    min_level = (reporting or SizingReporting()).pmcc_min_options_level
+    level = profile.options_level
+    for p in portfolio.positions:
+        if p.pmcc_short_call_id is None or (level is not None and level >= min_level):
+            continue
+        warnings.append(  # W25 step 7: the diagonal needs spread approval the profile may lack
+            f"{p.candidate_id} is sized as a poor man's covered call, a diagonal spread: brokers "
+            f"approve spreads separately, usually at options level {min_level}, and many only in a "
+            "margin account. "
+            + (
+                "No options approval level was given."
+                if level is None
+                else f"The stated options level is {level}."
             )
         )
     for p in portfolio.positions:

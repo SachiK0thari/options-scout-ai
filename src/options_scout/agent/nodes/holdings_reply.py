@@ -24,6 +24,11 @@ _QUERIES = [
     "concentration risk after a cash-secured put is assigned",
 ]
 
+# W25 step 5: the score has no look-through, so say what it counts
+DIVERSIFICATION_CAPTION = (
+    "The score counts each ticker as one position: an index fund is treated as a single holding."
+)
+
 
 def holdings_payload(a: HoldingsAnalysis, disclaimer: str) -> dict[str, Any]:
     return {
@@ -45,6 +50,8 @@ def holdings_payload(a: HoldingsAnalysis, disclaimer: str) -> dict[str, Any]:
                         None if p.expense_ratio is None else round(p.expense_ratio * 100, 3)
                     ),
                     "beta": None if p.beta is None else round(p.beta, 2),
+                    "beta_low": None if p.beta_low is None else round(p.beta_low, 2),
+                    "beta_high": None if p.beta_high is None else round(p.beta_high, 2),
                     "covered_call_lots": p.covered_call_lots,
                 }
                 for p in a.positions
@@ -58,9 +65,23 @@ def holdings_payload(a: HoldingsAnalysis, disclaimer: str) -> dict[str, Any]:
                 if a.weighted_expense_ratio is None
                 else round(a.weighted_expense_ratio * 100, 3)
             ),
+            "etf_expense_ratio_pct": (
+                None if a.etf_expense_ratio is None else round(a.etf_expense_ratio * 100, 3)
+            ),
             "beta_weighted_exposure": (
                 None if a.beta_weighted_exposure is None else round(a.beta_weighted_exposure, 2)
             ),
+            "beta_weighted_exposure_low": (
+                None
+                if a.beta_weighted_exposure_low is None
+                else round(a.beta_weighted_exposure_low, 2)
+            ),
+            "beta_weighted_exposure_high": (
+                None
+                if a.beta_weighted_exposure_high is None
+                else round(a.beta_weighted_exposure_high, 2)
+            ),
+            "beta_interval_pct": None if a.beta_interval is None else round(a.beta_interval * 100),
             "largest_position": a.largest_position,
             "largest_sector": a.largest_sector,
             "covered_call_eligible": a.covered_call_eligible,
@@ -110,23 +131,34 @@ def holdings_narrative(payload: dict[str, Any], sources: list[Chunk], disclaimer
                 f"${h['total_value']:,} at the run's prices. Largest weights: {top_text}. "
                 f"By sector: {sectors}. "
                 f"Diversification score {h['diversification_score']} out of 100 "
-                f"(HHI {h['hhi']}, about {h['effective_positions']} effective positions)."
+                f"(HHI {h['hhi']}, about {h['effective_positions']} effective positions). "
+                f"{DIVERSIFICATION_CAPTION}"
             ),
         )
     )
     extras: list[str] = []
-    if h["weighted_expense_ratio_pct"] is not None:
-        er = h["weighted_expense_ratio_pct"]
-        extras.append(f"the ETFs carry a weighted expense ratio of {er}% a year")
+    if h["weighted_expense_ratio_pct"] is not None and h.get("etf_expense_ratio_pct") is not None:
+        extras.append(  # W25: the ETFs' own ratio, and what it costs the whole portfolio
+            f"the ETF holdings carry an average expense ratio of {h['etf_expense_ratio_pct']}% a "
+            f"year, a drag of {h['weighted_expense_ratio_pct']}% a year on the whole portfolio"
+        )
     if h["beta_weighted_exposure"] is not None:
-        extras.append(f"beta-weighted exposure to the index is {h['beta_weighted_exposure']}")
+        exposure = f"beta-weighted exposure to the index is {h['beta_weighted_exposure']}"
+        lo, hi = h.get("beta_weighted_exposure_low"), h.get("beta_weighted_exposure_high")
+        if lo is not None and hi is not None and h.get("beta_interval_pct") is not None:
+            # W25: an estimate from daily returns, so its range is stated with it
+            exposure += (
+                f" ({h['beta_interval_pct']}% range {lo} to {hi}, estimated from daily returns)"
+            )
+        extras.append(exposure)
     if h["covered_call_eligible"]:
         extras.append(
             "lots of 100 shares that could write a covered call: "
             + ", ".join(h["covered_call_eligible"])
         )
     if extras:
-        paras.append(Paragraph(mode="screen_result", text="; ".join(extras).capitalize() + "."))
+        joined = "; ".join(extras)  # str.capitalize() would lower-case "ETF" and the tickers
+        paras.append(Paragraph(mode="screen_result", text=joined[0].upper() + joined[1:] + "."))
     if h["post_assignment"]:
         rows = "; ".join(
             (

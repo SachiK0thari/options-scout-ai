@@ -72,7 +72,10 @@ def _routes(request: httpx.Request) -> httpx.Response:
             },
         )
     if path.endswith("/markets/history"):
-        days = [{"date": "2026-10-01", "close": 100 + i} for i in range(40)]
+        start = date(2026, 8, 1)
+        days = [
+            {"date": (start + timedelta(days=i)).isoformat(), "close": 100 + i} for i in range(40)
+        ]
         return httpx.Response(200, json={"history": {"day": days}})
     if "fundamentals/calendars" in path:
         return httpx.Response(
@@ -119,6 +122,8 @@ def test_spot_expiries_chain_history(src: TradierSource) -> None:
     assert put.mid == pytest.approx(4.2)
     hist = src.get_close_history("AAPL", 30)
     assert len(hist) == 30 and hist[-1] == 139.0
+    dated = src.get_dated_close_history("AAPL", 30)  # W25: closes with their dates, for beta
+    assert len(dated) == 30 and dated[-1] == (date(2026, 9, 9), 139.0)
 
 
 def test_fundamentals_best_effort(src: TradierSource) -> None:

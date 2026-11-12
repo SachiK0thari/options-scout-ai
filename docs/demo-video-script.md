@@ -49,13 +49,35 @@ Do not narrate features that are not on screen.
 - When a number appears on screen, point at it, do not read long lists aloud.
 - If something fails on camera that is not the planned failure, keep rolling and say what happened. Cut later. Do not restart the take.
 
+### 0.4 Pick the amount: $50,000 or $100,000
+
+The script works at either amount. Pick one before recording and use it everywhere **AMOUNT** appears (scenes 1, 3.2 and 5.1). The what-if in scene 4 is the same sentence for both: a $60,000 margin account.
+
+The figures below are what the bundled fixtures (session 2026-10-27) produce for the scene 3 profile: cash account, conservative, **cash-secured puts only**. They were measured on 2026-11-12. They do not depend on the model, because every number is computed, so a live-LLM take shows the same figures in different words. Live data in scene 5 will differ.
+
+| What appears | AMOUNT = $50,000 | AMOUNT = $100,000 |
+|---|---|---|
+| Allocation (50% puts / 15% LEAPS / 35% cash) | $25,000 / $7,500 / $17,500 | $50,000 / $15,000 / $35,000 |
+| Quality gate (scene 3.2) | 7 of 7 passed, 0 excluded | same |
+| Candidates | 5 cash-secured puts: SPY ×2, QQQ ×2, NKE; NKE ranks 5th of 5 | same |
+| Sized after turn 2 | **1** × CSP-NKE-2026-11-20-35P, $3,444 cash to secure, realistic loss $814 | **2** × CSP-NKE-2026-11-20-35P, $6,887 cash to secure, realistic loss $1,629 |
+| Sizing warnings | one-stock portfolio (all NKE); SPY and QQQ did not fit, the top-ranked SPY 735 put fits from **$960,716**; 14% of the put budget used | same, 14% of the put budget used |
+| Scene 4 diff line | 50,000 → 60,000 · cash → margin | 100,000 → 60,000 · cash → margin |
+| Scene 4 sized (identical for both) | 1 × NKE 35 put: Reg T **$552** beside a realistic loss of **$814**; 8 constraint rows, all pass; 4 SPY/QQQ puts skipped on *max loss per position* | same |
+| Scene 11 before/after bar | NKE 0% → 2% of holdings plus buying power, against the 25% conservative cap | same |
+
+Two things decide whether this table holds on camera:
+
+- **The confirmation card must say `Strategies: csp`.** If the live model does not carry "that" from turn 1 and the card shows csp, leaps and pmcc, edit it to csp before **Confirm** (see section 14). Left at all three, the figures change: the screen also lists 9 LEAPS, NKE's best line ranks 9th of 14 rather than last (which breaks the scene 3.3 question), and $100,000 also sizes 1 NKE LEAPS. Rechecked 2026-11-12 after the LEAPS ranking moved to the model probability (W25), which put NKE among the five best underlyings; before that change nothing was sized at either amount.
+- **Do not change the scene 4 amount to $30,000.** A $30,000 margin account sizes nothing: NKE's $814 loss is more than the conservative 2% per-position limit ($600). If you want the "too small" refusal on camera, record it as an extra take, not as scene 4.
+
 ---
 
 ## 1. Cold open: the problem (0:00 – 0:30)
 
 **On screen:** black slate, then a slow fade to a plain-text slide with three lines.
 
-> "I have $50,000. Which stocks would I be happy to own if I got assigned?"
+> "I have $AMOUNT. Which stocks would I be happy to own if I got assigned?"
 > "Is this option a good deal, or does it only look like one?"
 > "Can I trust a model that writes its own numbers?"
 
@@ -112,10 +134,10 @@ Close the expander.
 **Type live (use the word "that" on purpose):**
 
 ```
-OK, run that for me. $50,000, cash account, conservative. I'm a beginner.
+OK, run that for me. $AMOUNT, cash account, conservative. I'm a beginner.
 ```
 
-**What must appear:** the orchestrator classified it as `new_screen`. The profile-confirmation card renders **inside the chat** with editable fields: Buying power 50,000 · Account cash · Risk conservative · **Strategies: csp** · **Experience: beginner**. The strategies field is the proof of context: the message never said "cash-secured put", the agent carried it from turn 1.
+**What must appear:** the orchestrator classified it as `new_screen`. The profile-confirmation card renders **inside the chat** with editable fields: Buying power AMOUNT · Account cash · Risk conservative · **Strategies: csp** · **Experience: beginner**. The strategies field is the proof of context: the message never said "cash-secured put", the agent carried it from turn 1.
 
 **Narration:**
 
@@ -123,7 +145,7 @@ OK, run that for me. $50,000, cash account, conservative. I'm a beginner.
 
 **Action:** click **Confirm**. Node progress streams as status lines in the chat (regime, trend scout, universe, per-ticker market data, screener, ranker, news desk, sizing, risk, explainer, compliance, report). Fixture mode finishes in about a second, so slow your narration rather than the app.
 
-**What must appear:** a short summary turn, Compliance ✓ badge, and a line like "7 of 7 names passed the quality gate; see Candidates and Portfolio & Risk."
+**What must appear:** a short summary turn, Compliance ✓ badge, and a line like "7 underlying(s) passed the good-to-own gate and 0 were excluded; the screen found 5 cash-secured put candidate(s) and sized 1 position(s)" (2 at $100,000; see 0.4).
 
 **Action:** click **Candidates**. Point at the market strip (SPY, QQQ, VIX with its regime, T-bill, "fixture, recorded 2026-10-27") and at the plain-language column headers. Hover one header to show its glossary tooltip.
 
@@ -162,10 +184,10 @@ Why is Nike ranked at the bottom?
 **Type live:**
 
 ```
-What if I had 30k in a margin account instead?
+What if I had 60k in a margin account instead?
 ```
 
-**What must appear:** a one-line diff turn ("buying_power 50,000 → 30,000 · account_type cash → margin · new thread …"), then streamed progress, then the summary with its badge.
+**What must appear:** a one-line diff turn ("buying power: 50,000 → 60,000; account value: 50,000 → 60,000; account type: cash → margin", or 100,000 → 60,000 if AMOUNT is $100,000), the note that a new screen runs on a separate thread, then streamed progress, then the summary with its badge.
 
 **Narration:**
 
@@ -173,14 +195,15 @@ What if I had 30k in a margin account instead?
 
 **Action:** click **Portfolio & Risk**. Walk the lower half top to bottom. Point, do not read.
 
-1. **Allocation donut.** Conservative baseline is 50% put collateral, 15% LEAPS, 35% cash. LEAPS was not requested, so that bucket is held as cash.
-2. **Sized positions table** with the **realistic loss at −30%** column beside the margin used.
-3. **Constraint checks**: six rows with value, limit, pass.
-4. **Candidates that did not fit** expander: each skipped candidate has the constraint that stopped it.
+1. **Allocation donut.** Conservative baseline is 50% put collateral, 15% LEAPS, 35% cash: $30,000, $9,000 and $21,000 of $60,000. LEAPS was not requested, so that bucket is held as cash.
+2. **Sized positions table**: one row, 1 × CSP-NKE-2026-11-20-35P, with the **realistic loss at −30%** ($814) beside the Reg T margin used ($552).
+3. **Constraint checks**: eight rows with value, limit, pass (margin usage is the extra row a margin account adds).
+4. **Warnings**: "Every sized position is on NKE, so this is a one-stock portfolio even though the limits passed", and the SPY 735 put that fits from $960,716.
+5. **Candidates that did not fit** expander: the four SPY and QQQ puts, each stopped by *max loss per position*.
 
 **Narration (over the walk):**
 
-> Buying power is split by the stated risk profile and the volatility regime. Candidates are sized greedily under the constraints, and anything that does not fit is listed with the reason, not silently dropped. Because this is a margin account now, the Reg T requirement sits next to the loss at a 30 percent drop. The app never shows margin without showing that loss. That pairing is a compliance rule, not a layout choice.
+> Buying power is split by the stated risk profile and the volatility regime. Candidates are sized greedily under the constraints, and anything that does not fit is listed with the reason, not silently dropped. Here the higher-ranked SPY and QQQ puts would each lose more in a 30 percent drop than this profile allows on one position, so only the Nike put fits, and the app says plainly that one stock is not a diversified portfolio even though every limit passed. Because this is a margin account now, the Reg T requirement sits next to the loss at a 30 percent drop. The app never shows margin without showing that loss. That pairing is a compliance rule, not a layout choice.
 
 **Cut on:** the skipped-candidates expander open.
 
@@ -198,7 +221,7 @@ Record this scene **first in the day** (see pre-flight). Edit it into this posit
 
 > "Your token is used for this run only. It is never written to disk, logged, cached or shown in the report." That sentence is tested.
 
-**Action:** set buying power 50,000, *Cash-secured puts*, click **Find candidates**. The progress bar runs noticeably slower than fixture mode.
+**Action:** set buying power to AMOUNT, *Cash-secured puts*, click **Find candidates**. The progress bar runs noticeably slower than fixture mode.
 
 **What must appear when it finishes:**
 - **Quality Screen** tab: the strip now reads `delayed quotes, fetched 14:02 UTC (12 min ago)` or similar, with `marketdata` as the provider, and prices that differ from the fixture numbers. Point at SPY and compare it aloud to the fixture value from scene 3.
@@ -428,7 +451,9 @@ What happens to my taxes if one of those puts is assigned?
 
 **Narration:**
 
-> Portfolio analysis of what I already own. Three positions typed in plain text, valued at the run's prices: allocation, sector weights, a diversification score, expense ratios, beta. The bar that matters is this one: if the screened Costco put were assigned, Costco would go from here to here as a share of everything I hold plus my buying power. The conservative cap is twenty-five percent, so the sizing step caps the contracts. That is the seventh constraint, and it only exists because I told the app what I own.
+> Portfolio analysis of what I already own. Three positions typed in plain text, valued at the run's prices: allocation, sector weights, a diversification score and expense ratios. The bar that matters is this one: if the screened Nike put were assigned, Nike would go from nothing to two percent of everything I hold plus my buying power. The conservative cap is twenty-five percent, so here it does not bind, but if it did, the sizing step would cut the contracts. That is the seventh constraint, and it only exists because I told the app what I own.
+
+On fixtures (both amounts, after the scene 4 what-if): $110,128 across AAPL 63%, SPY 28%, COST 9%; diversification score 52; the NKE 35 put takes NKE from 0% to 2% against the 25% cap. **Beta shows as blank on fixtures**, with the note "beta not computed: no dated SPY closes": the bundled closes carry no dates, and beta is now computed only on closes joined by date (W25), so it is left out rather than guessed. In a live-data take it appears for holdings with at least 60 shared daily returns, each with its 95% range, and the beta-weighted exposure is stated with its range ("estimated from daily returns").
 
 **Action:** scroll to the constraint checks and point at the seventh row.
 
@@ -471,7 +496,8 @@ What happens to my taxes if one of those puts is assigned?
 
 | Symptom | Cause | On-camera response |
 |---|---|---|
-| Turn 2 confirmation card shows `Strategies: csp, leaps` or empty | intake did not carry "that" from turn 1 | Edit the field in the card, say "I'll correct it here, that is what the interrupt is for", continue. Cut the context-carry narration line in edit. |
+| Turn 2 confirmation card shows `Strategies: csp, leaps` or empty | intake did not carry "that" from turn 1 | Edit the field in the card, say "I'll correct it here, that is what the interrupt is for", continue. Cut the context-carry narration line in edit. Do not skip the edit: with LEAPS and PMCC left in, the table in section 0.4 no longer holds and Nike is not at the bottom for scene 3.3. |
+| Portfolio & Risk says "This account is too small for this universe … fits from $960,716" | the scene 4 amount was changed to $30,000 | Narrate it, the refusal is honest. Then re-run with strategies csp and $60,000 margin for the scene 4 walk. |
 | A question returns "I don't have a source for that in my knowledge base." | the question shares no content word with any document | Keep it. Say: "and when the knowledge base has nothing, it says so rather than improvising." Then rephrase with the document's own term. |
 | NVDA reply passes compliance but reads like advice | guardrail gap | Stop. Do not publish. Fix prompt/config, re-run the three-times check. |
 | Live run hits 429 | daily credits spent | Better footage than the 401. Record it, narrate the 429 line in 5.2. |

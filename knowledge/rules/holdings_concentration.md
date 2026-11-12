@@ -5,7 +5,7 @@ source: PRD.md section 3.10 and config/risk_profiles.yaml, config/holdings.yaml
 url: PRD.md#310-holdings-and-concentration-after-assignment-seventh-constraint
 kind: rules
 level: intermediate
-as_of: '2026-11-06'
+as_of: '2026-11-12'
 ---
 
 # Rule 3.10 Holdings and concentration after assignment (seventh constraint)
@@ -32,7 +32,7 @@ Logic in `core/holdings.py`, `core/sizing.py` and `core/risk.py`; the cap is in 
 
 The cap is measured against holdings value plus buying power and applies only when holdings were entered.
 
-Covered-call lot: 100 shares. Beta: daily closes over 90 days against SPY.
+Covered-call lot: 100 shares. Beta: daily log returns over 252 trading days against SPY, joined on date and needing at least 60 shared returns, reported with its 95% range. The beta-weighted exposure is one regression of the portfolio's weighted daily returns on the index, with its own range.
 
 ### Expense ratios used for the weighted expense ratio
 

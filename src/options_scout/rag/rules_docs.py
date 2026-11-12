@@ -321,8 +321,11 @@ def _values_3_10(cfg: AppConfig) -> str:
         f"{cap}\n\n"
         "The cap is measured against holdings value plus buying power and applies only when "
         "holdings were entered.\n\n"
-        f"Covered-call lot: {h.covered_call_lot} shares. Beta: daily closes over "
-        f"{h.beta_lookback_days} days against {h.beta_index}.\n\n"
+        f"Covered-call lot: {h.covered_call_lot} shares. Beta: daily log returns over "
+        f"{h.beta_lookback_days} trading days against {h.beta_index}, joined on date and needing "
+        f"at least {h.beta_min_returns} shared returns, reported with its "
+        f"{h.beta_interval:.0%} range. The beta-weighted exposure is one regression of the "
+        "portfolio's weighted daily returns on the index, with its own range.\n\n"
         f"### Expense ratios used for the weighted expense ratio\n\n{ratios}\n\n"
         "A stock has no expense ratio; an ETF outside this table is reported without one."
     )
