@@ -1,0 +1,66 @@
+{
+ "task": "explain_report",
+ "model": "deepseek/deepseek-v4.1-flash",
+ "output": {
+  "paragraphs": [
+   {
+    "mode": "education",
+    "text": "Buying power here is split between two collateral styles. A cash-secured put is a short put in which the writer sets aside enough cash to buy the shares at the strike if the put is assigned, and the word secured refers to the cash the broker holds as collateral for the whole life of the trade [S1]. A naked put, also called uncovered or a short put on margin, is the same contract; the difference is that the broker holds only a margin requirement, a fraction of the purchase price, and the writer keeps the rest of their buying power free for other positions [S6]. Assignment is the process by which an option writer is selected to fulfil the obligation of a contract that a holder has exercised [S2].",
+    "citations": [
+     "S1",
+     "S6",
+     "S2"
+    ]
+   },
+   {
+    "mode": "screen_result",
+    "text": "The regime is labelled {{regime.label}} with a risk-free rate of {{regime.risk_free_rate_pct|pct}} and VIX at {{regime.vix}}, around the {{regime.vix_percentile}}th percentile. The sizer put {{allocation.csp_pct|pct}} of the strategy budget into cash-secured puts, {{allocation.leaps_pct|pct}} into LEAPS and {{allocation.cash_pct|pct}} into cash, a {{allocation.tilt}} tilt.",
+    "citations": []
+   },
+   {
+    "mode": "education",
+    "text": "The quality gate only admits good-to-own businesses. LEAPS are listed options with more than a year until expiration; the app screens deep in-the-money LEAPS calls as a way to hold long exposure to a good-to-own stock while committing less capital than buying the shares outright [S3]. A poor man's covered call is a two-leg position: a long, deep in-the-money LEAPS call and a short, near-term, out-of-the-money call on the same stock, formally a long call diagonal spread [S5]. Intrinsic value is the amount by which the option is in the money, and extrinsic value is everything else in the premium [S4].",
+    "citations": [
+     "S3",
+     "S5",
+     "S4"
+    ]
+   },
+   {
+    "mode": "screen_result",
+    "text": "{{counts.quality_passed}} underlyings passed the quality gate and {{counts.quality_excluded}} were excluded: {{quality_screen.passed_tickers|list}}. Each carries a stated reason, such as {{quality_screen.passed[0].ticker}} ({{quality_screen.passed[0].why}}), {{quality_screen.passed[2].ticker}} ({{quality_screen.passed[2].why}}) and {{quality_screen.passed[4].ticker}} ({{quality_screen.passed[4].why}}).",
+    "citations": []
+   },
+   {
+    "mode": "screen_result",
+    "text": "The trend board is a secondary signal only. It is led by {{trends[0].ticker}} ({{trends[0].entity}}) at score {{trends[0].score}} and {{trends[1].ticker}} ({{trends[1].entity}}) at {{trends[1].score}} \u2014 names not on the good-to-own list, so they were skipped, not added. The bottleneck board also re-orders and never adds: the top layer is {{bottlenecks.layers[0].name}} at {{bottlenecks.layers[0].score}}, thesis state {{bottlenecks.layers[0].thesis_state}}, ahead of {{bottlenecks.layers[2].name}} at {{bottlenecks.layers[2].score}} and {{bottlenecks.layers[5].name}} at {{bottlenecks.layers[5].score}}, thesis state {{bottlenecks.layers[5].thesis_state}}. No sized position carries a non-empty bottleneck flag.",
+    "citations": []
+   },
+   {
+    "mode": "screen_result",
+    "text": "On the LEAPS side, {{positions[0].candidate_id}} has breakeven {{positions[0].payoff.breakeven}} and maximum loss {{positions[0].payoff.max_loss|money}}, with realistic loss {{positions[0].realistic_loss|money}}. {{positions[1].candidate_id}} shows breakeven {{positions[1].payoff.breakeven}} and maximum loss {{positions[1].payoff.max_loss|money}}, realistic loss {{positions[1].realistic_loss|money}}. {{positions[2].candidate_id}} shows breakeven {{positions[2].payoff.breakeven}} and maximum loss {{positions[2].payoff.max_loss|money}}, realistic loss {{positions[2].realistic_loss|money}}. The short put {{positions[3].candidate_id}} shows breakeven {{positions[3].payoff.breakeven}} and maximum loss {{positions[3].payoff.max_loss|money}}, realistic loss {{positions[3].realistic_loss|money}}. {{positions[4].candidate_id}}, sized as a poor man's covered call, shows breakeven {{positions[4].payoff.breakeven}} and maximum loss {{positions[4].payoff.max_loss|money}}, realistic loss {{positions[4].realistic_loss|money}}.",
+    "citations": []
+   },
+   {
+    "mode": "screen_result",
+    "text": "On risk, {{risk.checks_passed}} of {{risk.checks_total}} checks passed. Margin usage stands at {{risk.checks[1].value|percent}} against a {{risk.checks[1].limit|percent}} limit, and portfolio loss measures {{risk.checks[5].value|percent}} of the {{risk.checks[5].limit|percent}} limit. In the stress tests, a {{risk.stress[0].shock}} move with a {{risk.stress[0].iv_shock}} IV shock gives {{risk.stress[0].pnl|money}}, while a {{risk.stress[2].shock}} move with a {{risk.stress[2].iv_shock}} IV shock gives {{risk.stress[2].pnl|money}}.",
+    "citations": []
+   },
+   {
+    "mode": "notice",
+    "text": "**Warnings and limitations.** {{risk.warnings[0]}} {{risk.warnings[7]}}",
+    "citations": []
+   },
+   {
+    "mode": "notice",
+    "text": "{{ delayed_data_notice }}",
+    "citations": []
+   },
+   {
+    "mode": "notice",
+    "text": "{{ disclaimer }}",
+    "citations": []
+   }
+  ]
+ }
+}

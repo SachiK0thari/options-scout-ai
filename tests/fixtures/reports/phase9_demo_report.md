@@ -147,42 +147,42 @@ _Headlines never change the ranking; they flag what to read before trading._
 | NKE | Nike | Consumer Cyclical | 46 | 28% | 15% | Leading athletic brand with 20+ years of dividend increases. |
 
 ## CSP candidates
-| ID | Strike | Expiry | DTE | Delta | Mid | Collateral | Reg T margin | Ann. return | P(OTM) | OI / spread | IV rank | Earnings | Flags |
+| ID | Strike | Expiry | DTE | Delta | Mid | Collateral | Reg T margin | Ann. return | P(OTM) | OI / spread | IV rank or IV/HV | Earnings | Flags |
 |---|---|---|---|---|---|---|---|---|---|---|---|---|---|
-| CSP-SPY-2026-11-30-735P | 735 | 2026-11-30 | 34 | -0.18 | 4.10 | $73,090 | $12,337 | 6.0% | 81% | 7,250/1% | 85%* | no |  |
-| CSP-SPY-2026-11-30-750P | 750 | 2026-11-30 | 34 | -0.27 | 6.21 | $74,379 | $14,048 | 9.0% | 72% | 9,144/1% | 85%* | no |  |
-| CSP-QQQ-2026-11-30-695P | 695 | 2026-11-30 | 34 | -0.28 | 9.27 | $68,573 | $12,727 | 14.5% | 70% | 5,930/2% | 62%* | no |  |
-| CSP-QQQ-2026-11-30-690P | 690 | 2026-11-30 | 34 | -0.25 | 8.23 | $68,177 | $12,123 | 13.0% | 73% | 4,502/2% | 62%* | no |  |
-| CSP-NKE-2026-11-20-35P | 35 | 2026-11-20 | 24 | -0.23 | 0.56 | $3,444 | $552 | 25.0% | 73% | 20,879/9% | 94%* | no | dte_outside_preferred |
+| CSP-SPY-2026-11-30-735P | 735 | 2026-11-30 | 34 | -0.18 | 4.10 | $73,090 | $12,337 | 6.0% | 81% | 7,250/1% | IV/HV 1.35× | no |  |
+| CSP-SPY-2026-11-30-750P | 750 | 2026-11-30 | 34 | -0.27 | 6.21 | $74,379 | $14,048 | 9.0% | 72% | 9,144/1% | IV/HV 1.35× | no |  |
+| CSP-QQQ-2026-11-30-695P | 695 | 2026-11-30 | 34 | -0.28 | 9.27 | $68,573 | $12,727 | 14.5% | 70% | 5,930/2% | IV/HV 1.12× | no |  |
+| CSP-QQQ-2026-11-30-690P | 690 | 2026-11-30 | 34 | -0.25 | 8.23 | $68,177 | $12,123 | 13.0% | 73% | 4,502/2% | IV/HV 1.12× | no |  |
+| CSP-NKE-2026-11-20-35P | 35 | 2026-11-20 | 24 | -0.23 | 0.56 | $3,444 | $552 | 25.0% | 73% | 20,879/9% | IV/HV 1.44× | no | dte_outside_preferred |
 
-\* IV rank from HV proxy (fewer than 30 stored IV snapshots).
+IV/HV: no IV rank yet (fewer than 30 stored IV snapshots); showing implied over realised volatility. Options usually trade above realised volatility, so it is context and does not affect the score.
 
 ## LEAPS / PMCC candidates
 | ID | Strike | Expiry | DTE | Delta | Mid | Extrinsic/yr | Carry/yr | Breakeven | OI / spread | PMCC short call | Flags |
 |---|---|---|---|---|---|---|---|---|---|---|---|
-| LEAPS-SPY-2028-01-21-600C | 600 | 2028-01-21 | 451 | 0.84 | 211.81 | 4.4% | 2.5% | 811.81 | 1,590/1% | n/a | iv_disagrees, shorter_than_preferred_dte, high_iv_rank |
-| LEAPS-SPY-2027-12-17-595C | 595 | 2027-12-17 | 416 | 0.85 | 213.00 | 4.4% | 2.4% | 808.00 | 2,688/2% | n/a | iv_disagrees, shorter_than_preferred_dte, high_iv_rank |
-| LEAPS-QQQ-2028-12-15-530C | 530 | 2028-12-15 | 780 | 0.85 | 260.75 | 4.5% | 2.3% | 790.75 | 372/2% | n/a | iv_disagrees, high_iv_rank |
-| LEAPS-QQQ-2028-06-16-540C | 540 | 2028-06-16 | 598 | 0.85 | 238.00 | 4.8% | 2.5% | 778.00 | 107/2% | n/a | iv_disagrees, high_iv_rank |
-| LEAPS-AAPL-2029-01-19-260C | 260 | 2029-01-19 | 815 | 0.83 | 125.65 | 5.0% | 2.7% | 385.65 | 239/3% | n/a | iv_disagrees, high_iv_rank |
-| LEAPS-COST-2028-12-15-800C | 800 | 2028-12-15 | 780 | 0.81 | 297.00 | 4.9% | 2.7% | 1097.00 | 172/3% | n/a | iv_disagrees, high_iv_rank |
-| LEAPS-MSFT-2028-12-15-360C | 360 | 2028-12-15 | 780 | 0.85 | 220.18 | 4.3% | 2.7% | 580.17 | 538/2% | n/a | iv_disagrees, high_iv_rank |
-| LEAPS-MSFT-2028-12-15-370C | 370 | 2028-12-15 | 780 | 0.84 | 213.00 | 4.6% | 2.9% | 583.00 | 687/2% | n/a | iv_disagrees, high_iv_rank |
-| LEAPS-NKE-2028-12-15-20C | 20 | 2028-12-15 | 780 | 0.80 | 18.80 | 1.5% | 3.9% | 38.80 | 575/5% | 40C 2026-11-20 Δ0.30 mid 0.72 (net Δ 0.50, safety +1.20) | iv_disagrees, high_iv_rank |
+| LEAPS-SPY-2028-01-21-600C | 600 | 2028-01-21 | 451 | 0.84 | 211.81 | 4.4% | 2.5% | 811.81 | 1,590/1% | n/a | iv_disagrees, shorter_than_preferred_dte |
+| LEAPS-SPY-2027-12-17-595C | 595 | 2027-12-17 | 416 | 0.85 | 213.00 | 4.4% | 2.4% | 808.00 | 2,688/2% | n/a | iv_disagrees, shorter_than_preferred_dte |
+| LEAPS-AAPL-2029-01-19-260C | 260 | 2029-01-19 | 815 | 0.83 | 125.65 | 5.0% | 2.7% | 385.65 | 239/3% | n/a | iv_disagrees |
+| LEAPS-QQQ-2028-12-15-530C | 530 | 2028-12-15 | 780 | 0.85 | 260.75 | 4.5% | 2.3% | 790.75 | 372/2% | n/a | iv_disagrees |
+| LEAPS-MSFT-2028-12-15-360C | 360 | 2028-12-15 | 780 | 0.85 | 220.18 | 4.3% | 2.7% | 580.17 | 538/2% | n/a | iv_disagrees |
+| LEAPS-QQQ-2028-06-16-540C | 540 | 2028-06-16 | 598 | 0.85 | 238.00 | 4.8% | 2.5% | 778.00 | 107/2% | n/a | iv_disagrees |
+| LEAPS-MSFT-2028-12-15-370C | 370 | 2028-12-15 | 780 | 0.84 | 213.00 | 4.6% | 2.9% | 583.00 | 687/2% | n/a | iv_disagrees |
+| LEAPS-COST-2028-12-15-800C | 800 | 2028-12-15 | 780 | 0.81 | 297.00 | 4.9% | 2.7% | 1097.00 | 172/3% | n/a | iv_disagrees |
+| LEAPS-NKE-2028-12-15-20C | 20 | 2028-12-15 | 780 | 0.80 | 18.80 | 1.5% | 3.9% | 38.80 | 575/5% | 40C 2026-11-20 Δ0.30 mid 0.72 (net Δ 0.50, safety +1.20) | iv_disagrees |
 
 ## Sized portfolio
 > ⚠️ Only $169,028 of the $700,000 set aside for the requested strategies is used (24%); the rest stays in cash.
 
 | Candidate | Strategy | Contracts | Strike | Expiry | Capital | Margin | Loss @ -30% | $ delta | Premium | Score | PMCC short call |
 |---|---|---|---|---|---|---|---|---|---|---|---|
-| CSP-SPY-2026-11-30-735P | short put on margin (naked) | 1 | 735 | 2026-11-30 | $12,337 | $12,337 | $19,214 | 13,604 | 410 | 0.69 | n/a |
-| LEAPS-SPY-2028-01-21-600C | leaps | 1 | 600 | 2028-01-21 | $21,181 | n/a | $21,181 | 64,715 | -21,181 | 0.67 | n/a |
-| CSP-QQQ-2026-11-30-695P | short put on margin (naked) | 1 | 695 | 2026-11-30 | $12,727 | $12,727 | $18,086 | 19,933 | 927 | 0.63 | n/a |
-| LEAPS-QQQ-2028-12-15-530C | leaps | 1 | 530 | 2028-12-15 | $26,075 | n/a | $26,075 | 61,007 | -26,075 | 0.62 | n/a |
-| CSP-NKE-2026-11-20-35P | short put on margin (naked) | 36 | 35 | 2026-11-20 | $19,861 | $19,861 | $29,315 | 31,566 | 2,034 | 0.59 | n/a |
-| LEAPS-AAPL-2029-01-19-260C | leaps | 2 | 260 | 2029-01-19 | $25,130 | n/a | $25,130 | 57,929 | -25,130 | 0.59 | n/a |
-| LEAPS-COST-2028-12-15-800C | leaps | 1 | 800 | 2028-12-15 | $29,700 | n/a | $29,700 | 79,903 | -29,700 | 0.59 | n/a |
-| LEAPS-MSFT-2028-12-15-360C | leaps | 1 | 360 | 2028-12-15 | $22,018 | n/a | $22,018 | 45,115 | -22,018 | 0.58 | n/a |
+| LEAPS-SPY-2028-01-21-600C | leaps | 1 | 600 | 2028-01-21 | $21,181 | n/a | $21,181 | 64,715 | -21,181 | 0.70 | n/a |
+| CSP-SPY-2026-11-30-735P | short put on margin (naked) | 1 | 735 | 2026-11-30 | $12,337 | $12,337 | $19,214 | 13,604 | 410 | 0.66 | n/a |
+| LEAPS-AAPL-2029-01-19-260C | leaps | 2 | 260 | 2029-01-19 | $25,130 | n/a | $25,130 | 57,929 | -25,130 | 0.63 | n/a |
+| LEAPS-QQQ-2028-12-15-530C | leaps | 1 | 530 | 2028-12-15 | $26,075 | n/a | $26,075 | 61,007 | -26,075 | 0.63 | n/a |
+| LEAPS-MSFT-2028-12-15-360C | leaps | 1 | 360 | 2028-12-15 | $22,018 | n/a | $22,018 | 45,115 | -22,018 | 0.62 | n/a |
+| CSP-QQQ-2026-11-30-695P | short put on margin (naked) | 1 | 695 | 2026-11-30 | $12,727 | $12,727 | $18,086 | 19,933 | 927 | 0.62 | n/a |
+| LEAPS-COST-2028-12-15-800C | leaps | 1 | 800 | 2028-12-15 | $29,700 | n/a | $29,700 | 79,903 | -29,700 | 0.61 | n/a |
+| CSP-NKE-2026-11-20-35P | short put on margin (naked) | 36 | 35 | 2026-11-20 | $19,861 | $19,861 | $29,315 | 31,566 | 2,034 | 0.56 | n/a |
 
 | Metric | Value |
 |---|---|
@@ -196,13 +196,14 @@ _Headlines never change the ranking; they flag what to read before trading._
 | Unused buying power | $830,972 |
 | Cash needed if every put is assigned (+ LEAPS debits) | $393,104 |
 
-<details><summary>Skipped candidates (5)</summary>
+<details><summary>Skipped candidates (6)</summary>
 
-- CSP-SPY-2026-11-30-750P: already hold a csp on SPY
 - LEAPS-SPY-2027-12-17-595C: already hold a leaps on SPY
+- CSP-SPY-2026-11-30-750P: already hold a csp on SPY
 - CSP-QQQ-2026-11-30-690P: already hold a csp on QQQ
 - LEAPS-QQQ-2028-06-16-540C: already hold a leaps on QQQ
-- LEAPS-MSFT-2028-12-15-370C: max positions reached
+- LEAPS-MSFT-2028-12-15-370C: already hold a leaps on MSFT
+- LEAPS-NKE-2028-12-15-20C: max positions reached
 
 </details>
 
@@ -229,14 +230,14 @@ _Headlines never change the ranking; they flag what to read before trading._
 | -30% | +50% | -141,502 | -14.2% |
 
 - ⚠️ Only $169,028 of the $700,000 set aside for the requested strategies is used (24%); the rest stays in cash.
-- ⚠️ CSP-NKE-2026-11-20-35P: IV rank is an HV proxy (fewer than 30 IV snapshots stored).
-- ⚠️ CSP-QQQ-2026-11-30-695P: IV rank is an HV proxy (fewer than 30 IV snapshots stored).
-- ⚠️ CSP-SPY-2026-11-30-735P: IV rank is an HV proxy (fewer than 30 IV snapshots stored).
-- ⚠️ LEAPS-AAPL-2029-01-19-260C: IV rank is an HV proxy (fewer than 30 IV snapshots stored).
-- ⚠️ LEAPS-COST-2028-12-15-800C: IV rank is an HV proxy (fewer than 30 IV snapshots stored).
-- ⚠️ LEAPS-MSFT-2028-12-15-360C: IV rank is an HV proxy (fewer than 30 IV snapshots stored).
-- ⚠️ LEAPS-QQQ-2028-12-15-530C: IV rank is an HV proxy (fewer than 30 IV snapshots stored).
-- ⚠️ LEAPS-SPY-2028-01-21-600C: IV rank is an HV proxy (fewer than 30 IV snapshots stored).
+- ⚠️ CSP-NKE-2026-11-20-35P: no IV rank yet (fewer than 30 stored IV snapshots); showing implied over realised volatility.
+- ⚠️ CSP-QQQ-2026-11-30-695P: no IV rank yet (fewer than 30 stored IV snapshots); showing implied over realised volatility.
+- ⚠️ CSP-SPY-2026-11-30-735P: no IV rank yet (fewer than 30 stored IV snapshots); showing implied over realised volatility.
+- ⚠️ LEAPS-AAPL-2029-01-19-260C: no IV rank yet (fewer than 30 stored IV snapshots); showing implied over realised volatility.
+- ⚠️ LEAPS-COST-2028-12-15-800C: no IV rank yet (fewer than 30 stored IV snapshots); showing implied over realised volatility.
+- ⚠️ LEAPS-MSFT-2028-12-15-360C: no IV rank yet (fewer than 30 stored IV snapshots); showing implied over realised volatility.
+- ⚠️ LEAPS-QQQ-2028-12-15-530C: no IV rank yet (fewer than 30 stored IV snapshots); showing implied over realised volatility.
+- ⚠️ LEAPS-SPY-2028-01-21-600C: no IV rank yet (fewer than 30 stored IV snapshots); showing implied over realised volatility.
 - ⚠️ Margin account: the puts are sized as naked puts on the Reg T requirement ($44,925), but the loss at a -30% move is $190,718 and assignment of every put plus the LEAPS debits would need $393,104 in cash. Brokers can raise requirements at any time, especially in volatile markets.
 
 ## Explanation
@@ -254,11 +255,11 @@ _Headlines never change the ranking; they flag what to read before trading._
 
 **LEAPS: long-dated call options as a leveraged stand-in for owning shares.** **LEAPS** (Long-term Equity AnticiPation Securities) is the exchanges' name for listed options with more than a year until expiration. They trade and settle exactly like shorter options; only the time horizon is different. This app screens **deep in-the-money LEAPS calls** as a way to hold long exposure to a good-to-own stock for a year or more while committing less capital than buying the shares outright. [S3]
 
-**Sized positions.** CSP-SPY-2026-11-30-735P: 1 contract(s) of the csp with strike 735 expiring 2026-11-30, using $12,337 of capital with a realistic loss of $19,214 if the underlying falls 30%. Breakeven at expiry $730.90, maximum loss $73,090. LEAPS-SPY-2028-01-21-600C: 1 contract(s) of the leaps with strike 600 expiring 2028-01-21, using $21,181 of capital with a realistic loss of $21,181 if the underlying falls 30%. Breakeven at expiry $811.81, maximum loss $21,181. CSP-QQQ-2026-11-30-695P: 1 contract(s) of the csp with strike 695 expiring 2026-11-30, using $12,727 of capital with a realistic loss of $18,086 if the underlying falls 30%. Breakeven at expiry $685.73, maximum loss $68,573. LEAPS-QQQ-2028-12-15-530C: 1 contract(s) of the leaps with strike 530 expiring 2028-12-15, using $26,075 of capital with a realistic loss of $26,075 if the underlying falls 30%. Breakeven at expiry $790.75, maximum loss $26,075. CSP-NKE-2026-11-20-35P: 36 contract(s) of the csp with strike 35 expiring 2026-11-20, using $19,861 of capital with a realistic loss of $29,315 if the underlying falls 30%. Breakeven at expiry $34.44, maximum loss $123,966. LEAPS-AAPL-2029-01-19-260C: 2 contract(s) of the leaps with strike 260 expiring 2029-01-19, using $25,130 of capital with a realistic loss of $25,130 if the underlying falls 30%. Breakeven at expiry $385.65, maximum loss $25,130. LEAPS-COST-2028-12-15-800C: 1 contract(s) of the leaps with strike 800 expiring 2028-12-15, using $29,700 of capital with a realistic loss of $29,700 if the underlying falls 30%. Breakeven at expiry $1,097, maximum loss $29,700. LEAPS-MSFT-2028-12-15-360C: 1 contract(s) of the leaps with strike 360 expiring 2028-12-15, using $22,018 of capital with a realistic loss of $22,018 if the underlying falls 30%. Breakeven at expiry $580.17, maximum loss $22,018.
+**Sized positions.** LEAPS-SPY-2028-01-21-600C: 1 contract(s) of the leaps with strike 600 expiring 2028-01-21, using $21,181 of capital with a realistic loss of $21,181 if the underlying falls 30%. Breakeven at expiry $811.81, maximum loss $21,181. CSP-SPY-2026-11-30-735P: 1 contract(s) of the csp with strike 735 expiring 2026-11-30, using $12,337 of capital with a realistic loss of $19,214 if the underlying falls 30%. Breakeven at expiry $730.90, maximum loss $73,090. LEAPS-AAPL-2029-01-19-260C: 2 contract(s) of the leaps with strike 260 expiring 2029-01-19, using $25,130 of capital with a realistic loss of $25,130 if the underlying falls 30%. Breakeven at expiry $385.65, maximum loss $25,130. LEAPS-QQQ-2028-12-15-530C: 1 contract(s) of the leaps with strike 530 expiring 2028-12-15, using $26,075 of capital with a realistic loss of $26,075 if the underlying falls 30%. Breakeven at expiry $790.75, maximum loss $26,075. LEAPS-MSFT-2028-12-15-360C: 1 contract(s) of the leaps with strike 360 expiring 2028-12-15, using $22,018 of capital with a realistic loss of $22,018 if the underlying falls 30%. Breakeven at expiry $580.17, maximum loss $22,018. CSP-QQQ-2026-11-30-695P: 1 contract(s) of the csp with strike 695 expiring 2026-11-30, using $12,727 of capital with a realistic loss of $18,086 if the underlying falls 30%. Breakeven at expiry $685.73, maximum loss $68,573. LEAPS-COST-2028-12-15-800C: 1 contract(s) of the leaps with strike 800 expiring 2028-12-15, using $29,700 of capital with a realistic loss of $29,700 if the underlying falls 30%. Breakeven at expiry $1,097, maximum loss $29,700. CSP-NKE-2026-11-20-35P: 36 contract(s) of the csp with strike 35 expiring 2026-11-20, using $19,861 of capital with a realistic loss of $29,315 if the underlying falls 30%. Breakeven at expiry $34.44, maximum loss $123,966.
 
 **Risk.** 8 of 8 constraint checks pass. Stress test with an instant move and an IV shock: a -10% move gives -$42,263; a -20% move gives -$91,344; a -30% move gives -$141,502. The combined realistic loss at a 30% drop across all positions is $190,718.
 
-**Warnings and limitations.** Only $169,028 of the $700,000 set aside for the requested strategies is used (24%); the rest stays in cash. CSP-NKE-2026-11-20-35P: IV rank is an HV proxy (fewer than 30 IV snapshots stored). CSP-QQQ-2026-11-30-695P: IV rank is an HV proxy (fewer than 30 IV snapshots stored). CSP-SPY-2026-11-30-735P: IV rank is an HV proxy (fewer than 30 IV snapshots stored). LEAPS-AAPL-2029-01-19-260C: IV rank is an HV proxy (fewer than 30 IV snapshots stored). LEAPS-COST-2028-12-15-800C: IV rank is an HV proxy (fewer than 30 IV snapshots stored).
+**Warnings and limitations.** Only $169,028 of the $700,000 set aside for the requested strategies is used (24%); the rest stays in cash. CSP-NKE-2026-11-20-35P: no IV rank yet (fewer than 30 stored IV snapshots); showing implied over realised volatility. CSP-QQQ-2026-11-30-695P: no IV rank yet (fewer than 30 stored IV snapshots); showing implied over realised volatility. CSP-SPY-2026-11-30-735P: no IV rank yet (fewer than 30 stored IV snapshots); showing implied over realised volatility. LEAPS-AAPL-2029-01-19-260C: no IV rank yet (fewer than 30 stored IV snapshots); showing implied over realised volatility. LEAPS-COST-2028-12-15-800C: no IV rank yet (fewer than 30 stored IV snapshots); showing implied over realised volatility.
 
 Market data is delayed and Greeks are model-derived; these are screened candidates that meet the configured criteria, not recommendations.
 

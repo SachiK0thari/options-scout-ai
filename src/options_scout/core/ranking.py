@@ -29,13 +29,22 @@ def liquidity_score(c: OptionCandidate, max_spread: float) -> float:
     return 0.5 * spread_part + 0.5 * oi_part
 
 
+def has_real_iv_rank(c: OptionCandidate) -> bool:
+    """True when the IV rank comes from stored IV history. The IV/HV proxy is not a rank: options
+    usually trade above realised vol, so it reads high for almost every name (W4)."""
+    return c.iv_rank is not None and c.iv_rank_source == "history"
+
+
 def option_quality(c: OptionCandidate, w: OptionQualityWeights, rules: ScreenerRules) -> float:
-    """Normalised 0–1 blend of return, probability, liquidity and IV-rank fit."""
+    """Normalised 0–1 blend of return, probability, liquidity and IV-rank fit.
+
+    The IV-rank fit is neutral (0.5) unless the rank comes from history (W4)."""
+    real = has_real_iv_rank(c)
     if c.strategy == "csp":
         ret = _clip01((c.annualized_return or 0.0) / ANNUALIZED_RETURN_CAP)
         pop = c.prob_otm
         liq = liquidity_score(c, rules.csp.max_spread_pct)
-        iv_fit = c.iv_rank if c.iv_rank is not None else 0.5  # CSP sellers want high IV rank
+        iv_fit = c.iv_rank if real and c.iv_rank is not None else 0.5  # sellers want high rank
     elif c.strategy == "leaps":
         if rules.leaps.rank_by == "carry":  # W3: unknown carry scores 0 on the cost term
             cap = rules.leaps.carry_score_cap
@@ -48,7 +57,7 @@ def option_quality(c: OptionCandidate, w: OptionQualityWeights, rules: ScreenerR
         # deep ITM two-year call); prob_otm comes from the same BSM inputs as the price
         pop = 1.0 - c.prob_otm
         liq = liquidity_score(c, rules.leaps.max_spread_pct)
-        iv_fit = (1.0 - c.iv_rank) if c.iv_rank is not None else 0.5  # buyers want low IV rank
+        iv_fit = (1.0 - c.iv_rank) if real and c.iv_rank is not None else 0.5  # buyers: low
     else:  # pmcc_short_call is ranked through its LEAPS; give a neutral quality
         ret, pop, liq, iv_fit = 0.5, c.prob_otm, liquidity_score(c, 0.10), 0.5
     return _clip01(

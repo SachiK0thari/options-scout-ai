@@ -1,0 +1,53 @@
+{
+ "task": "explain_report",
+ "model": "deepseek/deepseek-v4.1-flash",
+ "output": {
+  "paragraphs": [
+   {
+    "mode": "screen_result",
+    "text": "The screen ran on a **normal** regime, with the VIX at {{regime.vix}} and a risk-free rate of {{regime.risk_free_rate_pct|pct}}. Buying power was allocated across three buckets: {{allocation.csp_pct|pct}} to cash-secured puts, {{allocation.leaps_pct|pct}} to long LEAPS calls for poor man's covered calls, and {{allocation.cash_pct|pct}} held in cash. This is a **none** tilt \u2014 neither strategy received extra weight.",
+    "citations": []
+   },
+   {
+    "mode": "screen_result",
+    "text": "The good-to-own quality gate **passed {{quality_screen.passed_count}} underlyings** \u2014 {{quality_screen.passed_tickers|list}}. The gate is a filter, not a discovery engine: it decides which tickers are allowed into the option screeners at all [S5]. {{quality_screen.excluded_count}} underlyings were excluded.",
+    "citations": []
+   },
+   {
+    "mode": "notice",
+    "text": "{{ delayed_data_notice }}",
+    "citations": []
+   },
+   {
+    "mode": "screen_result",
+    "text": "The trend board is a **secondary signal only**. It surfaced several tickers with rising consumer discussion \u2014 {{trends|count}} in total \u2014 but none of them passed the quality gate, so they were skipped: {{skipped_candidates|count}} candidates were left behind.",
+    "citations": []
+   },
+   {
+    "mode": "screen_result",
+    "text": "The bottleneck board is also a **secondary signal only** \u2014 it re-orders quality-gated stocks, never adds one. The top-scoring layers were Power generation and grid equipment (score {{bottlenecks.layers[0].score}}, thesis state: {{bottlenecks.layers[0].thesis_state}}) and Grid equipment and transformers (score {{bottlenecks.layers[1].score}}, thesis state: {{bottlenecks.layers[1].thesis_state}}). The Networking, optics and fiber layer scored {{bottlenecks.layers[5].score}} with a {{bottlenecks.layers[5].thesis_state}} thesis state.",
+    "citations": []
+   },
+   {
+    "mode": "screen_result",
+    "text": "No positions were sized. The sizer left behind {{counts.skipped_total}} candidates in total, all described by their realistic loss per contract. For example, LEAPS-SPY-2028-01-21-600C has a realistic loss per contract of {{skipped_candidates[0].realistic_loss_per_contract|money}}, and CSP-SPY-2026-11-30-735P has a realistic loss per contract of {{skipped_candidates[2].realistic_loss_per_contract|money}}.",
+    "citations": []
+   },
+   {
+    "mode": "screen_result",
+    "text": "All {{risk.checks_passed}} of {{risk.checks_total}} constraint checks passed, but this is because nothing was sized. The portfolio's short put notional, margin used, and realistic loss all sit at {{portfolio.short_put_notional}}, {{portfolio.margin_used|money}}, and {{portfolio.realistic_loss|money}} respectively. The stress tests \u2014 a {{risk.stress[0].shock}} move with a {{risk.stress[0].iv_shock}} IV shock, a {{risk.stress[1].shock}} move, and a {{risk.stress[2].shock}} move \u2014 each give a P&L of {{risk.stress[0].pnl|money}}.",
+    "citations": []
+   },
+   {
+    "mode": "notice",
+    "text": "**Warnings and limitations.** {{risk.warnings[0]}}",
+    "citations": []
+   },
+   {
+    "mode": "notice",
+    "text": "{{ disclaimer }}",
+    "citations": []
+   }
+  ]
+ }
+}

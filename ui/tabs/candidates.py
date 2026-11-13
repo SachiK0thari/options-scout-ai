@@ -13,6 +13,7 @@ import pandas as pd
 import streamlit as st
 
 from options_scout.core.models import OptionCandidate, ScreeningReport
+from options_scout.core.report import iv_rank_cell
 from options_scout.core.screeners import (
     BOTTLENECK_FLAGS,
     FLAG_BOTTLENECK_EASING,
@@ -109,7 +110,7 @@ def _leaps_rows(cands: list[OptionCandidate], report: ScreeningReport) -> pd.Dat
 
 # what each level adds to the plain-language columns
 INTERMEDIATE_COLUMNS = ("Delta", "Open interest", "Flags")
-ADVANCED_COLUMNS = ("Implied vol", "Gamma", "Theta / day", "Vega", "Spread")
+ADVANCED_COLUMNS = ("Implied vol", "IV rank or IV/HV", "Gamma", "Theta / day", "Vega", "Spread")
 LEVEL_CAPTIONS = {
     "beginner": (
         "Beginner view: the plain-language columns, each header with a definition on hover. "
@@ -120,8 +121,9 @@ LEVEL_CAPTIONS = {
         "for its definition; the remaining Greeks are in *Show the full math*."
     ),
     "advanced": (
-        "Advanced view: adds implied volatility, gamma, theta, vega and the bid-ask spread to "
-        "every row. Hover a header for its definition."
+        "Advanced view: adds implied volatility, IV rank (or IV/HV until history exists), "
+        "gamma, theta, vega and the bid-ask spread to every row. Hover a header for its "
+        "definition."
     ),
 }
 
@@ -129,6 +131,7 @@ LEVEL_CAPTIONS = {
 def _greek_cells(c: OptionCandidate) -> dict[str, object]:
     return {
         "Implied vol": pct(c.iv),
+        "IV rank or IV/HV": iv_rank_cell(c),  # W4: a ratio until IV history exists
         "Gamma": round(c.gamma, 4),
         "Theta / day": round(c.theta, 3),
         "Vega": round(c.vega, 3),

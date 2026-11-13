@@ -1,0 +1,75 @@
+{
+ "task": "explain_report",
+ "model": "deepseek/deepseek-v4.1-flash",
+ "output": {
+  "paragraphs": [
+   {
+    "mode": "education",
+    "text": "A **cash-secured put** is a short put in which the writer sets aside enough cash to buy the shares at the strike if the put is assigned; the writer collects the premium up front and accepts the obligation to buy 100 shares per contract at the strike any time before expiration [S1]. **Assignment** is the process by which an option writer is selected to fulfil the obligation of a contract that a holder has exercised [S2]. In a margin account the same short put is secured by a **margin requirement**, a fraction of the purchase price computed under exchange and FINRA minimum rules, while the writer keeps the rest of their buying power free [S6].",
+    "citations": [
+     "S1",
+     "S2",
+     "S6"
+    ]
+   },
+   {
+    "mode": "screen_result",
+    "text": "The regime was {{regime.label}}, with a VIX of {{regime.vix}} and a 30-day risk-free rate of {{regime.risk_free_rate_pct|pct}}. Buying power was split {{allocation.csp_pct|pct}} to cash-secured puts, {{allocation.leaps_pct|pct}} to LEAPS and {{allocation.cash_pct|pct}} to cash, and the tilt was {{allocation.tilt}}.",
+    "citations": []
+   },
+   {
+    "mode": "education",
+    "text": "A **LEAPS** (Long-term Equity AnticiPation Securities) is the exchanges' name for listed options with more than a year until expiration, which trade and settle exactly like shorter options [S3]. This app screens deep in-the-money LEAPS calls as a way to hold long exposure to a good-to-own stock for a year or more while committing less capital than buying the shares outright [S3]. A **poor man's covered call** pairs such a LEAPS call with a short, near-term, out-of-the-money call on the same stock, formally a long call diagonal spread [S5].",
+    "citations": [
+     "S3",
+     "S5"
+    ]
+   },
+   {
+    "mode": "screen_result",
+    "text": "The good-to-own quality screen passed {{quality_screen.passed_count}} underlyings: {{quality_screen.passed_tickers|list}}. Those names cleared the gate on liquidity and quality; for example SPY is included because it \"Owns the whole S&P 500; the most liquid option chain in the market.\" and NKE because it is a \"Leading athletic brand with 20+ years of dividend increases.\" The screen excluded {{quality_screen.excluded_count}} underlyings ({{quality_screen.excluded_tickers|list}}), so the exclusion list is empty here.",
+    "citations": []
+   },
+   {
+    "mode": "education",
+    "text": "The trend board and the bottleneck board are secondary signals only: they re-order the quality-gated stocks and never add one. A bottleneck score reflects how tight a supply layer is; a `bottleneck_easing` flag means new supply or decelerating prices in that layer, and a `thesis_weakening` state means the layer's demand thesis is deteriorating.",
+    "citations": []
+   },
+   {
+    "mode": "screen_result",
+    "text": "On the bottleneck board the top layer is {{bottlenecks.layers[0].name}} at a score of {{bottlenecks.layers[0].score}} and state {{bottlenecks.layers[0].thesis_state}}; the weakest is {{bottlenecks.layers[-1].name}} at {{bottlenecks.layers[-1].score}} and state {{bottlenecks.layers[-1].thesis_state}}. Among companies, HON sits in {{bottlenecks.companies[HON].layer}} at {{bottlenecks.companies[HON].score}}, while CSCO carries the flags {{bottlenecks.companies[CSCO].flags|list}} in {{bottlenecks.companies[CSCO].layer}} at {{bottlenecks.companies[CSCO].score}}.",
+    "citations": []
+   },
+   {
+    "mode": "screen_result",
+    "text": "No position was sized this run: {{counts.positions_sized}} positions were sized against {{counts.skipped_total}} skipped candidates, so the portfolio has no premium income, no margin used and no short-put notional. The sizer's warning states: {{risk.warnings[0]}}.",
+    "citations": []
+   },
+   {
+    "mode": "screen_result",
+    "text": "Read the skipped names as unsized candidates, each with the realistic loss of one contract. LEAPS-SPY-2028-01-21-600C was skipped ({{skipped_candidates[LEAPS-SPY-2028-01-21-600C].reason}}) at a realistic loss of {{skipped_candidates[LEAPS-SPY-2028-01-21-600C].realistic_loss_per_contract|money}} per contract; CSP-SPY-2026-11-30-735P at {{skipped_candidates[CSP-SPY-2026-11-30-735P].realistic_loss_per_contract|money}}; LEAPS-AAPL-2029-01-19-260C at {{skipped_candidates[LEAPS-AAPL-2029-01-19-260C].realistic_loss_per_contract|money}}; LEAPS-QQQ-2028-12-15-530C at {{skipped_candidates[LEAPS-QQQ-2028-12-15-530C].realistic_loss_per_contract|money}}.",
+    "citations": []
+   },
+   {
+    "mode": "screen_result",
+    "text": "The risk picture was clean because nothing was held: {{risk.checks_passed}} of {{risk.checks_total}} constraint checks passed, including margin usage at {{risk.checks[margin_usage].value|percent}} against a limit of {{risk.checks[margin_usage].limit|percent}} and portfolio loss at {{risk.checks[portfolio_loss].value|percent}} against {{risk.checks[portfolio_loss].limit|percent}}. With no positions, the stress rows show a {{risk.stress[-10%].shock}} move with a {{risk.stress[-10%].iv_shock}} IV shock giving {{risk.stress[-10%].pnl|money}}, and a {{risk.stress[-30%].shock}} move giving {{risk.stress[-30%].pnl|money}}.",
+    "citations": []
+   },
+   {
+    "mode": "notice",
+    "text": "{{ delayed_data_notice }}",
+    "citations": []
+   },
+   {
+    "mode": "notice",
+    "text": "**Warnings and limitations.** {{risk.warnings[0]}}",
+    "citations": []
+   },
+   {
+    "mode": "notice",
+    "text": "{{ disclaimer }}",
+    "citations": []
+   }
+  ]
+ }
+}

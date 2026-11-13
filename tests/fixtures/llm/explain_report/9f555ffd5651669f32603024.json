@@ -1,0 +1,64 @@
+{
+ "task": "explain_report",
+ "model": "deepseek/deepseek-v4.1-flash",
+ "output": {
+  "paragraphs": [
+   {
+    "mode": "education",
+    "text": "A **cash-secured put** is a short put position in which the writer sets aside enough cash to buy the shares at the strike price if the put is assigned [S1]. The writer sells the put, collects the premium up front, and accepts the obligation to buy 100 shares per contract at the strike any time before expiration [S1]. The word *secured* refers to the cash: in a cash account the broker holds the full purchase price as collateral for the whole life of the trade [S1]. **Assignment** is the process by which an option writer is selected to fulfil the obligation of a contract that a holder has exercised [S2].",
+    "citations": [
+     "S1",
+     "S2"
+    ]
+   },
+   {
+    "mode": "screen_result",
+    "text": "Buying power was split between cash-secured puts at {{allocation.csp_pct|pct}} of the strategy budget, LEAPS at {{allocation.leaps_pct|pct}}, and a cash reserve of {{allocation.cash_pct|pct}}, with a regime label of {{regime.label}} and a VIX reading of {{regime.vix}}. The screen sized {{counts.positions_sized}} positions, so the portfolio shows premium income of {{portfolio.premium_income|money}} and margin used of {{portfolio.margin_used|money}}.",
+    "citations": []
+   },
+   {
+    "mode": "education",
+    "text": "A **poor man's covered call** is a two-leg position: a long, deep in-the-money LEAPS call and a short, near-term, out-of-the-money call on the same stock [S5]. Formally it is a **long call diagonal spread**, with different strikes and different expirations [S5]. **LEAPS** is the exchanges' name for listed options with more than a year until expiration [S3].",
+    "citations": [
+     "S3",
+     "S5"
+    ]
+   },
+   {
+    "mode": "screen_result",
+    "text": "The good-to-own quality screen passed {{quality_screen.passed_count}} underlyings: {{quality_screen.passed_tickers|list}}. The screen excluded {{quality_screen.excluded_count}} underlyings, with no exclusion reasons listed. Trend coverage was a secondary signal only: the trend board's top-ranked entities were {{trends[0].ticker}}, {{trends[1].ticker}}, {{trends[2].ticker}}, {{trends[3].ticker}} and {{trends[4].ticker}}, none of which is on the good-to-own list, so all were skipped by the universe filter.",
+    "citations": []
+   },
+   {
+    "mode": "screen_result",
+    "text": "The bottleneck board is also a secondary signal: it re-orders quality-gated stocks and never adds one. The top layer by score was {{bottlenecks.layers[0].name}} with a score of {{bottlenecks.layers[0].score}} and thesis state {{bottlenecks.layers[0].thesis_state}}; {{bottlenecks.layers[1].name}} scored {{bottlenecks.layers[1].score}} with thesis state {{bottlenecks.layers[1].thesis_state}}; {{bottlenecks.layers[2].name}} scored {{bottlenecks.layers[2].score}} with thesis state {{bottlenecks.layers[2].thesis_state}}. The networking layer showed thesis state {{bottlenecks.layers[5].thesis_state}}, and {{bottlenecks.companies[4].ticker}} carried flags {{bottlenecks.companies[4].flags|list}}.",
+    "citations": []
+   },
+   {
+    "mode": "screen_result",
+    "text": "No positions were sized: the sizer left every candidate behind. For example, the top-ranked candidate LEAPS-SPY-2028-01-21-600C has a realistic loss of {{skipped_candidates[0].realistic_loss_per_contract|money}} for one contract, and CSP-SPY-2026-11-30-735P has a realistic loss of {{skipped_candidates[2].realistic_loss_per_contract|money}} for one contract. The portfolio's realistic loss is {{portfolio.realistic_loss|money}}, and the account size is {{profile.account_value|money}}.",
+    "citations": []
+   },
+   {
+    "mode": "screen_result",
+    "text": "The risk picture shows {{risk.checks_passed}} of {{risk.checks_total}} constraint checks passing, with a margin usage of {{risk.checks[1].value|percent}} against a limit of {{risk.checks[1].limit|percent}}. A {{risk.stress[0].shock}} shock with a {{risk.stress[0].iv_shock}} IV shock gives a P&L of {{risk.stress[0].pnl|money}}, and a {{risk.stress[2].shock}} shock with a {{risk.stress[2].iv_shock}} IV shock gives a P&L of {{risk.stress[2].pnl|money}}.",
+    "citations": []
+   },
+   {
+    "mode": "notice",
+    "text": "{{ delayed_data_notice }}",
+    "citations": []
+   },
+   {
+    "mode": "notice",
+    "text": "**Warnings and limitations.** {{risk.warnings[0]}}",
+    "citations": []
+   },
+   {
+    "mode": "notice",
+    "text": "{{ disclaimer }}",
+    "citations": []
+   }
+  ]
+ }
+}

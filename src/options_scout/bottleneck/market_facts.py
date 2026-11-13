@@ -79,7 +79,10 @@ def market_facts_for(
         if with_iv_rank:
             try:
                 snap = md.build_snapshot(t)
-                iv_rank = None if snap.iv_rank is None else round(snap.iv_rank * 100.0, 2)
+                # W4: only a rank from stored history; the IV/HV proxy reads high for nearly
+                # every name and would inflate the priced-in penalty
+                if snap.iv_rank is not None and snap.iv_rank_source == "history":
+                    iv_rank = round(snap.iv_rank * 100.0, 2)
                 earnings = snap.earnings_date
             except Exception as exc:
                 log.info("market facts: no snapshot for %s (%s); price terms only", t, exc)

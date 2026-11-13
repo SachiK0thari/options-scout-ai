@@ -32,6 +32,16 @@ def pct(x: float | None, digits: int = 1) -> str:
     return "n/a" if x is None else f"{x * 100:.{digits}f}%"
 
 
+def iv_rank_cell(c: OptionCandidate) -> str:
+    """The rank when it comes from stored IV history; until then implied over realised vol,
+    which is context and not scored (W4)."""
+    if c.iv_rank_source == "history" and c.iv_rank is not None:
+        return pct(c.iv_rank, 0)
+    if c.iv_hv_ratio is not None:
+        return f"IV/HV {c.iv_hv_ratio:.2f}×"
+    return "n/a"
+
+
 def _table(headers: Sequence[str], rows: Iterable[Sequence[str]]) -> str:
     out = ["| " + " | ".join(headers) + " |", "|" + "|".join("---" for _ in headers) + "|"]
     out += ["| " + " | ".join(r) + " |" for r in rows]
@@ -308,7 +318,7 @@ def render_csp(cands: Sequence[OptionCandidate], limit: int = 15) -> str:
             pct(c.annualized_return),
             pct(c.prob_otm, 0),
             f"{c.open_interest:,}/{pct(c.spread_pct, 0)}",
-            pct(c.iv_rank, 0) + ("*" if c.iv_rank_source == "hv_proxy" else ""),
+            iv_rank_cell(c),
             earnings_cell(c),
             ", ".join(f for f in c.flags if f not in {"iv_rank_is_hv_proxy"}),
         ]
@@ -328,13 +338,15 @@ def render_csp(cands: Sequence[OptionCandidate], limit: int = 15) -> str:
                 "Ann. return",
                 "P(OTM)",
                 "OI / spread",
-                "IV rank",
+                "IV rank or IV/HV",
                 "Earnings",
                 "Flags",
             ],
             rows,
         )
-        + "\n\n\\* IV rank from HV proxy (fewer than 30 stored IV snapshots)."
+        + "\n\nIV/HV: no IV rank yet (fewer than 30 stored IV snapshots); showing implied over "
+        "realised volatility. Options usually trade above realised volatility, so it is context "
+        "and does not affect the score."
     )
 
 

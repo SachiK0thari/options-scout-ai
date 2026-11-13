@@ -386,6 +386,32 @@ def _leg(
     )
 
 
+@pytest.mark.parametrize("kind", ["put", "call"])
+def test_iv_fit_is_neutral_unless_the_rank_comes_from_history(
+    kind: OptionKind, config_module: AppConfig
+) -> None:
+    """W4: the IV/HV proxy reads high for nearly every name, so it must not move the score.
+    Two otherwise identical candidates with proxy readings 0.2 and 1.0 score the same; with a
+    real (history) rank they differ."""
+    cfg = config_module
+    w, rules = cfg.settings.ranking.option_quality_weights, cfg.rules
+    base = _leg(kind, spot=100.0, strike=95.0 if kind == "put" else 70.0, dte=40, iv=0.3, mid=2.0)
+    if kind == "call":
+        base = base.model_copy(update={"dte": 600, "extrinsic_per_year_pct": 0.02})
+    else:
+        base = base.model_copy(update={"annualized_return": 0.15})
+
+    def q(rank: float, source: str) -> float:
+        c = base.model_copy(update={"iv_rank": rank, "iv_rank_source": source})
+        return ranking.option_quality(c, w, rules)
+
+    assert q(0.2, "hv_proxy") == pytest.approx(q(1.0, "hv_proxy"))
+    assert q(0.2, "hv_proxy") == pytest.approx(q(0.5, "history"))  # the proxy reads as neutral
+    assert q(0.2, "history") != pytest.approx(q(1.0, "history"))
+    sellers_want_high = q(1.0, "history") > q(0.2, "history")
+    assert sellers_want_high is (kind == "put")
+
+
 def _single(cand: OptionCandidate, contracts: int = 1) -> SizedPortfolio:
     short = cand.kind == "put"
     pos = SizedPosition(
@@ -621,30 +647,34 @@ def test_the_reported_minimum_account_sizes_one_contract(
 
 def _top6(cfg: AppConfig) -> object:
     """Policy B judged on the best 6 underlyings, so the NKE lines are sized and the single-name
-    and ranking warnings can be exercised (NKE is third since W25 step 2; sixth before)."""
+    and ranking warnings can be exercised (NKE is sixth since W4; third after W25 step 2)."""
     return cfg.risk.reporting.model_copy(update={"top_tickers": 6})
 
 
-def test_100k_sizes_nke_once_leaps_rank_on_their_model_probability(
+def test_100k_sizes_nothing_once_the_iv_hv_proxy_stops_scoring(
     world: dict[str, object],
 ) -> None:
-    """W25 step 2: with 1 − prob_otm (about 0.69) in place of delta (about 0.83) the LEAPS-led
-    names fall, and NKE, whose best line is a put, is third of the five best underlyings
-    (SPY, QQQ, NKE, AAPL, COST). Before, NKE was sixth and $100k sized nothing."""
+    """W4: the IV/HV proxy (above one for every fixture name) gave each put a bonus and each
+    LEAPS a penalty on the IV-rank fit term. With the term neutral, the LEAPS-led names lead and
+    NKE, whose best line is a put, falls from third (after W25 step 2) to sixth, so under policy
+    B on the five best underlyings $100k sizes nothing; judged on six it sizes NKE."""
     cfg: AppConfig = world["cfg"]  # type: ignore[assignment]
     ranked = _pipeline_ranked(world, _profile(100_000))
+    assert all(r.candidate.iv_rank_source == "hv_proxy" for r in ranked)  # fixtures: no history
     order: list[str] = []
     for r in ranked:
         if r.candidate.ticker not in order:
             order.append(r.candidate.ticker)
-    assert order[:5] == ["SPY", "QQQ", "NKE", "AAPL", "COST"]
+    assert order[:6] == ["SPY", "AAPL", "QQQ", "MSFT", "COST", "NKE"]
     port, _rep = _size(world, _profile(100_000), ranked, reporting=cfg.risk.reporting)
-    assert not port.account_too_small
-    assert {p.ticker for p in port.positions} == {"NKE"}
+    assert port.account_too_small and not port.positions
+    port6, _rep6 = _size(world, _profile(100_000), ranked, reporting=_top6(cfg))
+    assert not port6.account_too_small
+    assert {p.ticker for p in port6.positions} == {"NKE"}
 
 
 def test_too_small_when_none_of_the_top_underlyings_fits(world: dict[str, object]) -> None:
-    """Policy B still holds: judged on the best 2 underlyings (SPY, QQQ), $100k sizes nothing."""
+    """Policy B still holds: judged on the best 2 underlyings (SPY, AAPL), $100k sizes nothing."""
     cfg: AppConfig = world["cfg"]  # type: ignore[assignment]
     ranked = _pipeline_ranked(world, _profile(100_000))
     top2 = cfg.risk.reporting.model_copy(update={"top_tickers": 2})
@@ -679,11 +709,11 @@ def test_policy_b_sizes_nothing_when_no_top_ranked_underlying_fits(
     assert rep.sizing_flags == ["account_too_small"]  # type: ignore[attr-defined]
     assert "too small" in rep.sizing_warnings[0]  # type: ignore[attr-defined]
     assert "No positions could be sized" not in " ".join(rep.warnings)  # type: ignore[attr-defined]
-    # judging on the top 2 underlyings (SPY, QQQ), the $100k NKE leftovers are refused too
+    # judging on the top 2 underlyings (SPY, AAPL), the $100k NKE leftovers are refused too
     top2 = cfg.risk.reporting.model_copy(update={"top_tickers": 2})
     port2, _rep2 = _size(world, _profile(100_000), ranked, reporting=top2)
     assert port2.account_too_small and not port2.positions
-    assert any("not sized, ranked below SPY, QQQ" in s for s in port2.skipped)
+    assert any("not sized, ranked below SPY, AAPL" in s for s in port2.skipped)
     # with the rule off the leftovers are sized and only labelled
     off = cfg.risk.reporting.model_copy(update={"require_top_ranked": False})
     port3, _ = _size(world, _profile(100_000), ranked, reporting=off)
@@ -1251,3 +1281,17 @@ def test_sizing_never_violates_constraints_on_synthetic_worlds(
     )
     failed = [c for c in risk.check_constraints(port, profile, limits) if not c.passed]
     assert not failed, failed
+
+
+def test_iv_rank_cell_shows_the_ratio_until_history_exists() -> None:
+    """W4: a percentage only for a rank from history; otherwise IV/HV, or n/a with neither."""
+    from options_scout.core.report import iv_rank_cell
+
+    c = _leg("put", spot=100.0, strike=95.0, dte=40, iv=0.3, mid=2.0)
+    proxy = c.model_copy(
+        update={"iv_rank": 0.85, "iv_rank_source": "hv_proxy", "iv_hv_ratio": 1.35}
+    )
+    assert iv_rank_cell(proxy) == "IV/HV 1.35×"
+    history = proxy.model_copy(update={"iv_rank": 0.62, "iv_rank_source": "history"})
+    assert iv_rank_cell(history) == "62%"
+    assert iv_rank_cell(c) == "n/a"

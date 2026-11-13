@@ -120,6 +120,12 @@ TERMS: dict[str, Term] = {
         "Greeks describe the option at the price shown. Falls back to the data provider's figure "
         "(flag iv_from_provider) when no volatility reproduces the mid.",
     ),
+    "IV rank or IV/HV": Term(
+        "iv-rank",
+        "Where today's implied volatility sits in its past-year range, once 30 daily snapshots "
+        "are stored. Until then: implied over 30-day realised volatility (IV/HV), shown for "
+        "context only; it does not affect the score.",
+    ),
     "Theta / day": Term("theta"),
     "Vega": Term(
         "vega",

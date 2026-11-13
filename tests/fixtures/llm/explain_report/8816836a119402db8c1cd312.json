@@ -1,0 +1,72 @@
+{
+ "task": "explain_report",
+ "model": "deepseek/deepseek-v4.1-flash",
+ "output": {
+  "paragraphs": [
+   {
+    "mode": "education",
+    "text": "A **cash-secured put** is a short put position in which the writer sets aside enough cash to buy the shares at the strike price if the put is assigned [S1]. The word *secured* refers to the cash: in a cash account the broker holds the full purchase price (strike \u00d7 100, less the premium received) as collateral for the whole life of the trade [S1]. **LEAPS** (Long-term Equity AnticiPation Securities) is the exchanges' name for listed options with more than a year until expiration, and this app screens deep in-the-money LEAPS calls as a way to hold long exposure to a good-to-own stock while committing less capital than buying the shares outright [S3].",
+    "citations": [
+     "S1",
+     "S3"
+    ]
+   },
+   {
+    "mode": "screen_result",
+    "text": "The screen was run on an account of {{profile.account_value|money}} with buying power of {{profile.buying_power|money}}. Buying power was split with {{allocation.csp_dollars|money}} ({{allocation.csp_pct|pct}}) for cash-secured puts, {{allocation.leaps_dollars|money}} ({{allocation.leaps_pct|pct}}) for LEAPS, and {{allocation.cash_dollars|money}} ({{allocation.cash_pct|pct}}) held as cash, under a {{regime.label}} regime.",
+    "citations": []
+   },
+   {
+    "mode": "education",
+    "text": "**Assignment** is the process by which an option writer is selected to fulfil the obligation of a contract that a holder has exercised [S2]. When a put holder exercises, some put writer is obliged to take the shares at the strike [S2]. The Options Clearing Corporation (OCC) receives exercise notices ... and each clearing member then assigns its own customers by a method approved by the exchanges [S2]. **Intrinsic value** is the amount by which the option is in the money: for a put, the strike minus the stock price when positive, otherwise zero; **extrinsic value**, also called time value, is everything else: premium minus intrinsic value [S4]. The product promise is \"stocks you would be happy to own if assigned\"; the quality gate is a **filter, not a discovery engine**: it decides which tickers are allowed into the option screeners at all, records a reason for every rejection, and produces a score for the survivors [S5].",
+    "citations": [
+     "S2",
+     "S4",
+     "S5"
+    ]
+   },
+   {
+    "mode": "screen_result",
+    "text": "The quality screen passed {{quality_screen.passed_count}} underlyings, including {{quality_screen.passed_tickers|list}}. These underlyings passed because of their quality attributes: SPY \"Owns the whole S&P 500; the most liquid option chain in the market.\" and NKE \"Leading athletic brand with 20+ years of dividend increases.\" The screen excluded {{quality_screen.excluded_count}} underlyings.",
+    "citations": []
+   },
+   {
+    "mode": "education",
+    "text": "This app watches public conversation on Reddit, X, Wikipedia pageviews, Google Trends and news feeds for rising discussion of products and brands, resolves that discussion to tickers, and produces a consumer-trend score [S6]. It would be natural to assume a stock with a surging score is a good candidate for selling puts; for the structure of a short put, the opposite is closer to the truth, and the app is built around that fact [S6].",
+    "citations": [
+     "S6"
+    ]
+   },
+   {
+    "mode": "screen_result",
+    "text": "The trend board is a secondary signal only: it re-orders the quality-gated stocks and never adds one. Tickers like CAVA, ONON, DECK, ELF, and CROX showed up in the trends but were skipped because they are not on the good-to-own list.",
+    "citations": []
+   },
+   {
+    "mode": "education",
+    "text": "The bottleneck board is described in the payload as a secondary signal: re-orders quality-gated stocks, never adds one. The layer scores and thesis states are given as: ai_datacenter/power (79, holding), electrification/grid (76, holding), ai_datacenter/memory (56, holding), electrification/industrial (38, holding), ai_datacenter/materials (14, holding), ai_datacenter/networking (13, weakening), ai_datacenter/cooling (12, holding), and electrification/battery (6, weakening).",
+    "citations": []
+   },
+   {
+    "mode": "screen_result",
+    "text": "The sizing step left nothing sized: {{counts.positions_sized}} positions were sized, and {{counts.skipped_total}} candidates were skipped ({{counts.skipped_listed}} listed). The sizer flagged: {{risk.warnings[0]}} The skipped candidates included LEAPS-SPY-2028-01-21-600C with a realistic loss of {{skipped_candidates[LEAPS-SPY-2028-01-21-600C].realistic_loss_per_contract|money}} per contract, CSP-SPY-2026-11-30-735P with a realistic loss of {{skipped_candidates[CSP-SPY-2026-11-30-735P].realistic_loss_per_contract|money}} per contract, and others.",
+    "citations": []
+   },
+   {
+    "mode": "screen_result",
+    "text": "The risk picture shows {{risk.checks_passed}} of {{risk.checks_total}} checks passed. The stress tests gave a P&L of {{risk.stress[0].pnl|money}} at a {{risk.stress[0].shock}} move with a {{risk.stress[0].iv_shock}} IV shock, {{risk.stress[1].pnl|money}} at a {{risk.stress[1].shock}} move with a {{risk.stress[1].iv_shock}} IV shock, and {{risk.stress[2].pnl|money}} at a {{risk.stress[2].shock}} move with a {{risk.stress[2].iv_shock}} IV shock. The realistic loss drop was {{risk.realistic_loss_drop_pct}}%.",
+    "citations": []
+   },
+   {
+    "mode": "notice",
+    "text": "{{ delayed_data_notice }}",
+    "citations": []
+   },
+   {
+    "mode": "notice",
+    "text": "{{ disclaimer }}",
+    "citations": []
+   }
+  ]
+ }
+}

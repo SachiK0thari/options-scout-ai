@@ -109,3 +109,102 @@ def test_a_session_already_recorded_is_not_fetched_again(
     )
     assert snapshot_iv.main(["AAPL"]) == 0 and built == []
     assert snapshot_iv.expected_session(_MD()) == date(2026, 11, 13)
+
+
+def test_backfill_fills_missing_sessions_skips_stored_ones_and_holidays(tmp_path: Path) -> None:
+    """W4 step 6: the last N sessions come from historical chains, newest first; a stored session
+    costs no request and a holiday (no chain) does not count as a session."""
+    from options_scout.core.models import OptionQuote
+
+    asked: list[date] = []
+    holiday = date(2026, 11, 11)
+
+    class _Source:
+        name = "marketdata"
+        chain_feed = "historical"
+
+        @staticmethod
+        def _today() -> date:
+            return date(2026, 11, 13)  # Friday: the latest session is Thursday 12 Nov
+
+        def session_chains(self, ticker: str, day: date) -> Any:
+            asked.append(day)
+            if day == holiday:
+                return None
+            expiry = date(2026, 12, 18)
+            quotes = [
+                OptionQuote(
+                    contract_symbol=f"X{kind}",
+                    kind=kind,
+                    strike=100.0,
+                    expiry=expiry,
+                    bid=0.0,
+                    ask=0.0,
+                    iv=0.20 + 0.01 * day.day / 10,
+                )
+                for kind in ("call", "put")
+            ]
+            chain = OptionChain(
+                ticker=ticker,
+                expiry=expiry,
+                as_of=datetime(day.year, day.month, day.day, 21, tzinfo=UTC),
+                calls=[quotes[0]],
+                puts=[quotes[1]],
+            )
+            return 100.0, [chain]
+
+    class _MD:
+        source = _Source()
+        near_dte = (20, 60)
+
+        def get_risk_free_rate(self) -> float:
+            return 0.04
+
+        def get_dividend_yield(self, ticker: str) -> float:
+            raise RuntimeError("no dividend data")  # falls back to 0.0, as build_snapshot does
+
+    store = snapshot_iv.IVSnapshotStore(tmp_path / "iv.sqlite")
+    store.record("AAPL", date(2026, 11, 10), 0.99)  # already stored: kept, not fetched
+    added = snapshot_iv.backfill(_MD(), store, ["AAPL"], 4)
+    # sessions newest first: 12th, (11th holiday), 10th stored, 9th, 6th
+    assert asked == [date(2026, 11, 12), holiday, date(2026, 11, 9), date(2026, 11, 6)]
+    assert added == {"AAPL": 3}
+    days = [r[0] for r in store._conn.execute("SELECT day FROM iv_snapshots ORDER BY day")]
+    assert days == ["2026-11-06", "2026-11-09", "2026-11-10", "2026-11-12"]
+    assert store.history("AAPL")[2] == 0.99
+
+
+def test_marketdata_session_chains_splits_the_whole_chain_by_expiry() -> None:
+    import httpx
+
+    from options_scout.data.market import MarketDataAppSource
+
+    seen: list[httpx.Request] = []
+
+    def handler(request: httpx.Request) -> httpx.Response:
+        seen.append(request)
+        if request.url.params["date"] == "2026-11-11":
+            return httpx.Response(204)
+        body = {
+            "s": "ok",
+            "optionSymbol": ["A1", "A2", "B1"],
+            "side": ["call", "put", "call"],
+            "strike": [100, 100, 110],
+            "expiration": [1797627600, 1797627600, 1800046800],
+            "bid": [1.0, 1.1, 2.0],
+            "ask": [1.2, 1.3, 2.2],
+            "openInterest": [10, 20, 30],
+            "underlyingPrice": [101.5, 101.5, 101.5],
+            "updated": [1762981200, 1762981200, 1762981200],
+        }
+        return httpx.Response(200, json=body)
+
+    client = httpx.Client(base_url="https://x", transport=httpx.MockTransport(handler))
+    src = MarketDataAppSource("token", http_client=client)
+    got = src.session_chains("aapl", date(2026, 11, 12))
+    assert got is not None
+    spot, chains = got
+    assert spot == 101.5 and [len(c.calls) + len(c.puts) for c in chains] == [2, 1]
+    assert chains[0].expiry < chains[1].expiry and chains[0].ticker == "AAPL"
+    assert seen[0].url.params["expiration"] == "all" and seen[0].url.path.endswith("/AAPL/")
+    assert src.session_chains("AAPL", date(2026, 11, 11)) is None

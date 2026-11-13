@@ -1,0 +1,74 @@
+{
+ "task": "explain_report",
+ "model": "deepseek/deepseek-v4.1-flash",
+ "output": {
+  "paragraphs": [
+   {
+    "mode": "education",
+    "text": "A cash-secured put is a short put position in which the writer sets aside enough cash to buy the shares at the strike price if the put is assigned: the writer sells the put, collects the premium up front, and accepts the obligation to buy 100 shares per contract at the strike any time before expiration [S1]. The word secured refers to the cash, which the broker holds for the whole life of the trade [S1]. A poor man's covered call is a two-leg position: a long, deep in-the-money LEAPS call and a short, near-term, out-of-the-money call on the same stock [S3]. A naked put on margin is the same contract as a cash-secured put, but the broker holds only a margin requirement, a fraction of the purchase price computed under exchange and FINRA minimum rules [S4].",
+    "citations": [
+     "S1"
+    ]
+   },
+   {
+    "mode": "screen_result",
+    "text": "The screen allocated buying power across {{allocation.csp_pct|pct}} to cash-secured puts, {{allocation.leaps_pct|pct}} to LEAPS, and {{allocation.cash_pct|pct}} to cash, against an account value of {{profile.account_value|money}}. The regime label was {{regime.label}}, with a VIX of {{regime.vix}} and a risk-free rate of {{regime.risk_free_rate_pct}} percent.",
+    "citations": []
+   },
+   {
+    "mode": "education",
+    "text": "The good-to-own quality gate is a filter, not a discovery engine: it decides which tickers are allowed into the option screeners at all, records a reason for every rejection, and produces a score for the survivors [S5].",
+    "citations": [
+     "S5"
+    ]
+   },
+   {
+    "mode": "screen_result",
+    "text": "The quality screen passed {{quality_screen.passed_count}} underlyings: {{quality_screen.passed_tickers|list}}. The reasons recorded for the survivors include \"Owns the whole S&P 500; the most liquid option chain in the market\" for SPY and \"Huge installed base, large recurring services revenue, consistent buybacks and dividend\" for AAPL. No underlyings were excluded by the gate itself, but trending tickers CAVA, ONON, DECK, ELF, CROX, BROS, ANF and BIRK were skipped because they are not on the good-to-own list.",
+    "citations": []
+   },
+   {
+    "mode": "screen_result",
+    "text": "The trend board is a secondary signal only. The top trend entries by score were {{trends[0].entity}} at {{trends[0].score}}, {{trends[1].entity}} at {{trends[1].score}}, and {{trends[2].entity}} at {{trends[2].score}}; none of these passed the quality gate.",
+    "citations": []
+   },
+   {
+    "mode": "education",
+    "text": "Watching public conversation for rising discussion of products and brands can produce a consumer-trend score, and it would be natural to assume a stock with a surging score is a good candidate for selling puts; for the structure of a short put, the opposite is closer to the truth [S6].",
+    "citations": [
+     "S6"
+    ]
+   },
+   {
+    "mode": "screen_result",
+    "text": "The bottleneck board is a secondary signal: it re-orders quality-gated stocks, never adds one. The highest-scoring layers were {{bottlenecks.layers[0].name}} at {{bottlenecks.layers[0].score}} with thesis state {{bottlenecks.layers[0].thesis_state}}, {{bottlenecks.layers[1].name}} at {{bottlenecks.layers[1].score}} with thesis state {{bottlenecks.layers[1].thesis_state}}, and {{bottlenecks.layers[2].name}} at {{bottlenecks.layers[2].score}} with thesis state {{bottlenecks.layers[2].thesis_state}}. CSCO was in the {{bottlenecks.companies[4].layer}} layer with flags {{bottlenecks.companies[4].flags|list}}.",
+    "citations": []
+   },
+   {
+    "mode": "screen_result",
+    "text": "No positions were sized: the sizer left {{counts.positions_sized}} positions, and {{counts.skipped_total}} candidates were skipped. The skipped candidates include CSP-SPY-2026-11-30-735P with a realistic loss of one contract of {{skipped_candidates[2].realistic_loss_per_contract|money}} and LEAPS-AAPL-2029-01-19-260C with a realistic loss of one contract of {{skipped_candidates[4].realistic_loss_per_contract|money}}.",
+    "citations": []
+   },
+   {
+    "mode": "screen_result",
+    "text": "On the risk side, {{risk.checks_passed}} of {{risk.checks_total}} checks passed. A -10% move with a +50% IV shock gives {{risk.stress[0].pnl|money}}, a -20% move gives {{risk.stress[1].pnl|money}}, and a -30% move gives {{risk.stress[2].pnl|money}}.",
+    "citations": []
+   },
+   {
+    "mode": "notice",
+    "text": "{{ delayed_data_notice }}",
+    "citations": []
+   },
+   {
+    "mode": "notice",
+    "text": "**Warnings and limitations.** {{risk.warnings[0]}}",
+    "citations": []
+   },
+   {
+    "mode": "notice",
+    "text": "{{ disclaimer }}",
+    "citations": []
+   }
+  ]
+ }
+}

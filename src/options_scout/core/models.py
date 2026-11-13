@@ -154,6 +154,8 @@ class TickerSnapshot(Model):
     atm_iv: float | None = Field(default=None, ge=0)
     iv_rank: float | None = Field(default=None, ge=0, le=1)
     iv_rank_source: IVRankSource = "none"
+    # W4: ATM implied over 30-day realised vol, shown in place of a rank until history exists
+    iv_hv_ratio: float | None = Field(default=None, ge=0)
     source_errors: list[str] = Field(default_factory=list)
 
     def expiries(self) -> list[date]:
@@ -217,6 +219,7 @@ class OptionCandidate(Model):
     iv_provider: float | None = None  # what the data provider reported, kept for the audit trail
     iv_rank: float | None = None
     iv_rank_source: IVRankSource
+    iv_hv_ratio: float | None = None  # W4: implied over realised vol, context only
     delta: float
     gamma: float
     theta: float

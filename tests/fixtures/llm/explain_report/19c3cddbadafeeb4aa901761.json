@@ -1,0 +1,79 @@
+{
+ "task": "explain_report",
+ "model": "deepseek/deepseek-v4.1-flash",
+ "output": {
+  "paragraphs": [
+   {
+    "mode": "screen_result",
+    "text": "The regime was read as {{regime.label}}, with the VIX at {{regime.vix}} and the risk-free rate at {{regime.risk_free_rate_pct|pct}}, and the strategy budget was tilted \"{{allocation.tilt}}\". Allocation was split between cash-secured puts at {{allocation.csp_pct|pct}} of the budget and deep in-the-money LEAPS calls at {{allocation.leaps_pct|pct}}, with the balance held in cash.",
+    "citations": []
+   },
+   {
+    "mode": "education",
+    "text": "A cash-secured put is a short put position in which the writer sets aside enough cash to buy the shares at the strike price if the put is assigned [S1]. In a cash account the broker holds the full purchase price as collateral for the whole life of the trade [S1].",
+    "citations": [
+     "S1"
+    ]
+   },
+   {
+    "mode": "education",
+    "text": "The good-to-own quality gate is a filter, not a discovery engine: it decides which tickers are allowed into the option screeners at all, records a reason for every rejection, and produces a score for the survivors [S5].",
+    "citations": [
+     "S5"
+    ]
+   },
+   {
+    "mode": "screen_result",
+    "text": "Here {{counts.quality_passed}} underlyings passed the quality gate, led by {{quality_screen.passed_tickers|list}}, each scored on quality, the drawdown from the 90-day high and 30-day realised volatility. No underlyings were excluded on quality grounds in this run, while {{counts.skipped_total}} mooted tickers were skipped by the universe filter (for instance, trending ticker CAVA was not on the good-to-own list).",
+    "citations": []
+   },
+   {
+    "mode": "screen_result",
+    "text": "The trend board is a secondary signal only: it re-orders quality-gated stocks and never adds one. The highest-scoring entities were {{trends[0].entity}} at {{trends[0].score}}, {{trends[1].entity}} at {{trends[1].score}} and {{trends[2].entity}} at {{trends[2].score}}.",
+    "citations": []
+   },
+   {
+    "mode": "education",
+    "text": "For the structure of a short put, a surging consumer-trend score is closer to a risk than a recommendation, and the app is built around that fact [S6]. It would be natural to assume a stock with a surging score is a good candidate for selling puts [S6].",
+    "citations": [
+     "S6"
+    ]
+   },
+   {
+    "mode": "screen_result",
+    "text": "The bottleneck board, also a secondary signal that can only re-order quality-gated stocks, placed {{bottlenecks.layers[0].name}} and {{bottlenecks.layers[1].name}} at the top with scores of {{bottlenecks.layers[0].score}} and {{bottlenecks.layers[1].score}} and a thesis state of \"{{bottlenecks.layers[0].thesis_state}}\" for the leader. {{bottlenecks.companies[4].ticker}} carried {{bottlenecks.companies[4].flags|list}}.",
+    "citations": []
+   },
+   {
+    "mode": "screen_result",
+    "text": "No positions were sized in this run: {{counts.positions_sized}} of {{counts.skipped_listed}} ranked candidates fitted, and the sizer left behind an account-too-small flag against a {{profile.account_value|money}} account. The top-ranked underlyings that did not fit included {{skipped_candidates[0].candidate_id}}, {{skipped_candidates[2].candidate_id}}, {{skipped_candidates[4].candidate_id}}, {{skipped_candidates[5].candidate_id}} and {{skipped_candidates[6].candidate_id}}; for {{skipped_candidates[0].candidate_id}} the realistic loss of one contract was {{skipped_candidates[0].realistic_loss_per_contract|money}}, and for {{skipped_candidates[2].candidate_id}} it was {{skipped_candidates[2].realistic_loss_per_contract|money}}.",
+    "citations": []
+   },
+   {
+    "mode": "screen_result",
+    "text": "The risk picture was clean on the constraint checks: {{risk.checks_passed}} of {{risk.checks_total}} passed, with portfolio loss at {{risk.checks[4].value|percent}} against a limit of {{risk.checks[4].limit|percent}} and short-put notional at {{risk.checks[0].value|percent}}. In stress tests, a {{risk.stress[0].shock}} move with a {{risk.stress[0].iv_shock}} IV shock gave {{risk.stress[0].pnl|money}}, a {{risk.stress[1].shock}} move gave {{risk.stress[1].pnl|money}}, and a {{risk.stress[2].shock}} move gave {{risk.stress[2].pnl|money}}.",
+    "citations": []
+   },
+   {
+    "mode": "screen_result",
+    "text": "Because no candidate met the criteria inside the limits, the strategy budget of {{allocation.cash_pct|pct}} stayed in cash, and the capital actually used was {{portfolio.capital_used|money}}.",
+    "citations": []
+   },
+   {
+    "mode": "notice",
+    "text": "{{ delayed_data_notice }}",
+    "citations": []
+   },
+   {
+    "mode": "notice",
+    "text": "**Warnings and limitations.** {{risk.warnings[0]}}",
+    "citations": []
+   },
+   {
+    "mode": "notice",
+    "text": "{{ disclaimer }}",
+    "citations": []
+   }
+  ]
+ }
+}

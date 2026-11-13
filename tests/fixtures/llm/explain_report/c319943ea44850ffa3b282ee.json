@@ -1,0 +1,60 @@
+{
+ "task": "explain_report",
+ "model": "deepseek/deepseek-v4.1-flash",
+ "output": {
+  "paragraphs": [
+   {
+    "mode": "education",
+    "text": "Buying power is split into three buckets: cash held back, capital for short puts, and capital for long-dated calls. A **cash-secured put** is a short put position in which the writer sets aside enough cash to buy the shares at the strike price if the put is assigned; in a cash account the broker holds the full purchase price (strike \u00d7 100, less the premium received) as collateral for the whole life of the trade [S1]. In a margin account the broker holds only a **margin requirement**, a fraction of the purchase price computed under exchange and FINRA minimum rules, and the writer keeps the rest of their buying power free for other positions [S6].",
+    "citations": [
+     "S1",
+     "S6"
+    ]
+   },
+   {
+    "mode": "screen_result",
+    "text": "The allocator set cash at {{allocation.cash_pct|pct}} of the strategy budget ({{allocation.cash_dollars|money}}), short puts at {{allocation.csp_pct|pct}} ({{allocation.csp_dollars|money}}) and long calls at {{allocation.leaps_pct|pct}} ({{allocation.leaps_dollars|money}}), with a tilt of {{allocation.tilt}}. The regime label is {{regime.label}}, with a VIX of {{regime.vix}}, a VIX percentile of {{regime.vix_percentile}} and a risk-free rate of {{regime.risk_free_rate_pct|pct}}.",
+    "citations": []
+   },
+   {
+    "mode": "education",
+    "text": "The quality screen is a good-to-own gate: only underlyings the screen considers worth holding for the long term are carried forward. A **LEAPS** is the exchanges' name for listed options with more than a year until expiration, which trade and settle exactly like shorter options; only the time horizon is different [S3]. A **poor man's covered call** is a two-leg position: a long, deep in-the-money LEAPS call and a short, near-term, out-of-the-money call on the same stock, formally a long call diagonal spread with different strikes and different expirations [S5]. **Assignment** is the process by which an option writer is selected to fulfil the obligation of a contract that a holder has exercised [S2].",
+    "citations": [
+     "S3",
+     "S5",
+     "S2"
+    ]
+   },
+   {
+    "mode": "screen_result",
+    "text": "{{quality_screen.passed_count}} underlyings passed the quality screen - {{quality_screen.passed_tickers|list}} - and {{quality_screen.excluded_count}} were excluded; the screen looked back over a {{quality_screen.drawdown_lookback_days}}-day drawdown window. The trend board is a secondary signal only: it re-orders quality-gated stocks and never adds one, and the trending names it surfaced ({{trends[0].ticker}}, {{trends[1].ticker}}, {{trends[2].ticker}}, {{trends[3].ticker}}, {{trends[4].ticker}}) were skipped because they are not on the good-to-own list. The bottleneck board is likewise a secondary signal that re-orders but never adds: the top-scoring layer is {{bottlenecks.layers[0].name}} at {{bottlenecks.layers[0].score}} with thesis state {{bottlenecks.layers[0].thesis_state}}, while {{bottlenecks.layers[5].name}} scores {{bottlenecks.layers[5].score}} with thesis state {{bottlenecks.layers[5].thesis_state}}.",
+    "citations": []
+   },
+   {
+    "mode": "screen_result",
+    "text": "Nothing was sized this run: {{counts.positions_sized}} positions were taken, {{counts.skipped_total}} candidates were skipped, and the skipped names include {{skipped_candidates[0].candidate_id}} (realistic loss of one contract {{skipped_candidates[0].realistic_loss_per_contract|money}}), {{skipped_candidates[2].candidate_id}} (realistic loss of one contract {{skipped_candidates[2].realistic_loss_per_contract|money}}) and {{skipped_candidates[4].candidate_id}} (realistic loss of one contract {{skipped_candidates[4].realistic_loss_per_contract|money}}), all for {{skipped_candidates[0].reason}}.",
+    "citations": []
+   },
+   {
+    "mode": "screen_result",
+    "text": "The risk picture is therefore dormant: {{risk.checks_passed}} of {{risk.checks_total}} constraint checks passed, with short-put notional usage at {{risk.checks[0].value|percent}} of its {{risk.checks[0].limit|percent}} limit, margin usage at {{risk.checks[1].value|percent}} of its {{risk.checks[1].limit|percent}} limit, and portfolio loss at {{risk.checks[5].value|percent}} of its {{risk.checks[5].limit|percent}} limit. A {{risk.stress[0].shock}} move with a {{risk.stress[0].iv_shock}} IV shock gives {{risk.stress[0].pnl|money}}, a {{risk.stress[1].shock}} move with a {{risk.stress[1].iv_shock}} IV shock gives {{risk.stress[1].pnl|money}}, and a {{risk.stress[2].shock}} move with a {{risk.stress[2].iv_shock}} IV shock gives {{risk.stress[2].pnl|money}}.",
+    "citations": []
+   },
+   {
+    "mode": "notice",
+    "text": "{{ delayed_data_notice }}",
+    "citations": []
+   },
+   {
+    "mode": "notice",
+    "text": "**Warnings and limitations.** {{risk.warnings[0]}}",
+    "citations": []
+   },
+   {
+    "mode": "notice",
+    "text": "{{ disclaimer }}",
+    "citations": []
+   }
+  ]
+ }
+}

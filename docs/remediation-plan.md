@@ -471,6 +471,38 @@ is empty, and in fixture mode the day never advances, so the proxy is permanent 
 
 Suggested commit: `fix(ranking): IV/HV proxy is display-only; flags and score need real IV history`
 
+**Status, 2026-11-12/13:** done in the working tree, steps 1 to 5 and 7; step 6 is running time.
+- **Steps 1-3:** `ranking.has_real_iv_rank` gates the IV-rank fit (0.5 unless the source is
+  `history`); `low_iv_rank` / `high_iv_rank` need a history rank. Tests:
+  `test_iv_fit_is_neutral_unless_the_rank_comes_from_history`, proxy cases in
+  `test_mutation_screeners.py`.
+- **Step 4:** `iv_hv_ratio` on `TickerSnapshot` and `OptionCandidate`; `report.iv_rank_cell`
+  prints `IV/HV 1.35×` (proxy), a percentage (history) or `n/a`, used in the CSP table (column
+  "IV rank or IV/HV") and the Candidates tab's advanced view, with a glossary entry. Footnote and
+  `risk.py` warning reworded.
+- **Also:** `bottleneck/market_facts.py` passes the IV rank to the priced-in penalty only when it
+  comes from history (the same saturated proxy was inflating it).
+- **Step 5:** already in place (the job refuses fixture mode).
+- **Step 6:** done 2026-11-13 by backfill, not by waiting. MarketData.app's historical chain
+  takes any past date, so `python -m options_scout.jobs.snapshot_iv --backfill N` (new;
+  `MarketDataAppSource.session_chains`) fills the last N sessions with the ATM IV the daily job
+  would have stored, skipping stored sessions and holidays and stopping at the credit budget.
+  Run with N=30: the 10 demo tickers hold 30 sessions each (2026-10-02 to 2026-11-12), so their
+  live ranks are real now, over a ~6-week range rather than 52 weeks; the scheduler extends it
+  daily. CVX, HON, PEP, UNP and XOM (one 2026-11-09 row each, from a live screen) are not in the
+  job's ticker list and stay on IV/HV.
+- **Fixture mode no longer reads the IV store** (`MarketData.from_config`): the backfill showed
+  that fixture quotes were being ranked against this machine's live history, which changed the
+  golden report. Fixture runs always show IV/HV.
+- **Step 7:** `iv_rank.md` rewritten; PRD 3.6 (and the generated `rules/formulas.md`), the PRD
+  and README limitation lines and the README data paragraph updated.
+- **Effect:** with the bias gone LEAPS lead the cross-strategy order. Golden report re-recorded:
+  the same 8 positions at $1M, reordered; no `high_iv_rank`. At $100k, NKE falls from third to
+  sixth underlying, so policy B on the top 5 sizes nothing (tests updated to say so).
+- **LLM recordings:** re-recorded 2026-11-13 with `make record-llm` (DeepSeek v4.1 Flash, ~$0.03):
+  13 new `explain_report` recordings; runs 0, 1, 3, 5 model-written, run 2 mixed, run 4 fell back
+  to the rule writer. The superseded recordings are still on disk (never read).
+
 ---
 
 ### W5. Make missing data fail closed

@@ -503,6 +503,39 @@ class MarketDataAppSource:
             )
         if body.get("s") != "ok":
             raise MarketDataError(f"{sym}: MarketData.app has no chain for {expiry}")
+        return self._chain_from_body(sym, expiry, body)
+
+    def session_chains(self, ticker: str, day: date) -> tuple[float, list[OptionChain]] | None:
+        """The whole chain at ``day``'s close and the underlying's price then, from one request
+        (W4 step 6: backfills the IV history the daily job would have stored). None when the
+        provider has no chain for that day (a holiday)."""
+        sym = ticker.upper()
+        body = self._get(f"/options/chain/{sym}/", date=day.isoformat(), expiration="all")
+        if body.get("s") != "ok" or not self._col(body, "strike"):
+            return None
+        prices = [_f(x) for x in self._col(body, "underlyingPrice") if _f(x) > 0]
+        if not prices:
+            return None
+        rows: dict[date, list[int]] = {}
+        for i, raw in enumerate(self._col(body, "expiration")):
+            expiry = _as_date(raw)
+            if expiry is not None:
+                rows.setdefault(expiry, []).append(i)
+        chains = [
+            self._chain_from_body(
+                sym,
+                expiry,
+                {
+                    k: [v[i] for i in keep if i < len(v)] if isinstance(v, list) else v
+                    for k, v in body.items()
+                },
+            )
+            for expiry, keep in sorted(rows.items())
+        ]
+        return prices[0], chains
+
+    def _chain_from_body(self, sym: str, expiry: date, body: dict[str, Any]) -> OptionChain:
+        """One expiry's columnar chain response as an :class:`OptionChain`."""
         cols = {
             k: self._col(body, k)
             for k in (
@@ -1005,15 +1038,16 @@ class MarketData:
         """
         mode = mode or cfg.settings.data_mode
         ttl = cfg.settings.cache_ttl_seconds.model_dump()
-        iv_store = IVSnapshotStore(cfg.paths.iv_snapshot_db)
         near = (cfg.rules.csp.dte_min - 10, cfg.rules.csp.dte_max + 15)
         far = cfg.rules.leaps.dte_min - 35
         if mode == "fixture":
+            # W4: no IV store. The stored history is live readings, so ranking frozen fixture
+            # quotes against it mixes sources and makes a fixture run depend on this machine
             return cls(
                 FixtureSource(FixtureStore(cfg.paths.fixtures_dir)),
                 MemoryCache(),
                 ttl,
-                iv_store,
+                None,
                 near_dte=near,
                 far_dte_min=far,
             )
@@ -1056,7 +1090,7 @@ class MarketData:
             source,
             cache,
             ttl,
-            iv_store,
+            IVSnapshotStore(cfg.paths.iv_snapshot_db),
             near_dte=near,
             far_dte_min=far,
             credits_per_ticker=md_cfg.marketdata.credits_per_ticker,
@@ -1324,6 +1358,7 @@ class MarketData:
             atm_iv=atm_iv,
             iv_rank=iv_rank,
             iv_rank_source=iv_source,
+            iv_hv_ratio=(atm_iv / hv30) if atm_iv is not None and hv30 else None,
             source_errors=errors,
         )
 

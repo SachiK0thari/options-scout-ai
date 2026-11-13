@@ -96,7 +96,7 @@ def test_fixture_market_data_serves_facts_only_for_fixture_tickers(config: AppCo
     assert set(facts) == {"COST"}
     cost = facts["COST"]
     assert cost.dist_from_high is not None and 0.0 <= cost.dist_from_high <= 1.0
-    assert cost.iv_rank is not None and 0.0 <= cost.iv_rank <= 100.0
+    assert cost.iv_rank is None  # W4: fixtures have no IV history; the IV/HV proxy is no rank
     assert cost.next_event == date(2026, 12, 10)
     assert cost.rel_return_90d is None  # the fixture holds exactly 90 closes; 91 are needed
 

@@ -1,0 +1,66 @@
+{
+ "task": "explain_report",
+ "model": "deepseek/deepseek-v4.1-flash",
+ "output": {
+  "paragraphs": [
+   {
+    "mode": "education",
+    "text": "The quality gate enforces the product promise of \"stocks you would be happy to own if assigned\". It is a filter, not a discovery engine: it decides which tickers are allowed into the option screeners at all, records a reason for every rejection, and produces a score for the survivors [S5]. The allocation then divides the strategy budget between cash-secured puts and long-dated calls, and the regime label describes the market backdrop the screen ran under.",
+    "citations": [
+     "S5"
+    ]
+   },
+   {
+    "mode": "screen_result",
+    "text": "The tilt is {{allocation.tilt}}, with {{allocation.csp_pct|pct}} of the budget for cash-secured puts, {{allocation.leaps_pct|pct}} for LEAPS and {{allocation.cash_pct|pct}} held in cash. The regime is {{regime.label}} with a VIX of {{regime.vix}} at the {{regime.vix_percentile}}th percentile and a risk-free rate of {{regime.risk_free_rate_pct|pct}}.",
+    "citations": []
+   },
+   {
+    "mode": "education",
+    "text": "A cash-secured put is a short put position in which the writer sets aside enough cash to buy the shares at the strike price if the put is assigned, and the writer collects the premium up front [S1]. LEAPS is the exchanges' name for listed options with more than a year until expiration, screened here as deep in-the-money calls to hold long exposure while committing less capital than buying the shares outright [S3].",
+    "citations": [
+     "S1",
+     "S3"
+    ]
+   },
+   {
+    "mode": "screen_result",
+    "text": "{{quality_screen.passed_count}} underlyings passed the quality gate: {{quality_screen.passed_tickers|list}}. No underlyings were excluded in this run, and the consumer-trend tickers were not on the good-to-own list, as the recorded reasons show: {{errors[0]}}",
+    "citations": []
+   },
+   {
+    "mode": "education",
+    "text": "Every option premium splits into intrinsic value, the amount by which the option is in the money, and extrinsic value, everything else [S4]. A consumer-trend score tracks rising public discussion; for the structure of a short put, assuming a surging score is a good candidate is closer to the opposite of the truth, and the app is built around that fact [S6].",
+    "citations": [
+     "S4",
+     "S6"
+    ]
+   },
+   {
+    "mode": "screen_result",
+    "text": "The bottleneck layer scores and thesis states are descriptive only: {{bottlenecks.layers[0].name}} scores {{bottlenecks.layers[0].score}} on a {{bottlenecks.layers[0].thesis_state}} thesis, while {{bottlenecks.layers[5].name}} scores {{bottlenecks.layers[5].score}} and is {{bottlenecks.layers[5].thesis_state}}. This board re-orders quality-gated stocks and never adds one.",
+    "citations": []
+   },
+   {
+    "mode": "screen_result",
+    "text": "No position was sized: {{counts.positions_sized}} positions were sized, and the sizer flagged {{risk.sizing_flags[0]}}: {{risk.warnings[0]}} The skipped candidates include {{skipped_candidates[0].candidate_id}} with a realistic loss of {{skipped_candidates[0].realistic_loss_per_contract|money}} for one contract, {{skipped_candidates[2].candidate_id}} with a realistic loss of {{skipped_candidates[2].realistic_loss_per_contract|money}} for one contract, and {{skipped_candidates[4].candidate_id}} with a realistic loss of {{skipped_candidates[4].realistic_loss_per_contract|money}} for one contract; all were skipped for {{skipped_candidates[0].reason}}.",
+    "citations": []
+   },
+   {
+    "mode": "screen_result",
+    "text": "The risk picture: {{risk.checks_passed}} of {{risk.checks_total}} constraint checks passed. Under the stress rows, a {{risk.stress[0].shock}} move with a {{risk.stress[0].iv_shock}} IV shock gives {{risk.stress[0].pnl|money}}, a {{risk.stress[1].shock}} move gives {{risk.stress[1].pnl|money}}, and a {{risk.stress[2].shock}} move gives {{risk.stress[2].pnl|money}}. The portfolio realistic loss is {{portfolio.realistic_loss|money}} with {{portfolio.capital_used|money}} of capital used and {{portfolio.cash_reserve|money}} in reserve.",
+    "citations": []
+   },
+   {
+    "mode": "notice",
+    "text": "{{ delayed_data_notice }}",
+    "citations": []
+   },
+   {
+    "mode": "notice",
+    "text": "{{ disclaimer }}",
+    "citations": []
+   }
+  ]
+ }
+}

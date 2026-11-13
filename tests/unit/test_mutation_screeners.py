@@ -283,6 +283,9 @@ def test_csp_return_on_margin_and_low_iv_rank_flag() -> None:
     assert "low_iv_rank" not in at_min.flags
     (unranked,) = _csp(_snap(chains, iv_rank=None))
     assert "low_iv_rank" not in unranked.flags
+    # W4: the IV/HV proxy is not a rank, so it cannot set the flag however low it reads
+    (proxy,) = _csp(_snap(chains, iv_rank=0.05, iv_rank_source="hv_proxy"))
+    assert "low_iv_rank" not in proxy.flags and "iv_rank_is_hv_proxy" in proxy.flags
 
 
 def test_csp_sorted_by_annualized_return_descending() -> None:
@@ -347,6 +350,7 @@ def test_leaps_dte_flags_and_their_boundaries() -> None:
         (0.40, "history", set()),  # at the preferred maximum: not high
         (None, "none", set()),
         (0.20, "hv_proxy", {"iv_rank_is_hv_proxy"}),
+        (0.95, "hv_proxy", {"iv_rank_is_hv_proxy"}),  # W4: a proxy reading is not a rank
     ],
 )
 def test_leaps_iv_rank_flags(

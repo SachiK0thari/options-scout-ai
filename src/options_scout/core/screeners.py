@@ -134,6 +134,7 @@ def _base_candidate(
         iv_provider=q.iv if q.iv > 0 else None,
         iv_rank=snap.iv_rank,
         iv_rank_source=snap.iv_rank_source,
+        iv_hv_ratio=snap.iv_hv_ratio,
         delta=g.delta,
         gamma=g.gamma,
         theta=g.theta,
@@ -194,7 +195,11 @@ def _csp_pass(
             c.margin_req = margin.reg_t_put_margin(snap.spot.price, c.strike, c.mid)
             c.annualized_return = margin.csp_annualized_return(c.strike, c.mid, c.dte)
             c.return_on_margin = margin.return_on_margin(c.mid, c.margin_req)
-            if c.iv_rank is not None and c.iv_rank < rules.preferred_iv_rank_min:
+            if (  # W4: only a rank from stored IV history; the IV/HV proxy is context
+                c.iv_rank_source == "history"
+                and c.iv_rank is not None
+                and c.iv_rank < rules.preferred_iv_rank_min
+            ):
                 c.flags.append("low_iv_rank")
             if c.iv_rank_source == "hv_proxy":
                 c.flags.append("iv_rank_is_hv_proxy")
@@ -312,7 +317,11 @@ def screen_leaps(
                 c.flags.append("shorter_than_preferred_dte")
             if c.dte < rules.roll_warning_dte:
                 c.flags.append("roll_or_close")
-            if c.iv_rank is not None and c.iv_rank > rules.preferred_iv_rank_max:
+            if (  # W4: only a rank from stored IV history; the IV/HV proxy is context
+                c.iv_rank_source == "history"
+                and c.iv_rank is not None
+                and c.iv_rank > rules.preferred_iv_rank_max
+            ):
                 c.flags.append("high_iv_rank")
             if c.iv_rank_source == "hv_proxy":
                 c.flags.append("iv_rank_is_hv_proxy")

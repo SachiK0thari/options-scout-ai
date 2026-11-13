@@ -345,7 +345,10 @@ def build_risk_report(
         if "earnings_before_expiry" in c.flags:
             warnings.append(f"{c.id}: earnings before expiry.")
         if c.iv_rank_source == "hv_proxy":
-            warnings.append(f"{c.id}: IV rank is an HV proxy (fewer than 30 IV snapshots stored).")
+            warnings.append(  # W4
+                f"{c.id}: no IV rank yet (fewer than 30 stored IV snapshots); showing implied "
+                "over realised volatility."
+            )
         if "roll_or_close" in c.flags:
             warnings.append(f"{c.id}: LEAPS below the roll/close DTE threshold.")
     if not portfolio.positions and not portfolio.account_too_small:

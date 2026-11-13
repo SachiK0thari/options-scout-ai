@@ -2,7 +2,8 @@
 
 from __future__ import annotations
 
-from datetime import UTC, datetime
+from datetime import UTC, date, datetime, timedelta
+from pathlib import Path
 
 import pytest
 
@@ -68,3 +69,20 @@ def test_cache_hit_avoids_second_source_call(md: MarketData) -> None:
 
 def test_atm_iv_empty() -> None:
     assert atm_implied_vol([], 100.0, datetime.now(tz=UTC).date(), (20, 60)) is None
+
+
+def test_fixture_mode_ignores_stored_iv_history(config: AppConfig, tmp_path: Path) -> None:
+    """W4: live IV history on this machine must not turn fixture quotes into a 'history' rank."""
+    from options_scout.jobs.snapshot_iv import MIN_HISTORY, IVSnapshotStore
+
+    db = tmp_path / "iv.sqlite"
+    store = IVSnapshotStore(db)
+    for i in range(MIN_HISTORY):
+        store.record("SPY", date(2026, 9, 1) + timedelta(days=i), 0.10 + i / 1000)
+    paths = config.settings.paths.model_copy(update={"iv_snapshot_db": db})
+    cfg = config.model_copy(
+        update={"settings": config.settings.model_copy(update={"paths": paths})}
+    )
+    md = MarketData.from_config(cfg, mode="fixture")
+    assert md.iv_store is None
+    assert md.build_snapshot("SPY").iv_rank_source == "hv_proxy"

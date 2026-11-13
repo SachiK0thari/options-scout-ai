@@ -5,7 +5,7 @@ source: PRD.md section 3.6 and config/settings.yaml
 url: PRD.md#36-formulas-implement-exactly-test-with-golden-values
 kind: rules
 level: intermediate
-as_of: '2026-11-11'
+as_of: '2026-11-12'
 ---
 
 # Rule 3.6 Formulas (implement exactly, test with golden values)
@@ -31,7 +31,7 @@ Notation: S spot, K strike, T years to expiry, r risk-free rate, q dividend yiel
 - **LEAPS breakeven at expiry** = `K + price`
 - **Dollar delta** = `delta × 100 × S × contracts` (short put delta is positive dollar exposure for the seller: use `−put_delta`)
 - **IV rank** = `(IV_now − IV_min_52w) / (IV_max_52w − IV_min_52w)`; **IV percentile** = share of days with IV below today.
-  - Free data has no IV history, so the app **stores a daily ATM IV snapshot** per watchlist ticker (scheduled job). Until 30+ snapshots exist, fall back to `IV_now / HV30` and mark the field `iv_rank_source="hv_proxy"`.
+  - Free data has no IV history, so the app **stores a daily ATM IV snapshot** per watchlist ticker (scheduled job). Until 30+ snapshots exist, there is no rank: the report shows `IV_now / HV30` as "IV/HV" for context and marks the field `iv_rank_source="hv_proxy"`. Options usually trade above realised volatility, so the ratio is above one for most names; it sets no `low_iv_rank` / `high_iv_rank` flag and the IV-rank fit term of the option-quality score is neutral (0.5) for it (W4).
 
 Golden-value tests: use at least these, verified with an independent calculator and recorded in `tests/fixtures/golden_greeks.json`:
 - S=100, K=100, T=1, r=0.05, q=0, σ=0.20 → call delta ≈ 0.6368, put delta ≈ −0.3632

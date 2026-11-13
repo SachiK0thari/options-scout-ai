@@ -1,0 +1,69 @@
+{
+ "task": "explain_report",
+ "model": "deepseek/deepseek-v4.1-flash",
+ "output": {
+  "paragraphs": [
+   {
+    "mode": "education",
+    "text": "A cash-secured put is a short put position in which the writer sets aside enough cash to buy the shares at the strike price if the put is assigned. The writer sells the put, collects the premium up front, and accepts the obligation to buy 100 shares per contract at the strike any time before expiration [S1]. The word secured refers to the cash: in a cash account the broker holds the full purchase price (strike times 100, less the premium received) as collateral for the whole life of the trade [S1].",
+    "citations": [
+     "S1"
+    ]
+   },
+   {
+    "mode": "education",
+    "text": "A naked put, also called uncovered or a short put on margin, is the same contract as a cash-secured put: the writer sells a put, collects the premium and takes on the obligation to buy 100 shares at the strike if assigned [S6]. The difference is how the obligation is collateralised. In a cash account the broker holds the full purchase price; in a margin account the broker holds only a margin requirement, a fraction of the purchase price computed under exchange and FINRA minimum rules, and the writer keeps the rest of their buying power free for other positions [S6].",
+    "citations": [
+     "S6"
+    ]
+   },
+   {
+    "mode": "education",
+    "text": "LEAPS, Long-term Equity AnticiPation Securities, is the exchanges' name for listed options with more than a year until expiration [S3]. They trade and settle exactly like shorter options; only the time horizon is different [S3]. A poor man's covered call is a two-leg position: a long, deep in-the-money LEAPS call expiring a year or more out and a short, near-term, out-of-the-money call on the same stock, formally a long call diagonal spread with different strikes and different expirations [S5].",
+    "citations": [
+     "S3"
+    ]
+   },
+   {
+    "mode": "screen_result",
+    "text": "The tilt is {{allocation.tilt}} and buying power was split with {{allocation.csp_pct|pct}} to cash-secured puts, {{allocation.leaps_pct|pct}} to LEAPS and {{allocation.cash_pct|pct}} held in cash, in a {{regime.label}} regime with the risk-free rate at {{regime.risk_free_rate_pct|pct}}; {{counts.positions_sized}} of {{counts.underlyings_screened}} screened underlyings were sized.",
+    "citations": []
+   },
+   {
+    "mode": "screen_result",
+    "text": "The quality screen passed {{quality_screen.passed_count}} underlyings: {{quality_screen.passed_tickers|list}}. Each is on the good-to-own list with its stated reason, for example AAPL ({{quality_screen.passed[0].why}}) and COST ({{quality_screen.passed[1].why}}). No underlyings were excluded ({{quality_screen.excluded_count}} exclusions).",
+    "citations": []
+   },
+   {
+    "mode": "screen_result",
+    "text": "The trend board is a secondary signal only and the trending tickers were not on the good-to-own list, so the universe errors note that tickers such as CAVA and ONON were skipped. The bottleneck board is likewise secondary: it re-orders and never adds. The top layer is {{bottlenecks.layers[0].name}} at a score of {{bottlenecks.layers[0].score}} with thesis state {{bottlenecks.layers[0].thesis_state}}, the next {{bottlenecks.layers[1].name}} at {{bottlenecks.layers[1].score}} ({{bottlenecks.layers[1].thesis_state}}), and networking is scored {{bottlenecks.layers[5].score}} with thesis {{bottlenecks.layers[5].thesis_state}}; CSCO carries the flags {{bottlenecks.companies[4].flags|list}}. None of the sized positions carry a bottleneck flag of their own.",
+    "citations": []
+   },
+   {
+    "mode": "screen_result",
+    "text": "LEAPS-AAPL-2029-01-19-260C has a breakeven of {{positions[0].payoff.breakeven|money}} and a maximum loss of {{positions[0].payoff.max_loss|money}}, with a realistic loss of {{positions[0].realistic_loss|money}}. LEAPS-MSFT-2028-12-15-360C has a breakeven of {{positions[1].payoff.breakeven|money}} and a maximum loss of {{positions[1].payoff.max_loss|money}}, with a realistic loss of {{positions[1].realistic_loss|money}}. LEAPS-COST-2028-12-15-800C has a breakeven of {{positions[2].payoff.breakeven|money}} and a maximum loss of {{positions[2].payoff.max_loss|money}}, with a realistic loss of {{positions[2].realistic_loss|money}}. CSP-NKE-2026-11-20-35P has a breakeven of {{positions[3].payoff.breakeven|money}} and a maximum loss of {{positions[3].payoff.max_loss|money}}, with a realistic loss of {{positions[3].realistic_loss|money}}. LEAPS-NKE-2028-12-15-20C, sized as a poor man's covered call against PMCCSC-NKE-2026-11-20-40C, has a breakeven of {{positions[4].payoff.breakeven|money}} and a maximum loss of {{positions[4].payoff.max_loss|money}}, with a realistic loss of {{positions[4].realistic_loss|money}}.",
+    "citations": []
+   },
+   {
+    "mode": "screen_result",
+    "text": "The risk picture shows {{risk.checks_passed}} of {{risk.checks_total}} constraint checks passing, with margin usage at {{risk.checks[1].value|percent}} of its {{risk.checks[1].limit|percent}} limit and the portfolio loss check at {{risk.checks[5].value|percent}} of its {{risk.checks[5].limit|percent}} limit. A {{risk.stress[0].shock}} move with a {{risk.stress[0].iv_shock}} IV shock gives {{risk.stress[0].pnl|money}}, a {{risk.stress[1].shock}} move gives {{risk.stress[1].pnl|money}}, and a {{risk.stress[2].shock}} move gives {{risk.stress[2].pnl|money}}; the drop that would consume {{risk.realistic_loss_drop_pct|pct}} of the realistic loss is what these stress rows are compared against.",
+    "citations": []
+   },
+   {
+    "mode": "notice",
+    "text": "{{ delayed_data_notice }}",
+    "citations": []
+   },
+   {
+    "mode": "notice",
+    "text": "**Warnings and limitations.** {{risk.warnings[0]}} {{risk.warnings[7]}}",
+    "citations": []
+   },
+   {
+    "mode": "notice",
+    "text": "{{ disclaimer }}",
+    "citations": []
+   }
+  ]
+ }
+}

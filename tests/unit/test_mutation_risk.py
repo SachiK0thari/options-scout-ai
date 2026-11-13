@@ -493,7 +493,8 @@ def test_report_candidate_flag_warnings() -> None:
     assert rep.warnings == sorted(
         [
             "P2: earnings before expiry.",
-            "P2: IV rank is an HV proxy (fewer than 30 IV snapshots stored).",
+            "P2: no IV rank yet (fewer than 30 stored IV snapshots); showing implied over "
+            "realised volatility.",
             "L1: LEAPS below the roll/close DTE threshold.",
         ]
     )

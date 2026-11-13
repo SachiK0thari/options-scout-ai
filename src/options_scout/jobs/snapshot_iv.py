@@ -4,6 +4,10 @@ Free data has no IV history, so we build our own: one row per (ticker, day). Onc
 has >= MIN_HISTORY rows, IV rank uses real history; until then callers fall back to the HV proxy.
 
 Run: ``python -m options_scout.jobs.snapshot_iv [TICKER ...]``
+
+``--backfill N`` (W4 step 6) fills the last N sessions from the provider's historical chains
+instead of waiting N days: one whole-chain request per ticker and missing session (MarketData.app
+historical feed only, about 1 credit per 1,000 contracts). Sessions already stored cost nothing.
 """
 
 from __future__ import annotations
@@ -14,6 +18,7 @@ import sys
 import threading
 from datetime import date, timedelta
 from pathlib import Path
+from typing import Any
 
 MIN_HISTORY = 30
 
@@ -83,6 +88,56 @@ def expected_session(md: object) -> date | None:
     return day
 
 
+BACKFILL_SLACK = 10  # extra weekdays tried for holidays while looking for N sessions
+
+
+def backfill(
+    md: Any, store: IVSnapshotStore, tickers: list[str], sessions: int, *, budget: int = 0
+) -> dict[str, int]:
+    """Record the ATM IV of each of the last ``sessions`` sessions per ticker, newest first,
+    the way the daily job computes it (``atm_implied_vol`` at that session's close and price).
+
+    Returns rows added per ticker. Stops cleanly (keeping what was recorded) when the provider
+    says the credits are spent; ``budget`` is the credits one request is assumed to need."""
+    from options_scout.data.market import QuotaExceededError, atm_implied_vol
+
+    source = md.source
+    if not hasattr(source, "session_chains") or getattr(source, "chain_feed", "") != "historical":
+        raise SystemExit("snapshot_iv --backfill needs MarketData.app with chain_feed: historical")
+    latest = expected_session(md)
+    assert latest is not None
+    r = md.get_risk_free_rate()
+    added: dict[str, int] = {}
+    for t in tickers:
+        added[t] = 0
+        try:
+            q = md.get_dividend_yield(t)
+        except QuotaExceededError:
+            raise
+        except Exception:
+            q = 0.0  # as build_snapshot does when the lookup fails
+        day, found, tried = latest, 0, 0
+        while found < sessions and tried < sessions + BACKFILL_SLACK:
+            if day.weekday() < 5:
+                tried += 1
+                if store.has(t, day):
+                    found += 1
+                else:
+                    if budget and hasattr(source, "ensure_budget"):
+                        source.ensure_budget(budget)
+                    got = source.session_chains(t, day)
+                    if got is not None:  # None: a holiday, no session
+                        spot, chains = got
+                        iv = atm_implied_vol(chains, spot, day, md.near_dte, r=r, q=q)
+                        found += 1
+                        if iv is not None:
+                            store.record(t, day, iv)
+                            added[t] += 1
+            day -= timedelta(days=1)
+        print(f"{t}: {added[t]} session(s) added, rows={store.count(t)}")
+    return added
+
+
 def main(argv: list[str] | None = None) -> int:
     from options_scout.config import get_config, load_env
     from options_scout.data.fixtures import DEMO_TICKERS
@@ -93,6 +148,13 @@ def main(argv: list[str] | None = None) -> int:
     check_startup_or_exit()  # W42: bad settings stop here, with a message
     parser = argparse.ArgumentParser(description="Record today's ATM IV per ticker.")
     parser.add_argument("tickers", nargs="*", help="defaults to the demo tickers")
+    parser.add_argument(
+        "--backfill",
+        type=int,
+        default=0,
+        metavar="N",
+        help="fill the last N sessions from historical chains (spends provider credits)",
+    )
     args = parser.parse_args(argv)
     cfg = get_config()
     md = MarketData.from_config(cfg)
@@ -105,6 +167,24 @@ def main(argv: list[str] | None = None) -> int:
         return 0  # a skip, not a failure: the compose scheduler's heartbeat stays healthy
     store = IVSnapshotStore(cfg.paths.iv_snapshot_db)
     tickers = [t.upper() for t in args.tickers] or list(DEMO_TICKERS)
+    if args.backfill > 0:
+        from options_scout.data.market import QuotaExceededError
+
+        try:
+            backfill(
+                md,
+                store,
+                tickers,
+                args.backfill,
+                budget=cfg.settings.market_data.marketdata.credits_per_ticker,
+            )
+        except QuotaExceededError as exc:
+            print(f"snapshot_iv: stopped, {exc}; rerun tomorrow to continue", file=sys.stderr)
+        used = getattr(md.source, "credits_used", None)
+        if used is not None:
+            left = getattr(md.source, "credits_remaining", None)
+            print(f"credits used: {used}; left today: {left}")
+        return 0
     expected = expected_session(md)
     for t in tickers:
         if expected is not None and store.has(t, expected):

@@ -180,7 +180,7 @@ Notation: S spot, K strike, T years to expiry, r risk-free rate, q dividend yiel
 - **LEAPS breakeven at expiry** = `K + price`
 - **Dollar delta** = `delta × 100 × S × contracts` (short put delta is positive dollar exposure for the seller: use `−put_delta`)
 - **IV rank** = `(IV_now − IV_min_52w) / (IV_max_52w − IV_min_52w)`; **IV percentile** = share of days with IV below today.
-  - Free data has no IV history, so the app **stores a daily ATM IV snapshot** per watchlist ticker (scheduled job). Until 30+ snapshots exist, fall back to `IV_now / HV30` and mark the field `iv_rank_source="hv_proxy"`.
+  - Free data has no IV history, so the app **stores a daily ATM IV snapshot** per watchlist ticker (scheduled job). Until 30+ snapshots exist, there is no rank: the report shows `IV_now / HV30` as "IV/HV" for context and marks the field `iv_rank_source="hv_proxy"`. Options usually trade above realised volatility, so the ratio is above one for most names; it sets no `low_iv_rank` / `high_iv_rank` flag and the IV-rank fit term of the option-quality score is neutral (0.5) for it (W4).
 
 Golden-value tests: use at least these, verified with an independent calculator and recorded in `tests/fixtures/golden_greeks.json`:
 - S=100, K=100, T=1, r=0.05, q=0, σ=0.20 → call delta ≈ 0.6368, put delta ≈ −0.3632
@@ -1445,7 +1445,7 @@ The step list, acceptance criteria and rubric mapping live in [docs/capstone-pla
 ## 16. Known Limitations (state these in the README)
 - The good-to-own list is a curated judgment call, not a guarantee: a large company can still fall sharply, and the numeric gate only sees the last 90 days. "Good to own" means *less speculative*, not *safe*.
 - Free-tier market data is delayed; Greeks are model-derived from MarketData.app (or Tradier) IV. Neither provider has been exercised against a live key in this repo's test history.
-- IV rank needs accumulated history; early runs use an HV proxy.
+- An IV rank needs 30 trading days of stored history per ticker; until then the report shows implied over realised volatility and does not score it.
 - Reddit and X are biased, noisy samples of consumer behavior; social signals can be manipulated. X's `search/recent` endpoint only covers 7 days, so X contributes to the recent week and to cross-source confirmation but has a thin baseline unless the Pro tier (`search/all`) is used or snapshots accumulate; `pytrends` is unofficial and may break.
 - Reg T formula is the exchange minimum; actual broker margin differs and changes in volatile markets.
 - Early assignment, dividends and liquidity at exit are simplified. No provider in this repo exposes ex-dividend dates, so the News Desk's `ex_dividend_before_expiry` flag fires only when a date is supplied.

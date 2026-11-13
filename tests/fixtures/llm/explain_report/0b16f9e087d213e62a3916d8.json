@@ -1,0 +1,83 @@
+{
+ "task": "explain_report",
+ "model": "deepseek/deepseek-v4.1-flash",
+ "output": {
+  "paragraphs": [
+   {
+    "mode": "education",
+    "text": "A **cash-secured put** is a short put position in which the writer sets aside enough cash to buy the shares at the strike price if the put is assigned [S1]. The writer sells the put, collects the premium up front, and accepts the obligation to buy 100 shares per contract at the strike any time before expiration [S1]. The word *secured* refers to the cash: in a cash account the broker holds the full purchase price (strike \u00d7 100, less the premium received) as collateral for the whole life of the trade [S1].",
+    "citations": [
+     "S1"
+    ]
+   },
+   {
+    "mode": "education",
+    "text": "**Assignment** is the process by which an option writer is selected to fulfil the obligation of a contract that a holder has exercised [S2]. When a put holder exercises, some put writer is obliged to take the shares at the strike [S2]. The Options Clearing Corporation (OCC) receives exercise notices from clearing members, assigns them at random to clearing members with short positions in the same series, and each clearing member then assigns its own customers by a method approved by the exchanges, usually random selection or first-in first-out [S2].",
+    "citations": [
+     "S2"
+    ]
+   },
+   {
+    "mode": "education",
+    "text": "A **poor man's covered call** is a two-leg position: a long, deep in-the-money LEAPS call (expiring a year or more out) and a short, near-term, out-of-the-money call on the same stock [S3]. Formally it is a **long call diagonal spread**: different strikes and different expirations [S3]. The LEAPS stands in for the shares at a fraction of the capital [S3].",
+    "citations": [
+     "S3"
+    ]
+   },
+   {
+    "mode": "education",
+    "text": "A **naked put** (also *uncovered* or *short put on margin*) is the same contract as a cash-secured put: the writer sells a put, collects the premium and takes on the obligation to buy 100 shares at the strike if assigned [S4]. The difference is how the obligation is collateralised: in a margin account the broker holds only a **margin requirement**, a fraction of the purchase price computed under exchange and FINRA minimum rules, and the writer keeps the rest of their buying power free for other positions [S4].",
+    "citations": [
+     "S4"
+    ]
+   },
+   {
+    "mode": "education",
+    "text": "The product promise is \"stocks you would be happy to own if assigned\" [S5]. The quality gate is a **filter, not a discovery engine**: it decides which tickers are allowed into the option screeners at all, records a reason for every rejection, and produces a score for the survivors [S5].",
+    "citations": [
+     "S5"
+    ]
+   },
+   {
+    "mode": "screen_result",
+    "text": "Buying power was split into the strategy buckets: {{allocation.csp_pct|pct}} to cash-secured puts ({{allocation.csp_dollars|money}}), {{allocation.leaps_pct|pct}} to LEAPS legs ({{allocation.leaps_dollars|money}}) and {{allocation.cash_pct|pct}} ({{allocation.cash_dollars|money}}) kept in cash, with a {{allocation.tilt}} tilt. The regime label was {{regime.label}}, with VIX at {{regime.vix}} ({{regime.vix_percentile}}th percentile) and a risk-free rate of {{regime.risk_free_rate_pct|pct}}.",
+    "citations": []
+   },
+   {
+    "mode": "screen_result",
+    "text": "The good-to-own quality gate screened {{counts.underlyings_screened}} underlyings and passed {{quality_screen.passed_count}}: {{quality_screen.passed_tickers|list}}. Each passed because of its own business quality \u2014 for example SPY \"{{quality_screen.passed[0].why}}\", AAPL \"{{quality_screen.passed[1].why}}\", COST \"{{quality_screen.passed[2].why}}\", MSFT \"{{quality_screen.passed[3].why}}\", QQQ \"{{quality_screen.passed[4].why}}\", SBUX \"{{quality_screen.passed[5].why}}\" and NKE \"{{quality_screen.passed[6].why}}\". The excluded list is empty ({{quality_screen.excluded_count}}).",
+    "citations": []
+   },
+   {
+    "mode": "screen_result",
+    "text": "The trend board is a secondary signal only and added none of its names to the universe: trending tickers CAVA, ONON, DECK, ELF, CROX, BROS, ANF and BIRK were skipped because they are not on the good-to-own list.",
+    "citations": []
+   },
+   {
+    "mode": "screen_result",
+    "text": "The bottleneck board also acts as a secondary signal: it re-orders quality-gated stocks, never adds one. In the layer scores the power generation and grid equipment layer scored {{bottlenecks.layers[0].score}} with thesis \"{{bottlenecks.layers[0].thesis_state}}\", grid equipment and transformers {{bottlenecks.layers[1].score}} (thesis \"{{bottlenecks.layers[1].thesis_state}}\"), DRAM and high-bandwidth memory {{bottlenecks.layers[2].score}} (thesis \"{{bottlenecks.layers[2].thesis_state}}\"), and networking, optics and fiber {{bottlenecks.layers[5].score}} with thesis \"{{bottlenecks.layers[5].thesis_state}}\". Among companies CSCO carries the flags \"{{bottlenecks.companies[4].flags|list}}\".",
+    "citations": []
+   },
+   {
+    "mode": "screen_result",
+    "text": "No position was sized: {{counts.positions_sized}} sized positions and {{counts.skipped_total}} candidates left unsized ({{counts.skipped_listed}} listed). The highest-ranked unsized names are LEAPS-SPY-2028-01-21-600C with a realistic loss of one contract of {{skipped_candidates[0].realistic_loss_per_contract|money}}, LEAPS-SPY-2027-12-17-595C at {{skipped_candidates[1].realistic_loss_per_contract|money}}, CSP-SPY-2026-11-30-735P at {{skipped_candidates[2].realistic_loss_per_contract|money}}, CSP-SPY-2026-11-30-750P at {{skipped_candidates[3].realistic_loss_per_contract|money}} and LEAPS-AAPL-2029-01-19-260C at {{skipped_candidates[4].realistic_loss_per_contract|money}}; each failed on \"{{skipped_candidates[0].reason}}\" or \"{{skipped_candidates[2].reason}}\".",
+    "citations": []
+   },
+   {
+    "mode": "screen_result",
+    "text": "The risk picture reflects the empty book. All {{risk.checks_passed}} of {{risk.checks_total}} constraint checks passed, including margin usage at {{risk.checks[1].value|percent}} of its {{risk.checks[1].limit|percent}} limit, maximum loss per position at {{risk.checks[2].value|percent}} against {{risk.checks[2].limit|percent}}, and portfolio loss at {{risk.checks[5].value|percent}} against {{risk.checks[5].limit|percent}}. The stress rows confirm this: a {{risk.stress[0].shock}} move with a {{risk.stress[0].iv_shock}} IV shock gives {{risk.stress[0].pnl|money}}, {{risk.stress[1].shock}} gives {{risk.stress[1].pnl|money}}, and {{risk.stress[2].shock}} gives {{risk.stress[2].pnl|money}}. The sizer flagged {{risk.sizing_flags|list}}: {{risk.warnings[0]}}",
+    "citations": []
+   },
+   {
+    "mode": "notice",
+    "text": "{{ delayed_data_notice }}",
+    "citations": []
+   },
+   {
+    "mode": "notice",
+    "text": "{{ disclaimer }}",
+    "citations": []
+   }
+  ]
+ }
+}
