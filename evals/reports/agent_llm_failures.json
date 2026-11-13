@@ -1,4 +1,49 @@
 {
  "writer": "deepseek/deepseek-v4.1-flash",
- "fallbacks": []
+ "fallbacks": [
+  {
+   "run": 0,
+   "request": "I have $50,000 of buying power in a margin account, balanced risk tolerance. CSPs and a few LEAPS/PMCC.",
+   "narrative_source": "rules",
+   "failed_attempts": [
+    [
+     "check_numbers: 25 numbers checked, not grounded: paragraph 6: {{bottlenecks.layers[0].thesis_state|list}}: the list filter joins a list of text items, not records or numbers (for names use a list of names such as quality_screen.passed_tickers; for a number name one item's field)"
+    ],
+    [
+     "check_numbers: 30 numbers checked, not grounded: paragraph 5: '35' is typed, not a slot, in \"\u2026n NKE with expiry 2026-11-20 and strike 35. Its realistic loss is {\u2026\" (name the payload field in double braces; counts too, e.g. passed_count or a list with the count filter); paragraph 6: 1.6% (slot risk.checks[max_loss_per_position].value) is a percent, not the maximum loss (fields: *max_loss)",
+     "check_citations: paragraph 3: S1/S6/S3/S5 does not support 'The good-to-own quality screen asks whether an underlying is the kind of stock o' (47% of its words occur in the source, need 50%); paragraph 7: screen_result sentence names nothing from this run (no slot, candidate id, run ticker or figure), so it is a general claim and needs a citation: 'The sizer left several things behind.'"
+    ],
+    [
+     "check_numbers: 32 numbers checked, not grounded: paragraph 8: 1.6% (slot risk.checks[max_loss_per_position].value) is a percent, not the maximum loss (fields: *max_loss)",
+     "check_citations: paragraph 3: S6 does not support 'The good-to-own quality screen asks whether an underlying is the kind of stock a' (5% of its words occur in the source, need 50%); paragraph 9: screen_result sentence names nothing from this run (no slot, candidate id, run ticker or figure), so it is a general claim and needs a citation: 'The sizer left several limitations.'"
+    ]
+   ],
+   "narrative_patches": [],
+   "model_errors": [
+    "report: LLM narrative failed compliance after 3 attempt(s); deterministic narrative used (passed=True)"
+   ]
+  },
+  {
+   "run": 5,
+   "request": "$1.2M margin account, balanced. Exclude QQQ and SPY.",
+   "narrative_source": "mixed",
+   "failed_attempts": [
+    [
+     "check_citations: paragraph 5: S3 does not support 'The trend board is a secondary signal only: it re-orders quality-gated stocks, n' (10% of its words occur in the source, need 50%); paragraph 7: S5 does not support 'The bottleneck board is also a secondary signal: it re-orders quality-gated stoc' (10% of its words occur in the source, need 50%)"
+    ],
+    [
+     "check_citations: paragraph 5: screen_result sentence names nothing from this run (no slot, candidate id, run ticker or figure), so it is a general claim and needs a citation: 'The board is a secondary signal: it re-orders and never adds.'"
+    ],
+    [
+     "check_numbers: 42 numbers checked, not grounded: paragraph 9: 40% (slot risk.checks[margin_usage].limit) is a percent, not the margin (fields: *margin_used, risk.checks[margin_usage].value, *margin_requirement*)"
+    ]
+   ],
+   "narrative_patches": [
+    "paragraph 9 of the model's text dropped (failed compliance)"
+   ],
+   "model_errors": [
+    "report: LLM narrative failed compliance after 3 attempt(s); 1 paragraph(s) dropped and 0 deterministic paragraph(s) added (passed=True)"
+   ]
+  }
+ ]
 }

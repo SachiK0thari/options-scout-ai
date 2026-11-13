@@ -18,6 +18,7 @@ from vaderSentiment.vaderSentiment import SentimentIntensityAnalyzer
 
 from options_scout.config import AppConfig, ComplianceConfig
 from options_scout.core.models import (
+    DELAYED_DATA_NOTICE,
     NO_SOURCE_SENTENCE,
     AccountType,
     EntityType,
@@ -758,15 +759,7 @@ def rule_explain(user_prompt: str) -> Narrative:
                 + " ".join(f"{{{{risk.warnings[{i}]}}}}" for i in range(min(6, len(warnings)))),
             )
         )
-    paras.append(
-        Paragraph(
-            mode="notice",
-            text=(
-                "Market data is delayed and Greeks are model-derived; these are screened candidates that "
-                "meet the configured criteria, not recommendations."
-            ),
-        )
-    )
+    paras.append(Paragraph(mode="notice", text=DELAYED_DATA_NOTICE))
     paras.append(Paragraph(mode="notice", text="{{disclaimer}}"))
     return Narrative(paragraphs=paras)
 

@@ -1,6 +1,6 @@
 ---
 name: explain_report
-version: 3.3.0
+version: 3.4.0
 task: Explanation of a screening report as tagged paragraphs, grounded ONLY in the computed payload and the numbered sources.
 ---
 You write the explanation section of an educational options-screening report. You are given a
@@ -46,16 +46,21 @@ Each paragraph has exactly one `mode`:
   the sources: end each definitional sentence with the tag of the source it comes from, e.g.
   "... the writer may be assigned at any time [S2].", and list the same tags in `citations`.
   Education paragraphs contain NO candidate ids, NO tickers from this run and NO run numbers.
-- `screen_result`: reports what the screen found; every figure is a slot (see above). Refer to positions by their candidate ids
+- `screen_result`: reports what the screen found; every figure is a slot (see above). EVERY
+  sentence names something from this run: a slot, a candidate id or a ticker from the payload.
+  A general statement ("selling puts earns income", "assignment is rare") is not a result: put
+  it in a cited `education` paragraph instead, or leave it out. Refer to positions by their candidate ids
   (e.g. CSP-NKE-2026-11-20-35P). EVERY paragraph that names a short option's id (a `CSP-` or
   `PMCCSC-` id), even in passing, must also state that position's realistic loss
   (`realistic_loss`, as a slot) in the same paragraph. A candidate that was NOT sized (it
   appears in `skipped_candidates`, and the sizing warnings name some) is described with its
   `realistic_loss_per_contract`, stated as the realistic loss of one contract. `citations` is
   empty.
-- `notice`: data caveats and the disclaimer. One notice paragraph must say in plain words that
-  the market data is delayed (use the word "delayed"). The LAST paragraph must be the
-  disclaimer, written as the slot `{{ disclaimer }}`.
+- `notice`: fixed texts only, never your own words. Write exactly these notice paragraphs: the
+  data caveat as the slot `{{ delayed_data_notice }}`; optionally the sizer's warnings as slots
+  (`**Warnings and limitations.** {{risk.warnings[0]}} {{risk.warnings[1]}}`); and LAST the
+  disclaimer as the slot `{{ disclaimer }}`. A notice paragraph with any other text is checked
+  as `education` (it then needs a citation and may not name the run's tickers or ids).
 
 Hard rules:
 - Never compute, round or estimate a number, and never type one: slots only. Education
@@ -63,7 +68,10 @@ Hard rules:
 - Use neutral screening language: "candidate", "meets the criteria", "was screened in". Never
   tell the reader what to do: no "you should", "buy", "sell", "I recommend", "guaranteed",
   "risk-free" (naming "the risk-free rate" from the payload is fine), "will profit".
-- Cite only tags that exist in SOURCES. Do not invent sources.
+- Cite only tags that exist in SOURCES. Do not invent sources. A cited sentence must say what
+  its source says, in mostly the source's own words; a sentence whose words are not in the
+  source it cites fails. Text in quotation marks must be copied exactly from the cited source
+  (or, in a `screen_result`, from the payload); use "..." to mark a cut.
 - Cover, alternating education and screen_result as needed: (1) how buying power was allocated
   and the regime; (2) the good-to-own quality screen (which underlyings passed and which were
   excluded, quoting the reasons as given); (3) the trend board as a secondary signal only; (3b)

@@ -1,6 +1,6 @@
 ---
 name: answer_tax
-version: 1.0.0
+version: 1.1.0
 task: Answer a tax or account-type question about cash-secured puts, LEAPS or PMCCs from numbered tax sources and computed illustrative facts; education, never tax advice.
 ---
 You answer a question about how options positions are taxed or which account types allow them,
@@ -20,6 +20,10 @@ Return a JSON object: {"paragraphs": [{"mode": ..., "text": ..., "citations": [.
   publication for current rates. Never give a filing instruction in the imperative ("file Form
   8949"); describe what the form does instead. Never tell the reader what to do: no "you should",
   "buy", "sell", "I recommend", "guaranteed", "risk-free", "will".
+- A cited sentence must say what its source says, in mostly the source's own words; text in
+  quotation marks must be copied exactly from the cited source ("..." marks a cut).
+  `notice` paragraphs hold only the fixed texts this prompt gives; anything else written as a
+  notice is checked as `education`.
 - The reply contains, exactly once, as its own `notice` paragraph, the tax disclaimer: {{tax_disclaimer}}
 - The LAST paragraph has mode `notice` and is the app disclaimer, copied exactly: {{disclaimer}}
 - If the sources do not answer the question, reply with one `notice` paragraph containing the

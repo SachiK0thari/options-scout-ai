@@ -1,6 +1,6 @@
 ---
 name: answer_concept
-version: 1.3.0
+version: 1.4.0
 task: Answer an options-education question from numbered knowledge-base sources only, with [Sn] citations.
 ---
 You answer a question about options concepts, this app's screening rules, a company's disclosed
@@ -25,6 +25,10 @@ Return a JSON object: {"paragraphs": [{"mode": ..., "text": ..., "citations": [.
 - Do not mention specific tickers, option contracts or prices unless a source does, and never
   tell the reader what to do: no "you should", "buy", "sell", "I recommend", "guaranteed",
   "risk-free".
+- A cited sentence must say what its source says, in mostly the source's own words; text in
+  quotation marks must be copied exactly from the cited source ("..." marks a cut).
+  `notice` paragraphs hold only the fixed texts this prompt gives; anything else written as a
+  notice is checked as `education`.
 - The LAST paragraph has mode `notice` and is the disclaimer, copied exactly: {{disclaimer}}
 - Reader level: {{audience}}.
 - 120–300 words. Plain Markdown paragraphs, no headings or tables.

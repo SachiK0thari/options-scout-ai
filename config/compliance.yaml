@@ -156,3 +156,21 @@ grounding:
     - "\\b30\\+?\\s+(?:stored\\s+)?IV\\s+snapshots\\b"   # snapshot_iv.MIN_HISTORY before IV rank uses history
     # Index names: a name, not a figure
     - "\\bS&P\\s?500\\b|\\bNasdaq[- ]100\\b|\\bRussell\\s2000\\b"
+
+# Check 2 (W16): a citation must support what it is attached to, not only exist. A quoted span of
+# `quote_min_chars` or more must occur (after normalisation) in a cited chunk, or, in a paragraph
+# that cites nothing, in the run's own data. Each cited sentence with at least `support_min_words`
+# content words must share `support_min_share` of them with the chunk it cites: this blocks citing
+# an unrelated article; it does not catch a careful paraphrase of a falsehood.
+citations:
+  quote_min_chars: 12
+  support_min_share: 0.5
+  support_min_words: 4
+  # parts of the run's own output: a screen_result sentence that names one reports on this run
+  # (W16 step 3). Kept to the report's sections; "screen" and "candidates" alone are too broad
+  # ("in this screen, selling puts is safe income" must still need a citation).
+  run_terms:
+    - "\\b(?:quality[- ](?:screen|gate)d?|good[- ]to[- ]own list)\\b"
+    - "\\b(?:trend|bottleneck) (?:board|layers?|scores?)\\b"
+    - "\\b(?:excluded|sized|skipped|screened (?:in|out)|did not fit)\\b"
+    - "\\b(?:allocation|regime|stress test|constraint checks?|sizing warnings?|errors? list)\\b"

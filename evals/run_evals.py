@@ -46,6 +46,9 @@ from options_scout.core.compliance import (  # noqa: E402
     check_citations,
     check_education_only,
     check_language,
+    checked_narrative,
+    demoted_notices,
+    fixed_notices,
     suitability_problems,
 )
 from options_scout.core.models import (  # noqa: E402
@@ -771,6 +774,13 @@ def eval_compliance(res: Results, cfg: Any) -> None:
     # and whose text is not printed here (ids only), so it can stay blind.
     # The dev and blind rows name contracts and source tags this fixed payload does not hold, so on
     # those sets only check_language decides (the in-sample set also exercises the other two).
+    # W16: every row cites the one placeholder source above for whatever concept it explains, so
+    # the support check (shared words with the cited chunk) is off here; it measures faithfulness,
+    # not the education-vs-advice separation. Quotations and modes are still checked.
+    separation_cfg = cfg.compliance.model_copy(
+        update={"citations": cfg.compliance.citations.model_copy(update={"support_min_share": 0.0})}
+    )
+    disclaimer = cfg.settings.disclaimer
     for fname, title, target, gate, show_text in (
         ("advice_narratives.jsonl", "in-sample", "100% caught, ≤ 1 false positive", True, True),
         ("advice_dev.jsonl", "dev set, check_language only", "reported", False, True),
@@ -782,11 +792,23 @@ def eval_compliance(res: Results, cfg: Any) -> None:
         caught = advice_total = false_pos = clean_total = 0
         missed: list[str] = []
         for row in _jsonl(path):
-            narrative = Narrative.model_validate({"paragraphs": row["paragraphs"]})
+            # W16: the rows stand for what a model wrote, so modes follow content (a notice that
+            # is not a fixed text is checked as education)
+            narrative = Narrative.model_validate(
+                {"paragraphs": [{**p, "written_by": "model"} for p in row["paragraphs"]]}
+            )
+            demoted = demoted_notices(narrative, fixed_notices(disclaimer, separation_cfg))
+            narrative = checked_narrative(narrative, demoted)
             lang = check_language(narrative, cfg.compliance)
             mode = check_education_only(narrative, payload, ["COST", "NKE", "SPY"])
             cites = check_citations(
-                narrative, sources
+                narrative,
+                sources,
+                payload=payload,
+                cfg=separation_cfg,
+                disclaimer=disclaimer,
+                run_tickers=["COST", "NKE", "SPY"],
+                demoted=demoted,
             )  # "education paragraphs must carry citations"
             rejected = (
                 not (lang.passed and mode.passed and cites.passed) if gate else not lang.passed

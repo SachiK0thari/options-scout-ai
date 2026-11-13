@@ -26,6 +26,7 @@ from options_scout.core.grounding import (
     CANDIDATE_ID,
     GAIN_WORDS,
     LOSS_WORDS,
+    SLOT,
     Entry,
     GroundingResult,
     SlotError,
@@ -44,6 +45,8 @@ from options_scout.core.grounding import (
 from options_scout.core.grounding import PMCC_ID as _PMCC_ID
 from options_scout.core.models import (
     BOTTLENECK_BOARD_DOC_ID,
+    DELAYED_DATA_NOTICE,
+    NO_SOURCE_SENTENCE,
     SOURCE_TAG,
     Citation,
     ComplianceCheck,
@@ -427,11 +430,379 @@ def check_numbers(verification: VerificationResult) -> ComplianceCheck:
     )
 
 
+# ------------------------------------------------- W16: a paragraph's mode follows its content
+# Slots a model-written notice may hold: the fixed texts and the sizer's own warnings
+_NOTICE_SLOT = re.compile(
+    r"(?:disclaimer|tax_disclaimer|delayed_data_notice|risk\.warnings\[[^\]]*\])", re.IGNORECASE
+)
+_BOLD_LABEL = re.compile(r"^\s*\*\*[^*\n]{1,60}\*\*\s*")
+_BOLD_LABEL_ONLY = re.compile(r"^\s*\*\*[^*\n]{1,60}\*\*\s*$")
+
+
+def _fold(text: str) -> str:
+    """``text`` reduced to lower-case words for comparing fixed texts and quotations: the
+    language normalisation (NFKC, curly quotes, look-alikes, Markdown), then letters and digits
+    only."""
+    return " ".join(re.findall(r"[a-z0-9]+", normalise_for_language(text).lower()))
+
+
+def fixed_notices(disclaimer: str, cfg: ComplianceConfig) -> list[str]:
+    """The fixed texts a model may write as a ``notice``, folded, longest first."""
+    texts = [disclaimer, cfg.reminder, cfg.tax.disclaimer, NO_SOURCE_SENTENCE, DELAYED_DATA_NOTICE]
+    return sorted({f for t in texts if (f := _fold(t))}, key=len, reverse=True)
+
+
+def is_fixed_notice(p: Paragraph, fixed: Sequence[str]) -> bool:
+    """True when the paragraph holds only fixed texts (written out or slotted) and the sizer's
+    warnings, after an optional bold label (W16 step 2)."""
+    template = p.template if p.template is not None else p.text
+    rest = SLOT.sub(lambda m: " " if _NOTICE_SLOT.fullmatch(m.group(1).strip()) else "\0", template)
+    if "\0" in rest:
+        return False  # a slot into run data: that is a screen result, not a notice
+    folded = _fold(_BOLD_LABEL.sub(" ", rest, count=1))
+    for f in fixed:
+        folded = folded.replace(f, " ")
+    return not folded.strip()
+
+
+def demoted_notices(narrative: Narrative, fixed: Sequence[str]) -> list[int]:
+    """Indices of model-written ``notice`` paragraphs that are not fixed texts: checked as
+    ``education``, so they need a citation and may carry no run data (W16 step 2)."""
+    return [
+        i
+        for i, p in enumerate(narrative.paragraphs)
+        if p.written_by == "model" and p.mode == "notice" and not is_fixed_notice(p, fixed)
+    ]
+
+
+def checked_narrative(narrative: Narrative, demoted: Sequence[int]) -> Narrative:
+    """The narrative as the checks see it: demoted notices carry the ``education`` mode."""
+    if not demoted:
+        return narrative
+    return Narrative(
+        paragraphs=[
+            p.model_copy(update={"mode": "education"}) if i in demoted else p
+            for i, p in enumerate(narrative.paragraphs)
+        ]
+    )
+
+
+def _payload_tickers(payload: Any, out: set[str] | None = None) -> set[str]:
+    """Values of ``ticker`` / ``underlying`` fields in the run's data (not its sources)."""
+    out = set() if out is None else out
+    if isinstance(payload, dict):
+        for k, v in payload.items():
+            if k in _NOT_RUN_DATA:
+                continue
+            if k in ("ticker", "underlying") and isinstance(v, str) and v.strip():
+                out.add(v.strip().upper())
+            else:
+                _payload_tickers(v, out)
+    elif isinstance(payload, list | tuple):
+        for v in payload:
+            _payload_tickers(v, out)
+    return out
+
+
+def _reference_pattern(
+    payload: dict[str, Any], run_tickers: Sequence[str], run_terms: Sequence[str] = ()
+) -> re.Pattern[str]:
+    """What ties a sentence to this run: a slot, a candidate id, a run ticker, a named part of
+    the run's output (``citations.run_terms``: "the quality screen", "the bottleneck board"), or
+    the goal verdict / FIRE variant the payload computed. A typed figure counts as well (checked
+    separately by ``check_numbers``, which grounds it in the run's data)."""
+    words = {t for t in [*run_tickers, *_payload_tickers(payload)] if len(t) >= 2}
+    alts = [SLOT.pattern, CANDIDATE_ID.pattern, _PMCC_ID.pattern, *run_terms]
+    if words:
+        alts.append(r"\b(?:" + "|".join(map(re.escape, sorted(words))) + r")\b")
+    plan = payload.get("goal_plan")
+    if isinstance(plan, dict):
+        alts.append(r"\b(?:fits|stretch|does not fit)\b")
+        fire = plan.get("fire")
+        if isinstance(fire, dict) and fire.get("variant"):
+            alts.append(r"(?i:\b" + re.escape(str(fire["variant"])) + r"\b)")
+    return re.compile("|".join(f"(?:{a})" for a in alts))
+
+
+def general_claims(p: Paragraph, refs: re.Pattern[str], fixed: Sequence[str] = ()) -> list[str]:
+    """Sentences of a model-written ``screen_result`` that name nothing from this run: no slot,
+    candidate id, run ticker or figure. They are general claims and need a citation like an
+    education sentence (W16 step 3). Read on the template, where the slots still show. A
+    sentence that is part of one of the app's fixed texts ("these are screened candidates …,
+    not recommendations") is the app's own caveat, not a claim."""
+    if p.written_by != "model" or p.mode != "screen_result":
+        return []
+    out: list[str] = []
+    for s in _sentences(p.template if p.template is not None else p.text):
+        if _BOLD_LABEL_ONLY.match(s) or not re.search(r"[A-Za-z]", s):
+            continue
+        if refs.search(s) or extract_numbers(s):
+            continue
+        folded = _fold(s)
+        if folded and any(folded in f for f in fixed):
+            continue
+        out.append(s.strip())
+    return out
+
+
+# Quotation marks after ``normalise_for_language`` (curly quotes and guillemets become ASCII). A
+# single quote opens only after a non-word character, so apostrophes inside words never do.
+_DOUBLE_QUOTED = re.compile(r'"([^"]+)"')
+_SINGLE_QUOTED = re.compile(r"(?<![A-Za-z0-9])'([^']+)'(?![A-Za-z0-9])")
+_ELLIPSIS = re.compile(r"\.\.\.|\[\s*\.\.\.\s*\]")
+
+
+def quoted_spans(text: str, min_chars: int) -> list[str]:
+    """Quoted spans of at least ``min_chars`` characters, in double or single quotes or
+    guillemets."""
+    t = normalise_for_language(text)
+    spans = [m.group(1) for m in _DOUBLE_QUOTED.finditer(t)]
+    spans += [m.group(1) for m in _SINGLE_QUOTED.finditer(t)]
+    # a quoted slot is a value the app filled in ("{{...flags|list}}"), not words put in anyone's
+    # mouth; the template is read, so the slot still shows
+    return [s for s in spans if len(s.strip()) >= min_chars and not SLOT.search(s)]
+
+
+def quote_found(span: str, corpus: Sequence[str]) -> bool:
+    """True when every part of ``span`` (split at an elision "...") occurs in one corpus text,
+    compared as folded words."""
+    parts = [f for part in _ELLIPSIS.split(span) if (f := _fold(part))]
+    if not parts:
+        return True
+    return any(all(f" {part} " in f" {text} " for part in parts) for text in corpus)
+
+
+def _payload_strings(value: Any, skip: frozenset[str] = frozenset()) -> list[str]:
+    out: list[str] = []
+    if isinstance(value, str):
+        out.append(value)
+    elif isinstance(value, dict):
+        for k, v in value.items():
+            if k not in skip:
+                out += _payload_strings(v, skip)
+    elif isinstance(value, list | tuple):
+        for v in value:
+            out += _payload_strings(v, skip)
+    return out
+
+
+_STOPWORDS = frozenset(
+    [
+        "a",
+        "an",
+        "the",
+        "and",
+        "or",
+        "but",
+        "nor",
+        "so",
+        "yet",
+        "of",
+        "to",
+        "in",
+        "on",
+        "at",
+        "by",
+        "for",
+        "from",
+        "with",
+        "without",
+        "into",
+        "onto",
+        "over",
+        "under",
+        "as",
+        "is",
+        "are",
+        "was",
+        "were",
+        "be",
+        "been",
+        "being",
+        "am",
+        "do",
+        "does",
+        "did",
+        "doing",
+        "done",
+        "have",
+        "has",
+        "had",
+        "having",
+        "it",
+        "its",
+        "it's",
+        "this",
+        "that",
+        "these",
+        "those",
+        "there",
+        "here",
+        "which",
+        "who",
+        "whom",
+        "whose",
+        "what",
+        "when",
+        "where",
+        "why",
+        "how",
+        "than",
+        "then",
+        "also",
+        "too",
+        "very",
+        "just",
+        "only",
+        "such",
+        "same",
+        "other",
+        "another",
+        "each",
+        "every",
+        "any",
+        "all",
+        "both",
+        "either",
+        "neither",
+        "some",
+        "more",
+        "most",
+        "less",
+        "least",
+        "much",
+        "many",
+        "few",
+        "can",
+        "could",
+        "may",
+        "might",
+        "must",
+        "shall",
+        "should",
+        "will",
+        "would",
+        "i",
+        "you",
+        "he",
+        "she",
+        "we",
+        "they",
+        "me",
+        "him",
+        "her",
+        "us",
+        "them",
+        "my",
+        "your",
+        "his",
+        "our",
+        "their",
+        "one",
+        "ones",
+        "if",
+        "because",
+        "while",
+        "about",
+        "after",
+        "before",
+        "between",
+        "during",
+        "through",
+        "up",
+        "down",
+        "out",
+        "off",
+        "again",
+        "further",
+        "once",
+    ]
+)
+_CONTENT_WORD = re.compile(r"[a-z][a-z'\-]*[a-z]|[a-z]")
+
+
+def _stem(word: str) -> str:
+    w = word.replace("'", "")
+    for suffix in ("ing", "ed", "es", "s"):
+        if w.endswith(suffix) and len(w) - len(suffix) >= 3:
+            return w[: -len(suffix)]
+    return w
+
+
+def content_words(text: str) -> set[str]:
+    """Stemmed words of ``text`` outside a small stop list (negations are kept: "cannot" carries
+    meaning)."""
+    low = _SOURCE_TAG.sub(" ", normalise_for_language(text).lower())
+    out: set[str] = set()
+    for w in _CONTENT_WORD.findall(low):
+        for part in w.split("-"):
+            if len(part) >= 3 and part not in _STOPWORDS:
+                out.add(_stem(part))
+    return out
+
+
+def support_share(sentence: str, corpus: Sequence[str]) -> tuple[float, int]:
+    """Share of the sentence's content words found in the corpus, and how many it has."""
+    words = content_words(sentence)
+    if not words:
+        return 1.0, 0
+    have: set[str] = set()
+    for text in corpus:
+        have |= content_words(text)
+    return len(words & have) / len(words), len(words)
+
+
+def _chunk_texts(sources: Sequence[Citation], payload: dict[str, Any] | None) -> dict[str, str]:
+    """``Sn`` → the text the writer was shown for that source: its title, its quote and the
+    chunk text the payload carries (the quote is the start of that text in the app)."""
+    texts: dict[str, str] = {}
+    by_tag: dict[str, str] = {}
+    for src in (payload or {}).get("sources") or []:
+        if isinstance(src, dict) and src.get("tag"):
+            by_tag[str(src["tag"])] = str(src.get("text", ""))
+    for i, c in enumerate(sources, start=1):
+        tag = f"S{i}"
+        texts[tag] = f"{c.title}. {c.quote} {by_tag.get(tag, '')}"
+    return texts
+
+
+def _tags_in(text: str) -> list[str]:
+    return [f"S{n}" for n in _SOURCE_TAG.findall(text)]
+
+
 # ----------------------------------------------------------------------- 2 check_citations
-def check_citations(narrative: Narrative, sources: Sequence[Citation]) -> ComplianceCheck:
-    """Every ``[Sn]`` exists; every education paragraph cites; quotes come from the sources."""
+def check_citations(
+    narrative: Narrative,
+    sources: Sequence[Citation],
+    *,
+    payload: dict[str, Any] | None = None,
+    cfg: ComplianceConfig | None = None,
+    disclaimer: str = "",
+    run_tickers: Sequence[str] = (),
+    demoted: Sequence[int] = (),
+) -> ComplianceCheck:
+    """Every ``[Sn]`` exists; every education paragraph cites; a model's ``screen_result``
+    sentence that names nothing from the run cites too; quotations occur in the cited chunks
+    (or, uncited, in the run's data); each cited sentence shares enough of its words with the
+    chunk it cites (W16). ``narrative`` is the checked narrative (demoted notices already carry
+    the ``education`` mode); ``demoted`` names them for the message."""
+    from options_scout.config import CitationRulesConfig
+
+    rules = cfg.citations if cfg is not None else CitationRulesConfig()
+    fixed = fixed_notices(disclaimer, cfg) if cfg is not None and disclaimer else []
+    chunks = _chunk_texts(sources, payload)
+    run_text = _payload_strings(payload or {}, frozenset({"previous_attempt_problems"}))
+    run_text_folded = [_fold(t) for t in run_text]
+    refs = _reference_pattern(payload or {}, run_tickers, rules.run_terms)
+    glossary = {_fold(t) for t in (cfg.allow_terms if cfg is not None else [])}
     problems: list[str] = []
     locations: list[str] = []
+
+    def flag(i: int, why: str) -> None:
+        problems.append(f"{_loc(i)}: {why}")
+        if _loc(i) not in locations:
+            locations.append(_loc(i))
+
     unknown = unknown_source_tags(narrative.markdown, len(sources))
     for p in narrative.paragraphs:
         unknown += [t for t in p.citations if t not in unknown and int(t[1:]) > len(sources)]
@@ -439,9 +810,51 @@ def check_citations(narrative: Narrative, sources: Sequence[Citation]) -> Compli
         problems.append(f"tags not in sources: {', '.join(sorted(set(unknown)))}")
         locations += sorted(set(unknown))  # pragma: no mutate (locations is empty here)
     for i, p in enumerate(narrative.paragraphs):
+        para_tags = [t for t in dict.fromkeys([*p.citations, *_tags_in(p.text)]) if t in chunks]
         if p.mode == "education" and not _is_cited(p):
-            problems.append(f"{_loc(i)}: education paragraph without a citation")
-            locations.append(_loc(i))
+            why = "education paragraph without a citation"
+            if i in demoted:
+                why = (
+                    "notice paragraph that is not one of the app's fixed notices is checked as "
+                    "education and has no citation (data caveats go in the fixed notice slots)"
+                )
+            flag(i, why)
+        claims = general_claims(p, refs, fixed)
+        for s in claims:
+            if not _tags_in(s):
+                flag(
+                    i,
+                    "screen_result sentence names nothing from this run (no slot, candidate id, "
+                    f"run ticker or figure), so it is a general claim and needs a citation: {s!r}",
+                )
+        # step 4: quotations come from what is cited, or, uncited, from the run's own data
+        corpus = [_fold(chunks[t]) for t in para_tags]
+        if p.mode != "education":  # a result may quote the run's own text (a reason as given)
+            corpus += run_text_folded
+        written = p.template if p.template is not None else p.text
+        for span in quoted_spans(written, rules.quote_min_chars):
+            if _fold(span) in glossary:
+                continue  # a quoted glossary term ("sell to open") names an order, it quotes no one
+            if not quote_found(span, corpus):
+                where = "the cited source"
+                if p.mode != "education":
+                    where = "the sources or this run's data"
+                flag(i, f"quotation not found in {where}: {span[:80]!r}")
+        # step 5: each cited sentence shares enough of its words with what it cites
+        if not (p.mode == "education" or claims) or not para_tags:
+            continue
+        checked = _sentences(p.text) if p.mode == "education" else claims
+        for s in checked:
+            if fixed and is_fixed_notice(Paragraph(mode="notice", text=s), fixed):
+                continue  # a fixed text (the tax disclaimer) inside the paragraph
+            tags = [t for t in _tags_in(s) if t in chunks] or para_tags
+            share, n = support_share(s, [chunks[t] for t in tags])
+            if n >= rules.support_min_words and share < rules.support_min_share:
+                flag(
+                    i,
+                    f"{'/'.join(tags)} does not support {s.strip()[:80]!r} ({share:.0%} of its "
+                    f"words occur in the source, need {rules.support_min_share:.0%})",
+                )
     for c in resolve_citations(narrative, list(sources)):
         if not c.quote.strip():
             problems.append(f"{c.tag}: empty quote")
@@ -982,7 +1395,13 @@ def run_compliance(
     today: date | None = None,
 ) -> ComplianceReport:
     """Run the eleven checks (eight of 13.1 plus the goal, news and tax checks of Phase 12);
-    ``passed`` is False on any blocking failure. Warnings never block."""
+    ``passed`` is False on any blocking failure. Warnings never block.
+
+    W16: the mode of a model-written paragraph is not taken on trust. A model ``notice`` that is
+    not one of the fixed texts is checked as ``education`` by every check, and a model
+    ``screen_result`` sentence that names nothing from the run needs a citation (check 2)."""
+    demoted = demoted_notices(narrative, fixed_notices(disclaimer, cfg))
+    narrative = checked_narrative(narrative, demoted)
     text = narrative.markdown
     verification = verify_narrative(
         text,
@@ -1004,7 +1423,15 @@ def run_compliance(
     citations = resolve_citations(narrative, list(sources))
     checks = [
         check_numbers(verification),
-        check_citations(narrative, sources),
+        check_citations(
+            narrative,
+            sources,
+            payload=payload,
+            cfg=cfg,
+            disclaimer=disclaimer,
+            run_tickers=run_tickers,
+            demoted=demoted,
+        ),
         check_education_only(narrative, payload, run_tickers, rel_tol=rel_tol),
         check_suitability(facts, text, cfg),
         check_language(narrative, cfg),

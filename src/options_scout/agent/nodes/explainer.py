@@ -20,6 +20,7 @@ from options_scout.core import payoff
 from options_scout.core.compliance import resolve_citations
 from options_scout.core.grounding import add_missing_realistic_losses, render_narrative
 from options_scout.core.models import (
+    DELAYED_DATA_NOTICE,
     BottleneckSignal,
     Narrative,
     OptionCandidate,
@@ -308,6 +309,9 @@ def build_explain_payload(
         },
         "errors": state.get("errors", [])[:8],
         "disclaimer": disclaimer,
+        # W16: the data caveat is a fixed text the writer slots; a typed caveat is checked as
+        # education
+        "delayed_data_notice": DELAYED_DATA_NOTICE,
     }
     # W14: ready-made counts, so the writer slots a count instead of working it out
     payload["counts"] = {

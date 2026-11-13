@@ -1167,6 +1167,29 @@ class GroundingConfig(_Strict):
     literal_allow: list[str] = Field(default_factory=list)
 
 
+class CitationRulesConfig(_Strict):
+    """Check 2 (W16): what a citation must carry beyond a tag that exists."""
+
+    # a quoted span this long or longer must occur in a cited chunk (or, in an uncited paragraph,
+    # in the run's own data)
+    quote_min_chars: int = Field(default=12, ge=1)
+    # share of a cited sentence's content words that must occur in the chunk it cites
+    support_min_share: float = Field(default=0.5, ge=0.0, le=1.0)
+    # a sentence with fewer content words than this is too short to measure and is not checked
+    support_min_words: int = Field(default=4, ge=1)
+    # regexes (case-insensitive) naming a part of the run's own output; a result sentence that
+    # names one ("No underlyings were excluded", "the trend board is a secondary signal") reports
+    # on this run and is not a general claim
+    run_terms: list[str] = Field(default_factory=list)
+
+    @field_validator("run_terms")
+    @classmethod
+    def _terms_compile(cls, v: list[str]) -> list[str]:
+        import re
+
+        return [f"(?i:{re.compile(t, re.IGNORECASE).pattern})" for t in v]
+
+
 class ComplianceConfig(_Strict):
     """Section 13.1 rules: banned patterns with an allow-list, suitability limits, freshness."""
 
@@ -1181,6 +1204,7 @@ class ComplianceConfig(_Strict):
     goal: GoalComplianceConfig = Field(default_factory=GoalComplianceConfig)  # check 9 (Phase 12)
     tax: TaxComplianceConfig = Field(default_factory=TaxComplianceConfig)  # check 11 (Phase 12)
     grounding: GroundingConfig = Field(default_factory=GroundingConfig)  # check 1 (W14)
+    citations: CitationRulesConfig = Field(default_factory=CitationRulesConfig)  # check 2 (W16)
 
     @model_validator(mode="after")
     def _patterns_compile(self) -> ComplianceConfig:

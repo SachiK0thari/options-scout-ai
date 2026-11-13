@@ -129,7 +129,7 @@ def test_documented_example_behaves_as_written(
 ) -> None:
     narrative = Narrative(
         paragraphs=[
-            Paragraph(mode=mode, text=sentence),  # type: ignore[arg-type]
+            Paragraph(mode=mode, text=sentence, written_by="model"),  # type: ignore[arg-type]
             Paragraph(mode="notice", text=config.settings.disclaimer),
         ]
     )
@@ -163,7 +163,7 @@ def test_documented_phase12_example_behaves_as_written(
     check_name, payload = PHASE12_PAYLOADS[check]
     narrative = Narrative(
         paragraphs=[
-            Paragraph(mode=mode, text=sentence),  # type: ignore[arg-type]
+            Paragraph(mode=mode, text=sentence, written_by="model"),  # type: ignore[arg-type]
             Paragraph(mode="notice", text=config.settings.disclaimer),
         ]
     )

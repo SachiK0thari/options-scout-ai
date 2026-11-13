@@ -2,7 +2,7 @@
  {
   "section": "11.1 Deterministic",
   "name": "Golden-value + property tests (tests/unit)",
-  "value": "827 passed",
+  "value": "917 passed",
   "target": "all pass",
   "status": "PASS",
   "detail": ""
@@ -10,18 +10,18 @@
  {
   "section": "Quality",
   "name": "Offline test suite (unit + agent + API + UI + MCP)",
-  "value": "1090 passed",
+  "value": "1183 passed",
   "target": "all pass",
   "status": "PASS",
-  "detail": "411s"
+  "detail": "447s"
  },
  {
   "section": "Quality",
   "name": "Line coverage on core/, rag/, agent/, bottleneck/ (pytest --cov, same run)",
-  "value": "95.8%",
+  "value": "95.9%",
   "target": "\u2265 85%",
   "status": "PASS",
-  "detail": "whole package 93.7%"
+  "detail": "whole package 93.8%"
  },
  {
   "section": "11.2 Entity extraction",
@@ -42,18 +42,18 @@
  {
   "section": "11.2 Entity extraction",
   "name": "F1 on 150 labeled posts (LLM deepseek/deepseek-v4.1-flash)",
-  "value": "P 0.77 / R 0.95 / F1 0.85",
+  "value": "P 0.79 / R 0.96 / F1 0.87",
   "target": "F1 \u2265 0.80",
   "status": "PASS",
-  "detail": "tp=170 fp=50 fn=9"
+  "detail": "tp=171 fp=45 fn=8"
  },
  {
   "section": "11.2 Entity extraction",
   "name": "is_stock_talk accuracy (LLM deepseek/deepseek-v4.1-flash)",
-  "value": "0.97",
+  "value": "0.98",
   "target": "report",
   "status": "INFO",
-  "detail": "n=170"
+  "detail": "n=171"
  },
  {
   "section": "11.2 Resolution",
@@ -141,7 +141,7 @@
   "value": "100.0%",
   "target": "100%",
   "status": "PASS",
-  "detail": "275/275 numbers over 6 runs"
+  "detail": "310/310 numbers over 6 runs"
  },
  {
   "section": "11.3 Agent",
@@ -202,7 +202,7 @@
  {
   "section": "11.3 Agent",
   "name": "Latency per run (fixture mode) \u00b7 rule-based writer",
-  "value": "mean 0.71s \u00b7 p95 2.55s",
+  "value": "mean 0.75s \u00b7 p95 2.65s",
   "target": "report",
   "status": "INFO",
   "detail": ""
@@ -229,28 +229,28 @@
   "value": "100.0%",
   "target": "100%",
   "status": "PASS",
-  "detail": "183/183 numbers over 6 runs"
+  "detail": "202/202 numbers over 6 runs"
  },
  {
   "section": "11.3 Agent",
   "name": "Final narratives written by the model (no deterministic fallback) \u00b7 LLM deepseek/deepseek-v4.1-flash",
-  "value": "6/6",
+  "value": "4/6",
   "target": "report",
   "status": "INFO",
-  "detail": "fell back: none. The grounding row above counts the fallbacks too."
+  "detail": "fell back: run 0 (rules, 3 failed attempt(s)); run 5 (mixed, 3 failed attempt(s)). The grounding row above counts the fallbacks too."
  },
  {
   "section": "11.3 Agent",
   "name": "Released paragraphs written by the model (failing ones replaced) \u00b7 LLM deepseek/deepseek-v4.1-flash",
-  "value": "57/57",
+  "value": "51/63",
   "target": "report",
   "status": "INFO",
-  "detail": "mixed narratives: none"
+  "detail": "mixed narratives: run 5 (11 of 11 paragraphs by the model)"
  },
  {
   "section": "11.3 Agent",
   "name": "Compliance checks the model's attempts failed (all attempts, all runs) \u00b7 LLM deepseek/deepseek-v4.1-flash",
-  "value": "check_citations \u00d71",
+  "value": "check_numbers \u00d77, check_citations \u00d75",
   "target": "report",
   "status": "INFO",
   "detail": "per-attempt details: evals/reports/agent_llm_failures.json"
@@ -261,12 +261,12 @@
   "value": "100.0%",
   "target": "report",
   "status": "INFO",
-  "detail": "183/183 numbers over 6 runs"
+  "detail": "115/115 numbers over 4 runs"
  },
  {
   "section": "11.3 Agent",
   "name": "Narratives passing verifier on first attempt \u00b7 LLM deepseek/deepseek-v4.1-flash",
-  "value": "5/6",
+  "value": "1/6",
   "target": "report",
   "status": "INFO",
   "detail": ""
@@ -306,7 +306,7 @@
  {
   "section": "11.3 Agent",
   "name": "Latency per run (fixture mode) \u00b7 LLM deepseek/deepseek-v4.1-flash",
-  "value": "mean 21.53s \u00b7 p95 27.71s",
+  "value": "mean 22.79s \u00b7 p95 30.84s",
   "target": "report",
   "status": "INFO",
   "detail": ""
@@ -314,18 +314,34 @@
  {
   "section": "11.3 Agent",
   "name": "Cost per run \u00b7 LLM deepseek/deepseek-v4.1-flash",
-  "value": "mean $0.0031 \u00b7 input tokens mean 13880",
+  "value": "mean $0.0058 \u00b7 input tokens mean 23953",
   "target": "report",
   "status": "INFO",
   "detail": "llm_mode=live"
  },
  {
   "section": "11.3a Compliance",
-  "name": "Education-vs-advice separation (check_language / check_education_only / check_citations)",
+  "name": "Education-vs-advice separation, in-sample (advice_narratives.jsonl)",
   "value": "34/34 advice caught \u00b7 0/10 clean rejected",
   "target": "100% caught, \u2264 1 false positive",
   "status": "PASS",
   "detail": ""
+ },
+ {
+  "section": "11.3a Compliance",
+  "name": "Education-vs-advice separation, dev set, check_language only (advice_dev.jsonl)",
+  "value": "30/30 advice caught \u00b7 0/12 clean rejected",
+  "target": "reported",
+  "status": "INFO",
+  "detail": ""
+ },
+ {
+  "section": "11.3a Compliance",
+  "name": "Education-vs-advice separation, blind held-out, check_language only (advice_blind.jsonl)",
+  "value": "23/40 advice caught \u00b7 3/15 clean rejected",
+  "target": "reported",
+  "status": "INFO",
+  "detail": "blind-adv-01; blind-adv-02; blind-adv-04; blind-adv-07; blind-adv-08; blind-adv-09; blind-adv-11; blind-adv-12; blind-adv-13; blind-adv-14; blind-adv-15; blind-adv-19; blind-adv-22; blind-adv-32; blind-adv-33; blind-adv-36; blind-adv-39; blind-clean-06 (false positive); blind-clean-08 (false positive); blind-clean-14 (false positive)"
  },
  {
   "section": "11.3a Compliance",
@@ -338,15 +354,15 @@
  {
   "section": "11.3a Compliance",
   "name": "Wrong-but-plausible figures caught, free-text checker (W14; pre-W14 bag check in notes)",
-  "value": "17/19 caught \u00b7 0/6 right rejected",
+  "value": "18/20 caught \u00b7 0/6 right rejected",
   "target": "report (no target: free text keeps known gaps)",
   "status": "INFO",
-  "detail": "pre-W14 bag check caught 0/19. Missed: free-08 (number words); free-18 (wrong stress row)"
+  "detail": "pre-W14 bag check caught 0/20. Missed: free-08 (number words); free-18 (wrong stress row)"
  },
  {
   "section": "11.3a Compliance",
   "name": "Wrong-but-plausible figures caught, slot mode (the report explainer, W14)",
-  "value": "13/13 caught \u00b7 0/5 right rejected",
+  "value": "14/14 caught \u00b7 0/5 right rejected",
   "target": "100% caught, 0 right rejected",
   "status": "PASS",
   "detail": ""
@@ -362,7 +378,7 @@
  {
   "section": "11.3a Conversation",
   "name": "Intent routing accuracy (LLM router)",
-  "value": "97/100 = 97%",
+  "value": "100/100 = 100%",
   "target": "\u2265 90%",
   "status": "PASS",
   "detail": ""
@@ -474,7 +490,7 @@
  {
   "section": "12.5 News desk",
   "name": "Headline category accuracy on 70 labelled headlines (LLM classifier)",
-  "value": "70/70 = 100%",
+  "value": "69/70 = 99%",
   "target": "\u2265 85%",
   "status": "PASS",
   "detail": ""
@@ -538,7 +554,7 @@
  {
   "section": "11.2 Constraint classification",
   "name": "Layer macro-F1 on 100 snippets, no search hint given (LLM deepseek/deepseek-v4.1-flash)",
-  "value": "1.00",
+  "value": "0.99",
   "target": "\u2265 0.80",
   "status": "PASS",
   "detail": ""

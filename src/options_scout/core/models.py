@@ -581,6 +581,13 @@ class BottleneckSignal(Model):
 # -------------------------------------------------------------------- narrative (Phase 10)
 ParagraphMode = Literal["education", "screen_result", "notice"]
 NO_SOURCE_SENTENCE = "I don't have a source for that in my knowledge base."
+# W16: the report's data caveat, one of the fixed texts a model-written ``notice`` may hold (the
+# report explainer slots it as ``{{ delayed_data_notice }}``)
+DELAYED_DATA_NOTICE = (
+    "Market data is delayed and Greeks are model-derived; these are screened candidates that "
+    "meet the configured criteria, not recommendations."
+)
+ParagraphAuthor = Literal["app", "model"]
 SOURCE_TAG = r"\[S(\d+)\]"  # the [Sn] citation tag the Education agent writes
 
 
@@ -627,6 +634,10 @@ class Paragraph(ParagraphDraft):
     # ``core.grounding.render_narrative`` so the Compliance agent can tell slot-filled figures from
     # typed ones. Set by this app, never by the model: the model is given ``NarrativeDraft``.
     template: str | None = None
+    # W16: who wrote the paragraph. ``LLMClient`` marks every paragraph a model wrote (live, or a
+    # replayed recording); deterministic code leaves the default. The Compliance agent trusts the
+    # mode of an app paragraph and derives the mode of a model paragraph from its content.
+    written_by: ParagraphAuthor = "app"
 
 
 class NarrativeDraft(Model):

@@ -452,8 +452,14 @@ class LLMClient:
         )
         self.usage.append(usage)
         if not isinstance(out, schema):
-            return schema.model_validate(out.model_dump())
-        return out
+            out = schema.model_validate(out.model_dump())
+        if isinstance(out, Narrative) and usage.model != RuleBasedProvider.name:
+            # W16: a model wrote this (live, or a replayed recording); the Compliance agent derives
+            # its paragraphs' modes from their content instead of trusting the labels
+            out = Narrative(
+                paragraphs=[p.model_copy(update={"written_by": "model"}) for p in out.paragraphs]
+            )
+        return out  # type: ignore[return-value]
 
     # -- tasks -----------------------------------------------------------------------
     def parse_profile(self, request_text: str) -> ProfileParse:

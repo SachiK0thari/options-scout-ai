@@ -1576,6 +1576,47 @@ that the tag exists.
 
 Suggested commit: `fix(compliance): modes derived from content; quotations and support verified against the cited chunk`
 
+**Status (2026-11-12): done in the working tree, uncommitted; step 5's live LLM judge not built
+(it waits on W15 step 6).** Provenance instead of a text registry alone: `Paragraph.written_by`
+("app" by default) is set to "model" in `LLMClient._run` for every narrative a model wrote, live
+or replayed; it is not in `ParagraphDraft`, so the model cannot claim it. App paragraphs keep
+their trusted modes (the deterministic writers produce dynamic notices: holdings notes, what-if
+text, clarifications). Step 2: a model `notice` must be fixed texts only (disclaimer, reminder,
+tax disclaimer, no-source sentence, the new `DELAYED_DATA_NOTICE`), written out or slotted, plus
+`{{risk.warnings[i]}}` after an optional bold label; else every check treats it as `education`
+(`demoted_notices`, `checked_narrative`). Step 3: a model `screen_result` sentence with no slot,
+candidate id, run/payload ticker, figure or (goal) verdict word / FIRE variant needs an `[Sn]`
+(`general_claims`); fragments of a fixed text are exempt. Step 4: quotes in double, single or
+guillemet marks, 12+ chars, must occur in the cited chunks (title + quote + payload text); a
+result or notice may also quote the run's data; "..." splits a quote; quoted `allow_terms` exempt.
+Step 5: share of stemmed content words (≥ 4 words) found in the cited chunk ≥ 0.5,
+`config/compliance.yaml` → `citations`. Prompts: explain_report 3.4.0 (notice paragraphs are
+slots only, `{{ delayed_data_notice }}` added to the payload), answer_concept 1.4.0, answer_tax
+1.1.0, explain_goal 1.2.0; golden re-recorded (prompt versions line only). Tests:
+`tests/unit/test_compliance_modes.py` (the four sentences fail; fixed notices, run-tied results,
+verbatim and elided quotes, the deterministic report pass; the client marks authorship), docs
+rows 24-28. The separation eval now marks its rows model-written and runs with
+`support_min_share: 0` because every row cites one placeholder Reg T source (with support on, 5
+of 10 in-sample clean rows fail for that reason alone); offline counts unchanged (in-sample 34/34,
+0/10 FP; dev 1/12 FP is the existing dev-clean-11). Not measured: how often live DeepSeek text
+now fails (the support and general-claim rules will reject some paraphrase that passed before;
+the W14 paragraph fallback absorbs up to two paragraphs). Needs a paid live eval.
+Live eval 2026-11-12 (DeepSeek v4.1 Flash, 6 runs, fixture data): model-written final narratives
+6/6 → 4/6 (1 mixed, 1 rules), first-attempt pass 5/6 → 1/6, failed checks over all attempts
+check_citations ×9 + check_numbers ×1 (was ×1). Cause: step 3 rejected sentences about the run's
+own sections ("No underlyings were excluded this run.", "The trend board is a secondary signal
+only."), plus a quoted `{{…|list}}` slot read as a quotation. Fixed: `citations.run_terms` (named
+parts of the run's output count as a reference; "screen" alone does not) and quotations read on
+the template with quoted slots skipped; the logged sentences are regression tests. One support
+failure was a genuine paraphrase (31% shared words) and stays a failure. Re-run live after the
+fixes (2026-11-12): model-written 4/6 again, first attempt 1/6, but check_citations ×9 → ×5 and
+the causes moved: run 0 fell back to rules on check_numbers alone (a `|list` slot on records, a
+typed strike, a percent next to "maximum loss"; W14 rules, not W16); run 5 was mixed (one
+paragraph replaced) after the model cited unrelated sources ([S3], [S5], 10% shared words) for
+sentences describing the app's own boards, and wrote "The board is a secondary signal" without
+naming which board. check_numbers ×7 against ×1 in the first run is model variance at n=6 as far
+as the evidence goes. Separation rows unchanged (in-sample 34/34, 0/10).
+
 ---
 
 ### W17. Smaller gate defects
