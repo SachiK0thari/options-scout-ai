@@ -318,11 +318,11 @@ Post sources implement the `PostSource` protocol (`fetch(since) -> list[SocialPo
 
 | Signal | Definition |
 |---|---|
-| `velocity_z` | z-score of last-7-day mentions vs. weekly mean/std of prior 8 weeks |
+| `velocity_z` | z-score of the last 7 complete UTC days of mentions vs. the weekly mean/std of the prior 8 weeks. The standard deviation is never below the Poisson one, `sqrt(max(mean, 1))`, so a sparse baseline cannot produce a huge z. Built only from post sources that cover the recent window and at least 6 of the 8 baseline weeks (`windows.min_baseline_weeks`; a week counts with 6 of 7 days covered, scaled to 7). A day a source did not cover is unknown, not zero. With no such source the entity takes the neutral 50 and is flagged `baseline_incomplete` |
 | `acceleration` | change in 7-day mentions vs. previous 7 days |
 | `sentiment` | mean entity sentiment, weighted by post score; VADER as cheap baseline, LLM for sampled validation |
 | `purchase_intent_rate` | share of mentions with purchase intent |
-| `cross_source` | count of enabled sources (Reddit, X, Wikipedia, Google Trends, news) whose own velocity z > 1.5; `cross_source_norm` divides by the number enabled. Per-source z-scores are reported as `reddit_z`, `x_z`, `wikipedia_z`, `google_trends_z`, `news_z` |
+| `cross_source` | count of sources (Reddit, X, Wikipedia, Google Trends, news) whose own velocity z > 1.5; `cross_source_norm` divides by the sources that returned data for the entity and cover enough baseline weeks, not by the number enabled, so switching on an empty source does not change a score. Per-source z-scores are reported as `reddit_z`, `x_z`, `wikipedia_z`, `google_trends_z`, `news_z` |
 | `coverage_gap` | `velocity_z(social) − velocity_z(news)`; high = social sees it, Wall Street doesn't yet |
 | `novelty` | penalize entities that have been "hot" for > 8 weeks (already priced in) |
 | `stock_hype_penalty` | share of mentions coming from stock subreddits, stock queries, posts with cashtags, or flagged `is_stock_talk` |
@@ -336,10 +336,15 @@ score = 100 × sigmoid( w1·velocity_z + w2·acceleration_norm + w3·sentiment
                      − w8·novelty_penalty − w9·stock_hype_penalty )
 ```
 
+**Evidence floor** (`evidence_floor` in `config/social_score.yaml`). Over the recent window an entity needs at least 10 weighted mentions, from at least 8 distinct authors, in at least 2 venues (subreddits, or sources outside Reddit), before it can score above the neutral 50. Below that its score is capped at 50 and it is flagged `thin_evidence`. Four posts from four accounts once put a curated ticker at rank 1.
+
+**Baseline across runs.** Live APIs return little history: X recent search covers 7 days, a PRAW listing the newest posts, and the archive walk stops at its page limit. Every run therefore stores its daily mention counts per entity and post source, and the days it fully covered, in `data/trends.sqlite` (keyed by data mode). The next run builds its baseline from those stored days plus its own fetch, so a 7-day API reaches a full baseline after about 8 weeks of runs. Counts older than the window are deleted.
+
 ### 4.6 Anti-manipulation filters
 - Drop posts from accounts younger than 30 days or with very low karma / follower count (when available). The thresholds are shared by every post source.
 - Near-duplicate detection (MinHash or simple shingling) to drop copy-paste campaigns.
-- Cap any single author's contribution to an entity at 5%.
+- Cap any single author's contribution to an entity at 5%, and at one weighted mention per author per day.
+- Weigh a post whose account age or karma is unknown at 0.25 (`filters.unknown_author_weight`). The Reddit archive supplies neither, and "unknown" used to count as trusted.
 - Flag (don't hide) entities whose mentions are mostly stock talk.
 
 ### 4.7 Evidence pack

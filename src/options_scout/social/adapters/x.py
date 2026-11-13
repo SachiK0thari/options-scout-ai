@@ -62,10 +62,13 @@ class XAdapter:
         return self._status
 
     def fetch(self, since: datetime) -> list[SocialPost]:
+        self._status.covered_since = None
         try:
-            posts = (
-                self._fetch_fixture(since) if self.mode == "fixture" else self._fetch_live(since)
-            )
+            if self.mode == "fixture":
+                posts = self._fetch_fixture(since)
+                self._status.covered_since = since  # fixture corpora are complete by design
+            else:
+                posts = self._fetch_live(since)
         except Exception as exc:
             self._status.ok = False
             self._status.errors.append(f"{type(exc).__name__}: {exc}")
@@ -102,7 +105,10 @@ class XAdapter:
             raise RuntimeError(f"{self.cfg.bearer_token_env} not set")
         search = self.cfg.search
         url = f"{API_BASE}/tweets/search/{search.endpoint}"
-        start_time = self._start_time(since)
+        start = self._start(since)
+        start_time = start.strftime("%Y-%m-%dT%H:%M:%SZ")
+        covered = start
+        complete = True
         headers = {
             "Authorization": f"Bearer {token}",
             "User-Agent": "options-scout-ai/0.1 (educational screener)",
@@ -116,29 +122,40 @@ class XAdapter:
             ):
                 for q in queries:
                     try:
-                        posts = self._run_query(client, url, q, start_time, stock=group == "stock")
+                        posts, cut_at = self._run_query(
+                            client, url, q, start_time, stock=group == "stock"
+                        )
                     except Exception as exc:
                         self._status.errors.append(f"{group} query {q[:40]!r}: {exc}")
                         if isinstance(exc, _RateLimitedError):
                             return out  # the window is exhausted; keep what we have
+                        complete = False
                         continue
+                    if cut_at is not None:
+                        covered = max(covered, cut_at)
                     for p in posts:
                         if p.id not in seen:
                             seen.add(p.id)
                             out.append(p)
+        # W30: recent search reaches back 7 days and a capped query only to its oldest post, so
+        # the baseline weeks before that are unknown, not zero. A failed query covers nothing.
+        self._status.covered_since = covered if complete else None
         return out
 
-    def _start_time(self, since: datetime) -> str:
+    def _start(self, since: datetime) -> datetime:
+        since = since.astimezone(UTC).replace(microsecond=0)
         if self.cfg.search.endpoint == "recent":
             # recent search covers 7 days; ask for the max the endpoint allows
             now = self._now or datetime.now(tz=UTC)
-            floor = now.replace(microsecond=0) - _recent_window()
+            floor = now.astimezone(UTC).replace(microsecond=0) - _recent_window()
             since = max(since, floor)
-        return since.astimezone(UTC).strftime("%Y-%m-%dT%H:%M:%SZ")
+        return since
 
     def _run_query(
         self, client: httpx.Client, url: str, query: str, start_time: str, *, stock: bool
-    ) -> list[SocialPost]:
+    ) -> tuple[list[SocialPost], datetime | None]:
+        """Posts for one query, newest first, and the oldest post time when
+        ``max_results_per_query`` stopped the walk before ``start_time`` (else ``None``)."""
         search = self.cfg.search
         full_query = query
         if search.exclude_retweets:
@@ -156,6 +173,7 @@ class XAdapter:
             "user.fields": USER_FIELDS,
         }
         out: list[SocialPost] = []
+        oldest: datetime | None = None
         next_token: str | None = None
         while len(out) < search.max_results_per_query:
             if next_token:
@@ -170,6 +188,7 @@ class XAdapter:
                 post = _tweet_to_post(t, users.get(str(t.get("author_id"))), stock, query)
                 if post is None:
                     continue
+                oldest = post.created_at if oldest is None else min(oldest, post.created_at)
                 if (
                     post.author_karma is not None
                     and post.author_karma < search.min_author_followers
@@ -178,8 +197,11 @@ class XAdapter:
                 out.append(post)
             next_token = payload.get("meta", {}).get("next_token")
             if not next_token:
-                break
-        return out[: search.max_results_per_query]
+                return out[: search.max_results_per_query], None
+        # the cap was reached with pages left: complete only back to the oldest kept post
+        kept = out[: search.max_results_per_query]
+        cut = min((p.created_at for p in kept), default=oldest)
+        return kept, cut
 
 
 class _RateLimitedError(RuntimeError):

@@ -26,13 +26,13 @@ VIX 17.51 (57th percentile, normal), risk-free rate 4.04% (fixture data).
 | CAVA | company | CAVA | yes | 90 | +4.0 | +4.0 | 4 |  |
 | On Cloud | brand | ONON | yes | 89 | +4.0 | +4.0 | 4 |  |
 | HOKA | brand | DECK | yes | 89 | +4.0 | +2.1 | 4 |  |
-| e.l.f. | brand | ELF | yes | 86 | +4.0 | +2.3 | 4 |  |
+| Owala | brand | n/a | no | 87 | +4.0 | +4.0 | 4 | not_investable |
 | Crocs | brand | CROX | yes | 86 | +4.0 | +4.0 | 4 |  |
-| Owala | brand | n/a | no | 86 | +4.0 | +4.0 | 4 | not_investable |
+| e.l.f. | brand | ELF | yes | 86 | +4.0 | +3.0 | 4 |  |
 | Dutch Bros | company | BROS | yes | 86 | +4.0 | +3.8 | 4 |  |
-| Abercrombie | company | ANF | yes | 84 | +4.0 | +3.3 | 4 |  |
-| Oura Ring | product | n/a | no | 81 | +4.0 | +3.0 | 4 | not_investable |
-| Olipop | brand | n/a | no | 81 | +4.0 | +4.0 | 4 | not_investable |
+| Abercrombie | company | ANF | yes | 84 | +4.0 | +3.4 | 4 |  |
+| Birkenstock | company | BIRK | yes | 83 | +2.5 | +4.0 | 4 |  |
+| Oura Ring | product | n/a | no | 82 | +4.0 | +3.2 | 4 | not_investable |
 
 ## Bottleneck board (secondary)
 _Secondary signal: re-orders, never adds. Company score = layer score × exposure; a ticker without a row takes the neutral 50 in the ranking. Scores and flags describe the state of a supply constraint; they are not forecasts._
@@ -250,7 +250,7 @@ IV/HV: no IV rank yet (fewer than 30 stored IV snapshots); showing implied over 
 
 **Quality screen.** 7 underlying(s) passed the good-to-own gate (curated list plus limits on realised and implied volatility, price, liquidity and distance below the 90-day high): SPY (quality 86), AAPL (quality 82), COST (quality 77), MSFT (quality 72), QQQ (quality 70), SBUX (quality 66), NKE (quality 46). Only these were screened for options.
 
-**Trend board.** The consumer-trend scan surfaced CAVA (score 90, CAVA), On Cloud (score 89, ONON), HOKA (score 89, DECK), e.l.f. (score 86, ELF), Crocs (score 86, CROX). Scores combine mention velocity, purchase intent, cross-source confirmation and the gap between social and news attention; stock-forum hype is penalised rather than rewarded.
+**Trend board.** The consumer-trend scan surfaced CAVA (score 90, CAVA), On Cloud (score 89, ONON), HOKA (score 89, DECK), Owala (score 87, not investable), Crocs (score 86, CROX). Scores combine mention velocity, purchase intent, cross-source confirmation and the gap between social and news attention; stock-forum hype is penalised rather than rewarded.
 
 **Bottleneck board.** The supply-constraint scan is a secondary signal that re-orders quality-gated stocks and never adds one. Tightest layers: ai_datacenter/power (score 79, thesis holding), electrification/grid (score 76, thesis holding), ai_datacenter/memory (score 56, thesis holding). Curated suppliers with a company score: HON 37, XOM 11, CVX 11, UNP 3, CSCO 1. Thesis weakening (a falsifier tripped, so scores in the layer are decayed): ai_datacenter/networking, electrification/battery. A layer score describes the state of a shortage, not a forecast.
 

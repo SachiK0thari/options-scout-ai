@@ -367,7 +367,10 @@ def _trend_board(view: session.View) -> None:
     st.caption(
         f"The trend score carries {CFG.settings.ranking.weights.social:.0%} of the final ranking. It "
         "**re-orders** stocks that already passed the good-to-own gate; it **never adds** one. "
-        "Trending names that are not on the list are shown for context only."
+        "Trending names that are not on the list are shown for context only. "
+        "*baseline incomplete*: a source has under 6 weeks of history to compare against; with "
+        "none the score is the neutral 50. *thin evidence*: too few mentions, authors or "
+        "communities this week to score above 50."
     )
     report = view.report
     if report is None or not report.trends:
@@ -388,7 +391,7 @@ def _trend_board(view: session.View) -> None:
                     "Cross-source": round(t.components.get("cross_source", 0)),
                     "Stock-hype penalty": round(t.components.get("stock_hype_penalty", 0), 2),
                     "On good-to-own list": "✅" if t.ticker in curated else "no",
-                    "Flags": ", ".join(t.flags),
+                    "Flags": ", ".join(f.replace("_", " ") for f in t.flags),
                 }
                 for t in trends
             ]

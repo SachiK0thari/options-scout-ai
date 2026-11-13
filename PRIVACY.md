@@ -71,7 +71,12 @@ supplies their own credentials and has the relevant provider's permission.
   are stored as a dated snapshot. Every refresh writes a new snapshot built only from posts that are
   public at that moment, so content deleted or removed on Reddit does not carry into the next snapshot,
   and snapshots older than 48 hours are deleted automatically after every refresh
-  (`trends.retention_hours` in `config/settings.yaml`). The trend signals a screen used, with
+  (`trends.retention_hours` in `config/settings.yaml`). Separately, each refresh stores daily
+  mention counts (date, source, product or brand name, a number) and the dates each source was
+  read in full, so the 8-week baseline can be built across runs. These counts contain no post
+  text, ids, links or author data, so the 48-hour rule for excerpts does not apply to them; they
+  are kept only as long as the baseline window (63 days) and deleted after every refresh once
+  older. The trend signals a screen used, with
   their evidence items, are also kept inside that conversation's thread (section 2) and are deleted
   with it, at most 7 days after the conversation's last activity.
 - **Sharing:** Reddit content is never shared, sold, redistributed, or exposed through any API or

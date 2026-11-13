@@ -36,9 +36,10 @@ def main(argv: list[str] | None = None) -> int:
         get_config.cache_clear()
     cfg = get_config()
     llm = LLMClient.from_config(cfg)
-    scout = TrendScout(cfg, llm, mode=args.mode)
-    run = scout.run()
     store = TrendStore(cfg.paths.cache_db.parent / "trends.sqlite")
+    # W30: each run adds its daily counts to the store, and the baseline is built from them
+    scout = TrendScout(cfg, llm, mode=args.mode)
+    run = scout.run(store=store)
     store.save(run)
     # W42: purge against the run's own clock. The wall clock against a fixture snapshot dated
     # 2026-10-27 deleted the snapshot just saved, so fixture mode always ended with zero rows.

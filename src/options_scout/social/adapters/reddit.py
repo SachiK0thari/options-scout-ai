@@ -7,13 +7,15 @@ keeps the first one that returns posts:
 * ``arctic_shift`` - https://arctic-shift.photon-reddit.com, a free public archive of Reddit with a
   search API. Needs no credentials, supports date-range queries over any subreddit (so it fills the
   whole baseline window), and has posts within minutes of submission. Scores start at 0/1 and
-  settle after ~36 hours; author karma and account age are not available (left ``None``, which the
-  spam filters treat as "unknown", not "bad"). Rate limits are dynamic: 429 plus an
-  ``X-RateLimit-Reset`` header.
+  settle after ~36 hours; author karma and account age are not available (left ``None``; the
+  signals layer weighs such posts at ``filters.unknown_author_weight``). Read newest-first, so a
+  page limit cuts the oldest baseline weeks, never the recent window; a cut is reported through
+  ``SourceStatus.covered_since``. Rate limits are dynamic: 429 plus an ``X-RateLimit-Reset``
+  header.
 * ``praw`` - OAuth2 through the official Reddit Data API. Needs REDDIT_CLIENT_ID /
   REDDIT_CLIENT_SECRET / REDDIT_USER_AGENT and Reddit's approval for the app. Listing endpoints
   return at most ~1000 posts per subreddit with no date filter, so the baseline is thin on a
-  cold start.
+  cold start; a full listing reports its oldest post as ``covered_since``.
 
 Whichever provider runs, we store only ids, short excerpts and opaque author *ids* (never
 usernames in reports).
@@ -71,10 +73,13 @@ class RedditAdapter:
         return self._status
 
     def fetch(self, since: datetime) -> list[SocialPost]:
+        self._status.covered_since = None
         try:
-            posts = (
-                self._fetch_fixture(since) if self.mode == "fixture" else self._fetch_live(since)
-            )
+            if self.mode == "fixture":
+                posts = self._fetch_fixture(since)
+                self._status.covered_since = since  # fixture corpora are complete by design
+            else:
+                posts = self._fetch_live(since)
         except Exception as exc:
             self._status.ok = False
             self._status.errors.append(f"{type(exc).__name__}: {exc}")
@@ -119,7 +124,7 @@ class RedditAdapter:
         failures: list[str] = []
         for provider in self.cfg.providers:
             try:
-                posts, errors = self._run_provider(provider, since)
+                posts, errors, covered = self._run_provider(provider, since)
             except Exception as exc:
                 failures.append(f"{provider}: {type(exc).__name__}: {exc}")
                 log.warning("reddit provider %s failed: %s", provider, exc)
@@ -131,12 +136,16 @@ class RedditAdapter:
             self._status.detail = f"provider={provider}"
             self._status.errors.extend(failures)
             self._status.errors.extend(f"{provider}: {e}" for e in errors)
+            # W30: a subreddit that failed or was skipped leaves every day short, so the fetch
+            # covers nothing completely; the posts still show as evidence.
+            self._status.covered_since = None if errors else covered
             return posts
         raise RuntimeError("all reddit providers failed: " + "; ".join(failures))
 
     def _run_provider(
         self, provider: RedditProvider, since: datetime
-    ) -> tuple[list[SocialPost], list[str]]:
+    ) -> tuple[list[SocialPost], list[str], datetime]:
+        """(posts, per-subreddit errors, start of complete coverage)."""
         if provider == "arctic_shift":
             return self._fetch_arctic_shift(since)
         if provider == "praw":
@@ -144,13 +153,14 @@ class RedditAdapter:
         raise ValueError(f"unknown reddit provider {provider!r}")  # pragma: no cover
 
     # -- live: Arctic Shift --------------------------------------------------------------
-    def _fetch_arctic_shift(self, since: datetime) -> tuple[list[SocialPost], list[str]]:
+    def _fetch_arctic_shift(self, since: datetime) -> tuple[list[SocialPost], list[str], datetime]:
         cfg = self.cfg.arctic_shift
         stock = {s.lower() for s in self.subs.stock}
         url = f"{cfg.base_url.rstrip('/')}/api/posts/search"
         since_epoch = int(since.astimezone(UTC).timestamp())
         out: list[SocialPost] = []
         errors: list[str] = []
+        covered = since
         with httpx.Client(
             timeout=cfg.timeout_seconds,
             headers={"User-Agent": USER_AGENT},
@@ -158,9 +168,12 @@ class RedditAdapter:
         ) as client:
             for sub in [*self.subs.consumer, *self.subs.stock]:
                 try:
-                    out.extend(
-                        self._arctic_subreddit(client, url, sub, since_epoch, sub.lower() in stock)
+                    posts, sub_covered = self._arctic_subreddit(
+                        client, url, sub, since_epoch, sub.lower() in stock
                     )
+                    out.extend(posts)
+                    if sub_covered is not None:
+                        covered = max(covered, sub_covered)
                 except _RateLimitedError as exc:
                     errors.append(f"r/{sub}: {exc}")
                     if not out:
@@ -169,23 +182,28 @@ class RedditAdapter:
                     break
                 except Exception as exc:
                     errors.append(f"r/{sub}: {type(exc).__name__}: {exc}")
-        return out, errors
+        return out, errors, covered
 
     def _arctic_subreddit(
         self, client: httpx.Client, url: str, sub: str, since_epoch: int, is_stock: bool
-    ) -> list[SocialPost]:
+    ) -> tuple[list[SocialPost], datetime | None]:
+        """Newest-first pages back to ``since_epoch`` (W30). Returns the posts and, when the page
+        limit stopped the walk before ``since``, the oldest post time: the subreddit is complete
+        only from there on. ``None`` means complete back to ``since``."""
         cfg = self.cfg.arctic_shift
         out: list[SocialPost] = []
         seen: set[str] = set()
-        after = since_epoch
+        before: int | None = None
         for _ in range(cfg.max_pages_per_subreddit):
             params: dict[str, Any] = {
                 "subreddit": sub,
-                "after": after,
+                "after": since_epoch,
                 "limit": cfg.page_size,
-                "sort": "asc",
+                "sort": "desc",
                 "fields": ARCTIC_FIELDS,
             }
+            if before is not None:
+                params["before"] = before
             rows = self._arctic_get(client, url, params)
             new_rows = [r for r in rows if str(r.get("id")) not in seen]
             for raw in new_rows:
@@ -195,11 +213,13 @@ class RedditAdapter:
                 seen.add(post.id)
                 out.append(post)
             if len(rows) < cfg.page_size or not new_rows:
-                break
-            # `after` is exclusive on Arctic Shift, so step back one second and rely on `seen`
-            # to drop the posts that share the boundary second.
-            after = int(float(rows[-1]["created_utc"])) - 1
-        return out
+                return out, None
+            # `before` is exclusive on Arctic Shift, so step forward one second and rely on
+            # `seen` to drop the posts that share the boundary second.
+            before = int(float(rows[-1]["created_utc"])) + 1
+        # page limit reached with more to read: the oldest weeks are cut off (W30)
+        oldest = min((p.created_at for p in out), default=None)
+        return out, oldest
 
     def _arctic_get(
         self, client: httpx.Client, url: str, params: dict[str, Any]
@@ -230,7 +250,7 @@ class RedditAdapter:
             return list(rows)
 
     # -- live: PRAW ------------------------------------------------------------------------
-    def _fetch_praw(self, since: datetime) -> tuple[list[SocialPost], list[str]]:
+    def _fetch_praw(self, since: datetime) -> tuple[list[SocialPost], list[str], datetime]:
         import praw  # lazy import
 
         client_id = os.environ.get("REDDIT_CLIENT_ID")
@@ -242,19 +262,26 @@ class RedditAdapter:
         stock = {s.lower() for s in self.subs.stock}
         out: list[SocialPost] = []
         errors: list[str] = []
+        covered = since
+        limit = self.subs.fetch.posts_per_subreddit
         for sub in [*self.subs.consumer, *self.subs.stock]:
             try:
-                listing = getattr(reddit.subreddit(sub), self.subs.fetch.listing)(
-                    limit=self.subs.fetch.posts_per_subreddit
-                )
+                listing = getattr(reddit.subreddit(sub), self.subs.fetch.listing)(limit=limit)
+                n = 0
+                oldest: datetime | None = None
                 for s in listing:
+                    n += 1
                     created = datetime.fromtimestamp(float(s.created_utc), tz=UTC)
+                    oldest = created if oldest is None or created < oldest else oldest
                     if created < since:
                         continue
                     out.append(_submission_to_post(s, sub, created, sub.lower() in stock))
+                # W30: a full listing that never reached `since` is the newest N posts only
+                if n >= limit and oldest is not None and oldest > since:
+                    covered = max(covered, oldest)
             except Exception as exc:
                 errors.append(f"r/{sub}: {type(exc).__name__}: {exc}")
-        return out, errors
+        return out, errors, covered
 
 
 class _RateLimitedError(RuntimeError):

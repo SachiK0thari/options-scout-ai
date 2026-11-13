@@ -15,6 +15,7 @@ from options_scout.social.adapters.base import Mode, SourceStatus
 log = logging.getLogger(__name__)
 
 GOOGLE_NEWS = "https://news.google.com/rss/search?q={q}&hl=en-US&gl=US&ceid=US:en"
+RSS_ITEM_CAP = 100  # Google News RSS returns at most this many items per search
 YAHOO_RSS = "https://feeds.finance.yahoo.com/rss/2.0/headline?s={ticker}&region=US&lang=en-US"
 
 
@@ -26,6 +27,9 @@ class NewsAdapter:
         self.fixture_path = fixture_path
         self._status = SourceStatus(name=self.name, mode=mode)
         self._fixture: list[NewsItem] | None = None
+        # W30: start of complete coverage for the last ``fetch`` (None after a failure). A feed
+        # that returned its full item cap holds only the newest headlines.
+        self.last_covered_since: datetime | None = None
 
     def status(self) -> SourceStatus:
         return self._status
@@ -36,13 +40,15 @@ class NewsAdapter:
         self._fixture = list(items)
 
     def fetch(self, query: str, since: datetime, ticker: str | None = None) -> list[NewsItem]:
+        self.last_covered_since = None
         try:
             if self.mode == "fixture":
                 out = [
                     n for n in self._load_fixture() if n.query == query and n.published_at >= since
                 ]
+                self.last_covered_since = since
             else:
-                out = self._fetch_live(query, since, ticker)
+                out, self.last_covered_since = self._fetch_live(query, since, ticker)
         except Exception as exc:
             self._status.ok = False
             self._status.errors.append(f"{query}: {type(exc).__name__}: {exc}")
@@ -62,15 +68,21 @@ class NewsAdapter:
             self._fixture = items
         return self._fixture
 
-    def _fetch_live(self, query: str, since: datetime, ticker: str | None) -> list[NewsItem]:
+    def _fetch_live(
+        self, query: str, since: datetime, ticker: str | None
+    ) -> tuple[list[NewsItem], datetime]:
         import feedparser
 
         urls = [GOOGLE_NEWS.format(q=quote_plus(query))]
         if ticker:
             urls.append(YAHOO_RSS.format(ticker=ticker))
         out: list[NewsItem] = []
+        covered = since
         for url in urls:
             feed = feedparser.parse(url)
+            times = [t for t in (_entry_time(e) for e in feed.entries) if t is not None]
+            if len(feed.entries) >= RSS_ITEM_CAP and times:
+                covered = max(covered, min(times))
             for e in feed.entries:
                 published = _entry_time(e)
                 if published is None or published < since:
@@ -90,7 +102,7 @@ class NewsAdapter:
                         query=query,
                     )
                 )
-        return out
+        return out, covered
 
 
 def _entry_time(e: object) -> datetime | None:

@@ -6,6 +6,7 @@ import json
 import logging
 import sqlite3
 import threading
+from collections.abc import Iterable, Mapping
 from dataclasses import dataclass, field
 from datetime import UTC, date, datetime, timedelta
 from pathlib import Path
@@ -23,6 +24,8 @@ from options_scout.social.score import social_score
 from options_scout.social.sources import SourceSet, build_sources
 
 log = logging.getLogger(__name__)
+
+NEUTRAL_SCORE = 50.0  # what the ranking treats as "no signal" (core/ranking.py)
 
 
 @dataclass
@@ -70,19 +73,26 @@ class TrendScout:
         cache = SQLiteCache(cfg.paths.cache_db) if live else None
         self.resolver = Resolver(self.brand_map, self.sec, cache)
 
-    def run(self, *, end: datetime | None = None) -> TrendRun:
+    def run(self, *, end: datetime | None = None, store: TrendStore | None = None) -> TrendRun:
+        """Score the board. With ``store``, daily mention counts are read from and added to it,
+        so the baseline accumulates between runs (W30); without one, only this fetch is used."""
         cfg = self.cfg.social
         end = end or self._fixture_end()
-        days = cfg.windows.recent_days + 7 * cfg.windows.baseline_weeks
-        since = end - timedelta(days=days)
+        # W30: whole UTC days only. The recent window ends on the last complete day, and the
+        # fetch starts at midnight of the first baseline day so every baseline week is whole.
+        end_date = signals.last_complete_day(end)
+        since = signals.window_start(end_date, cfg.windows)
+        start_date = since.date()
         errors: list[str] = []
 
         posts: list[SocialPost] = []
         posts_by_source: dict[str, int] = {}
+        fresh_cover: dict[str, frozenset[date]] = {}
         for src in self.sources.posts:
             fetched = src.fetch(since)
             posts_by_source[src.name] = len(fetched)
             posts.extend(fetched)
+            fresh_cover[src.name] = signals.covered_days(src.status().covered_since, end_date)
         clean, freport = filters.apply_filters(posts, cfg.filters)
         extracted = extraction.extract_all(
             clean,
@@ -97,40 +107,70 @@ class TrendScout:
             max_author_share=cfg.filters.max_author_share,
             capped=capped,
             source_weights=self.sources.weights,
+            max_author_daily=cfg.filters.max_author_daily_weight,
+            unknown_author_weight=cfg.filters.unknown_author_weight,
         )
         for entity, authors in capped.items():
             for author, n in authors.items():
                 freport.author_capped[f"{entity}:{author}"] = n
         posts_by_id: dict[str, SocialPost] = {p.id: p for p in clean}
+        post_series = self._accumulate(mentions, fresh_cover, start_date, end_date, store)
 
         out: list[TrendSignal] = []
-        end_date = end.date()
-        start_date = since.date()
         for name, em in mentions.items():
             if em.total < 3:  # too thin to say anything
                 continue
             res = self.resolver.resolve(name)
             brand = self.brand_map.lookup(name)
-            attention = self._attention_series(name, brand, start_date, end_date)
-            news_series = None
+            series: list[signals.SourceSeries] = []
+            for src in self.sources.posts:
+                cover, by_entity, has_data = post_series[src.name]
+                series.append(
+                    signals.SourceSeries(
+                        name=src.name,
+                        kind="post",
+                        series=by_entity.get(name, {}),
+                        covered=cover,
+                        weight=self.sources.weights.get(src.name, 1.0),
+                        has_data=has_data,
+                    )
+                )
+            series.extend(self._attention_series(name, brand, start_date, end_date))
             if self.sources.news is not None:
                 news_items = self.sources.news.fetch(name, since, res.ticker)
-                news_series = signals.series_from_news(news_items)
+                series.append(
+                    signals.SourceSeries(
+                        name="news",
+                        kind="news",
+                        series=signals.series_from_news(news_items),
+                        covered=signals.covered_days(
+                            self.sources.news.last_covered_since, end_date
+                        ),
+                        has_data=bool(news_items),
+                    )
+                )
             mat = cfg.materiality.get(res.materiality or "medium", 0.5) if res.investable else 0.0
             comps = signals.compute_components(
                 em,
                 end=end_date,
                 windows=cfg.windows,
                 norm=cfg.normalization,
-                attention=attention,
-                news=news_series,
+                sources=series,
                 materiality_weight=mat,
-                sources_available=self.sources.count,
-            )
-            score = social_score(
-                comps, cfg.weights, self.cfg.social.bias, cfg.normalization.velocity_z_clip
             )
             flags: list[str] = []
+            if comps["baseline_complete"] == 0.0:
+                # W30: no post source covers enough weeks to say what is normal for this name
+                score = NEUTRAL_SCORE
+            else:
+                score = social_score(
+                    comps, cfg.weights, self.cfg.social.bias, cfg.normalization.velocity_z_clip
+                )
+            if comps["baseline_complete"] == 0.0 or comps["sources_incomplete"] > 0:
+                flags.append("baseline_incomplete")
+            if not signals.evidence_met(em, end_date, cfg.windows.recent_days, cfg.evidence_floor):
+                score = min(score, NEUTRAL_SCORE)
+                flags.append("thin_evidence")
             if comps["stock_hype_penalty"] > cfg.filters.stock_talk_flag_share:
                 flags.append("mostly_stock_talk")
             if comps["novelty_penalty"] > 0:
@@ -176,19 +216,73 @@ class TrendScout:
             ],
         )
 
+    def _accumulate(
+        self,
+        mentions: Mapping[str, signals.EntityMentions],
+        fresh_cover: Mapping[str, frozenset[date]],
+        start: date,
+        end: date,
+        store: TrendStore | None,
+    ) -> dict[str, tuple[frozenset[date], dict[str, dict[date, float]], bool]]:
+        """Per post source: (covered days, entity -> daily count, has data) for this run (W30).
+
+        A day this fetch covers uses the fresh counts; any other day uses the counts stored by
+        an earlier run that covered it. So a 7-day API builds an 8-week baseline over 8 weeks of
+        runs, and a day nobody covered stays unknown rather than zero. The fresh days are then
+        written back. Counts are aggregates, not post content (PRIVACY.md section 4).
+        """
+        stored_cover: dict[str, set[date]] = {}
+        stored: dict[str, dict[str, dict[date, float]]] = {}
+        if store is not None:
+            stored_cover, stored = store.load_counts(self.mode, start, end)
+        out: dict[str, tuple[frozenset[date], dict[str, dict[date, float]], bool]] = {}
+        for src in self.sources.posts:
+            fresh = fresh_cover.get(src.name, frozenset())
+            old_days = {d for d in stored_cover.get(src.name, set()) if d not in fresh}
+            by_entity: dict[str, dict[date, float]] = {}
+            for ent, days in stored.get(src.name, {}).items():
+                kept = {d: v for d, v in days.items() if d in old_days}
+                if kept:
+                    by_entity[ent] = kept
+            fresh_counts: dict[str, dict[date, float]] = {}
+            for name, em in mentions.items():
+                daily = em.daily_by_source.get(src.name, {})
+                vals = {d: v for d, v in daily.items() if d in fresh and v > 0}
+                if vals:
+                    fresh_counts[name] = vals
+                    by_entity.setdefault(name, {}).update(vals)
+            if store is not None and fresh:
+                store.record_counts(self.mode, src.name, fresh, fresh_counts)
+            cover = frozenset(fresh | old_days)
+            out[src.name] = (
+                cover,
+                by_entity,
+                bool(cover) and (src.status().items > 0 or bool(old_days)),
+            )
+        if store is not None:
+            store.purge_counts(self.mode, before=start)
+        return out
+
     def _attention_series(
         self, entity: str, brand: Brand | None, start: date, end: date
-    ) -> dict[str, dict[date, float]]:
-        """One daily series per enabled attention source; a source with no keyword or no data
-        is reported as an empty series so it still appears (as z=0) in the components."""
-        out: dict[str, dict[date, float]] = {}
+    ) -> list[signals.SourceSeries]:
+        """One daily series per enabled attention source, covering the days it returned. A
+        source with no keyword or no data has ``has_data=False``: listed as z=0, never counted."""
+        out: list[signals.SourceSeries] = []
         for src in self.sources.attention:
             keyword = _attention_keyword(src.name, entity, brand)
-            if keyword is None:
-                out[src.name] = {}
+            counts = src.fetch(keyword, start, end) if keyword is not None else []
+            if not counts:
+                out.append(signals.SourceSeries(src.name, "attention", {}, has_data=False))
                 continue
-            counts = src.fetch(keyword, start, end)
-            out[src.name] = signals.series_from_counts(counts) if counts else {}
+            first = min(c.day for c in counts)
+            last = max(c.day for c in counts)
+            days = frozenset(first + timedelta(days=i) for i in range((last - first).days + 1))
+            out.append(
+                signals.SourceSeries(
+                    src.name, "attention", signals.series_from_counts(counts), covered=days
+                )
+            )
         return out
 
     def _fixture_end(self) -> datetime:
@@ -260,6 +354,18 @@ class TrendStore:
                 "CREATE TABLE IF NOT EXISTS trend_snapshots "
                 "(as_of TEXT PRIMARY KEY, payload TEXT NOT NULL)"
             )
+            # W30: daily mention counts per entity and post source, and the days each source
+            # was fully covered, so a baseline can be built across runs. Keyed by data mode so
+            # fixture counts never feed a live baseline.
+            self._conn.execute(
+                "CREATE TABLE IF NOT EXISTS mention_counts (mode TEXT NOT NULL, "
+                "source TEXT NOT NULL, day TEXT NOT NULL, entity TEXT NOT NULL, "
+                "count REAL NOT NULL, PRIMARY KEY (mode, source, day, entity))"
+            )
+            self._conn.execute(
+                "CREATE TABLE IF NOT EXISTS source_coverage (mode TEXT NOT NULL, "
+                "source TEXT NOT NULL, day TEXT NOT NULL, PRIMARY KEY (mode, source, day))"
+            )
             self._conn.commit()
 
     def save(self, run: TrendRun) -> None:
@@ -285,14 +391,89 @@ class TrendStore:
             return int(cur.rowcount or 0)
 
     def latest(self, max_age_hours: int, now: datetime | None = None) -> list[TrendSignal] | None:
-        with self._lock:
-            row = self._conn.execute(
-                "SELECT as_of, payload FROM trend_snapshots ORDER BY as_of DESC LIMIT 1"
-            ).fetchone()
-        if row is None:
-            return None
-        as_of = datetime.fromisoformat(row[0])
+        """The newest snapshot no older than ``max_age_hours`` and not dated after ``now`` (W30:
+        a future-dated row, from a fixture run or a skewed clock, used to win every lookup)."""
         now = now or datetime.now(tz=UTC)
-        if now - as_of > timedelta(hours=max_age_hours):
-            return None
-        return [TrendSignal.model_validate(x) for x in json.loads(row[1])]
+        with self._lock:
+            rows = self._conn.execute(
+                "SELECT as_of, payload FROM trend_snapshots ORDER BY as_of DESC"
+            ).fetchall()
+        for as_of_raw, payload in rows:
+            as_of = datetime.fromisoformat(as_of_raw)
+            if as_of > now:
+                continue
+            if now - as_of > timedelta(hours=max_age_hours):
+                return None
+            return [TrendSignal.model_validate(x) for x in json.loads(payload)]
+        return None
+
+    # -- W30: daily counts between runs ---------------------------------------------------
+    def record_counts(
+        self,
+        mode: str,
+        source: str,
+        days: Iterable[date],
+        counts: Mapping[str, Mapping[date, float]],
+    ) -> None:
+        """Replace ``source``'s counts for ``days`` (days the fetch fully covered) and mark
+        them covered. An entity absent on a covered day is a stored zero."""
+        day_list = sorted(set(days))
+        rows = [
+            (mode, source, d.isoformat(), ent, float(v))
+            for ent, series in counts.items()
+            for d, v in series.items()
+            if d in set(day_list) and v > 0
+        ]
+        with self._lock:
+            for d in day_list:
+                self._conn.execute(
+                    "DELETE FROM mention_counts WHERE mode=? AND source=? AND day=?",
+                    (mode, source, d.isoformat()),
+                )
+            self._conn.executemany(
+                "INSERT OR REPLACE INTO source_coverage (mode, source, day) VALUES (?, ?, ?)",
+                [(mode, source, d.isoformat()) for d in day_list],
+            )
+            self._conn.executemany(
+                "INSERT OR REPLACE INTO mention_counts (mode, source, day, entity, count) "
+                "VALUES (?, ?, ?, ?, ?)",
+                rows,
+            )
+            self._conn.commit()
+
+    def load_counts(
+        self, mode: str, start: date, end: date
+    ) -> tuple[dict[str, set[date]], dict[str, dict[str, dict[date, float]]]]:
+        """(source -> covered days, source -> entity -> day -> count) between start and end."""
+        lo, hi = start.isoformat(), end.isoformat()
+        with self._lock:
+            cov = self._conn.execute(
+                "SELECT source, day FROM source_coverage WHERE mode=? AND day BETWEEN ? AND ?",
+                (mode, lo, hi),
+            ).fetchall()
+            cnt = self._conn.execute(
+                "SELECT source, entity, day, count FROM mention_counts "
+                "WHERE mode=? AND day BETWEEN ? AND ?",
+                (mode, lo, hi),
+            ).fetchall()
+        covered: dict[str, set[date]] = {}
+        for src, d in cov:
+            covered.setdefault(src, set()).add(date.fromisoformat(d))
+        counts: dict[str, dict[str, dict[date, float]]] = {}
+        for src, ent, d, c in cnt:
+            day = date.fromisoformat(d)
+            if day in covered.get(src, set()):
+                counts.setdefault(src, {}).setdefault(ent, {})[day] = float(c)
+        return covered, counts
+
+    def purge_counts(self, mode: str, before: date) -> int:
+        """Drop counts and coverage dated before ``before`` (outside every baseline window)."""
+        with self._lock:
+            a = self._conn.execute(
+                "DELETE FROM mention_counts WHERE mode=? AND day < ?", (mode, before.isoformat())
+            ).rowcount
+            self._conn.execute(
+                "DELETE FROM source_coverage WHERE mode=? AND day < ?", (mode, before.isoformat())
+            )
+            self._conn.commit()
+        return int(a or 0)

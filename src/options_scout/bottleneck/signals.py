@@ -88,7 +88,7 @@ def aggregate_layer(
 def tightness_z(ls: LayerSeries, end: date, norm: BottleneckNormalization) -> float:
     """z of the last ``recent_days`` net (tightening − easing) mentions vs the weekly baseline."""
     recent, prior = weekly_buckets(ls.net, end, norm.baseline_weeks, norm.recent_days)
-    return z_score(recent, prior, norm.tightness_z_clip)
+    return z_score(recent, prior, norm.tightness_z_clip, count_floor=False)
 
 
 def customer_confirmation(ls: LayerSeries) -> float:
@@ -101,12 +101,12 @@ def customer_confirmation(ls: LayerSeries) -> float:
 def supply_response_z(ls: LayerSeries, end: date, norm: BottleneckNormalization) -> float:
     """z of recent new-capacity / easing-deal items vs the weekly baseline (a penalty)."""
     recent, prior = weekly_buckets(ls.supply_response, end, norm.baseline_weeks, norm.recent_days)
-    return z_score(recent, prior, norm.supply_response_z_clip)
+    return z_score(recent, prior, norm.supply_response_z_clip, count_floor=False)
 
 
 def coverage_z(ls: LayerSeries, end: date, norm: BottleneckNormalization) -> float:
     recent, prior = weekly_buckets(ls.coverage, end, norm.baseline_weeks, norm.recent_days)
-    return z_score(recent, prior, norm.tightness_z_clip)
+    return z_score(recent, prior, norm.tightness_z_clip, count_floor=False)
 
 
 def cross_source(
@@ -124,7 +124,7 @@ def cross_source(
     confirmations = series_confirmations
     for name, series in ls.tightening_by_source.items():
         recent, prior = weekly_buckets(series, end, norm.baseline_weeks, norm.recent_days)
-        sz = z_score(recent, prior, norm.tightness_z_clip)
+        sz = z_score(recent, prior, norm.tightness_z_clip, count_floor=False)
         per_source[f"{name}_z"] = sz
         if sz > norm.cross_source_z_threshold:
             confirmations += 1
@@ -257,7 +257,10 @@ def layer_components(
         if k.startswith("google_trends:") and series[k]:
             daily = {p.day: p.value for p in series[k]}
             recent, prior = weekly_buckets(daily, end, norm.baseline_weeks, norm.recent_days)
-            if z_score(recent, prior, norm.tightness_z_clip) > norm.cross_source_z_threshold:
+            if (
+                z_score(recent, prior, norm.tightness_z_clip, count_floor=False)
+                > norm.cross_source_z_threshold
+            ):
                 series_confirm += 1
                 break  # search interest counts once per layer
     confirmations, cross_norm, per_source = cross_source(

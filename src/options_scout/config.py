@@ -402,13 +402,39 @@ class SocialFilters(_Strict):
     min_account_age_days: int
     min_author_karma: int
     max_author_share: float
+    # W30: at most this much weight per author per day, and posts whose account age or karma is
+    # unknown weigh ``unknown_author_weight`` (0 drops them, 1 trusts them).
+    max_author_daily_weight: float = Field(gt=0)
+    unknown_author_weight: float = Field(ge=0, le=1)
     dedupe_jaccard: float
     stock_talk_flag_share: float
 
 
 class SocialWindows(_Strict):
-    recent_days: int
-    baseline_weeks: int
+    recent_days: int = Field(ge=1)
+    baseline_weeks: int = Field(ge=2)
+    # W30: a source must cover the recent window and this many full baseline weeks to have a
+    # velocity at all; with fewer it is left out and the entity is flagged ``baseline_incomplete``.
+    min_baseline_weeks: int = Field(ge=2)
+    # A week, or the recent window, with at least this many covered days counts, its total
+    # scaled to the full length; fewer and it is unknown. A 7-day API's first day is partial.
+    min_days_per_week: int = Field(ge=1, le=7)
+
+    @model_validator(mode="after")
+    def _min_weeks_fit(self) -> SocialWindows:
+        if self.min_baseline_weeks > self.baseline_weeks:
+            raise ValueError("social_score: windows.min_baseline_weeks exceeds baseline_weeks")
+        if self.min_days_per_week > self.recent_days:
+            raise ValueError("social_score: windows.min_days_per_week exceeds recent_days")
+        return self
+
+
+class EvidenceFloor(_Strict):
+    """W30: the least evidence over the recent window for a score above neutral."""
+
+    min_weighted_mentions: float = Field(ge=0)
+    min_distinct_authors: int = Field(ge=0)
+    min_venues: int = Field(ge=0)
 
 
 class SocialScoreConfig(_Strict):
@@ -418,6 +444,7 @@ class SocialScoreConfig(_Strict):
     materiality: dict[Literal["high", "medium", "low"], float]
     filters: SocialFilters
     windows: SocialWindows
+    evidence_floor: EvidenceFloor
 
 
 # ------------------------------------------------------------------- quality_universe.yaml

@@ -114,12 +114,16 @@ def _submission(i: int, author: Any) -> Any:
 
 # ----------------------------------------------------------------------------- Arctic Shift
 def test_arctic_shift_paginates_and_normalises() -> None:
+    """Newest first (W30), so a page limit cuts the oldest baseline weeks, never today."""
     calls: list[dict[str, str]] = []
     pages = {
-        ("sneakers", "1"): [_row(1, "sneakers"), _row(2, "sneakers", body="[removed]")],
+        ("sneakers", "1"): [
+            _row(3, "sneakers", fullname=None),
+            _row(2, "sneakers", body="[removed]"),
+        ],
         ("sneakers", "2"): [
             _row(2, "sneakers", body="[removed]"),
-            _row(3, "sneakers", fullname=None),
+            _row(1, "sneakers"),
         ],
         ("wallstreetbets", "1"): [_row(9, "wallstreetbets")],
     }
@@ -128,8 +132,9 @@ def test_arctic_shift_paginates_and_normalises() -> None:
         q = _query(request)
         calls.append(q)
         assert request.url.path == "/api/posts/search"
-        assert q["sort"] == "asc" and q["limit"] == "2" and "author_fullname" in q["fields"]
-        page = "1" if int(q["after"]) == int(SINCE.timestamp()) else "2"
+        assert q["sort"] == "desc" and q["limit"] == "2" and "author_fullname" in q["fields"]
+        assert int(q["after"]) == int(SINCE.timestamp())
+        page = "1" if "before" not in q else "2"
         return httpx.Response(200, json={"data": pages.get((q["subreddit"], page), [])})
 
     sleep = _NoSleep()
@@ -146,9 +151,11 @@ def test_arctic_shift_paginates_and_normalises() -> None:
     assert r.status().detail == "provider=arctic_shift"
     # page 1 full → page 2 (one new row) → page 3 (all duplicates) stops; then the stock sub
     assert [c["subreddit"] for c in calls] == ["sneakers"] * 3 + ["wallstreetbets"]
-    # each next page starts one second before the last row so boundary posts are not lost
-    assert int(calls[1]["after"]) == pages[("sneakers", "1")][1]["created_utc"] - 1
-    assert [p.id for p in posts] == ["p1", "p2", "p3", "p9"]  # de-duplicated across pages
+    # each next page ends one second after the last row so boundary posts are not lost
+    assert int(calls[1]["before"]) == pages[("sneakers", "1")][1]["created_utc"] + 1
+    assert [p.id for p in posts] == ["p3", "p2", "p1", "p9"]  # de-duplicated across pages
+    # every subreddit was read back to `since`: complete coverage
+    assert r.status().covered_since == SINCE
     by = {p.id: p for p in posts}
     assert by["p1"].source == "reddit" and by["p1"].subreddit == "sneakers"
     assert by["p1"].author_id == "u_abc" and by["p1"].author_karma is None

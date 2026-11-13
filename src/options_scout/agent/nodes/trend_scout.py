@@ -36,7 +36,8 @@ def make(deps: Deps) -> Callable[[AgentState], dict[str, Any]]:
                 status["social"] = "snapshot"
             else:
                 try:
-                    run = deps.scout.run()
+                    # W30: the daily counts accumulate in the same store as the snapshots
+                    run = deps.scout.run(store=deps.trend_store)
                     trends = run.signals
                     deps.trend_store.save(run)
                     deps.trend_store.purge(

@@ -28,9 +28,21 @@ filters:
   min_account_age_days: 30
   min_author_karma: 50
   max_author_share: 0.05     # cap one author's share of an entity's mentions
+  max_author_daily_weight: 1.0  # and at most one weighted mention per author per day (W30)
+  unknown_author_weight: 0.25   # a post whose account age or karma is unknown (the Reddit
+                             # archive supplies neither) counts a quarter of a mention
   dedupe_jaccard: 0.8        # 3-shingle Jaccard similarity above which posts are duplicates
   stock_talk_flag_share: 0.5 # flag entity when > 50% of mentions are stock talk
 
 windows:
-  recent_days: 7
+  recent_days: 7             # the last 7 complete UTC days; the current partial day is dropped
   baseline_weeks: 8
+  min_baseline_weeks: 6      # a source covering fewer baseline weeks has no velocity (W30)
+  min_days_per_week: 6       # a week (or the recent window) counts with this many covered days,
+                             # its total scaled up to 7; a fetch's first day is always partial
+
+# Below this an entity cannot score above the neutral 50, counted over the recent window (W30).
+evidence_floor:
+  min_weighted_mentions: 10
+  min_distinct_authors: 8    # posts with no author id do not count
+  min_venues: 2              # subreddits, or sources for posts outside Reddit

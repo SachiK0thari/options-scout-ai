@@ -34,6 +34,11 @@ class SourceStatus:
     items: int = 0
     errors: list[str] = field(default_factory=list)
     enabled: bool = True
+    # W30: the earliest moment from which the last fetch is known to hold every matching post,
+    # up to the fetch time. ``None`` means no complete coverage (failed, partly skipped or not a
+    # post source). A source that returns the newest N posts, or only the last 7 days, sets it
+    # later than the ``since`` it was asked for, so the baseline weeks before it are not zeros.
+    covered_since: datetime | None = None
 
     @property
     def state(self) -> str:

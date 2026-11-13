@@ -873,7 +873,7 @@ def trends() -> list[dict[str, Any]]:
     reg = registry()
     latest = reg.deps.trend_store.latest(10**6)
     if latest is None and reg.deps.scout is not None:
-        run = reg.deps.scout.run()
+        run = reg.deps.scout.run(store=reg.deps.trend_store)
         reg.deps.trend_store.save(run)
         latest = run.signals
     return [t.model_dump(mode="json") for t in (latest or [])]

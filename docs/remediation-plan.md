@@ -2705,6 +2705,56 @@ Suggested commit: `fix(universe): signals promote only above a threshold; a low 
    bottleneck store already checks both directions.
 10. Re-record the trend fixtures and the golden report. Expect far fewer entities at the clip.
 
+**Status, 2026-11-13:** steps 1 to 10 done in the working tree.
+- **Signals.** `social/signals.py:z_score` always applies the Poisson floor. The bottleneck engine
+  passes `count_floor=False` and keeps its old rule until W31.
+- **Coverage.** Every post adapter reports `SourceStatus.covered_since`. X recent search is capped
+  at 7 days; a capped X query or a full PRAW listing starts at its oldest post; a failed or partly
+  skipped fetch covers nothing. Arctic Shift now reads newest-first (`sort=desc`, `before` cursor)
+  and a page-limit cut is reported the same way. News reports `last_covered_since`.
+  `compute_components` takes `SourceSeries` (series, covered days, weight, `has_data`). A source
+  without the recent window, or with fewer than `windows.min_baseline_weeks` (6) baseline weeks,
+  has no velocity, is left out of confirmation and flags the entity `baseline_incomplete`. With
+  no complete post source the entity takes the neutral 50.
+- **Found on the way:** a 7-day API polled weekly never covers a whole calendar week, because each
+  fetch's first day is partial. So a week, or the recent window, counts with
+  `windows.min_days_per_week` (6) covered days, its total scaled to 7.
+- **Accumulation.** `TrendStore` has `mention_counts` and `source_coverage` tables, keyed by data
+  mode, and `TrendScout.run(store=...)` merges them: fresh days win, stored days fill the rest,
+  counts older than the window are purged. The node, the API and the refresh job pass
+  `deps.trend_store`. The store is passed per run, not bound into the scout, because tests swap
+  `deps.trend_store` and a bound store kept writing into the tracked `data/trends.sqlite`.
+- **Evidence and authors.** `evidence_floor` (10 weighted mentions, 8 distinct authors, 2 venues,
+  over the recent window) caps the score at 50 and flags `thin_evidence`. The author cap is also
+  one weighted mention per author per day (`filters.max_author_daily_weight`). Unknown age or
+  karma weighs 0.25 (`filters.unknown_author_weight`).
+- **Clock and store.** `cross_source_norm` divides by the sources with data and a velocity. The
+  window ends on the last complete UTC day and the fetch starts at midnight of the first baseline
+  day. `TrendStore.latest` skips snapshots dated after `now`. (The plan said the bottleneck store
+  already checks both directions; its `latest` does not, and that is left for W31.) Side effect:
+  fixture market "now" (20:24 on 2026-10-27) is earlier than the fixture trend snapshot
+  (23:59:59), so fixture-mode screens recompute the board, about 2 s, instead of reusing it.
+- **Tests.** 13 new tests (15 cases) in `test_social_core.py`: stationary series through the Reddit fixture,
+  Arctic Shift, PRAW, X recent and a page-limited archive; the run just after midnight;
+  accumulation over 10 weekly X runs; floor, monotonicity and a Poisson null at under 0.1% of
+  runs reaching the clip; 4 posts from 4 accounts and 100 from 1 stay at or below 50 and are
+  never promoted; the daily cap and unknown weight; the evidence floor; the denominator; future
+  snapshots. Turning off the evidence floor, the Poisson floor or the daily cap each fails its
+  tests. The Arctic pagination test in `test_reddit_adapter.py` was updated, and the existing
+  breakout test moved to the new signature.
+- **Re-recorded.** The golden report changes on the trend board only (Owala and Birkenstock up,
+  e.l.f. and Olipop shift); sizing is unchanged. `make index` was rerun.
+- **Docs.** PRD 4.5/4.6, README, PRIVACY.md section 4.1 (counts kept 63 days, no post content),
+  the Trends tab caption and `hype_short_puts.md` (the novelty penalty was described backwards).
+- **Not as expected.** The fixture board still has 12 of 28 entities at the +4.0 clip (14
+  before). Those are the corpus's designed 3- to 4-times breakouts, which the floor does not
+  compress. What the floor removed is the false ones: NKE went from 51 (velocity +3.4) to 24
+  (+1.0), Tesla from +4.0 to +3.2. The fixture corpus has full author metadata, so no fixture
+  entity hits the evidence floor. "Re-record the trend fixtures": the corpora are synthetic and
+  complete by construction and did not need regenerating.
+- **Left as is:** with news disabled or empty, `coverage_gap` equals the velocity. It is now the
+  same whether news is disabled or enabled and empty.
+
 Suggested commit: `fix(trends): Poisson floor, baseline coverage, evidence floor; counts accumulated between runs`
 
 ---
