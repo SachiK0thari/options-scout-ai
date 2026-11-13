@@ -7,6 +7,7 @@ consumer (screeners, HV, IV proxy, stress tests) works with no network.
 from __future__ import annotations
 
 import json
+import re
 from datetime import date, datetime
 from pathlib import Path
 from typing import Any
@@ -27,6 +28,10 @@ DEMO_TICKERS: tuple[str, ...] = (
     "SPY",
     "QQQ",
 )
+
+
+# a ticker (core.models.TICKER_PATTERN) or an index stored as _VIX; never a path
+_FIXTURE_STEM = re.compile(r"_?[A-Z][A-Z0-9.\-]{0,9}")
 
 
 class TickerFixture(BaseModel):
@@ -50,7 +55,12 @@ class FixtureStore:
         self.root.mkdir(parents=True, exist_ok=True)
 
     def path_for(self, ticker: str) -> Path:
-        return self.root / f"{ticker.upper().replace('^', '_')}.json"
+        """The fixture file for ``ticker``; a name that is not a plain symbol is refused (W40), so
+        no ticker can open a file outside the fixtures folder."""
+        stem = ticker.upper().replace("^", "_")
+        if not _FIXTURE_STEM.fullmatch(stem):
+            raise ValueError(f"not a ticker symbol: {ticker[:20]!r}")
+        return self.root / f"{stem}.json"
 
     def available(self) -> list[str]:
         return sorted(p.stem for p in self.root.glob("*.json") if p.stem != "indices")
@@ -61,7 +71,7 @@ class FixtureStore:
     def load(self, ticker: str) -> TickerFixture:
         path = self.path_for(ticker)
         if not path.exists():
-            raise FileNotFoundError(f"no fixture for {ticker} at {path}")
+            raise FileNotFoundError(f"no fixture for {ticker}")  # no path: errors reach callers
         return TickerFixture.model_validate_json(path.read_text(encoding="utf-8"))
 
     def save(self, fixture: TickerFixture) -> Path:
@@ -72,7 +82,7 @@ class FixtureStore:
     def load_indices(self) -> IndexFixture:
         path = self.root / "indices.json"
         if not path.exists():
-            raise FileNotFoundError(f"no index fixture at {path}")
+            raise FileNotFoundError("no index fixture (indices.json)")
         return IndexFixture.model_validate_json(path.read_text(encoding="utf-8"))
 
     def save_indices(self, fixture: IndexFixture) -> Path:

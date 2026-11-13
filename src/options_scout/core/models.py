@@ -3,9 +3,17 @@
 from __future__ import annotations
 
 from datetime import UTC, date, datetime
-from typing import Any, Literal
+from typing import Annotated, Any, Literal
 
-from pydantic import BaseModel, ConfigDict, Field, PositiveFloat, field_validator
+from pydantic import (
+    BaseModel,
+    BeforeValidator,
+    ConfigDict,
+    Field,
+    PositiveFloat,
+    StringConstraints,
+    field_validator,
+)
 
 AccountType = Literal["cash", "margin", "portfolio_margin"]
 RiskProfile = Literal["conservative", "balanced", "aggressive"]
@@ -32,6 +40,22 @@ FalsifierOperator = Literal[">", ">=", "<", "<="]
 BottleneckEvidenceKind = Literal["filing", "price", "headline", "post"]
 
 
+# W40: one ticker type for every input that names a symbol (watchlist, exclusions, holdings, API
+# and MCP arguments). A letter then up to nine letters, digits, dots or dashes (BRK.B, BF-B):
+# nothing that can climb a URL path or a file path, or carry Markdown into a report (W17 step 8).
+TICKER_PATTERN = r"^[A-Z][A-Z0-9.\-]{0,9}$"
+MAX_TICKER_LIST = 20  # watchlist, exclusions and any tool's ticker list
+MAX_DOLLARS = 1e9  # upper bound on buying power, account value and balances
+
+
+def _upper_ticker(v: object) -> object:
+    return v.strip().upper() if isinstance(v, str) else v
+
+
+Ticker = Annotated[str, BeforeValidator(_upper_ticker), StringConstraints(pattern=TICKER_PATTERN)]
+Dollars = Annotated[float, Field(gt=0, le=MAX_DOLLARS, allow_inf_nan=False)]
+
+
 def utcnow() -> datetime:
     return datetime.now(tz=UTC)
 
@@ -56,13 +80,13 @@ NewsRelevance = Literal["high", "medium", "low"]
 
 # ------------------------------------------------------------------------------- user
 class UserProfile(Model):
-    buying_power: PositiveFloat
-    account_value: PositiveFloat
+    buying_power: Dollars
+    account_value: Dollars
     account_type: AccountType
     risk_profile: RiskProfile
     strategies: set[Strategy] = Field(default_factory=_all_strategies)
-    watchlist: list[str] = Field(default_factory=list)
-    exclude: list[str] = Field(default_factory=list)
+    watchlist: list[Ticker] = Field(default_factory=list, max_length=MAX_TICKER_LIST)
+    exclude: list[Ticker] = Field(default_factory=list, max_length=MAX_TICKER_LIST)
     max_positions: int = Field(default=8, ge=1, le=50)
     options_level: int | None = None  # broker approval level; a sized PMCC below it is noted (W25)
     knowledge_level: KnowledgeLevel | None = None  # Phase 12: caps retrieval, sets the prose level
@@ -936,15 +960,10 @@ class NewsBrief(Model):
 
 # ---------------------------------------------------------------- holdings (Phase 12, 12.6)
 class Holding(Model):
-    ticker: str = Field(min_length=1, max_length=10)
-    shares: float = Field(gt=0)
-    cost_basis: float | None = Field(default=None, ge=0)  # per share
+    ticker: Ticker
+    shares: float = Field(gt=0, le=MAX_DOLLARS, allow_inf_nan=False)
+    cost_basis: float | None = Field(default=None, ge=0, le=MAX_DOLLARS, allow_inf_nan=False)
     account: AccountType | Literal["ira"] | None = None
-
-    @field_validator("ticker", mode="before")
-    @classmethod
-    def _upper(cls, v: object) -> str:
-        return str(v).strip().upper()
 
 
 class TaxFacts(Model):

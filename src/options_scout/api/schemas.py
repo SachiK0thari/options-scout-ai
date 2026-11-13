@@ -2,15 +2,19 @@ from __future__ import annotations
 
 from typing import Any, Literal
 
-from pydantic import BaseModel, Field, PositiveFloat, SecretStr
+from pydantic import BaseModel, ConfigDict, Field, SecretStr, ValidationError, field_validator
 
 from options_scout.core.models import (
+    MAX_TICKER_LIST,
     AccountType,
     ChatTurn,
+    Dollars,
     GoalPlan,
     Holding,
     KnowledgeLevel,
     RiskProfile,
+    Strategy,
+    Ticker,
     UserProfile,
 )
 
@@ -35,12 +39,12 @@ class ScreenRequest(BaseModel):
 class RecommendRequest(BaseModel):
     """The simple front door: buying power + what you want. Everything else has safe defaults."""
 
-    buying_power: PositiveFloat
+    buying_power: Dollars
     strategy: Literal["csp", "leaps", "both"] = "both"
     account_type: AccountType = "cash"
     risk_profile: RiskProfile = "conservative"
-    watchlist: list[str] = Field(default_factory=list, max_length=20)
-    exclude: list[str] = Field(default_factory=list, max_length=50)
+    watchlist: list[Ticker] = Field(default_factory=list, max_length=MAX_TICKER_LIST)
+    exclude: list[Ticker] = Field(default_factory=list, max_length=MAX_TICKER_LIST)
     max_positions: int = Field(default=6, ge=1, le=20)
     pmcc: bool = False
     market_data: MarketDataAuth | None = None
@@ -72,8 +76,39 @@ class ScreenResponse(BaseModel):
     thread_token: str | None = None
 
 
+class ProfileAnswer(BaseModel):
+    """The profile fields a resume answer may set, typed as on :class:`UserProfile` (W40), so a
+    bad ticker or a non-finite amount is a 422 here rather than another review round. Other keys
+    are ignored, as the review node ignores them."""
+
+    model_config = ConfigDict(extra="ignore")
+
+    buying_power: Dollars | None = None
+    account_value: Dollars | None = None
+    account_type: AccountType | None = None
+    risk_profile: RiskProfile | None = None
+    strategies: list[Strategy] | None = Field(default=None, max_length=3)
+    watchlist: list[Ticker] | None = Field(default=None, max_length=MAX_TICKER_LIST)
+    exclude: list[Ticker] | None = Field(default=None, max_length=MAX_TICKER_LIST)
+    max_positions: int | None = Field(default=None, ge=1, le=50)
+    options_level: int | None = Field(default=None, ge=0, le=10)
+    knowledge_level: KnowledgeLevel | None = None
+
+
 class ResumeRequest(BaseModel):
-    answer: dict[str, Any]
+    answer: dict[str, Any] = Field(max_length=32)
+
+    @field_validator("answer")
+    @classmethod
+    def _typed_profile_fields(cls, v: dict[str, Any]) -> dict[str, Any]:
+        try:
+            ProfileAnswer.model_validate(v)
+        except ValidationError as exc:  # where and why, never the rejected value
+            raise ValueError(
+                "; ".join(f"{'.'.join(str(p) for p in e['loc'])}: {e['msg']}" for e in exc.errors())
+            ) from None
+        return v
+
     # W39: a run started with the caller's own market-data key resumes on that source. The key
     # is not kept after a restart (or once the run has waited a long time), so it is sent again
     # here; it must name the same provider and environment the run started with.

@@ -86,11 +86,17 @@ def build_universe(
             notes.append(f"universe: no offline fixture for {', '.join(missing)}; skipped")
         order = [t for t in order if t in available]
 
-    keep = max(max_tickers, len([t for t in watchlist if t.upper() in order]))
-    universe = order[:keep]
-    dropped = len(order) - len(universe)
-    if dropped:
-        notes.append(f"universe: capped at {keep} tickers ({dropped} curated names not fetched)")
+    # W40: the cap is on the total. The watchlist comes first, so it fills the cap before any
+    # curated name, but a long watchlist no longer makes the run (and its data spend) unbounded
+    universe = order[:max_tickers]
+    cut = order[max_tickers:]
+    if cut:
+        watched = {t.upper() for t in watchlist}
+        cut_watch = [t for t in cut if t in watched]
+        detail = f"{len(cut) - len(cut_watch)} curated names not fetched"
+        if cut_watch:
+            detail = f"watchlist names not fetched: {', '.join(cut_watch)}; " + detail
+        notes.append(f"universe: capped at {max_tickers} tickers ({detail})")
     if not universe:
         notes.append("universe: empty after filters")
     return universe, notes
@@ -116,6 +122,7 @@ def make(deps: Deps) -> Callable[[AgentState], dict[str, Any]]:
             signal_kinds=kinds,
             promotion_min=deps.cfg.quality.universe.signal_promotion_min,
         )
+        deps.md.purge_expired()  # W41: once per run, as well as when the cache opens
         universe, budget_note = deps.md.fit_to_budget(universe)  # W27 step 4
         if budget_note:
             notes.append(f"universe: {budget_note}")

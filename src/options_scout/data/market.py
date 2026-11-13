@@ -6,12 +6,14 @@ exponential backoff. Live providers need a user-supplied API token; fixture mode
 
 from __future__ import annotations
 
+import hashlib
 import logging
 import os
 from collections.abc import Sequence
 from datetime import UTC, date, datetime, timedelta
 from pathlib import Path
 from typing import Any, Protocol
+from urllib.parse import quote
 from zoneinfo import ZoneInfo
 
 import httpx
@@ -82,6 +84,18 @@ class FredVix:
 
 RISK_FREE_FALLBACK = 0.04
 MIN_IV_HISTORY = 30
+
+
+def _seg(symbol: str) -> str:
+    """A symbol as one URL path segment (W40). Tickers are validated where they enter (the
+    ``Ticker`` type); this is the second line, so ``a/../b`` can never become a path."""
+    return quote(symbol, safe="")
+
+
+def credential_tag(api_key: str) -> str:
+    """Eight hex characters of the key's SHA-256: separates two callers' cached data (W41)
+    without putting the key, or anything that recovers it, in the cache database."""
+    return hashlib.sha256(api_key.strip().encode()).hexdigest()[:8]
 
 
 class Cache(Protocol):
@@ -293,6 +307,8 @@ class MarketDataAppSource:
         self._chains: dict[tuple[str, date], tuple[date, dict[str, Any]]] = {}
         self._series: dict[tuple[str, bool, date], dict[str, Any]] = {}
         self._earnings_refused = False  # a 402 on /stocks/earnings: the plan has no earnings
+        # W41: what decides the data is the provider and the key (one environment here)
+        self.cache_scope = f"{self.name}:live:{credential_tag(key)}"
         self._client = http_client or httpx.Client(
             base_url=self.BASE_URL,
             headers={"Authorization": f"Bearer {key}", "Accept": "application/json"},
@@ -383,7 +399,7 @@ class MarketDataAppSource:
     def _candles(self, kind: str, symbol: str, days: int, **extra: Any) -> dict[str, Any]:
         """Daily candles for a stock (``kind="stocks"``) or index (``kind="indices"``)."""
         return self._get(
-            f"/{kind}/candles/D/{symbol}/",
+            f"/{kind}/candles/D/{_seg(symbol)}/",
             countback=int(days),
             to=datetime.now(tz=UTC).date().isoformat(),
             **extra,
@@ -422,7 +438,7 @@ class MarketDataAppSource:
                     as_of=session[1],
                     sector="Unknown",
                 )
-        body = self._get(f"/stocks/quotes/{sym}/")
+        body = self._get(f"/stocks/quotes/{_seg(sym)}/")
         last = self._col(body, "last")
         mid = self._col(body, "mid")
         if body.get("s") != "ok" or not (last or mid):
@@ -449,7 +465,9 @@ class MarketDataAppSource:
         while tried < self.SESSION_LOOKBACK:
             if day.weekday() < 5:
                 tried += 1
-                body = self._get(f"/options/chain/{sym}/", date=day.isoformat(), expiration="all")
+                body = self._get(
+                    f"/options/chain/{_seg(sym)}/", date=day.isoformat(), expiration="all"
+                )
                 if body.get("s") == "ok" and self._col(body, "strike"):
                     self._chains[key] = (day, body)
                     return self._chains[key]
@@ -474,7 +492,7 @@ class MarketDataAppSource:
             _day, body = self._session_chain(sym)
             found = {_as_date(raw) for raw in self._col(body, "expiration")}
             return sorted(d for d in found if d is not None)
-        body = self._get(f"/options/expirations/{sym}/")
+        body = self._get(f"/options/expirations/{_seg(sym)}/")
         out: list[date] = []
         for raw in self._col(body, "expirations"):
             parsed = _as_date(raw)
@@ -497,7 +515,7 @@ class MarketDataAppSource:
             }
         else:
             body = self._get(
-                f"/options/chain/{sym}/",
+                f"/options/chain/{_seg(sym)}/",
                 expiration=expiry.isoformat(),
                 strikeLimit=self.strike_limit or None,
             )
@@ -510,7 +528,7 @@ class MarketDataAppSource:
         (W4 step 6: backfills the IV history the daily job would have stored). None when the
         provider has no chain for that day (a holiday)."""
         sym = ticker.upper()
-        body = self._get(f"/options/chain/{sym}/", date=day.isoformat(), expiration="all")
+        body = self._get(f"/options/chain/{_seg(sym)}/", date=day.isoformat(), expiration="all")
         if body.get("s") != "ok" or not self._col(body, "strike"):
             return None
         prices = [_f(x) for x in self._col(body, "underlyingPrice") if _f(x) > 0]
@@ -595,7 +613,7 @@ class MarketDataAppSource:
         today = datetime.now(tz=UTC).date()
         try:
             body = self._get(
-                f"/stocks/earnings/{ticker.upper()}/",
+                f"/stocks/earnings/{_seg(ticker.upper())}/",
                 **{
                     "from": today.isoformat(),
                     "to": (today + timedelta(days=self.EARNINGS_HORIZON_DAYS)).isoformat(),
@@ -670,7 +688,7 @@ class MarketDataAppSource:
         mapped = self._INDEX_SYMBOLS.get(symbol.upper())
         if not mapped:  # ^IRX: no T-bill index; the facade falls back to RISK_FREE_FALLBACK
             raise MarketDataError(f"MarketData.app cannot serve index quote for {symbol}")
-        body = self._get(f"/indices/quotes/{mapped}/")
+        body = self._get(f"/indices/quotes/{_seg(mapped)}/")
         last = self._col(body, "last") or self._col(body, "mid")
         if body.get("s") != "ok" or not last or _f(last[0]) <= 0:
             raise MarketDataError(f"MarketData.app returned no quote for {symbol}")
@@ -716,6 +734,12 @@ class TradierSource:
             timeout=20.0,
         )
         self._fallback = fallback
+        # W41: sandbox and production answer differently for the same key; index data may come
+        # from the fallback's key, so that is part of the scope too
+        env = "sandbox" if sandbox else "production"
+        scope = f"{self.name}:{env}:{credential_tag(key)}"
+        fallback_scope = getattr(fallback, "cache_scope", None)
+        self.cache_scope = f"{scope}+{fallback_scope}" if fallback_scope else scope
 
     def __repr__(self) -> str:  # never leak the key
         return f"TradierSource(sandbox={self.sandbox})"
@@ -1017,7 +1041,9 @@ class MarketData:
         self.near_dte = near_dte
         self.far_dte_min = far_dte_min
         self.status: dict[str, str] = {}
-        self._ns = source.name  # cache namespace so providers never read each other's quotes
+        # W41: the cache namespace is whatever decides the data (provider, environment, a short
+        # hash of the key), so one caller's quotes, or a failure, never reach another caller
+        self._ns: str = getattr(source, "cache_scope", None) or source.name
 
     @classmethod
     def from_config(
@@ -1117,6 +1143,11 @@ class MarketData:
     @property
     def unavailable_reason(self) -> str | None:
         return self.source.reason if isinstance(self.source, UnavailableSource) else None
+
+    def purge_expired(self) -> int:
+        """Delete expired cache rows (W41: once per run, besides when the cache opens)."""
+        purge = getattr(self.cache, "purge_expired", None)
+        return int(purge()) if purge is not None else 0
 
     # -- cached primitives -----------------------------------------------------------
     def _cached(self, key: str, ttl_key: str, fetch: Any, parse: Any) -> Any:

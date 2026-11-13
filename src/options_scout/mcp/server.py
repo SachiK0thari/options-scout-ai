@@ -35,12 +35,12 @@ import json
 import uuid
 from collections.abc import Callable
 from dataclasses import dataclass, field
-from typing import Any, Literal, TypeVar
+from typing import Annotated, Any, Literal, TypeVar
 
 import anyio
 from mcp.server.mcpserver import MCPServer
 from mcp.server.mcpserver.exceptions import ResourceNotFoundError, ToolError
-from pydantic import Field, PositiveFloat
+from pydantic import Field, ValidationError
 
 from options_scout import __version__
 from options_scout.agent.chat import screen_summary
@@ -58,6 +58,8 @@ from options_scout.config import get_config, load_env
 from options_scout.core import margin, payoff, pricing
 from options_scout.core.compliance import WITHHELD_NOTICE
 from options_scout.core.models import (
+    MAX_DOLLARS,
+    MAX_TICKER_LIST,
     AccountType,
     Citation,
     ComplianceReport,
@@ -75,9 +77,11 @@ from options_scout.core.models import (
     RiskProfile,
     ScreeningReport,
     TaxFacts,
+    Ticker,
     UserProfile,
 )
 from options_scout.core.quality import check_quality
+from options_scout.data.market import MarketDataError
 from options_scout.observability import configure_logging, get_logger
 from options_scout.rag.corpus import load_corpus
 from options_scout.rag.models import Document
@@ -161,6 +165,19 @@ Strategy3 = Literal["csp", "leaps", "both"]
 LegKind = Literal["call", "put", "stock"]
 LegSide = Literal["long", "short"]
 
+# W40: every list and number a tool takes is bounded; prices in dollars per share
+MAX_PRICE = 1e6
+MAX_CONTRACTS = 10_000
+MAX_DTE = 3650
+MAX_LEGS = 20
+MAX_TERM = 500
+MAX_TEXT = 4000
+Price = Annotated[float, Field(gt=0, le=MAX_PRICE, allow_inf_nan=False)]
+Premium = Annotated[float, Field(ge=0, le=MAX_PRICE, allow_inf_nan=False)]
+Balance = Annotated[float, Field(gt=0, le=MAX_DOLLARS, allow_inf_nan=False)]
+TickerList = Annotated[list[Ticker], Field(min_length=1, max_length=MAX_TICKER_LIST)]
+ThreadId = Annotated[str, Field(max_length=64, pattern=r"^\s*[A-Za-z0-9_\-]*\s*$")]  # blank = none
+
 
 # ---------------------------------------------------------------------------- result models
 class QualityCheckResult(Model):
@@ -217,9 +234,9 @@ class LegSpec(Model):
 
     kind: LegKind
     side: LegSide
-    strike: PositiveFloat
-    premium: float = Field(default=0.0, ge=0)  # per share; 0 for stock
-    quantity: int = Field(default=1, ge=1)
+    strike: Price
+    premium: Premium = 0.0  # per share; 0 for stock
+    quantity: int = Field(default=1, ge=1, le=MAX_CONTRACTS)
 
 
 class PayoffCurveResult(Model):
@@ -340,6 +357,18 @@ async def _in_thread(fn: Callable[[], T]) -> T:
 
 
 # ---------------------------------------------------------------------------- tool bodies
+def _error_text(exc: Exception) -> str:
+    """What a tool may say about a data error (W40): the message of an error this code raised,
+    and only the type of anything else. A parse error can quote the file it read, and an OS error
+    from ``open`` names an absolute path (``filename`` is set); ours carry neither."""
+    name = type(exc).__name__
+    if isinstance(exc, ValidationError) or (isinstance(exc, OSError) and exc.filename):
+        return name
+    if isinstance(exc, MarketDataError | FileNotFoundError) or type(exc) is ValueError:
+        return f"{name}: {exc}"
+    return name
+
+
 def quality_check_sync(rt: Runtime, tickers: list[str]) -> QualityCheckResult:
     deps = rt.deps
     checks: list[QualityCheck] = []
@@ -354,7 +383,7 @@ def quality_check_sync(rt: Runtime, tickers: list[str]) -> QualityCheckResult:
             snap = deps.md.build_snapshot(ticker)
             closes = deps.md.get_close_history(ticker, 90)
         except Exception as exc:
-            errors.append(f"{ticker}: {type(exc).__name__}: {exc}")
+            errors.append(f"{ticker}: {_error_text(exc)}")
             continue
         curated = deps.cfg.quality.get(ticker)
         if curated is not None and snap.spot.sector in {"Unknown", ""}:
@@ -776,7 +805,7 @@ def create_server(deps: Deps | None = None) -> MCPServer[None]:
     )
 
     @server.tool()
-    async def quality_check(tickers: list[str]) -> QualityCheckResult:
+    async def quality_check(tickers: TickerList) -> QualityCheckResult:
         """Run the deterministic good-to-own quality gate on each ticker (price, volume, realised
         and implied volatility, 90-day drawdown, curated-list membership) using the server's
         configured market data. Returns pass/fail with plain-English reasons and a 0–1 quality
@@ -785,12 +814,12 @@ def create_server(deps: Deps | None = None) -> MCPServer[None]:
 
     @server.tool()
     async def screen_options(
-        buying_power: PositiveFloat,
+        buying_power: Balance,
         strategy: Strategy3 = "both",
         account: AccountType = "cash",
         risk: RiskProfile = "conservative",
-        tickers: list[str] | None = None,
-        exclude: list[str] | None = None,
+        tickers: list[Ticker] | None = Field(default=None, max_length=MAX_TICKER_LIST),
+        exclude: list[Ticker] | None = Field(default=None, max_length=MAX_TICKER_LIST),
         max_positions: int = Field(default=6, ge=1, le=20),
     ) -> ScreenResult:
         """Run the full OptionsScout screen: quality gate on the curated good-to-own list plus
@@ -811,13 +840,19 @@ def create_server(deps: Deps | None = None) -> MCPServer[None]:
 
     @server.tool()
     def price_option(
-        spot: PositiveFloat,
-        strike: PositiveFloat,
-        dte: float = Field(ge=0, description="days to expiry (fractional days allowed)"),
-        iv: float = Field(gt=0, le=5, description="implied volatility as a fraction, e.g. 0.25"),
-        rate: float = Field(default=0.04, ge=-0.05, le=0.5, description="annual risk-free rate"),
+        spot: Price,
+        strike: Price,
+        dte: float = Field(
+            ge=0, le=MAX_DTE, allow_inf_nan=False, description="days to expiry (fractional ok)"
+        ),
+        iv: float = Field(
+            gt=0, le=5, allow_inf_nan=False, description="implied volatility as a fraction"
+        ),
+        rate: float = Field(
+            default=0.04, ge=-0.05, le=0.5, allow_inf_nan=False, description="annual rate"
+        ),
         kind: OptionKind = "put",
-        dividend_yield: float = Field(default=0.0, ge=0, le=0.5),
+        dividend_yield: float = Field(default=0.0, ge=0, le=0.5, allow_inf_nan=False),
     ) -> OptionPrice:
         """Black-Scholes-Merton price, delta, gamma, theta (per calendar day), vega (per vol
         point) and risk-neutral probability of expiring out of the money for one option."""
@@ -833,12 +868,14 @@ def create_server(deps: Deps | None = None) -> MCPServer[None]:
 
     @server.tool()
     def compute_margin(
-        strike: PositiveFloat,
-        premium: float = Field(ge=0),
-        spot: PositiveFloat = Field(),
+        strike: Price,
+        premium: Premium,
+        spot: Price,
         account: AccountType = "cash",
-        contracts: int = Field(default=1, ge=1),
-        dte: int | None = Field(default=None, ge=1, description="for the annualised return"),
+        contracts: int = Field(default=1, ge=1, le=MAX_CONTRACTS),
+        dte: int | None = Field(
+            default=None, ge=1, le=MAX_DTE, description="for the annualised return"
+        ),
     ) -> MarginBreakdown:
         """Collateral for a short put: cash-secured amount, Reg T exchange-minimum requirement,
         what the given account type must hold, premium received, return on that requirement and
@@ -854,8 +891,8 @@ def create_server(deps: Deps | None = None) -> MCPServer[None]:
 
     @server.tool()
     def payoff_curve(
-        legs: list[LegSpec],
-        spot: float | None = Field(default=None, gt=0),
+        legs: list[LegSpec] = Field(min_length=1, max_length=MAX_LEGS),
+        spot: float | None = Field(default=None, gt=0, le=MAX_PRICE, allow_inf_nan=False),
         points: int = Field(default=101, ge=11, le=1001),
     ) -> PayoffCurveResult:
         """Payoff at expiration for a list of option/stock legs over a spot grid from 0 to twice
@@ -863,7 +900,7 @@ def create_server(deps: Deps | None = None) -> MCPServer[None]:
         return payoff_curve_sync(legs, spot, points)
 
     @server.tool()
-    async def explain_term(term: str) -> Explanation:
+    async def explain_term(term: str = Field(max_length=MAX_TERM)) -> Explanation:
         """Explain an options concept (e.g. "cash-secured put", "theta", "Reg T margin") with an
         answer retrieved from the cited knowledge base, written by the Education agent and
         checked by Compliance. The ``compliance`` field is the audit record; ``citations`` map
@@ -873,13 +910,14 @@ def create_server(deps: Deps | None = None) -> MCPServer[None]:
     @server.tool()
     async def plan_goal(
         goal: str = Field(
+            max_length=MAX_TEXT,
             description=(
                 "the goal in plain words, e.g. 'I want $400 a month from puts', 'grow 40k to "
                 "55k in three years', 'I spend 48k a year and have 220k, when could I lean FIRE'"
-            )
+            ),
         ),
-        balance: float | None = Field(
-            default=None, gt=0, description="account value in dollars when no thread_id is given"
+        balance: Balance | None = Field(
+            default=None, description="account value in dollars when no thread_id is given"
         ),
         risk: RiskProfile | None = Field(
             default=None, description="with balance; balanced when omitted"
@@ -887,7 +925,7 @@ def create_server(deps: Deps | None = None) -> MCPServer[None]:
         account: AccountType | None = Field(
             default=None, description="with balance; cash when omitted"
         ),
-        thread_id: str | None = Field(
+        thread_id: ThreadId | None = Field(
             default=None, description="a screen_options thread_id: plan against that screen"
         ),
     ) -> GoalPlanResult:
@@ -907,12 +945,13 @@ def create_server(deps: Deps | None = None) -> MCPServer[None]:
     @server.tool()
     async def analyze_holdings(
         holdings: str = Field(
+            max_length=MAX_TEXT,
             description=(
                 "the positions as text: '200 AAPL at 150, MSFT 100 @ 300, 40 SPY' or CSV lines "
                 "'ticker,shares,cost'"
-            )
+            ),
         ),
-        thread_id: str | None = Field(
+        thread_id: ThreadId | None = Field(
             default=None,
             description="a screen_options thread_id: adds concentration after assignment",
         ),
@@ -926,11 +965,12 @@ def create_server(deps: Deps | None = None) -> MCPServer[None]:
 
     @server.tool()
     async def news_brief(
-        tickers: list[str] | None = Field(
+        tickers: list[Ticker] | None = Field(
             default=None,
+            max_length=MAX_TICKER_LIST,
             description="tickers to cover; omit with thread_id for every screened name",
         ),
-        thread_id: str | None = Field(
+        thread_id: ThreadId | None = Field(
             default=None, description="a screen_options thread_id: adds flags on its candidates"
         ),
     ) -> NewsBriefResult:
@@ -944,12 +984,13 @@ def create_server(deps: Deps | None = None) -> MCPServer[None]:
     @server.tool()
     async def explain_tax_term(
         term: str = Field(
+            max_length=MAX_TERM,
             description=(
                 "a tax or account-type question, e.g. 'wash sale', 'what happens to my taxes if "
                 "I get assigned', 'can I sell cash-secured puts in an IRA'"
-            )
+            ),
         ),
-        thread_id: str | None = Field(
+        thread_id: ThreadId | None = Field(
             default=None,
             description="a screen_options thread_id: illustrates with a screened put's numbers",
         ),

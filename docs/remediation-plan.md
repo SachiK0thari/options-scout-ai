@@ -3450,6 +3450,30 @@ Suggested commit: `fix(api): locked stores, atomic start, resume on the original
 
 Suggested commit: `fix(input): validated ticker type, bounded profile fields, request size limit`
 
+**Status, 2026-11-13:** done in the working tree, steps 1 to 6.
+
+- `core/models.py` defines `Ticker` (strip, upper-case, `TICKER_PATTERN`) and `Dollars`
+  (finite, above 0, at most 1e9). `UserProfile` uses them for buying power, account value,
+  watchlist and exclusions (20 entries each); `Holding.ticker` is a `Ticker` and its amounts are
+  finite. The API's `RecommendRequest` and the new `ProfileAnswer` (a resume answer's profile
+  fields) use the same types, so a bad ticker or amount in a resume is a 422 rather than another
+  review round. Exclusions on `/v1/recommend` went from 50 to 20 to match the profile.
+- The 422 handler leaves out the rejected value (`input`, `ctx`, `url`). A NaN was a 500
+  because the default handler could not write it as JSON; it is now a 422 at both routes.
+- Bodies over 256 kB get a 413, not the 422 step 1 names, since 413 is the status for it. A
+  body with a `Content-Length` is refused before it is read; a chunked body is read up to the
+  limit and then refused.
+- `build_universe` caps the total at `max_tickers`. The watchlist still comes first, so a
+  watchlist longer than the cap (12) is cut, and the note names the watchlist names left out.
+- `data/market.py` quotes every symbol it puts in a URL path (`_seg`). `FixtureStore.path_for`
+  refuses anything that is not a symbol, and its not-found errors no longer name the folder.
+- MCP: every list, number and string argument has a bound (20 tickers, 20 legs, 10,000
+  contracts, prices up to 1e6, 3,650 days, 500-character terms, 4,000-character goals and
+  holdings, thread ids as in the API). `quality_check` errors give the message only for errors
+  this code raises and just the type for anything else, so a parse error cannot quote a file.
+- Tests: `tests/unit/test_input_limits.py`, `tests/agent/test_api_input_limits.py`,
+  `tests/agent/test_mcp_input_limits.py`.
+
 ---
 
 ### W41. The market cache serves one caller's data and failures to others
@@ -3478,6 +3502,22 @@ The README says quotes "never mix".
 4. **Purge.** Call `purge_expired` when the cache opens and once per run.
 
 Suggested commit: `fix(cache): namespace by provider, environment and credential; purge expired rows`
+
+**Status, 2026-11-13:** done in the working tree, steps 1 to 4.
+
+- Each keyed source has a `cache_scope`: `marketdata:live:<hash>` and
+  `tradier:<sandbox|production>:<hash>`, where the hash is the first 8 hex characters of the
+  key's SHA-256 (`credential_tag`). A Tradier source with a MarketData.app fallback for index
+  data adds the fallback's scope. The facade uses it as its namespace; fixture and unavailable
+  sources keep their name.
+- Step 3 was already in place from W5: a failed earnings or dividend lookup raises and nothing
+  is cached. The test now checks the full case: a 402 on one key, then a paid key that gets its
+  own quote and asks for the date on its own key.
+- Step 4: `SQLiteCache` already purged when it opened (from W38). `MarketData.purge_expired` is
+  now also called once per run in `universe_node`.
+- README and `docs/architecture.md` describe the new namespace in place of "quotes never mix".
+- Tests: `tests/unit/test_market_cache_scope.py` (both reproductions, the three Tradier cases,
+  the key kept out of the cache file, purge per run).
 
 ---
 

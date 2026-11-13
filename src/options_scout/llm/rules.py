@@ -1238,6 +1238,8 @@ def _holding_from(match: re.Match[str]) -> Holding | None:
         return None
     cost_raw = match.group("cost")
     cost = float(cost_raw.replace(",", "")) if cost_raw else None
+    if cost is not None and cost > 1e9:  # beyond Holding's bound (W40): not a cost basis
+        cost = None
     return Holding(ticker=ticker, shares=shares, cost_basis=cost)
 
 

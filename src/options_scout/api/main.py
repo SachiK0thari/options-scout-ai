@@ -21,8 +21,11 @@ from pathlib import Path
 from typing import Any
 
 from fastapi import Depends, FastAPI, HTTPException, Request, Response
-from fastapi.responses import PlainTextResponse
+from fastapi.encoders import jsonable_encoder
+from fastapi.exceptions import RequestValidationError
+from fastapi.responses import JSONResponse, PlainTextResponse
 from sse_starlette.sse import EventSourceResponse
+from starlette.types import ASGIApp, Message, Receive, Scope, Send
 
 from options_scout import __version__
 from options_scout.agent.chat import ChatSession
@@ -133,6 +136,82 @@ app = FastAPI(
     redoc_url="/redoc" if _DOCS else None,
     openapi_url="/openapi.json" if _DOCS else None,
 )
+
+MAX_BODY_BYTES = 256 * 1024  # W40: no request this API takes is anywhere near this size
+
+
+class BodySizeLimit:
+    """Reject a request body over ``limit`` bytes with 413 (W40): by its ``Content-Length`` before
+    anything is read, and for a chunked body that declares none by reading at most ``limit`` + 1
+    bytes before the app sees it (the bodies this API takes are small, so buffering is cheap)."""
+
+    def __init__(self, app: ASGIApp, limit: int = MAX_BODY_BYTES) -> None:
+        self.app = app
+        self.limit = limit
+
+    async def __call__(self, scope: Scope, receive: Receive, send: Send) -> None:
+        if scope["type"] != "http":
+            await self.app(scope, receive, send)
+            return
+        declared = dict(scope.get("headers") or []).get(b"content-length")
+        if declared is not None:
+            try:
+                too_big = int(declared) > self.limit
+            except ValueError:
+                too_big = True
+            if too_big:
+                await self._reject(send)
+            else:
+                await self.app(scope, receive, send)
+            return
+        buffered: list[Message] = []
+        size = 0
+        while True:
+            message = await receive()
+            buffered.append(message)
+            if message["type"] != "http.request":
+                break
+            size += len(message.get("body", b""))
+            if size > self.limit:
+                await self._reject(send)
+                return
+            if not message.get("more_body", False):
+                break
+
+        async def replay() -> Message:
+            return buffered.pop(0) if buffered else await receive()
+
+        await self.app(scope, replay, send)
+
+    async def _reject(self, send: Send) -> None:
+        body = json.dumps(
+            {"detail": f"request body over {self.limit // 1024} kB is not accepted"}
+        ).encode()
+        await send(
+            {
+                "type": "http.response.start",
+                "status": 413,
+                "headers": [
+                    (b"content-type", b"application/json"),
+                    (b"content-length", str(len(body)).encode()),
+                ],
+            }
+        )
+        await send({"type": "http.response.body", "body": body})
+
+
+app.add_middleware(BodySizeLimit)
+
+
+@app.exception_handler(RequestValidationError)
+async def _invalid_request(_request: Request, exc: RequestValidationError) -> JSONResponse:
+    """422 with where and why, never the rejected value (W40): a NaN input made the default
+    handler's JSON fail with a 500, and echoing inputs repeats whatever the caller sent."""
+    errors = [
+        {k: v for k, v in err.items() if k not in ("input", "ctx", "url")} for err in exc.errors()
+    ]
+    return JSONResponse(status_code=422, content={"detail": jsonable_encoder(errors)})
+
 
 THREAD_TOKEN_HEADER = "X-Thread-Token"
 _RATE_LIMIT_PER_MIN = _initial_rate_limit()
