@@ -21,7 +21,7 @@ from options_scout.core.models import Narrative, Paragraph, ScreeningReport
 from options_scout.llm.rules import is_news_message, rule_route
 from tests.conftest import REPO_ROOT
 
-DATASETS = REPO_ROOT / "evals" / "datasets"
+DATASETS = REPO_ROOT / "evals" / "datasets" / "dev"
 DEMO = (
     "I have $100,000 of buying power in a margin account, balanced risk tolerance. "
     "Show me CSPs and LEAPS/PMCC ideas."

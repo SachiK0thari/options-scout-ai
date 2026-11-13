@@ -1,0 +1,44 @@
+{
+ "task": "classify_news",
+ "model": "deepseek/deepseek-v4.1-flash",
+ "output": {
+  "items": [
+   {
+    "id": "tn-996e0df82c",
+    "category": "macro",
+    "relevance": "low",
+    "summary": "S&P 500 closes at a record as earnings season beats expectations."
+   },
+   {
+    "id": "tn-08f448fb98",
+    "category": "guidance",
+    "relevance": "low",
+    "summary": "Strategists raise their year-end targets for the S&P 500."
+   },
+   {
+    "id": "tn-cf053b31b6",
+    "category": "other",
+    "relevance": "low",
+    "summary": "State Street cuts the fee on its flagship S&P 500 ETF."
+   },
+   {
+    "id": "tn-cf03222358",
+    "category": "legal_regulatory",
+    "relevance": "low",
+    "summary": "The SEC proposes new disclosure rules for index funds."
+   },
+   {
+    "id": "tn-25ef3ba122",
+    "category": "macro",
+    "relevance": "low",
+    "summary": "The Fed holds interest rates steady and signals patience on cuts."
+   },
+   {
+    "id": "tn-a75e789211",
+    "category": "macro",
+    "relevance": "low",
+    "summary": "Treasury yields rise following a strong jobs report."
+   }
+  ]
+ }
+}

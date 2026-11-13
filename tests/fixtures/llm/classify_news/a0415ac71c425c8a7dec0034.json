@@ -1,0 +1,44 @@
+{
+ "task": "classify_news",
+ "model": "deepseek/deepseek-v4.1-flash",
+ "output": {
+  "items": [
+   {
+    "id": "tn-493593aca1",
+    "category": "earnings",
+    "relevance": "high",
+    "summary": "Microsoft cloud revenue exceeds estimates as Azure growth accelerates."
+   },
+   {
+    "id": "tn-4d1a1c02f5",
+    "category": "guidance",
+    "relevance": "high",
+    "summary": "Microsoft raises its capital spending forecast for data centers."
+   },
+   {
+    "id": "tn-27e4048e4b",
+    "category": "product",
+    "relevance": "medium",
+    "summary": "Microsoft launches new Copilot features for Office users."
+   },
+   {
+    "id": "tn-68a039c64d",
+    "category": "legal_regulatory",
+    "relevance": "high",
+    "summary": "FTC reviews Microsoft's latest cloud partnership, according to sources."
+   },
+   {
+    "id": "tn-7019d23577",
+    "category": "m_and_a",
+    "relevance": "high",
+    "summary": "Microsoft agrees to acquire a security startup in a $1.2 billion deal."
+   },
+   {
+    "id": "tn-d235896494",
+    "category": "other",
+    "relevance": "low",
+    "summary": "Microsoft opens a new campus in Atlanta."
+   }
+  ]
+ }
+}

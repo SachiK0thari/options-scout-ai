@@ -1,0 +1,44 @@
+{
+ "task": "classify_news",
+ "model": "deepseek/deepseek-v4.1-flash",
+ "output": {
+  "items": [
+   {
+    "id": "tn-20e03f6797",
+    "category": "earnings",
+    "relevance": "high",
+    "summary": "Costco's quarterly results beat expectations on membership fee growth."
+   },
+   {
+    "id": "tn-ef15398477",
+    "category": "guidance",
+    "relevance": "high",
+    "summary": "Costco raises membership fees for the first time in seven years."
+   },
+   {
+    "id": "tn-3e9dd8a555",
+    "category": "product",
+    "relevance": "medium",
+    "summary": "Costco adds a Kirkland Signature line of frozen meals."
+   },
+   {
+    "id": "tn-f4ee9463fa",
+    "category": "product",
+    "relevance": "medium",
+    "summary": "Costco recalls a batch of frozen berries over listeria concerns."
+   },
+   {
+    "id": "tn-ec03dfc74b",
+    "category": "macro",
+    "relevance": "low",
+    "summary": "Retail sales rise as inflation cools, according to the Commerce Department."
+   },
+   {
+    "id": "tn-758798470c",
+    "category": "product",
+    "relevance": "medium",
+    "summary": "Costco opens two new warehouses in Texas."
+   }
+  ]
+ }
+}

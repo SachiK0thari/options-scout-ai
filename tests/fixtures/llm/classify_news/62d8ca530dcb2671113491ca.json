@@ -1,0 +1,44 @@
+{
+ "task": "classify_news",
+ "model": "deepseek/deepseek-v4.1-flash",
+ "output": {
+  "items": [
+   {
+    "id": "tn-49eee74343",
+    "category": "earnings",
+    "relevance": "high",
+    "summary": "Starbucks same-store sales fall for a fourth consecutive quarter."
+   },
+   {
+    "id": "tn-2402d0d7bb",
+    "category": "guidance",
+    "relevance": "high",
+    "summary": "Starbucks CEO says the company's turnaround will take longer than expected."
+   },
+   {
+    "id": "tn-129d274027",
+    "category": "product",
+    "relevance": "medium",
+    "summary": "Starbucks introduces a new fall menu and protein cold foam."
+   },
+   {
+    "id": "tn-bade3f9036",
+    "category": "legal_regulatory",
+    "relevance": "high",
+    "summary": "A union files a complaint against Starbucks over store closures."
+   },
+   {
+    "id": "tn-0a94132d49",
+    "category": "macro",
+    "relevance": "low",
+    "summary": "Data show consumer spending on dining out is slowing."
+   },
+   {
+    "id": "tn-f2f1a6f223",
+    "category": "other",
+    "relevance": "low",
+    "summary": "Starbucks plans to open 500 stores in China this year."
+   }
+  ]
+ }
+}

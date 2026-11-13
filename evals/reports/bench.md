@@ -2,7 +2,7 @@
 
 _Generated 2026-11-09 23:59 UTC by `make bench` · data mode `fixture` · LLM mode `fixture` · embedder `hash-2048` · Darwin arm64, Python 3.12.0_
 
-Measured on this machine, offline. Fixture mode replays market data and LLM outputs, so these are the costs of the code (graph overhead, deterministic math, retrieval, compliance checks), not of a network or a model. Live mode adds the provider's latency per call; see README "Tech decisions" for the cache TTLs that bound it.
+Measured on this machine, offline. Fixture mode replays recorded market data; an LLM call is replayed only when `tests/fixtures/llm` holds a recording for it (`make record-llm`) and otherwise answered by the rule-based stand-in, so these are the costs of the code (graph overhead, deterministic math, retrieval, compliance checks), not of a network or a model. Live mode adds the provider's latency per call; see README "Tech decisions" for the cache TTLs that bound it.
 
 ## Screens (full pipeline, six requests)
 

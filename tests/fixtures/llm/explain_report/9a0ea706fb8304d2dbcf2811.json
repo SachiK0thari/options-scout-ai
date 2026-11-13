@@ -1,0 +1,56 @@
+{
+ "task": "explain_report",
+ "model": "deepseek/deepseek-v4.1-flash",
+ "output": {
+  "paragraphs": [
+   {
+    "mode": "education",
+    "text": "A short put obliges the writer to buy 100 shares per contract at the strike if the put is assigned, and the cash-secured version is collateralised by setting aside the full purchase price [S1]. A naked put on margin is the same contract, but the broker holds only a margin requirement, a fraction of the purchase price computed under exchange and FINRA minimum rules, leaving the rest of the buying power free [S6]. Assignment is the process by which an option writer is selected to fulfil that obligation when the holder exercises [S2].",
+    "citations": [
+     "S1",
+     "S6"
+    ]
+   },
+   {
+    "mode": "screen_result",
+    "text": "Buying power was split between cash and the two requested strategies: {{allocation.cash_pct|pct}} stayed in cash, {{allocation.csp_pct|pct}} went to cash-secured puts and {{allocation.leaps_pct|pct}} to LEAPS, with a tilt of {{allocation.tilt}} and a risk-free rate of {{regime.risk_free_rate_pct|pct}} in a {{regime.label}} regime.",
+    "citations": []
+   },
+   {
+    "mode": "screen_result",
+    "text": "The good-to-own quality screen admitted {{quality_screen.passed_count}} underlyings: {{quality_screen.passed_tickers|list}}. For example, SPY is described as \"{{quality_screen.passed[0].why}}\" and NKE as \"{{quality_screen.passed[6].why}}\". No underlyings were excluded, and {{counts.skipped_total}} trending or universe candidates were skipped, including CAVA, ONON and DECK because they were not on the good-to-own list.",
+    "citations": []
+   },
+   {
+    "mode": "screen_result",
+    "text": "The trend board is a secondary signal only: CAVA, ONON, DECK, ELF and CROX rank highest on trend but were skipped as trending tickers outside the good-to-own list. The bottleneck board likewise re-orders quality-gated names and never adds one; its layers include \"Power generation and grid equipment\" at {{bottlenecks.layers[0].score}} ({{bottlenecks.layers[0].thesis_state}}) and \"Networking, optics and fiber\" at {{bottlenecks.layers[5].score}} ({{bottlenecks.layers[5].thesis_state}}).",
+    "citations": []
+   },
+   {
+    "mode": "screen_result",
+    "text": "The sizer left {{positions|count}} positions: CSP-NKE-2026-11-20-35P and LEAPS-NKE-2028-12-15-20C. CSP-NKE-2026-11-20-35P has a break-even of {{positions[0].payoff.breakeven|money}} and a maximum loss of {{positions[0].payoff.max_loss|money}}, with a realistic loss of {{positions[0].realistic_loss|money}}. LEAPS-NKE-2028-12-15-20C has a break-even of {{positions[1].payoff.breakeven|money}} and a maximum loss of {{positions[1].payoff.max_loss|money}}, with a realistic loss of {{positions[1].realistic_loss|money}}.",
+    "citations": []
+   },
+   {
+    "mode": "screen_result",
+    "text": "Every constraint check passed ({{risk.checks_passed}} of {{risk.checks_total}}), including a margin usage of {{risk.checks[1].value|percent}} against a limit of {{risk.checks[1].limit|percent}}. A {{risk.stress[0].shock}} move with a {{risk.stress[0].iv_shock}} IV shock gives {{risk.stress[0].pnl|money}}, and a {{risk.stress[2].shock}} move gives {{risk.stress[2].pnl|money}}.",
+    "citations": []
+   },
+   {
+    "mode": "notice",
+    "text": "**Warnings and limitations.** {{risk.warnings[0]}} {{risk.warnings[1]}} {{risk.warnings[2]}} {{risk.warnings[3]}} {{risk.warnings[4]}} {{risk.warnings[5]}} {{risk.warnings[6]}}",
+    "citations": []
+   },
+   {
+    "mode": "notice",
+    "text": "{{ delayed_data_notice }}",
+    "citations": []
+   },
+   {
+    "mode": "notice",
+    "text": "{{ disclaimer }}",
+    "citations": []
+   }
+  ]
+ }
+}

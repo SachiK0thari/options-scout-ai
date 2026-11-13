@@ -1,0 +1,19 @@
+{
+ "task": "parse_profile",
+ "model": "deepseek/deepseek-v4.1-flash",
+ "output": {
+  "buying_power": 75000.0,
+  "account_value": 75000.0,
+  "account_type": "margin",
+  "risk_profile": "balanced",
+  "strategies": [
+   "csp",
+   "pmcc"
+  ],
+  "watchlist": [],
+  "exclude": [],
+  "max_positions": null,
+  "knowledge_level": null,
+  "needs_clarification": []
+ }
+}

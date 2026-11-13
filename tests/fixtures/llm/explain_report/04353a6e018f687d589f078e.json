@@ -1,0 +1,74 @@
+{
+ "task": "explain_report",
+ "model": "deepseek/deepseek-v4.1-flash",
+ "output": {
+  "paragraphs": [
+   {
+    "mode": "education",
+    "text": "This screen sizes short puts and long-dated calls inside a strategy budget split across a cash reserve, a cash-secured put sleeve and a LEAPS sleeve. A **cash-secured put** is a short put position in which the writer sets aside enough cash to buy the shares at the strike price if the put is assigned [S1]. In a margin account the same contract can instead be collateralised by a **margin requirement**, a fraction of the purchase price computed under exchange and FINRA minimum rules, leaving the rest of the buying power free [S6]. A **LEAPS** is the exchanges' name for listed options with more than a year until expiration [S3], and the deep in-the-money call is used to hold long exposure while committing less capital than buying the shares outright [S3]. Part of what the LEAPS buyer pays is **extrinsic value**, the premium in excess of intrinsic value, which decays to zero at expiration [S4]. This run's regime was classified as **{{regime.label}}** with a VIX percentile of {{regime.vix_percentile}} and a risk-free rate of {{regime.risk_free_rate_pct|pct}}.",
+    "citations": [
+     "S1",
+     "S6"
+    ]
+   },
+   {
+    "mode": "screen_result",
+    "text": "The allocation put {{allocation.csp_pct|pct}} of the budget into cash-secured puts ({{allocation.csp_dollars|money}}) and {{allocation.leaps_pct|pct}} into LEAPS ({{allocation.leaps_dollars|money}}), leaving {{allocation.cash_pct|pct}} in cash ({{allocation.cash_dollars|money}}).",
+    "citations": []
+   },
+   {
+    "mode": "screen_result",
+    "text": "The good-to-own quality screen passed {{quality_screen.passed_count}} underlyings, {{quality_screen.passed_tickers|list}}, and excluded none. The trend board is a secondary signal only: its top-scoring ticker is {{trends[0].ticker}} at a score of {{trends[0].score}}, and CAVA, ONON, DECK, ELF and CROX appear there but were skipped because they are not on the good-to-own list.",
+    "citations": []
+   },
+   {
+    "mode": "education",
+    "text": "The bottleneck board is likewise a secondary signal that re-orders the quality-gated stocks and never adds one. **Assignment** is the process by which an option writer is selected to fulfil the obligation of a contract that a holder has exercised [S2]. A **poor man's covered call** is a two-leg position: a long, deep in-the-money LEAPS call and a short, near-term, out-of-the-money call on the same stock, formally a long call diagonal spread [S5].",
+    "citations": [
+     "S2",
+     "S5"
+    ]
+   },
+   {
+    "mode": "screen_result",
+    "text": "On the bottleneck board the layer {{bottlenecks.layers[0].name}} scores {{bottlenecks.layers[0].score}} with a thesis state of {{bottlenecks.layers[0].thesis_state}}, while {{bottlenecks.layers[-1].name}} scores {{bottlenecks.layers[-1].score}} and its thesis is {{bottlenecks.layers[-1].thesis_state}}. CSCO carries the flags {{bottlenecks.companies[CSCO].flags|list}} in the {{bottlenecks.companies[CSCO].layer}} layer. Neither sized position carries a bottleneck flag, so no re-ordering was applied to them.",
+    "citations": []
+   },
+   {
+    "mode": "screen_result",
+    "text": "Two positions were sized. CSP-NKE-2026-11-20-35P has a breakeven of {{positions[CSP-NKE-2026-11-20-35P].payoff.breakeven|money}}, a maximum loss of {{positions[CSP-NKE-2026-11-20-35P].payoff.max_loss|money}} and a realistic loss of {{positions[CSP-NKE-2026-11-20-35P].realistic_loss|money}}. LEAPS-NKE-2028-12-15-20C has a breakeven of {{positions[LEAPS-NKE-2028-12-15-20C].payoff.breakeven|money}}, a maximum loss of {{positions[LEAPS-NKE-2028-12-15-20C].payoff.max_loss|money}} and a realistic loss of {{positions[LEAPS-NKE-2028-12-15-20C].realistic_loss|money}}. The top-ranked candidates that did not fit include CSP-SPY-2026-11-30-735P, whose realistic loss of one contract is {{skipped_candidates[CSP-SPY-2026-11-30-735P].realistic_loss_per_contract|money}}, and CSP-QQQ-2026-11-30-695P with {{skipped_candidates[CSP-QQQ-2026-11-30-695P].realistic_loss_per_contract|money}}.",
+    "citations": []
+   },
+   {
+    "mode": "screen_result",
+    "text": "The risk picture: {{risk.checks_passed}} of {{risk.checks_total}} constraint checks passed, with margin usage at {{risk.checks[margin_usage].value|percent}} of its {{risk.checks[margin_usage].limit|percent}} limit. A {{risk.stress[0].shock}} move with a {{risk.stress[0].iv_shock}} IV shock gives {{risk.stress[0].pnl|money}}, and a {{risk.stress[2].shock}} move gives {{risk.stress[2].pnl|money}} against a realistic loss of {{portfolio.realistic_loss|money}}.",
+    "citations": []
+   },
+   {
+    "mode": "notice",
+    "text": "**Warnings and limitations.** {{risk.warnings[0]}} {{risk.warnings[1]}}",
+    "citations": []
+   },
+   {
+    "mode": "notice",
+    "text": "{{risk.warnings[2]}}",
+    "citations": []
+   },
+   {
+    "mode": "notice",
+    "text": "{{risk.warnings[6]}}",
+    "citations": []
+   },
+   {
+    "mode": "notice",
+    "text": "{{ delayed_data_notice }}",
+    "citations": []
+   },
+   {
+    "mode": "notice",
+    "text": "{{ disclaimer }}",
+    "citations": []
+   }
+  ]
+ }
+}

@@ -14,7 +14,7 @@ they are the measured usage of that run. Measured:
 * **Market-data cache**: hit rate of the per-run cache across the six screens (the first run is
   cold; later runs re-use quotes, chains, history and the VIX within their TTLs).
 * **Retrieval**: index build time for the committed corpus and query latency over the labelled
-  questions in ``evals/datasets/rag_questions.jsonl``.
+  questions in ``evals/datasets/dev/rag_questions.jsonl``.
 """
 
 from __future__ import annotations
@@ -55,7 +55,7 @@ from options_scout.rag.store import KnowledgeStore  # noqa: E402
 from options_scout.social.pipeline import TrendStore  # noqa: E402
 
 REPORTS = ROOT / "evals" / "reports"
-DATASETS = ROOT / "evals" / "datasets"
+DATASETS = ROOT / "evals" / "datasets" / "dev"
 
 REQUESTS = [
     "I have $50,000 of buying power in a margin account, balanced risk tolerance. CSPs and a few LEAPS/PMCC.",
@@ -235,8 +235,9 @@ def write_report(b: Bench) -> Path:
         f"LLM mode `{b.env['llm_mode']}` · embedder `{b.retrieval['embedder']}` · "
         f"{b.env['platform']}_",
         "",
-        "Measured on this machine, offline. Fixture mode replays market data and LLM outputs, so these "
-        "are the costs of the code (graph overhead, deterministic math, retrieval, compliance checks), "
+        "Measured on this machine, offline. Fixture mode replays recorded market data; an LLM call "
+        "is replayed only when `tests/fixtures/llm` holds a recording for it (`make record-llm`) and "
+        "otherwise answered by the rule-based stand-in, so these are the costs of the code (graph overhead, deterministic math, retrieval, compliance checks), "
         "not of a network or a model. Live mode adds the provider's latency per call; see README "
         '"Tech decisions" for the cache TTLs that bound it.',
         "",

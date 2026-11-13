@@ -1,0 +1,44 @@
+{
+ "task": "classify_news",
+ "model": "deepseek/deepseek-v4.1-flash",
+ "output": {
+  "items": [
+   {
+    "id": "tn-8da0d26f84",
+    "category": "earnings",
+    "relevance": "high",
+    "summary": "Apple reports record services revenue while iPhone sales hold steady."
+   },
+   {
+    "id": "tn-d6e80b4516",
+    "category": "guidance",
+    "relevance": "high",
+    "summary": "Apple raises holiday-quarter outlook on strong wearables demand."
+   },
+   {
+    "id": "tn-da10911de9",
+    "category": "product",
+    "relevance": "medium",
+    "summary": "Apple unveils new MacBook lineup with in-house silicon refresh."
+   },
+   {
+    "id": "tn-3b0329086d",
+    "category": "legal_regulatory",
+    "relevance": "high",
+    "summary": "EU regulator opens new investigation into App Store fees."
+   },
+   {
+    "id": "tn-e8af27cf08",
+    "category": "macro",
+    "relevance": "low",
+    "summary": "Fed holds interest rates steady, signals patience on cuts."
+   },
+   {
+    "id": "tn-4800c0dec4",
+    "category": "product",
+    "relevance": "medium",
+    "summary": "Apple expands retail footprint with three new stores in India."
+   }
+  ]
+ }
+}

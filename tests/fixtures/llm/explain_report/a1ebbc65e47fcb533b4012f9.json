@@ -1,0 +1,76 @@
+{
+ "task": "explain_report",
+ "model": "deepseek/deepseek-v4.1-flash",
+ "output": {
+  "paragraphs": [
+   {
+    "mode": "education",
+    "text": "Buying power in this screen is split between premium-selling and long-exposure sleeves. A cash-secured put is a short put position in which the writer sets aside enough cash to buy the shares at the strike price if the put is assigned [S1]. In a cash account the broker holds the full purchase price (strike \u00d7 100, less the premium received) as collateral for the whole life of the trade [S1]. A naked put is the same contract, but in a margin account the broker holds only a margin requirement, a fraction of the purchase price computed under exchange and FINRA minimum rules, and the writer keeps the rest of their buying power free [S6].",
+    "citations": [
+     "S1",
+     "S6"
+    ]
+   },
+   {
+    "mode": "education",
+    "text": "Assignment is the process by which an option writer is selected to fulfil the obligation of a contract that a holder has exercised [S2]. When a put holder exercises, some put writer is obliged to take the shares at the strike [S2]. The OCC assigns exercise notices at random to clearing members with short positions in the same series, and each clearing member then assigns its own customers by a method approved by the exchanges, usually random selection or first-in first-out [S2].",
+    "citations": [
+     "S2"
+    ]
+   },
+   {
+    "mode": "screen_result",
+    "text": "The screen allocated {{allocation.csp_pct|pct}} to cash-secured puts and {{allocation.leaps_pct|pct}} to LEAPS, leaving {{allocation.cash_pct|pct}} in cash. LEAPS are listed options with more than a year until expiration, screened as deep in-the-money calls to hold long exposure for less capital than the shares [S3]. The regime label was {{regime.label}}, with a VIX of {{regime.vix}} and a risk-free rate of {{regime.risk_free_rate_pct|pct}}.",
+    "citations": []
+   },
+   {
+    "mode": "education",
+    "text": "A poor man's covered call is a two-leg position: a long, deep in-the-money LEAPS call expiring a year or more out and a short, near-term, out-of-the-money call on the same stock [S5]. Formally it is a long call diagonal spread, with different strikes and different expirations [S5]. The LEAPS stands in for the shares at a fraction of the capital [S5]. Intrinsic value is the amount by which the option is in the money; extrinsic value, also called time value, is everything else [S4].",
+    "citations": [
+     "S5",
+     "S4"
+    ]
+   },
+   {
+    "mode": "screen_result",
+    "text": "The good-to-own quality screen kept {{quality_screen.passed_count}} underlyings: {{quality_screen.passed_tickers|list}}. Reasons given were {{quality_screen.passed[0].why}} {{quality_screen.passed[1].why}} and {{quality_screen.passed[6].why}}. No underlyings were excluded.",
+    "citations": []
+   },
+   {
+    "mode": "screen_result",
+    "text": "The trend board is a secondary signal only. It ranked trending names such as {{trends[0].ticker}} and {{trends[1].ticker}}, but they were skipped because {{errors[0]}} and {{errors[1]}}.",
+    "citations": []
+   },
+   {
+    "mode": "screen_result",
+    "text": "The bottleneck board is also a secondary signal; it re-orders quality-gated stocks and never adds one. The highest-scoring layer was {{bottlenecks.layers[0].name}} at {{bottlenecks.layers[0].score}}, state {{bottlenecks.layers[0].thesis_state}}; {{bottlenecks.layers[5].name}} scored {{bottlenecks.layers[5].score}} with state {{bottlenecks.layers[5].thesis_state}}. Among companies, CSCO carries {{bottlenecks.companies[4].flags|list}}.",
+    "citations": []
+   },
+   {
+    "mode": "screen_result",
+    "text": "The sizer produced {{counts.positions_sized}} sized position: {{positions[0].candidate_id}}, a {{positions[0].strategy}} on {{positions[0].ticker}}. Its payoff at expiry shows breakeven {{positions[0].payoff.breakeven|money}} and max loss {{positions[0].payoff.max_loss|money}}, with realistic loss {{positions[0].realistic_loss|money}}.",
+    "citations": []
+   },
+   {
+    "mode": "screen_result",
+    "text": "Risk constraints were met: {{risk.checks_passed}} of {{risk.checks_total}} checks passed. Stress tests show a {{risk.stress[0].shock}} move with a {{risk.stress[0].iv_shock}} IV shock gives {{risk.stress[0].pnl|money}}, a {{risk.stress[1].shock}} move gives {{risk.stress[1].pnl|money}}, and a {{risk.stress[2].shock}} move gives {{risk.stress[2].pnl|money}}.",
+    "citations": []
+   },
+   {
+    "mode": "notice",
+    "text": "{{ delayed_data_notice }}",
+    "citations": []
+   },
+   {
+    "mode": "notice",
+    "text": "**Warnings and limitations.** {{risk.warnings[0]}} {{risk.warnings[1]}} {{risk.warnings[2]}} {{risk.warnings[3]}} {{risk.warnings[4]}}",
+    "citations": []
+   },
+   {
+    "mode": "notice",
+    "text": "{{ disclaimer }}",
+    "citations": []
+   }
+  ]
+ }
+}

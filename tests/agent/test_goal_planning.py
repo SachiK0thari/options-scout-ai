@@ -23,7 +23,7 @@ from options_scout.core.models import Goal, Narrative, Paragraph, ScreeningRepor
 from options_scout.llm.rules import is_goal_message, rule_parse_goal, rule_route
 from tests.conftest import REPO_ROOT
 
-DATASETS = REPO_ROOT / "evals" / "datasets"
+DATASETS = REPO_ROOT / "evals" / "datasets" / "dev"
 
 
 @pytest.fixture(scope="module")

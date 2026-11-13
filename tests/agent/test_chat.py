@@ -240,7 +240,7 @@ def test_apply_changes_and_diff() -> None:
 
 
 def test_rule_router_on_the_dataset() -> None:
-    text = (REPO_ROOT / "evals/datasets/chat_routing.jsonl").read_text(encoding="utf-8")
+    text = (REPO_ROOT / "evals/datasets/dev/chat_routing.jsonl").read_text(encoding="utf-8")
     rows = [json.loads(line) for line in text.splitlines() if line.strip()]
     assert len(rows) == 100  # 60 Phase 10 rows + goal, holdings, news and tax rows (Phase 12)
     hits = 0

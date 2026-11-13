@@ -18,6 +18,9 @@ jobs:
         run: make lint
       - name: Tests with coverage (fails below 85% on core/, rag/, agent/, bottleneck/)
         run: make test-cov COV_ARGS="--cov-report=xml"
+      - name: Committed eval report describes this code (W34; a warning here, enforced weekly)
+        continue-on-error: true
+        run: make eval-check
       - name: Evals (writes evals/reports/latest.md; fails on any FAIL row)
         run: make eval
       - name: Upload coverage and eval report

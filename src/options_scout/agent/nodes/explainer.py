@@ -359,6 +359,12 @@ def make(deps: Deps) -> Callable[[AgentState], dict[str, Any]]:
             errors.append(f"explainer: LLM failed ({exc}); using deterministic narrative")
             narrative = rule_explain(rule_prompt(payload, block))
             source = "rules"
+        if source == "fixture" and all(
+            u.model == "rule_based" for u in deps.llm.usage[usage_before:]
+        ):
+            # W34 step 4: no recording matched this payload, so the rule-based writer stood in;
+            # "fixture" is kept for a replayed model recording
+            source = "rules"
         # W14: the writer names payload fields as {{slots}}; Python fills them and each paragraph
         # keeps its template, so the Compliance agent can tell filled figures from typed ones
         # a short option named without its realistic loss gets that slot added (the figure still

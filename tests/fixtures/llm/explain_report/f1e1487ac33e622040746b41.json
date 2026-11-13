@@ -1,0 +1,69 @@
+{
+ "task": "explain_report",
+ "model": "deepseek/deepseek-v4.1-flash",
+ "output": {
+  "paragraphs": [
+   {
+    "mode": "education",
+    "text": "A **cash-secured put** is a short put position in which the writer sets aside enough cash to buy the shares at the strike price if the put is assigned [S1]. The writer sells the put, collects the premium up front, and accepts the obligation to buy 100 shares per contract at the strike any time before expiration [S1]. In a margin account the same short put is collateralised differently: the broker holds only a **margin requirement**, a fraction of the purchase price computed under exchange and FINRA minimum rules, and the writer keeps the rest of their buying power free for other positions [S6]. If the put is assigned, the writer is obliged to take the shares at the strike [S2]. **LEAPS** are listed options with more than a year until expiration, and they trade and settle exactly like shorter options [S3]. A **poor man's covered call** is a long, deep in-the-money LEAPS call paired with a short, near-term, out-of-the-money call on the same stock [S5].",
+    "citations": [
+     "S1",
+     "S6",
+     "S2",
+     "S3",
+     "S5"
+    ]
+   },
+   {
+    "mode": "screen_result",
+    "text": "The regime was labelled {{regime.label}} with a VIX of {{regime.vix}} and a risk-free rate of {{regime.risk_free_rate_pct|pct}}. The sizer put {{allocation.csp_pct|pct}} of the strategy budget into cash-secured puts, {{allocation.leaps_pct|pct}} into LEAPS, and left {{allocation.cash_pct|pct}} in cash, with a tilt of {{allocation.tilt}}.",
+    "citations": []
+   },
+   {
+    "mode": "education",
+    "text": "The good-to-own screen is a quality gate applied before any trade is sized: it checks that a stock is on the curated list and has not fallen too far below its recent high, so that the writer is not taking assignment of a deteriorating business. The universe of trending tickers is filtered through this list, and any ticker not on it is skipped rather than traded.",
+    "citations": []
+   },
+   {
+    "mode": "screen_result",
+    "text": "{{counts.quality_passed}} underlyings passed the quality screen and {{counts.quality_excluded}} were excluded: {{quality_screen.passed_tickers|list}}. The reasons given were: AAPL \"{{quality_screen.passed[0].why}}\", COST \"{{quality_screen.passed[1].why}}\", MSFT \"{{quality_screen.passed[2].why}}\", SBUX \"{{quality_screen.passed[3].why}}\", and NKE \"{{quality_screen.passed[4].why}}\". The trend board ranked other names higher, but those were skipped because they are not on the good-to-own list; the trend board is a secondary signal only.",
+    "citations": []
+   },
+   {
+    "mode": "screen_result",
+    "text": "In the bottleneck board, the top-scoring layer was {{bottlenecks.layers[0].name}} at {{bottlenecks.layers[0].score}} with thesis state {{bottlenecks.layers[0].thesis_state}}, followed by {{bottlenecks.layers[1].name}} at {{bottlenecks.layers[1].score}} with thesis state {{bottlenecks.layers[1].thesis_state}}, and {{bottlenecks.layers[2].name}} at {{bottlenecks.layers[2].score}} with thesis state {{bottlenecks.layers[2].thesis_state}}. This board is a secondary signal: it re-orders quality-gated stocks and never adds one.",
+    "citations": []
+   },
+   {
+    "mode": "screen_result",
+    "text": "The sized positions were {{counts.positions_sized}}. CSP-NKE-2026-11-20-35P has a breakeven of {{positions[CSP-NKE-2026-11-20-35P].payoff.breakeven}} and a maximum loss of {{positions[CSP-NKE-2026-11-20-35P].payoff.max_loss|money}}, with a realistic loss of {{positions[CSP-NKE-2026-11-20-35P].realistic_loss|money}}. LEAPS-AAPL-2029-01-19-260C has a breakeven of {{positions[LEAPS-AAPL-2029-01-19-260C].payoff.breakeven}} and a maximum loss of {{positions[LEAPS-AAPL-2029-01-19-260C].payoff.max_loss|money}}, with a realistic loss of {{positions[LEAPS-AAPL-2029-01-19-260C].realistic_loss|money}}. LEAPS-COST-2028-12-15-800C has a breakeven of {{positions[LEAPS-COST-2028-12-15-800C].payoff.breakeven}} and a maximum loss of {{positions[LEAPS-COST-2028-12-15-800C].payoff.max_loss|money}}, with a realistic loss of {{positions[LEAPS-COST-2028-12-15-800C].realistic_loss|money}}. LEAPS-MSFT-2028-12-15-360C has a breakeven of {{positions[LEAPS-MSFT-2028-12-15-360C].payoff.breakeven}} and a maximum loss of {{positions[LEAPS-MSFT-2028-12-15-360C].payoff.max_loss|money}}, with a realistic loss of {{positions[LEAPS-MSFT-2028-12-15-360C].realistic_loss|money}}. LEAPS-NKE-2028-12-15-20C has a breakeven of {{positions[LEAPS-NKE-2028-12-15-20C].payoff.breakeven}} and a maximum loss of {{positions[LEAPS-NKE-2028-12-15-20C].payoff.max_loss|money}}, with a realistic loss of {{positions[LEAPS-NKE-2028-12-15-20C].realistic_loss|money}}.",
+    "citations": []
+   },
+   {
+    "mode": "screen_result",
+    "text": "All constraint checks passed: {{risk.checks_passed}} of {{risk.checks_total}}. Short put notional was {{risk.checks[short_put_notional_x].value|percent}} of the limit {{risk.checks[short_put_notional_x].limit|percent}}; margin usage was {{risk.checks[margin_usage].value|percent}} against a limit of {{risk.checks[margin_usage].limit|percent}}. The stress tests gave a loss of {{risk.stress[-10%].pnl|money}} for a {{risk.stress[-10%].shock}} move with a {{risk.stress[-10%].iv_shock}} IV shock, {{risk.stress[-20%].pnl|money}} for a {{risk.stress[-20%].shock}} move, and {{risk.stress[-30%].pnl|money}} for a {{risk.stress[-30%].shock}} move.",
+    "citations": []
+   },
+   {
+    "mode": "screen_result",
+    "text": "The sizer reported a low-deployment flag: {{risk.warnings[0]}}. The warnings also note that IV rank is an HV proxy for several positions, that LEAPS-NKE-2028-12-15-20C is sized as a poor man's covered call and brokers approve spreads separately, and that the puts are sized as naked puts on the Reg T requirement while a severe move would require more cash and brokers can raise requirements at any time.",
+    "citations": []
+   },
+   {
+    "mode": "notice",
+    "text": "{{ delayed_data_notice }}",
+    "citations": []
+   },
+   {
+    "mode": "notice",
+    "text": "**Warnings and limitations.** {{risk.warnings[0]}} {{risk.warnings[1]}}",
+    "citations": []
+   },
+   {
+    "mode": "notice",
+    "text": "{{ disclaimer }}",
+    "citations": []
+   }
+  ]
+ }
+}

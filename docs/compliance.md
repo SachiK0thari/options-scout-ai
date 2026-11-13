@@ -137,7 +137,7 @@ Why each rejected row fails:
 
 ## Suitability examples
 
-`check_suitability` reads `SuitabilityFacts` computed by the Risk agent and the text. The reason codes, with the synthetic case in [`evals/datasets/suitability_cases.jsonl`](../evals/datasets/suitability_cases.jsonl) that exercises each:
+`check_suitability` reads `SuitabilityFacts` computed by the Risk agent and the text. The reason codes, with the synthetic case in [`evals/datasets/dev/suitability_cases.jsonl`](../evals/datasets/dev/suitability_cases.jsonl) that exercises each:
 
 | Reason code | Rejected when | Example case |
 |---|---|---|

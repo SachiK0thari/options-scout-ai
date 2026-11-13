@@ -28,6 +28,7 @@ import json
 import os
 import re
 from collections import Counter
+from dataclasses import replace
 from pathlib import Path
 from typing import Any
 
@@ -115,9 +116,21 @@ def demo_run(
     """The `make demo` request on its own trend and bottleneck stores, so both Market Intelligence
     pipelines run from the fixtures (no journal history) as in Phase 9 / step 11.4."""
     from options_scout.bottleneck.engine import BottleneckStore
+    from options_scout.llm.client import LLMClient
     from options_scout.social.pipeline import TrendStore
 
-    deps = Deps.from_config(config_module)
+    # W34 step 7: the golden pins the code's own output, so it runs on the template writer even
+    # when tests/fixtures/llm holds recorded model outputs (those are exercised by `make eval`)
+    settings = config_module.settings
+    empty = tmp_path_factory.mktemp("no-llm-recordings")
+    no_recordings = config_module.model_copy(
+        update={
+            "settings": settings.model_copy(
+                update={"paths": settings.paths.model_copy(update={"llm_cache_dir": empty})}
+            )
+        }
+    )
+    deps = replace(Deps.from_config(config_module), llm=LLMClient.from_config(no_recordings))
     deps.trend_store = TrendStore(tmp_path_factory.mktemp("trends-demo") / "t.sqlite")
     deps.bottleneck_store = BottleneckStore(tmp_path_factory.mktemp("bn-demo") / "b.sqlite")
     graph = build_graph(deps)

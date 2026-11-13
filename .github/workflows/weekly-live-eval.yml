@@ -1,0 +1,50 @@
+name: Weekly live eval
+# W34 step 7: the LLM rows only run with a key. This job runs them once a week and fails when the
+# committed report no longer describes the code. It spends LLM credits on every run (each LLM
+# row is repeated EVAL_LLM_REPEATS times), so it does nothing until the OPENROUTER_API_KEY
+# repository secret is set.
+on:
+  schedule:
+    - cron: "0 9 * * 1"  # Mondays 09:00 UTC
+  workflow_dispatch:
+jobs:
+  live-eval:
+    runs-on: ubuntu-latest
+    env:
+      OPENROUTER_API_KEY: ${{ secrets.OPENROUTER_API_KEY }}
+      EVAL_LLM_REPEATS: "5"
+    steps:
+      - uses: actions/checkout@v4
+      - uses: astral-sh/setup-uv@v6
+        with:
+          version: "0.8.4"
+      - name: Skip without a key
+        id: key
+        run: |
+          if [ -z "$OPENROUTER_API_KEY" ]; then echo "no OPENROUTER_API_KEY secret; skipping"; echo "run=false" >> "$GITHUB_OUTPUT"; else echo "run=true" >> "$GITHUB_OUTPUT"; fi
+      - name: Install (pinned by requirements.txt)
+        if: steps.key.outputs.run == 'true'
+        run: make install
+      - name: Committed eval report describes this code
+        if: steps.key.outputs.run == 'true'
+        id: fresh
+        continue-on-error: true
+        run: make eval-check
+      - name: Evals with the live model (LLM rows run, repeated)
+        if: steps.key.outputs.run == 'true'
+        run: make eval
+      - name: Upload the live report
+        if: always() && steps.key.outputs.run == 'true'
+        uses: actions/upload-artifact@v4
+        with:
+          name: live-eval-report
+          path: |
+            evals/reports/latest.md
+            evals/reports/latest.json
+            evals/reports/latest.meta.json
+            evals/reports/agent_llm_failures.json
+      - name: Fail when the committed report was stale
+        if: steps.key.outputs.run == 'true' && steps.fresh.outcome == 'failure'
+        run: |
+          echo "evals/reports/latest.md in the repository is older than the code; commit the report from this run's artifact."
+          exit 1

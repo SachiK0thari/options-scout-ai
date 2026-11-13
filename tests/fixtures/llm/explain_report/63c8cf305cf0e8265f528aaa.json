@@ -1,0 +1,95 @@
+{
+ "task": "explain_report",
+ "model": "deepseek/deepseek-v4.1-flash",
+ "output": {
+  "paragraphs": [
+   {
+    "mode": "education",
+    "text": "A **cash-secured put** is a short put position in which the writer sets aside enough cash to buy the shares at the strike price if the put is assigned [S1]. The writer sells the put, collects the premium up front, and accepts the obligation to buy 100 shares per contract at the strike any time before expiration [S1]. The word *secured* refers to the cash: in a cash account the broker holds the full purchase price (strike \u00d7 100, less the premium received) as collateral for the whole life of the trade [S1].",
+    "citations": [
+     "S1"
+    ]
+   },
+   {
+    "mode": "education",
+    "text": "**Assignment** is the process by which an option writer is selected to fulfil the obligation of a contract that a holder has exercised [S2]. The Options Clearing Corporation (OCC) receives exercise notices from clearing members, assigns them at random to clearing members with short positions in the same series, and each clearing member then assigns its own customers by a method approved by the exchanges [S2].",
+    "citations": [
+     "S1"
+    ]
+   },
+   {
+    "mode": "screen_result",
+    "text": "Buying power was divided with a **{{allocation.tilt}}** tilt, placing {{allocation.csp_pct|pct}} of capital, {{allocation.csp_dollars|money}}, toward cash-secured puts and keeping {{allocation.cash_pct|pct}}, {{allocation.cash_dollars|money}}, in reserve; the volatility regime was labeled **{{regime.label}}** with a VIX of {{regime.vix}} and a VIX percentile of {{regime.vix_percentile}}.",
+    "citations": []
+   },
+   {
+    "mode": "education",
+    "text": "The product promise is \"stocks you would be happy to own if assigned\" [S3]. The quality gate is the mechanism that enforces it [S3]. It is a **filter, not a discovery engine**: it decides which tickers are allowed into the option screeners at all, records a reason for every rejection, and produces a score for the survivors [S3].",
+    "citations": [
+     "S3"
+    ]
+   },
+   {
+    "mode": "screen_result",
+    "text": "{{quality_screen.passed_count}} underlyings passed the good-to-own quality screen: {{quality_screen.passed_tickers|list}}. {{quality_screen.excluded_count}} were excluded. The trend board is a secondary signal only; it re-orders quality-gated stocks and never adds one, and the trending tickers skipped for not being on the good-to-own list include {{errors[0]}} and {{errors[1]}}.",
+    "citations": []
+   },
+   {
+    "mode": "screen_result",
+    "text": "The bottleneck board is a secondary signal only, re-ordering quality-gated stocks and never adding one; the top layer is **{{bottlenecks.layers[0].name}}** with score {{bottlenecks.layers[0].score}} and thesis state \"{{bottlenecks.layers[0].thesis_state}}\", while the networking layer, **{{bottlenecks.layers[5].name}}**, scores {{bottlenecks.layers[5].score}} and its thesis is \"{{bottlenecks.layers[5].thesis_state}}\".",
+    "citations": []
+   },
+   {
+    "mode": "screen_result",
+    "text": "The sized position is {{positions[0].candidate_id}}, which has a payoff at expiry with a breakeven of {{positions[0].payoff.breakeven|money}} and a maximum loss of {{positions[0].payoff.max_loss|money}}; its realistic loss is {{positions[0].realistic_loss|money}}.",
+    "citations": []
+   },
+   {
+    "mode": "screen_result",
+    "text": "The risk picture shows {{risk.checks_passed}} of {{risk.checks_total}} constraint checks passing. Under stress, a {{risk.stress[0].shock}} move with a {{risk.stress[0].iv_shock}} IV shock gives {{risk.stress[0].pnl|money}}, a {{risk.stress[1].shock}} move with a {{risk.stress[1].iv_shock}} IV shock gives {{risk.stress[1].pnl|money}}, and a {{risk.stress[2].shock}} move with a {{risk.stress[2].iv_shock}} IV shock gives {{risk.stress[2].pnl|money}}.",
+    "citations": []
+   },
+   {
+    "mode": "screen_result",
+    "text": "The sizer left behind several caveats: {{risk.warnings[0]}}; {{risk.warnings[1]}}; and {{risk.warnings[2]}}. The skipped, top-ranked candidates {{skipped_candidates[0].candidate_id}} and {{skipped_candidates[1].candidate_id}} did not fit the allocation budget, and their realistic losses per contract are {{skipped_candidates[0].realistic_loss_per_contract|money}} and {{skipped_candidates[1].realistic_loss_per_contract|money}} respectively.",
+    "citations": []
+   },
+   {
+    "mode": "education",
+    "text": "An implied volatility of 30% is high for a utility and low for a small biotech [S4]. To decide whether options on a particular stock are expensive or cheap *for that stock*, traders compare today's implied volatility with its own history over the past year [S4].",
+    "citations": [
+     "S4"
+    ]
+   },
+   {
+    "mode": "education",
+    "text": "The app watches public conversation on Reddit, X, Wikipedia pageviews, Google Trends and news feeds for rising discussion of products and brands, resolves that discussion to tickers, and produces a consumer-trend score [S5]. It would be natural to assume a stock with a surging score is a good candidate for selling puts [S5]. For the structure of a short put, the opposite is closer to the truth, and the app is built around that fact [S5].",
+    "citations": [
+     "S5"
+    ]
+   },
+   {
+    "mode": "education",
+    "text": "The **Cboe Volatility Index (VIX)** measures the market's expectation of 30-day volatility in the S&P 500, derived from the prices of a wide strip of S&P 500 index options [S6]. It is quoted as an annualised percentage: a VIX of 20 implies an expected one-month move of roughly \u00b15.8% in the index [S6]. Because it is computed from option prices rather than from past returns, the VIX moves with fear and relief in real time, rising sharply in sell-offs and drifting down in calm markets, which earned it the nickname \"fear gauge\" [S6].",
+    "citations": [
+     "S6"
+    ]
+   },
+   {
+    "mode": "notice",
+    "text": "{{ delayed_data_notice }}",
+    "citations": []
+   },
+   {
+    "mode": "notice",
+    "text": "**Warnings and limitations.** {{risk.warnings[0]}} {{risk.warnings[1]}}",
+    "citations": []
+   },
+   {
+    "mode": "notice",
+    "text": "{{ disclaimer }}",
+    "citations": []
+   }
+  ]
+ }
+}

@@ -1,0 +1,72 @@
+{
+ "task": "explain_report",
+ "model": "deepseek/deepseek-v4.1-flash",
+ "output": {
+  "paragraphs": [
+   {
+    "mode": "screen_result",
+    "text": "The screen began with an account of {{profile.account_value|money}} and a {{regime.label}} market regime, with the risk-free rate at {{regime.risk_free_rate_pct|pct}} and the VIX at {{regime.vix}} ({{regime.vix_percentile}}th percentile). Buying power was allocated by strategy: {{allocation.csp_pct|pct}} to cash-secured puts, {{allocation.leaps_pct|pct}} to LEAPS, and {{allocation.cash_pct|pct}} held in cash, with no tilt applied.",
+    "citations": []
+   },
+   {
+    "mode": "education",
+    "text": "A **cash-secured put** is a short put position in which the writer sets aside enough cash to buy the shares at the strike price if the put is assigned. The writer sells the put, collects the premium up front, and accepts the obligation to buy 100 shares per contract at the strike any time before expiration. The word *secured* refers to the cash: in a cash account the broker holds the full purchase price as collateral for the whole life of the trade [S1].",
+    "citations": [
+     "S1"
+    ]
+   },
+   {
+    "mode": "screen_result",
+    "text": "The good-to-own quality screen passed {{quality_screen.passed_count}} underlyings, including {{quality_screen.passed_tickers|list}}, and excluded {{quality_screen.excluded_count}}. For example, Nike passed with a quality score of {{quality_screen.passed[6].quality_score}}.",
+    "citations": []
+   },
+   {
+    "mode": "education",
+    "text": "**LEAPS** (Long-term Equity AnticiPation Securities) are listed options with more than a year until expiration. They trade and settle exactly like shorter options; only the time horizon is different [S3]. A LEAPS call gives long exposure to a stock while committing less capital than buying the shares outright [S3]. Its premium has intrinsic value (the amount by which the option is in the money) and extrinsic value (premium minus intrinsic value) [S4].",
+    "citations": [
+     "S3",
+     "S4"
+    ]
+   },
+   {
+    "mode": "screen_result",
+    "text": "The trend board, a secondary signal only, surfaced names such as CAVA and ONON, but the universe screening errors noted that trending tickers like CAVA and ONON were not on the good-to-own list and were skipped. The bottleneck board also acts as a secondary signal: it re-orders quality-gated stocks but never adds one. Its top layer, Power generation and grid equipment, has a score of 79 and a thesis state of holding; the bottom layer, Battery materials, has a score of 6 and a thesis state of weakening. None of the sized positions carry bottleneck flags.",
+    "citations": []
+   },
+   {
+    "mode": "education",
+    "text": "**Assignment** is the process by which an option writer is selected to fulfil the obligation of a contract that a holder has exercised; when a put holder exercises, some put writer is obliged to take the shares at the strike [S2]. A **poor man's covered call** is a two-leg position: a long, deep in-the-money LEAPS call and a short, near-term, out-of-the-money call on the same stock [S5]. A **naked put** is the same contract as a cash-secured put but collateralised by a margin requirement rather than the full purchase price [S6].",
+    "citations": [
+     "S2",
+     "S5",
+     "S6"
+    ]
+   },
+   {
+    "mode": "screen_result",
+    "text": "The sizer sized {{counts.positions_sized}} positions. For the cash-secured put CSP-NKE-2026-11-20-35P, the breakeven is {{positions[CSP-NKE-2026-11-20-35P].payoff.breakeven}} and the maximum loss is {{positions[CSP-NKE-2026-11-20-35P].payoff.max_loss|money}}; its realistic loss is {{positions[CSP-NKE-2026-11-20-35P].realistic_loss|money}}. For the LEAPS position LEAPS-NKE-2028-12-15-20C, the breakeven is {{positions[LEAPS-NKE-2028-12-15-20C].payoff.breakeven}} and the maximum loss is {{positions[LEAPS-NKE-2028-12-15-20C].payoff.max_loss|money}}; its realistic loss is {{positions[LEAPS-NKE-2028-12-15-20C].realistic_loss|money}}.",
+    "citations": []
+   },
+   {
+    "mode": "screen_result",
+    "text": "The risk checks gave {{risk.checks_passed}} of {{risk.checks_total}} passing. The short-put notional check stands at {{risk.checks[0].value|percent}} against a limit of {{risk.checks[0].limit|percent}}, and margin usage is {{risk.checks[1].value|percent}} against a limit of {{risk.checks[1].limit|percent}}. A {{risk.stress[-10%].shock}} market move with a {{risk.stress[-10%].iv_shock}} IV shock would produce a loss of {{risk.stress[-10%].pnl|money}}, widening to {{risk.stress[-30%].pnl|money}} at a {{risk.stress[-30%].shock}} move.",
+    "citations": []
+   },
+   {
+    "mode": "notice",
+    "text": "{{ delayed_data_notice }}",
+    "citations": []
+   },
+   {
+    "mode": "notice",
+    "text": "**Warnings and limitations.** {{risk.warnings[0]}} {{risk.warnings[1]}}",
+    "citations": []
+   },
+   {
+    "mode": "notice",
+    "text": "{{ disclaimer }}",
+    "citations": []
+   }
+  ]
+ }
+}

@@ -1,0 +1,70 @@
+{"id": "t-res-01", "entity": "big mac", "expected_ticker": "MCD", "expected_company": "McDonald's Corporation", "investable": true}
+{"id": "t-res-02", "entity": "Doritos", "expected_ticker": "PEP", "expected_company": "PepsiCo, Inc.", "investable": true}
+{"id": "t-res-03", "entity": "lululemons", "expected_ticker": "LULU", "expected_company": "Lululemon Athletica Inc.", "investable": true}
+{"id": "t-res-04", "entity": "Air Jordans", "expected_ticker": "NKE", "expected_company": "Nike, Inc.", "investable": true}
+{"id": "t-res-05", "entity": "ugg boots", "expected_ticker": "DECK", "expected_company": "Deckers Outdoor Corporation", "investable": true}
+{"id": "t-res-06", "entity": "Hokas", "expected_ticker": "DECK", "expected_company": "Deckers Outdoor Corporation", "investable": true}
+{"id": "t-res-07", "entity": "crocs", "expected_ticker": "CROX", "expected_company": "Crocs, Inc.", "investable": true}
+{"id": "t-res-08", "entity": "Ulta", "expected_ticker": "ULTA", "expected_company": "Ulta Beauty, Inc.", "investable": true}
+{"id": "t-res-09", "entity": "elf cosmetics", "expected_ticker": "ELF", "expected_company": "e.l.f. Beauty, Inc.", "investable": true}
+{"id": "t-res-10", "entity": "Clinique", "expected_ticker": "EL", "expected_company": "The Estee Lauder Companies Inc.", "investable": true}
+{"id": "t-res-11", "entity": "Jeep Wrangler", "expected_ticker": "STLA", "expected_company": "Stellantis N.V.", "investable": true}
+{"id": "t-res-12", "entity": "F-150", "expected_ticker": "F", "expected_company": "Ford Motor Company", "investable": true}
+{"id": "t-res-13", "entity": "Corvette", "expected_ticker": "GM", "expected_company": "General Motors Company", "investable": true}
+{"id": "t-res-14", "entity": "cybertruck", "expected_ticker": "TSLA", "expected_company": "Tesla, Inc.", "investable": true}
+{"id": "t-res-15", "entity": "insta", "expected_ticker": "META", "expected_company": "Meta Platforms, Inc.", "investable": true}
+{"id": "t-res-16", "entity": "YouTube", "expected_ticker": "GOOGL", "expected_company": "Alphabet Inc.", "investable": true}
+{"id": "t-res-17", "entity": "duolingo", "expected_ticker": "DUOL", "expected_company": "Duolingo, Inc.", "investable": true}
+{"id": "t-res-18", "entity": "Roblox", "expected_ticker": "RBLX", "expected_company": "Roblox Corporation", "investable": true}
+{"id": "t-res-19", "entity": "Call of Duty", "expected_ticker": "MSFT", "expected_company": "Microsoft Corporation", "investable": true}
+{"id": "t-res-20", "entity": "GTA 6", "expected_ticker": "TTWO", "expected_company": "Take-Two Interactive Software, Inc.", "investable": true}
+{"id": "t-res-21", "entity": "Vrbo", "expected_ticker": "EXPE", "expected_company": "Expedia Group, Inc.", "investable": true}
+{"id": "t-res-22", "entity": "booking.com", "expected_ticker": "BKNG", "expected_company": "Booking Holdings Inc.", "investable": true}
+{"id": "t-res-23", "entity": "Chewy", "expected_ticker": "CHWY", "expected_company": "Chewy, Inc.", "investable": true}
+{"id": "t-res-24", "entity": "Milk-Bone", "expected_ticker": "SJM", "expected_company": "The J. M. Smucker Company", "investable": true}
+{"id": "t-res-25", "entity": "Hill's Science Diet", "expected_ticker": "CL", "expected_company": "Colgate-Palmolive Company", "investable": true}
+{"id": "t-res-26", "entity": "wayfair", "expected_ticker": "W", "expected_company": "Wayfair Inc.", "investable": true}
+{"id": "t-res-27", "entity": "Pottery Barn", "expected_ticker": "WSM", "expected_company": "Williams-Sonoma, Inc.", "investable": true}
+{"id": "t-res-28", "entity": "celsius energy drink", "expected_ticker": "CELH", "expected_company": "Celsius Holdings, Inc.", "investable": true}
+{"id": "t-res-29", "entity": "Monster Energy", "expected_ticker": "MNST", "expected_company": "Monster Beverage Corporation", "investable": true}
+{"id": "t-res-30", "entity": "Coors Light", "expected_ticker": "TAP", "expected_company": "Molson Coors Beverage Company", "investable": true}
+{"id": "t-res-31", "entity": "Modelo", "expected_ticker": "STZ", "expected_company": "Constellation Brands, Inc.", "investable": true}
+{"id": "t-res-32", "entity": "Ozempic", "expected_ticker": "NVO", "expected_company": "Novo Nordisk A/S", "investable": true}
+{"id": "t-res-33", "entity": "mounjaro", "expected_ticker": "LLY", "expected_company": "Eli Lilly and Company", "investable": true}
+{"id": "t-res-34", "entity": "Advil", "expected_ticker": "HLN", "expected_company": "Haleon plc", "investable": true}
+{"id": "t-res-35", "entity": "chipolte bowl", "expected_ticker": "CMG", "expected_company": "Chipotle Mexican Grill, Inc.", "investable": true}
+{"id": "t-res-36", "entity": "Wingstop", "expected_ticker": "WING", "expected_company": "Wingstop Inc.", "investable": true}
+{"id": "t-res-37", "entity": "Starbies", "expected_ticker": "SBUX", "expected_company": "Starbucks Corporation", "investable": true}
+{"id": "t-res-38", "entity": "peloton bike", "expected_ticker": "PTON", "expected_company": "Peloton Interactive, Inc.", "investable": true}
+{"id": "t-res-39", "entity": "Yeti cooler", "expected_ticker": "YETI", "expected_company": "YETI Holdings, Inc.", "investable": true}
+{"id": "t-res-40", "entity": "Oreos", "expected_ticker": "MDLZ", "expected_company": "Mondelez International, Inc.", "investable": true}
+{"id": "t-res-41", "entity": "Goldfish crackers", "expected_ticker": "CPB", "expected_company": "The Campbell's Company", "investable": true}
+{"id": "t-res-42", "entity": "Victoria's Secret", "expected_ticker": "VSCO", "expected_company": "Victoria's Secret & Co.", "investable": true}
+{"id": "t-res-43", "entity": "Hollister", "expected_ticker": "ANF", "expected_company": "Abercrombie & Fitch Co.", "investable": true}
+{"id": "t-res-44", "entity": "Old Navy", "expected_ticker": "GAP", "expected_company": "The Gap, Inc.", "investable": true}
+{"id": "t-res-45", "entity": "spotify", "expected_ticker": "SPOT", "expected_company": "Spotify Technology S.A.", "investable": true}
+{"id": "t-res-46", "entity": "Uber Eats", "expected_ticker": "UBER", "expected_company": "Uber Technologies, Inc.", "investable": true}
+{"id": "t-res-47", "entity": "Ring doorbell", "expected_ticker": "AMZN", "expected_company": "Amazon.com, Inc.", "investable": true}
+{"id": "t-res-48", "entity": "Kirkland Signature", "expected_ticker": "COST", "expected_company": "Costco Wholesale Corporation", "investable": true}
+{"id": "t-res-49", "entity": "tide pods", "expected_ticker": "PG", "expected_company": "The Procter & Gamble Company", "investable": true}
+{"id": "t-res-50", "entity": "Huggies", "expected_ticker": "KMB", "expected_company": "Kimberly-Clark Corporation", "investable": true}
+{"id": "t-res-51", "entity": "Purina", "expected_ticker": null, "expected_company": null, "investable": false}
+{"id": "t-res-52", "entity": "Pedigree dog food", "expected_ticker": null, "expected_company": null, "investable": false}
+{"id": "t-res-53", "entity": "dunkin", "expected_ticker": null, "expected_company": null, "investable": false}
+{"id": "t-res-54", "entity": "Stanley cup", "expected_ticker": null, "expected_company": null, "investable": false}
+{"id": "t-res-55", "entity": "Nintendo Switch", "expected_ticker": null, "expected_company": null, "investable": false}
+{"id": "t-res-56", "entity": "Zara", "expected_ticker": null, "expected_company": null, "investable": false}
+{"id": "t-res-57", "entity": "IKEA", "expected_ticker": null, "expected_company": null, "investable": false}
+{"id": "t-res-58", "entity": "trader joes", "expected_ticker": null, "expected_company": null, "investable": false}
+{"id": "t-res-59", "entity": "Chick-fil-A", "expected_ticker": null, "expected_company": null, "investable": false}
+{"id": "t-res-60", "entity": "In-N-Out", "expected_ticker": null, "expected_company": null, "investable": false}
+{"id": "t-res-61", "entity": "Patagonia", "expected_ticker": null, "expected_company": null, "investable": false}
+{"id": "t-res-62", "entity": "Shein", "expected_ticker": null, "expected_company": null, "investable": false}
+{"id": "t-res-63", "entity": "Red Bull", "expected_ticker": null, "expected_company": null, "investable": false}
+{"id": "t-res-64", "entity": "Lego", "expected_ticker": null, "expected_company": null, "investable": false}
+{"id": "t-res-65", "entity": "fortnite", "expected_ticker": null, "expected_company": null, "investable": false}
+{"id": "t-res-66", "entity": "Gucci", "expected_ticker": null, "expected_company": null, "investable": false}
+{"id": "t-res-67", "entity": "Dove", "expected_ticker": null, "expected_company": null, "investable": false}
+{"id": "t-res-68", "entity": "Delta", "expected_ticker": null, "expected_company": null, "investable": false}
+{"id": "t-res-69", "entity": "prime", "expected_ticker": null, "expected_company": null, "investable": false}
+{"id": "t-res-70", "entity": "mercury", "expected_ticker": null, "expected_company": null, "investable": false}

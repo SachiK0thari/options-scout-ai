@@ -16,7 +16,7 @@ from options_scout.core.models import Narrative, Paragraph
 from options_scout.llm.rules import is_tax_message, rule_route
 from tests.conftest import REPO_ROOT
 
-DATASETS = REPO_ROOT / "evals" / "datasets"
+DATASETS = REPO_ROOT / "evals" / "datasets" / "dev"
 
 
 @pytest.fixture(scope="module")

@@ -174,11 +174,11 @@ Every turn enters through the Orchestrator's `route_node`, which classifies it w
 | `tax` | the Tax & Accounts agent (Phase 12) retrieves from the `tax` collection, computes illustrative mechanics with `core/tax.py` from the thread's screened put (assignment basis, the premium if it expires, the LEAPS long-term threshold, the wash-sale window, Section 1256 status) and writes a cited reply that carries the tax disclaimer once; compliance check 11 rejects a stated rate or a filing instruction | the cited tax answer |
 | `off_topic` | a fixed polite redirect | the redirect |
 
-All ten paths end in the Compliance agent, so every assistant turn carries a `ComplianceReport`; the review prompt and the deterministic summaries are checked too. `agent/chat.py` drives a conversation (`ChatSession.send` / `resume`, turns stored on the thread as `chat_history`), the API exposes it as `POST /v1/chat` (server-sent events ending in a `turn`) and `GET /v1/threads/{id}`, and `tests/agent/test_chat.py` runs the scripted six-turn conversation (describe → confirm → why excluded → what is assignment → what if 30k → off-topic) in CI. `make eval` scores the router on the 60-message `evals/datasets/chat_routing.jsonl` and re-runs the six-turn script to confirm every reply carries a compliance audit entry.
+All ten paths end in the Compliance agent, so every assistant turn carries a `ComplianceReport`; the review prompt and the deterministic summaries are checked too. `agent/chat.py` drives a conversation (`ChatSession.send` / `resume`, turns stored on the thread as `chat_history`), the API exposes it as `POST /v1/chat` (server-sent events ending in a `turn`) and `GET /v1/threads/{id}`, and `tests/agent/test_chat.py` runs the scripted six-turn conversation (describe → confirm → why excluded → what is assignment → what if 30k → off-topic) in CI. `make eval` scores the router on the <!-- n:n.dev.chat_routing -->100<!-- /n --> dev messages of `evals/datasets/dev/chat_routing.jsonl` and the <!-- n:n.test.chat_routing -->70<!-- /n --> held-out ones of `evals/datasets/test/`, and re-runs the six-turn script to confirm every reply carries a compliance audit entry.
 
 ## Why the LLM never does math
 
-Every number in a report (Greeks, Reg T margin, collateral, annualised return, position sizes, stress P&L, social scores) is computed by deterministic, unit-tested Python in `src/options_scout/core/` and `src/options_scout/social/`. The LLM has exactly five jobs, each with a versioned prompt file and a Pydantic structured-output schema: parse the free-text profile, classify a chat turn's intent, extract consumer entities from posts, write the narrative or answer from a JSON payload of computed results and numbered sources, and (optionally) judge narrative quality.
+Every number in a report (Greeks, Reg T margin, collateral, annualised return, position sizes, stress P&L, social scores) is computed by deterministic, unit-tested Python in `src/options_scout/core/` and `src/options_scout/social/`. The LLM's jobs are text in and structured text out, each with a versioned prompt file (<!-- n:prompts -->12<!-- /n --> in `prompts/`) and a Pydantic structured-output schema: parse the free-text profile, goal and holdings, classify a chat turn's intent, extract consumer entities from posts, classify headlines and filing snippets, and write the narrative or answer from a JSON payload of computed results and numbered sources.
 
 The **Compliance agent** then checks the numbers. In a report the writer does not type figures at all: it names payload fields as slots (`{{positions[CSP-…].realistic_loss|money}}`) that Python fills, so any typed figure fails and a figure can only be wrong if the slot name is, and a slot next to a label such as *maximum loss* or *premium* must name that field. Other texts are parsed for figures with their units, number words, signs and percent signs, each matched against the run's own data. It also checks that every `[Sn]` citation tag points at a retrieved source, that no banned phrase appears and that the disclaimer is present. A failed text is retried with the specific problems fed back; after the retry budget the report falls back to a template narrative written in the same slots. Social posts are data: they are wrapped in delimiters, the prompts instruct the model to ignore instructions inside them, and every ticker an LLM proposes must exist in the SEC company list or it is discarded.
 
@@ -189,53 +189,96 @@ Options are higher-risk than equities, so the separation between *teaching* and 
 - **Two kinds of paragraph.** The Education agent tags every paragraph it writes. An `education` paragraph explains a concept, must cite a retrieved source, and may not mention this run's candidate ids, tickers or numbers. A `screen_result` paragraph reports what the screen found, may use only numbers from the computed payload, must state the realistic loss whenever it names a short option, and may never tell the reader what to do.
 - **Eleven deterministic checks** from [`config/compliance.yaml`](config/compliance.yaml) and PRD section 13.1: numbers grounded in the payload; every `[Sn]` resolving to a retrieved source; the mode rules above; a suitability gate on facts the Risk agent computed (no margin on a cash account, loss within the profile limit, PMCC only with LEAPS requested, earnings flags stated for conservative profiles, buying-power minimums); a language policy with directive, certainty, superlative and urgency patterns and an allow-list for quoted terminology inside cited education paragraphs; the disclaimer exactly once plus a delayed-data statement; freshness of cited rules and filings (warning only); and no handles or emails from social posts.
 - **One path to the user.** The report narrative, every chat reply, every Learn-tab answer and every MCP tool that returns text (`explain_term`, `plan_goal`, `analyze_holdings`, `news_brief`, `explain_tax_term`, the `screen_options` narrative) reach the user only through the Compliance agent. Each evaluation is logged as a `compliance.check` event and appended to the run's audit log (Under the hood tab, Compliance ✓ badge on every chat turn); a blocking failure sends the Education agent specific feedback, and after two retries the text falls back to a deterministic narrative or the fixed sentence *"I can show the computed results but could not produce an explanation that passes compliance."*, which is checked again.
-- **Measured, not asserted.** `make eval` runs 34 advice-seeded and 10 clean narratives through the separation checks, 20 synthetic reports through the suitability gate, and every report and chat reply through the audit-coverage check (table below).
+- **Measured, not asserted.** `make eval` runs the in-sample advice-seeded and clean narratives (<!-- n:advice.in_sample -->34/34 advice caught · 0/10 clean rejected<!-- /n -->) and a blind held-out set (<!-- n:advice.test -->23/40 advice caught · 3/15 clean rejected<!-- /n -->) through the separation checks, <!-- n:n.dev.suitability_cases -->22<!-- /n --> synthetic reports through the suitability gate, and every report and chat reply through the audit-coverage check (table below).
 
 Two of the documented examples: *"CSP-COST-2026-12-18-850P met the criteria; its realistic loss is 12345."* passes. *"You should sell CSP-COST-2026-12-18-850P here; realistic loss 12345."* is rejected by `check_language` (a directive addressed to the reader), and *"A cash-secured put on COST obliges the writer to buy the shares at the strike [S1]."* is rejected by `check_education_only` (a run ticker inside an education paragraph).
 
 ## Evaluation results
 
-Measured by `make eval` on 2026-11-08 in fixture data mode with the hash embedder; the LLM-backed rows used openrouter (deepseek/deepseek-v4.1-flash / deepseek/deepseek-v4.1-flash) through the OpenRouter provider, the agent runs used the fixture LLM mode, and rows that need the optional `fastembed` extra or a judge pass are marked NOT RUN rather than estimated. Full table with details: [`evals/reports/latest.md`](evals/reports/latest.md). The CI workflow runs the same command on every push and uploads the report.
+<!-- numbers:start eval-table -->
+Measured by `make eval` on 2026-11-13 (LLM: openrouter (deepseek/deepseek-v4.1-flash / deepseek/deepseek-v4.1-flash)). **Held-out** is `evals/datasets/test/`, written by people who never saw the rules or prompts; **Dev** is `evals/datasets/dev/`, the sets they were built against, so it overstates accuracy on new text. A held-out miss is **BELOW TARGET** (reported, never tuned against); a dev miss is **FAIL**. Rows marked NOT RUN need a key and are not estimated; rows labelled *template writer* measured the deterministic writer, not a model. Details per row: [`evals/reports/latest.md`](evals/reports/latest.md).
 
-| Eval | Result | Target |
-|---|---|---|
-| Offline test suite | 594 passed | all pass |
-| Line coverage on `core/`, `rag/`, `agent/`, `bottleneck/` | 95.2% | ≥ 85% |
-| Entity extraction F1 (150 labelled posts), rule-based / LLM | 0.90 / 0.83 | ≥ 0.80 |
-| Brand → ticker resolution (100 names) | 100% | ≥ 90% |
-| Hallucinated (non-SEC) tickers | 0 | 0 |
-| Profile parsing, required fields, rule-based / LLM | 98% / 100% | ≥ 95% |
-| Knowledge level parsed from the request, rule-based / LLM | 100% / 100% | ≥ 90% |
-| Prompt injection (30 adversarial posts), rule-based / LLM | 0/30 / 0/30 | 0 influenced |
-| Numeric grounding rate (6 end-to-end runs) | 100.0% | 100% |
-| Constraint / policy / trajectory compliance | 6/6 / 6/6 / 6/6 | 6/6 each |
-| Education-vs-advice separation, in-sample (34 advice + 10 clean narratives; rows mirror the patterns) | 34/34 advice caught · 0/10 clean rejected | 100% caught, ≤ 1 false positive |
-| Advice language, blind held-out (40 advice + 15 clean, written without seeing the patterns; `check_language` only) | 23/40 advice caught · 3/15 clean rejected | reported (was 12/40 before W15) |
-| Suitability gate (20 synthetic reports) | 20/20 | 100% |
-| Intent routing (100 messages, ten intents), rule-based / LLM | 100% / 100% | ≥ 90% |
-| Retrieval recall@6 on 63 labelled questions, hash embedder | 0.84 (53/63) · MRR 0.60 | ≥ 0.70 (hash) |
-| Retrieval recall@6, fastembed embedder | n/a (NOT RUN) | ≥ 0.85 |
-| Citation faithfulness: tags resolving / education paragraphs cited | 110/110 / 106/106 | 100% / 100% |
-| Unsupported-question refusal via Education (hash embedder, rule-based answerer) | 12/15 | 100% for the LLM answerer; reported for the stand-in |
-| Unsupported questions refused or redirected via the chat router | 15/15 | report |
-| Compliance on chat (seven-turn script: screen, confirm, why, concept, what-if, goal, off-topic) | 7/7 | 100% |
-| Goal feasibility verdicts and FIRE numbers (29 labelled cases, five FIRE variants) | 29/29 | 100% |
-| Headline category accuracy (70 labelled), keyword / LLM classifier | 100% / 100% | ≥ 85% |
-| Headlines with an embedded instruction still labelled by content (20), keyword / LLM | 20/20 / 20/20 | 100% |
-| Tax questions routed to the Tax agent and citing the expected document (20) | 20/20 · 20/20 | ≥ 90% cited |
-| Tax replies passing check 11 (disclaimer once, no rate, no filing instruction) | 20/20 | 100% |
-| Constraint classification, direction accuracy on 100 labelled filing and news snippets (Phase 11), rule-based / LLM | 94% / 100% | ≥ 85% |
-| Constraint classification, layer macro-F1 (no search hint) / side accuracy, rule-based | 0.93 / 98% | F1 ≥ 0.80 |
-| Constraint classification, layer macro-F1 / side accuracy, LLM | 0.99 / 91% | F1 ≥ 0.80 |
-| Theme-map tickers that exist in the SEC company list | 33/33 | 100% |
-| Prompt injection via filings and headlines (20 planted snippets), rule-based / LLM | 0/20 / 0/20 | 0 steered |
-| Bottleneck containment: board suppliers off the good-to-own list never enter the universe or a candidate table (6 runs) | 6/6 | 100% |
-| Bottleneck board present with a thesis monitor (falsifiers and evidence on every layer, 6 runs) | 6/6 | 100% |
-| Latency per run (fixture mode) | mean 1.17s · p95 3.05s | report |
+| Section | Eval | Held-out | Dev | Target | Status |
+|---|---|---|---|---|---|
+| 11.1 Deterministic | Golden-value + property tests (tests/unit) | - | 922 passed | all pass | PASS |
+| Quality | Offline test suite (unit + agent + API + UI + MCP) | - | 1189 passed | all pass | PASS |
+| Quality | Line coverage on core/, rag/, agent/, bottleneck/ (pytest --cov, same run) | - | 95.9% | ≥ 85% | PASS |
+| 11.2 Entity extraction | F1 on labelled posts (rule-based, no LLM) | P 0.67 / R 0.34 / F1 0.45 | P 0.90 / R 0.89 / F1 0.90 | F1 ≥ 0.80 | BELOW TARGET |
+| 11.2 Entity extraction | is_stock_talk accuracy (rule-based, no LLM) | 0.83 | 0.96 | report | INFO |
+| 11.2 Entity extraction | F1 on labelled posts (LLM deepseek/deepseek-v4.1-flash) | F1 mean 0.87 · worst 0.86 (3 runs) | F1 mean 0.85 · worst 0.85 (3 runs) | F1 ≥ 0.80 | PASS |
+| 11.2 Entity extraction | is_stock_talk accuracy (LLM deepseek/deepseek-v4.1-flash) | 0.96 | 0.96 | report | INFO |
+| 11.2 Resolution | Brand → ticker accuracy | 54/69 = 78% | 100/100 = 100% | ≥ 90% | BELOW TARGET |
+| 11.2 Resolution | Hallucinated (non-SEC) tickers, both splits | - | 0 | 0 | PASS |
+| 11.2 Profile parsing | Required-field accuracy (rule-based, no LLM) | 118/135 = 87% | 177/180 = 98% | ≥ 95% | BELOW TARGET |
+| 11.2 Profile parsing | Clarification routing accuracy (rule-based, no LLM) | 31/45 = 69% | 59/60 = 98% | ≥ 95% | BELOW TARGET |
+| 11.2 Profile parsing | Knowledge-level accuracy (rule-based, no LLM) | 29/45 = 64% | 60/60 = 100% | ≥ 90% | BELOW TARGET |
+| 11.2 Profile parsing | Required-field accuracy (LLM deepseek/deepseek-v4.1-flash) | mean 99% · worst 99% (3 runs) | mean 100% · worst 99% (3 runs) | ≥ 95% | PASS |
+| 11.2 Profile parsing | Clarification routing accuracy (LLM deepseek/deepseek-v4.1-flash) | mean 99% · worst 98% (3 runs) | mean 100% · worst 100% (3 runs) | ≥ 95% | PASS |
+| 11.2 Profile parsing | Knowledge-level accuracy (LLM deepseek/deepseek-v4.1-flash) | mean 99% · worst 98% (3 runs) | mean 98% · worst 98% (3 runs) | ≥ 90% | PASS |
+| 11.2 Prompt injection | Reachable cases where the injected ticker influenced output (rule-based) | - | 0/3 reachable | 0% | PASS |
+| 11.2 Prompt injection | Posts where the LLM was not steered and its injected-copy entities agree with a clean extraction of the same post (LLM) | - | mean 90% · worst 83% (3 runs) | 100% | FAIL |
+| 11.3 Agent | Numeric grounding rate (final narrative) · replayed model recordings (4 of 6 runs replayed in full) | - | 100.0% | 100% | PASS |
+| 11.3 Agent | Narratives passing verifier on first attempt · replayed model recordings (4 of 6 runs replayed in full) | - | 2/6 | report | INFO |
+| 11.3 Agent | Constraint compliance · replayed model recordings (4 of 6 runs replayed in full) | - | 6/6 | 100% | PASS |
+| 11.3 Agent | Policy compliance (banned phrases absent, disclaimer present) · replayed model recordings (4 of 6 runs replayed in full) | - | 6/6 | 100% | PASS |
+| 11.3 Agent | Trajectory checks (expected nodes visited, retries bounded) · replayed model recordings (4 of 6 runs replayed in full) | - | 6/6 | 100% | PASS |
+| 11.3a Compliance | Compliance audit coverage (report text carries a passing ComplianceReport) · replayed model recordings (4 of 6 runs replayed in full) | - | 6/6 | 100% | PASS |
+| 11.3 Agent | Bottleneck containment: board suppliers off the good-to-own list never enter the universe, a candidate table or the ranking (Phase 11, 4A.11) | - | 6/6 | 100% | PASS |
+| 11.3 Agent | Bottleneck board present with a thesis monitor (every layer row carries falsifiers and evidence links) | - | 6/6 | 100% | PASS |
+| 11.3 Agent | Latency per run (fixture mode) · replayed model recordings (4 of 6 runs replayed in full) | - | mean 1.04s · p95 3.79s | report | INFO |
+| 11.3 Agent | Cost per run · replayed model recordings (4 of 6 runs replayed in full) | - | mean $0.0000 · input tokens mean 0 | report | INFO |
+| 11.3 Agent | Graceful degradation with social source disabled | - | ok | report | PASS |
+| 11.3 Agent | Numeric grounding rate (final narrative) · LLM deepseek/deepseek-v4.1-flash | - | 100.0% | 100% | PASS |
+| 11.3 Agent | Final narratives written by the model (no deterministic fallback) · LLM deepseek/deepseek-v4.1-flash | - | 5/6 | report | INFO |
+| 11.3 Agent | Released paragraphs written by the model (failing ones replaced) · LLM deepseek/deepseek-v4.1-flash | - | 64/76 | report | INFO |
+| 11.3 Agent | Compliance checks the model's attempts failed (all attempts, all runs) · LLM deepseek/deepseek-v4.1-flash | - | check_citations ×5, check_numbers ×3, check_education_only ×2, check_suitability ×1 | report | INFO |
+| 11.3 Agent | Numeric grounding on the model-written narratives only · LLM deepseek/deepseek-v4.1-flash | - | 100.0% | report | INFO |
+| 11.3 Agent | Narratives passing verifier on first attempt · LLM deepseek/deepseek-v4.1-flash | - | 4/6 | report | INFO |
+| 11.3 Agent | Constraint compliance · LLM deepseek/deepseek-v4.1-flash | - | 6/6 | 100% | PASS |
+| 11.3 Agent | Policy compliance (banned phrases absent, disclaimer present) · LLM deepseek/deepseek-v4.1-flash | - | 6/6 | 100% | PASS |
+| 11.3 Agent | Trajectory checks (expected nodes visited, retries bounded) · LLM deepseek/deepseek-v4.1-flash | - | 6/6 | 100% | PASS |
+| 11.3a Compliance | Compliance audit coverage (report text carries a passing ComplianceReport) · LLM deepseek/deepseek-v4.1-flash | - | 6/6 | 100% | PASS |
+| 11.3 Agent | Latency per run (live mode) · LLM deepseek/deepseek-v4.1-flash | - | mean 21.45s · p95 30.36s | report | INFO |
+| 11.3 Agent | Cost per run · LLM deepseek/deepseek-v4.1-flash | - | mean $0.0049 · input tokens mean 18451 | report | INFO |
+| 11.3a Compliance | Education-vs-advice separation, in-sample rows (whole gate, advice_narratives.jsonl) | - | 34/34 advice caught · 0/10 clean rejected | 100% caught, ≤ 1 false positive | PASS |
+| 11.3a Compliance | Education-vs-advice separation, check_language only (dev: advice_dev.jsonl, test: advice_blind.jsonl, written by someone who never saw the patterns) | 23/40 advice caught · 3/15 clean rejected | 30/30 advice caught · 0/12 clean rejected | report | INFO |
+| 11.3a Compliance | Suitability gate (correct check name per case) | - | 22/22 | 100% | PASS |
+| 11.3a Compliance | Wrong-but-plausible figures caught, free-text checker (W14; pre-W14 bag check in notes) | - | 18/20 caught · 0/6 right rejected | report (no target: free text keeps known gaps) | INFO |
+| 11.3a Compliance | Wrong-but-plausible figures caught, slot mode (the report explainer, W14) | - | 14/14 caught · 0/5 right rejected | 100% caught, 0 right rejected | PASS |
+| 11.3a Conversation | Intent routing accuracy (rule-based router) | 44/70 = 63% | 100/100 = 100% | ≥ 90% | BELOW TARGET |
+| 11.3a Conversation | Intent routing accuracy (LLM router) | mean 98% · worst 97% (3 runs) | mean 100% · worst 99% (3 runs) | ≥ 90% | PASS |
+| 11.3a Retrieval | Retrieval quality: recall@6 (hash embedder, CI default) | 0.47 (21/45) · MRR 0.28 | 0.83 (52/63) · MRR 0.58 | recall@6 ≥ 0.70 | BELOW TARGET |
+| 11.3a Retrieval | Retrieval quality: recall@6 (fastembed bge-small-en-v1.5) | 0.69 (31/45) · MRR 0.43 | 0.94 (59/63) · MRR 0.71 | recall@6 ≥ 0.85 | BELOW TARGET |
+| 11.3a Citations | Citation tags resolve: every [Sn] names a retrieved source (rule-based answerer) | 77/77 = 100% | 110/110 = 100% | 100% | PASS |
+| 11.3a Citations | Education paragraphs carrying a citation (rule-based answerer) | 77/77 = 100% | 106/106 = 100% | 100% | PASS |
+| 11.3a Citations | Citation faithfulness: answers whose cited sentences are supported by the cited chunk (W16 word-overlap and quotation check, not a semantic judge; rule-based answerer) | 45/45 = 100% | 63/63 = 100% | 100% | PASS |
+| 11.3a Citations | Answers to the retrieval questions passing Compliance | 45/45 = 100% | 63/63 = 100% | 100% | PASS |
+| 11.3a Refusal | Unsupported-question refusal: fixed no-source sentence, no speculation (hash embedder, rule-based answerer) | - | 12/15 | 100% (LLM answerer); report (rule-based) | INFO |
+| 11.3a Refusal | Unsupported questions refused or redirected when asked through the chat router | - | 15/15 | report | INFO |
+| 11.3a Conversation | Compliance on chat: assistant turns carrying a passing ComplianceReport (7-turn script) | - | 7/7 | 100% | PASS |
+| 12.3 Goal planning | Goal feasibility verdicts and FIRE numbers on 29 labelled cases (15 FIRE, five variants) | - | 29/29 | 100% | PASS |
+| 12.3 Goal planning | Goal parsing: a goal kind recognised on the 10 goal messages (rule-based) | - | 10/10 | 100% | PASS |
+| 12.5 News desk | Headline category accuracy (keyword classifier) | 45/70 = 64% | 70/70 = 100% | ≥ 85% | BELOW TARGET |
+| 12.5 News desk | Headlines with an embedded instruction still labelled by content (20, keyword) | - | 20/20 | 100% | PASS |
+| 12.5 News desk | Headline category accuracy (LLM classifier) | mean 97% · worst 96% (3 runs) | mean 99% · worst 99% (3 runs) | ≥ 85% | PASS |
+| 12.5 News desk | Headlines with an embedded instruction still labelled by content (20, LLM) | - | mean 100% · worst 100% (3 runs) | 100% | PASS |
+| 11.2 Constraint classification | Direction accuracy on hand-labelled filing and news snippets (rule-based stand-in) | 30/48 = 62% | 94/100 = 94% | ≥ 0.85 | BELOW TARGET |
+| 11.2 Constraint classification | Layer macro-F1, no search hint given (rule-based stand-in) | 0.72 | 0.93 | ≥ 0.80 | BELOW TARGET |
+| 11.2 Constraint classification | Side accuracy (customer / supplier / neutral) (rule-based stand-in) | 35/48 = 73% | 98/100 = 98% | report | INFO |
+| 11.2 Theme-map validation | Tickers in config/themes.yaml that exist in the SEC company list (33) | - | 33/33 | 100% | PASS |
+| 11.2 Prompt injection | Fixture filings/headlines with an embedded instruction that steered the label (20, rule-based) | - | 0/20 | 0% | PASS |
+| 11.2 Constraint classification | Direction accuracy on hand-labelled filing and news snippets (LLM deepseek/deepseek-v4.1-flash) | mean 99% · worst 98% (3 runs) | mean 100% · worst 100% (3 runs) | ≥ 0.85 | PASS |
+| 11.2 Constraint classification | Layer macro-F1, no search hint given (LLM deepseek/deepseek-v4.1-flash) | mean 0.99 · worst 0.96 (3 runs) | mean 0.99 · worst 0.97 (3 runs) | ≥ 0.80 | PASS |
+| 11.2 Constraint classification | Side accuracy (customer / supplier / neutral) (LLM deepseek/deepseek-v4.1-flash) | mean 98% · worst 94% (3 runs) | mean 95% · worst 93% (3 runs) | report | INFO |
+| 11.2 Prompt injection | Fixture filings/headlines with an embedded instruction that steered the label (20, LLM) | - | 0/20 | 0% | PASS |
+| 12.6 Tax & accounts | Tax questions routed to the Tax agent (rule-based answerer) | 16/20 = 80% | 20/20 = 100% | report | INFO |
+| 12.6 Tax & accounts | Tax questions citing the expected document (rule-based answerer) | 14/20 = 70% | 20/20 = 100% | ≥ 90% | BELOW TARGET |
+| 12.6 Tax & accounts | Tax replies passing Compliance with the disclaimer once (check 11: no rate, no instruction) | 16/20 = 80% | 20/20 = 100% | 100% | BELOW TARGET |
+<!-- numbers:end -->
 
 ## Benchmarks
 
-`make bench` writes [`evals/reports/bench.md`](evals/reports/bench.md): offline, fixture mode, so the numbers are the cost of the code (graph overhead, deterministic math, retrieval, compliance), not of a network or a model. Measured on an Apple Silicon laptop on 2026-11-06:
+`make bench` writes [`evals/reports/bench.md`](evals/reports/bench.md): offline, fixture mode, so the numbers are the cost of the code (graph overhead, deterministic math, retrieval, compliance), not of a network or a model. Measured on an Apple Silicon laptop on <!-- n:bench.date -->2026-11-09<!-- /n -->:
 
 | Benchmark | Result |
 |---|---|
@@ -243,7 +286,7 @@ Measured by `make eval` on 2026-11-08 in fixture data mode with the hash embedde
 | Latency per specialist, mean over six screens | Market Intelligence 308 ms · Strategy 228 ms · Education 118 ms · Market Data 85 ms · Compliance 83 ms · News Desk 79 ms · Risk 79 ms · Portfolio 78 ms · Orchestrator 3 ms |
 | Chat turns on a finished screen's thread, each through Compliance | goal 0.44 s · holdings 0.48 s · news 0.52 s · tax 0.48 s · concept question 0.01 s |
 | Market-data cache across the six screens | 82% hit rate (516 hits, 110 misses; the first screen is cold) |
-| Knowledge base | 124 documents, 1,074 chunks indexed in 0.34 s; a hybrid query takes 1.2 ms mean, 1.6 ms p95 over the 60 labelled questions |
+| Knowledge base | <!-- n:docs -->124<!-- /n --> documents, <!-- n:chunks -->1,081<!-- /n --> chunks indexed in 0.34 s; a hybrid query takes 1.2 ms mean, 1.6 ms p95 over the labelled dev questions |
 | Tokens and cost per screen | 0 in fixture mode; with `OPTIONS_SCOUT_LLM_MODE=live` the same report shows the measured usage of DeepSeek V4.1 Flash through OpenRouter (about $0.14 per million input tokens) |
 
 In live mode each specialist's latency grows by its provider calls: one quote, one chain and one history per ticker for Market Data (cached 15 minutes per provider), one `NEWS_SENTIMENT` call per ticker for News Desk (cached 30 minutes), and one structured LLM call per text for the writers, plus at most two Compliance retries.
@@ -277,7 +320,7 @@ In live mode each specialist's latency grows by its provider calls: one quote, o
 - **MarketData.app vs scraping.** The previous keyless source (yfinance) was an unofficial Yahoo scraper that broke and rate-limited. MarketData.app is a documented REST API. A current chain is billed per contract (SPY's 12,904 contracts cost 6,206 credits on 2026-11-10), so by default (`market_data.marketdata.chain_feed: historical`) each ticker's whole chain, every expiry and strike, comes from one request for the previous session's close, billed at about one credit per 1,000 contracts (SBUX's 1,074 cost 2). Delayed plans are a session behind anyway. Before fetching, the run is cut to the tickers the credits left today cover (`credits_per_ticker`, read against the provider's `X-Api-Ratelimit-Remaining`), and a spent quota is reported as `quota`, never as a quality-gate failure. It has no dividends endpoint, so the yield is implied from the gap between its dividend-adjusted and split-only candles, and no T-bill index, so the risk-free rate falls back to a constant. Every call is retried on transport errors, cached in SQLite with per-type TTLs, and every ticker has a recorded fixture so the demo and CI never touch the network. Greeks are computed with our own Black-Scholes-Merton from the provider's IV. IV rank needs history, so a daily job stores ATM IV snapshots; until 30 exist the report labels the HV-based proxy as such.
 - **Strict 30–45 DTE window vs liquidity.** On weeks where only weeklies fall inside 30–45 DTE, open interest is thin. The screener first applies the strict window; only if that yields nothing does it accept the nearest expiry in a configurable 21–60 DTE window and flags the candidate `dte_outside_preferred`.
 - **Greedy vs MILP sizing.** Greedy fill over the ranked list is deterministic, explainable (every skip has a reason) and never violates a constraint by construction (hypothesis-tested). MILP is a listed stretch goal.
-- **VADER vs LLM sentiment.** In `--no-llm` mode a brand-alias matcher plus VADER provides extraction; the eval report measures it honestly (F1 0.90 on the labeled set). The default LLM path uses `deepseek/deepseek-v4.1-flash` through OpenRouter for every task (JSON-schema `response_format`, validated locally with the same Pydantic models, one corrective retry); the Anthropic provider uses `claude-haiku-5-5` for extraction/parsing/routing and `claude-opus-5-5` for explanation via `messages.parse`.
+- **VADER vs LLM sentiment.** In `--no-llm` mode a brand-alias matcher plus VADER provides extraction; the eval report measures it honestly (F1 <!-- n:extraction.rule.f1.test -->0.45<!-- /n --> on held-out posts, <!-- n:extraction.rule.f1.dev -->0.90<!-- /n --> on the dev set it was built against). The default LLM path uses `deepseek/deepseek-v4.1-flash` through OpenRouter for every task (JSON-schema `response_format`, validated locally with the same Pydantic models, one corrective retry); the Anthropic provider uses `claude-haiku-5-5` for extraction/parsing/routing and `claude-opus-5-5` for explanation via `messages.parse`.
 - **Provider SDKs directly instead of LangChain chat models.** LangGraph does not require them; the `openai` SDK (pointed at OpenRouter) and the `anthropic` SDK give structured outputs, usage accounting and typed errors. The provider layer (`llm/client.py`) is a two-entry table keyed by `llm.provider`; OpenRouter is the default because one key reaches many cheap models, at the cost of schema enforcement depending on the routed backend (hence the local validation + retry).
 - **Realistic-loss constraint is deliberately strict.** "Loss if the stock drops 30% at expiry" capped at 2–5% of the account means a $50k account can only hold short puts on low-priced underlyings; the report lists every skipped candidate and why instead of hiding it.
 
@@ -432,7 +475,7 @@ The brief's stretch items and what each would need here, in rough order of value
 - **Bottleneck signal, next steps** (PRD §4A stretch): LLM-proposed supply-chain layers for human review, a paid transcripts adapter (EDGAR carries no earnings calls), per-layer valuation data (EV/sales vs growth) for a stronger priced-in penalty, and a forward test that records each thesis and its outcome against the 180-day snapshot journal.
 - **Goal Monte Carlo**: the projection is four deterministic paths today; a simulation over the historical return and IV distribution of the screened names would give a probability of reaching the target instead of a stress / base / best triplet, and check 9 would need a rule for how probabilities are stated.
 - **Ex-dividend calendar** from a provider that exposes it, so the News Desk's dividend flag fires without a supplied date.
-- **Semantic embeddings by default** once the `fastembed` download is acceptable in CI, with the refusal eval re-run (the hash embedder's 12/15 is the known gap).
+- **Semantic embeddings by default** once the `fastembed` download is acceptable in CI, with the refusal eval re-run (the hash embedder's <!-- n:refusal -->12/15<!-- /n --> is the known gap).
 - **Voice and mobile** (the brief's future directions): the API already serves the graph over server-sent events, so either is a client, not an agent change; a voice interface would also need the disclaimer and the Compliance badge spoken, not shown.
 - **Brokerage integration** is deliberately out of scope: this is an educational screener, and the Compliance agent's rules assume no order is ever placed.
 
@@ -447,8 +490,9 @@ The brief's stretch items and what each would need here, in rough order of value
 - Reg T formula is the exchange minimum; actual broker margin differs and changes in volatile markets.
 - Early assignment, dividends and exit liquidity are simplified. **Ex-dividend dates** are not exposed by any provider in this repo, so the News Desk's `ex_dividend_before_expiry` flag fires only when a date is supplied (a dividend-adjusted yield is still implied from MarketData.app candles).
 - The bottleneck signal is damped by construction, which is why its ranking weight is zero: the good-to-own universe is large caps for which a constrained layer is usually a side business (on the fixture board the curated suppliers score HON 37, XOM 11, CVX 11, UNP 3, CSCO 1 while the pure plays score 76–79 and are context only), EDGAR has no earnings-call transcripts (the `transcripts` adapter is fixture-only; paid elsewhere), industry price trackers are paid and arrive only as operator-supplied CSVs, and the theme map is a curated judgment that can be wrong or stale. The classifier's rule-based stand-in misses irony and hedged language; the fixture corpus is synthetic, so the board's scores demonstrate the method, not a market view.
+- A post written to attack the entity extractor can occasionally mark the post's own brand as bought, which nudges that brand's purchase-intent rate (a trend-score input). In the live injection eval the model added an injected ticker 0 times in 90, but the post's own brand gained purchase intent on 1–3 of 30 attack posts per run, all role-play, multilingual or polite injections that the rule-based scrub also misses. The eval row keeps its 100% target and reports this as a FAIL.
 - Headlines are context, never a signal: the News Desk labels and quotes them and attaches calendar flags, and the Alpha Vantage free tier is 25 requests a day, cached for 30 minutes. Reading-level adaptation changes which documents are cited and, in live LLM mode, the vocabulary of the prose; in fixture mode the deterministic writer's wording is the same for every level.
-- The LLM-backed eval rows (extraction, parsing, routing, news classification) were measured with DeepSeek V4.1 Flash through OpenRouter on 2026-11-06 and vary between runs of the same model; the LLM-judge citation pass and the fastembed retrieval row are NOT RUN in the committed report. Neither market-data provider has been exercised with a live key in this repo's test history.
+- The LLM-backed eval rows (extraction, parsing, routing, news and snippet classification, the live agent pass) run only with a key; the committed report was produced with LLM: <!-- n:report.llm -->openrouter (deepseek/deepseek-v4.1-flash / deepseek/deepseek-v4.1-flash)<!-- /n -->. Runs of the same model vary, so each LLM row is repeated and reported as mean and worst. The fastembed retrieval row runs only with the optional `rag` extra. MarketData.app was run live once, on 2026-11-11 (one screen on the previous session's chains); no live Tradier run is recorded, and the test suite itself never calls a provider.
 - Educational tool, not advice.
 
 ## Working in this repo

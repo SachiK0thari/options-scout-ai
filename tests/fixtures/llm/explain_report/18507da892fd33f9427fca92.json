@@ -1,0 +1,81 @@
+{
+ "task": "explain_report",
+ "model": "deepseek/deepseek-v4.1-flash",
+ "output": {
+  "paragraphs": [
+   {
+    "mode": "screen_result",
+    "text": "The screen split the strategy budget across short puts and long calls: {{allocation.csp_pct|pct}} to cash-secured puts, {{allocation.leaps_pct|pct}} to LEAPS, and {{allocation.cash_pct|pct}} held in cash, with no tilt applied. The regime label is {{regime.label}}, with a VIX of {{regime.vix}} and a VIX percentile of {{regime.vix_percentile}}.",
+    "citations": []
+   },
+   {
+    "mode": "education",
+    "text": "A **cash-secured put** is a short put position in which the writer sets aside enough cash to buy the shares at the strike price if the put is assigned. The writer sells the put, collects the premium up front, and accepts the obligation to buy 100 shares per contract at the strike any time before expiration [S1].",
+    "citations": [
+     "S1"
+    ]
+   },
+   {
+    "mode": "education",
+    "text": "The good-to-own quality gate is a filter, not a discovery engine: it decides which tickers are allowed into the option screeners at all, records a reason for every rejection, and produces a score for the survivors [S5]. Its product promise is \"stocks you would be happy to own if assigned\" [S5].",
+    "citations": [
+     "S5"
+    ]
+   },
+   {
+    "mode": "screen_result",
+    "text": "{{quality_screen.passed_count}} underlyings passed the quality gate: {{quality_screen.passed_tickers|list}}. Each passed name is curated, but the repository's trending board surfaced names that were not on the good-to-own list and were therefore skipped, such as CAVA, ONON, DECK, ELF and CROX \u2014 the universe entries say those trending tickers are not on the good-to-own list.",
+    "citations": []
+   },
+   {
+    "mode": "education",
+    "text": "The gate records a reason for every rejection and produces a score for the survivors [S5]. It is not a discovery engine; it only decides which tickers are allowed into the screeners [S5].",
+    "citations": [
+     "S5"
+    ]
+   },
+   {
+    "mode": "screen_result",
+    "text": "The trend board is a secondary signal only. The highest scores sit with CAVA, ONON, DECK, ELF and CROX, but the universe entries show each of those trending tickers is not on the good-to-own list and was skipped, so the trend board did not add a position.",
+    "citations": []
+   },
+   {
+    "mode": "screen_result",
+    "text": "The bottleneck board is also a secondary signal: it re-orders quality-gated stocks, never adds one. The top layer is Power generation and grid equipment with a score of {{bottlenecks.layers[0].score}} and a thesis state of {{bottlenecks.layers[0].thesis_state}}, followed by Grid equipment and transformers at {{bottlenecks.layers[0].score}} and DRAM and high-bandwidth memory at {{bottlenecks.layers[0].score}}. Networking, optics and fiber carries a thesis state of {{bottlenecks.layers[5].thesis_state}}.",
+    "citations": []
+   },
+   {
+    "mode": "education",
+    "text": "A **poor man's covered call** is a two-leg position: a long, deep in-the-money LEAPS call (expiring a year or more out) and a short, near-term, out-of-the-money call on the same stock [S3]. Formally it is a **long call diagonal spread**: different strikes and different expirations [S3].",
+    "citations": [
+     "S3"
+    ]
+   },
+   {
+    "mode": "screen_result",
+    "text": "{{counts.positions_sized}} positions were sized. CSP-NKE-2026-11-20-35P is a short put on NKE with a breakeven of {{positions[CSP-NKE-2026-11-20-35P].payoff.breakeven}}, a maximum loss of {{positions[CSP-NKE-2026-11-20-35P].payoff.max_loss|money}} and a realistic loss of {{positions[CSP-NKE-2026-11-20-35P].realistic_loss|money}}. LEAPS-NKE-2028-12-15-20C is a long call paired with a short call (PMCCSC-NKE-2026-11-20-40C): its breakeven is {{positions[LEAPS-NKE-2028-12-15-20C].payoff.breakeven}}, its maximum loss is {{positions[LEAPS-NKE-2028-12-15-20C].payoff.max_loss|money}} and its realistic loss is {{positions[LEAPS-NKE-2028-12-15-20C].realistic_loss|money}}.",
+    "citations": []
+   },
+   {
+    "mode": "screen_result",
+    "text": "The risk picture: {{risk.checks_passed}} of {{risk.checks_total}} constraint checks passed. A {{risk.stress[-10%].shock}} move with a {{risk.stress[-10%].iv_shock}} IV shock gives {{risk.stress[-10%].pnl|money}}; a {{risk.stress[-20%].shock}} move gives {{risk.stress[-20%].pnl|money}}; and a {{risk.stress[-30%].shock}} move gives {{risk.stress[-30%].pnl|money}}.",
+    "citations": []
+   },
+   {
+    "mode": "notice",
+    "text": "{{ delayed_data_notice }}",
+    "citations": []
+   },
+   {
+    "mode": "notice",
+    "text": "**Warnings and limitations.** {{risk.warnings[0]}} {{risk.warnings[1]}} {{risk.warnings[2]}} {{risk.warnings[6]}}",
+    "citations": []
+   },
+   {
+    "mode": "notice",
+    "text": "{{ disclaimer }}",
+    "citations": []
+   }
+  ]
+ }
+}

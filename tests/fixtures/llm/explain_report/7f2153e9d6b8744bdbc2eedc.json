@@ -1,0 +1,72 @@
+{
+ "task": "explain_report",
+ "model": "deepseek/deepseek-v4.1-flash",
+ "output": {
+  "paragraphs": [
+   {
+    "mode": "screen_result",
+    "text": "The allocation split the strategy budget into {{allocation.csp_pct|pct}} for cash-secured puts, {{allocation.leaps_pct|pct}} for LEAPS calls and {{allocation.csp_pct|pct}} held as cash, with the overall regime labelled {{regime.label}} and a VIX of {{regime.vix}}.",
+    "citations": []
+   },
+   {
+    "mode": "education",
+    "text": "A **cash-secured put** is a short put position in which the writer sets aside enough cash to buy the shares at the strike price if the put is assigned [S1]. The writer sells the put, collects the premium up front, and accepts the obligation to buy 100 shares per contract at the strike any time before expiration [S1].",
+    "citations": [
+     "S1"
+    ]
+   },
+   {
+    "mode": "screen_result",
+    "text": "The good-to-own quality screen passed {{quality_screen.passed_count}} underlyings: {{quality_screen.passed_tickers|list}}. No underlyings were excluded this run, and {{counts.skipped_total}} candidates were skipped overall.",
+    "citations": []
+   },
+   {
+    "mode": "education",
+    "text": "**Assignment** is the process by which an option writer is selected to fulfil the obligation of a contract that a holder has exercised [S2]. The Options Clearing Corporation (OCC) assigns exercise notices at random to clearing members with short positions in the same series, and each clearing member then assigns its own customers by a method approved by the exchanges [S2].",
+    "citations": [
+     "S2"
+    ]
+   },
+   {
+    "mode": "screen_result",
+    "text": "The trend board is treated as a secondary signal only: the highest-ranked trend names, such as {{trends[0].ticker}} and {{trends[1].ticker}}, are not on the good-to-own list and were skipped as universe errors.",
+    "citations": []
+   },
+   {
+    "mode": "screen_result",
+    "text": "The bottleneck board is also secondary: it re-orders quality-gated stocks and never adds one. The top-scoring layer is {{bottlenecks.layers[0].name}} at {{bottlenecks.layers[0].score}} with thesis state {{bottlenecks.layers[0].thesis_state}}, while {{bottlenecks.layers[5].name}} is at {{bottlenecks.layers[5].score}} and {{bottlenecks.layers[5].thesis_state}}. Among the companies, {{bottlenecks.companies[4].ticker}} carries flags {{bottlenecks.companies[4].flags|list}}.",
+    "citations": []
+   },
+   {
+    "mode": "screen_result",
+    "text": "The sizer sized {{counts.positions_sized}} position: {{positions[0].candidate_id}}, a cash-secured put on {{positions[0].ticker}} with a breakeven of {{positions[0].payoff.breakeven}} and a maximum loss of {{positions[0].payoff.max_loss|money}}. Its realistic loss is {{positions[0].realistic_loss|money}}. This candidate has no bottleneck flags, so the bottleneck board does not change its ranking.",
+    "citations": []
+   },
+   {
+    "mode": "screen_result",
+    "text": "The risk picture passed {{risk.checks_passed}} of {{risk.checks_total}} constraint checks, including margin usage of {{risk.checks[1].value|percent}} against a limit of {{risk.checks[1].limit|percent}}. In the stress tests, a {{risk.stress[0].shock}} move with a {{risk.stress[0].iv_shock}} IV shock would give {{risk.stress[0].pnl|money}}, and a {{risk.stress[2].shock}} move with the same IV shock would give {{risk.stress[2].pnl|money}}.",
+    "citations": []
+   },
+   {
+    "mode": "screen_result",
+    "text": "The sizer left behind several limitations. Because every sized position is on {{positions[0].ticker}}, this is a one-stock portfolio. The higher-ranked underlyings {{warnings_tickers|list}} did not fit this account size. Only {{portfolio.capital_used|money}} of the strategy budget is used, so the rest stays in cash. The account is too small for the top-ranked candidates: the smallest account at which {{skipped_candidates[0].candidate_id}} fits is {{skipped_candidates[0].fits_from_account|money}}, with a realistic loss per contract of {{skipped_candidates[0].realistic_loss_per_contract|money}}; {{skipped_candidates[1].candidate_id}} has a realistic loss per contract of {{skipped_candidates[1].realistic_loss_per_contract|money}}. {{risk.warnings[0]}} {{risk.warnings[1]}}",
+    "citations": []
+   },
+   {
+    "mode": "notice",
+    "text": "{{ delayed_data_notice }}",
+    "citations": []
+   },
+   {
+    "mode": "notice",
+    "text": "**Warnings and limitations.** {{risk.warnings[3]}} {{risk.warnings[4]}}",
+    "citations": []
+   },
+   {
+    "mode": "notice",
+    "text": "{{ disclaimer }}",
+    "citations": []
+   }
+  ]
+ }
+}

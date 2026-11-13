@@ -1,0 +1,78 @@
+{
+ "task": "explain_report",
+ "model": "deepseek/deepseek-v4.1-flash",
+ "output": {
+  "paragraphs": [
+   {
+    "mode": "education",
+    "text": "A **cash-secured put** is a short put position in which the writer sets aside enough cash to buy the shares at the strike price if the put is assigned [S1]. The writer sells the put, collects the premium up front, and accepts the obligation to buy 100 shares per contract at the strike any time before expiration [S1]. Assignment is the process by which an option writer is selected to fulfil the obligation of a contract that a holder has exercised [S2].",
+    "citations": [
+     "S1",
+     "S2"
+    ]
+   },
+   {
+    "mode": "screen_result",
+    "text": "The allocation for this run put {{allocation.csp_pct|pct}} of the strategy budget toward cash-secured puts, {{allocation.leaps_pct|pct}} toward LEAPS calls, and kept {{allocation.cash_pct|pct}} in cash, with a regime label of {{regime.label}} and a VIX of {{regime.vix}}.",
+    "citations": []
+   },
+   {
+    "mode": "education",
+    "text": "The product promise is \"stocks you would be happy to own if assigned\" [S5]. The quality gate enforces that promise: it is a **filter, not a discovery engine**, deciding which tickers are allowed into the option screeners at all, recording a reason for every rejection, and producing a score for the survivors [S5].",
+    "citations": [
+     "S5"
+    ]
+   },
+   {
+    "mode": "screen_result",
+    "text": "{{quality_screen.passed_count}} underlyings passed the good-to-own quality gate: {{quality_screen.passed_tickers|list}}. No underlyings were excluded this run ({{quality_screen.excluded_count}} exclusions), and the screened universe holds {{counts.underlyings_screened}} tickers.",
+    "citations": []
+   },
+   {
+    "mode": "education",
+    "text": "A consumer-trend score watches public conversation for rising discussion of products and brands [S6]. It would be natural to assume a stock with a surging score is a good candidate for selling puts, but for the structure of a short put the opposite is closer to the truth, and the app is built around that fact [S6].",
+    "citations": [
+     "S6"
+    ]
+   },
+   {
+    "mode": "screen_result",
+    "text": "The trend board is a secondary signal only: trending tickers {{errors|list}} were skipped because they are not on the good-to-own list. The bottleneck board also re-orders quality-gated stocks and never adds one; the top layer is {{bottlenecks.layers[0].name}} at a score of {{bottlenecks.layers[0].score}} with thesis state {{bottlenecks.layers[0].thesis_state}}, while {{bottlenecks.layers[5].name}} carries thesis state {{bottlenecks.layers[5].thesis_state}}. Among companies, CSCO shows flags {{bottlenecks.companies[4].flags|list}}.",
+    "citations": []
+   },
+   {
+    "mode": "screen_result",
+    "text": "No positions were sized this run: {{counts.positions_sized}} sized, with {{counts.skipped_total}} candidates skipped. The skipped candidates include CSP-SPY-2026-11-30-735P with a realistic loss of {{skipped_candidates[0].realistic_loss_per_contract|money}} per contract, CSP-SPY-2026-11-30-750P with {{skipped_candidates[1].realistic_loss_per_contract|money}} per contract, and CSP-QQQ-2026-11-30-695P with {{skipped_candidates[4].realistic_loss_per_contract|money}} per contract, all for the reason {{skipped_candidates[0].reason}}.",
+    "citations": []
+   },
+   {
+    "mode": "education",
+    "text": "**LEAPS** (Long-term Equity AnticiPation Securities) is the exchanges' name for listed options with more than a year until expiration [S3]. This app screens deep in-the-money LEAPS calls as a way to hold long exposure to a good-to-own stock for a year or more while committing less capital than buying the shares outright [S3]. Every option premium splits into **intrinsic value**, the amount by which the option is in the money, and **extrinsic value**, also called time value, everything else [S4].",
+    "citations": [
+     "S3",
+     "S4"
+    ]
+   },
+   {
+    "mode": "screen_result",
+    "text": "The risk picture shows {{risk.checks_passed}} of {{risk.checks_total}} constraint checks passing. Stress scenarios at a {{risk.stress[0].shock}} move with a {{risk.stress[0].iv_shock}} IV shock give {{risk.stress[0].pnl|money}}, at {{risk.stress[1].shock}} give {{risk.stress[1].pnl|money}}, and at {{risk.stress[2].shock}} give {{risk.stress[2].pnl|money}}. The realistic loss drop threshold is {{risk.realistic_loss_drop_pct|pct}}.",
+    "citations": []
+   },
+   {
+    "mode": "notice",
+    "text": "**Warnings and limitations.** {{risk.warnings[0]}}",
+    "citations": []
+   },
+   {
+    "mode": "notice",
+    "text": "{{delayed_data_notice}}",
+    "citations": []
+   },
+   {
+    "mode": "notice",
+    "text": "{{disclaimer}}",
+    "citations": []
+   }
+  ]
+ }
+}

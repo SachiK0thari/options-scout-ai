@@ -1,0 +1,19 @@
+{
+ "task": "parse_profile",
+ "model": "deepseek/deepseek-v4.1-flash",
+ "output": {
+  "buying_power": 40000.0,
+  "account_value": 40000.0,
+  "account_type": "cash",
+  "risk_profile": "conservative",
+  "strategies": [
+   "csp",
+   "leaps"
+  ],
+  "watchlist": [],
+  "exclude": [],
+  "max_positions": null,
+  "knowledge_level": null,
+  "needs_clarification": []
+ }
+}

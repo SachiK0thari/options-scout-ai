@@ -4,7 +4,7 @@ UV        ?= uv
 PORT_API  ?= 8000
 PORT_UI   ?= 8501
 
-.PHONY: help install test test-cov test-live mutation lint fmt eval bench requirements requirements-check api ui mcp demo demo-core bottlenecks index clean check
+.PHONY: help install test test-cov test-live mutation lint fmt eval eval-check record-llm bench requirements requirements-check api ui mcp demo demo-core bottlenecks index clean check
 
 help:
 	@grep -E '^[a-zA-Z_-]+:.*?## ' $(MAKEFILE_LIST) | awk 'BEGIN {FS = ":.*?## "}; {printf "  %-12s %s\n", $$1, $$2}'
@@ -40,8 +40,14 @@ fmt: ## auto-format
 
 check: lint test ## lint + test
 
-eval: ## run the eval suite (incl. the full test suite with coverage), write evals/reports/latest.md
-	$(PY) evals/run_evals.py
+eval: ## run the eval suite (incl. the full test suite with coverage), write evals/reports/latest.md, re-render the doc numbers
+	$(PY) evals/run_evals.py; status=$$?; $(PY) scripts/render_doc_numbers.py; exit $$status
+
+eval-check: ## fail when evals/reports/latest.md is older than the code, prompts or datasets it describes
+	$(PY) scripts/check_eval_report.py
+
+record-llm: ## record live model outputs into tests/fixtures/llm so fixture mode replays them (spends LLM credits)
+	$(PY) scripts/record_llm_fixtures.py
 
 bench: ## performance benchmarks in fixture mode (latency per agent, tokens, cost, cache hits, retrieval) → evals/reports/bench.md
 	$(PY) evals/bench.py

@@ -1,0 +1,86 @@
+{
+ "task": "explain_report",
+ "model": "deepseek/deepseek-v4.1-flash",
+ "output": {
+  "paragraphs": [
+   {
+    "mode": "education",
+    "text": "A **cash-secured put** is a short put position in which the writer sets aside enough cash to buy the shares at the strike price if the put is assigned [S1]. The word *secured* refers to the cash: in a cash account the broker holds the full purchase price (strike \u00d7 100, less the premium received) as collateral for the whole life of the trade [S1]. A **naked put** is the same contract, but in a margin account the broker holds only a **margin requirement**, a fraction of the purchase price computed under exchange and FINRA minimum rules, and the writer keeps the rest of their buying power free for other positions [S4]. **Assignment** is the process by which an option writer is selected to fulfil the obligation of a contract that a holder has exercised [S2]. In this run the account is a margin account, so the puts are sized as naked puts on the Reg T requirement.",
+    "citations": [
+     "S1",
+     "S4",
+     "S2"
+    ]
+   },
+   {
+    "mode": "screen_result",
+    "text": "The screen allocated buying power across strategies as {{allocation.csp_pct|pct}} to cash-secured puts, {{allocation.leaps_pct|pct}} to LEAPS and {{allocation.cash_pct|pct}} to cash, under a **{{regime.label}}** volatility regime with a VIX of {{regime.vix}} and a risk-free rate of {{regime.risk_free_rate_pct|pct}}.",
+    "citations": []
+   },
+   {
+    "mode": "education",
+    "text": "The quality gate is a **filter, not a discovery engine**: it decides which tickers are allowed into the option screeners at all, records a reason for every rejection, and produces a score for the survivors [S5].",
+    "citations": [
+     "S5"
+    ]
+   },
+   {
+    "mode": "screen_result",
+    "text": "The quality screen passed {{quality_screen.passed_count}} underlyings: {{quality_screen.passed_tickers|list}}. It excluded {{quality_screen.excluded_count}} underlyings, so no exclusion reasons were recorded.",
+    "citations": []
+   },
+   {
+    "mode": "screen_result",
+    "text": "The trend board is a secondary signal only; trending tickers such as CAVA, ONON and DECK scored highly, but all are absent from the good-to-own list and were skipped: {{errors|list}}.",
+    "citations": []
+   },
+   {
+    "mode": "notice",
+    "text": "{{ delayed_data_notice }}",
+    "citations": []
+   },
+   {
+    "mode": "education",
+    "text": "A **poor man's covered call** is a two-leg position: a long, deep in-the-money LEAPS call (expiring a year or more out) and a short, near-term, out-of-the-money call on the same stock [S3]. Formally it is a **long call diagonal spread**: different strikes and different expirations [S3].",
+    "citations": [
+     "S3"
+    ]
+   },
+   {
+    "mode": "screen_result",
+    "text": "Two positions were sized. The cash-secured put is CSP-NKE-2026-11-20-35P, with a breakeven of {{positions[CSP-NKE-2026-11-20-35P].payoff.breakeven|money}}, a maximum loss of {{positions[CSP-NKE-2026-11-20-35P].payoff.max_loss|money}} and a realistic loss of {{positions[CSP-NKE-2026-11-20-35P].realistic_loss|money}} for {{positions[CSP-NKE-2026-11-20-35P].contracts}} contracts. The LEAPS leg is LEAPS-NKE-2028-12-15-20C, paired with short call PMCCSC-NKE-2026-11-20-40C, with a breakeven of {{positions[LEAPS-NKE-2028-12-15-20C].payoff.breakeven|money}}, a maximum loss of {{positions[LEAPS-NKE-2028-12-15-20C].payoff.max_loss|money}} and a realistic loss of {{positions[LEAPS-NKE-2028-12-15-20C].realistic_loss|money}}.",
+    "citations": []
+   },
+   {
+    "mode": "screen_result",
+    "text": "The portfolio used {{portfolio.margin_used|money}} of margin and {{portfolio.capital_used|money}} of capital, with a short put notional of {{portfolio.short_put_notional|money}} and a dollar delta of {{portfolio.dollar_delta|money}}.",
+    "citations": []
+   },
+   {
+    "mode": "screen_result",
+    "text": "All {{risk.checks_passed}} of {{risk.checks_total}} risk checks passed: short put notional was {{risk.checks[short_put_notional_x].value|percent}} of the limit, margin usage {{risk.checks[margin_usage].value|percent}}, maximum loss per position {{risk.checks[max_loss_per_position].value|percent}}, and assignment cash {{risk.checks[assignment_cash_x].value|percent}}. In a stress test, a {{risk.stress[-10%].shock}} move with a {{risk.stress[-10%].iv_shock}} IV shock gives a P&L of {{risk.stress[-10%].pnl|money}}, a {{risk.stress[-20%].shock}} move gives {{risk.stress[-20%].pnl|money}}, and a {{risk.stress[-30%].shock}} move gives {{risk.stress[-30%].pnl|money}}.",
+    "citations": []
+   },
+   {
+    "mode": "screen_result",
+    "text": "The sizer left cash on the table and did not follow the ranking. {{risk.warnings[0]}} {{risk.warnings[1]}} {{risk.warnings[2]}}",
+    "citations": []
+   },
+   {
+    "mode": "notice",
+    "text": "**Warnings and limitations.** {{risk.warnings[3]}} {{risk.warnings[4]}}",
+    "citations": []
+   },
+   {
+    "mode": "screen_result",
+    "text": "Margin caveat: the puts are sized as naked puts on the Reg T requirement ({{portfolio.margin_used|money}}), but the loss at a {{risk.stress[-30%].shock|abs}} move is {{portfolio.realistic_loss|money}} and assignment of every put plus the LEAPS debits would need cash. Brokers can raise requirements at any time, especially in volatile markets.",
+    "citations": []
+   },
+   {
+    "mode": "notice",
+    "text": "{{ disclaimer }}",
+    "citations": []
+   }
+  ]
+ }
+}

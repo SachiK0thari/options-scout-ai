@@ -303,7 +303,8 @@ def make(deps: Deps) -> Callable[[AgentState], dict[str, Any]]:
             # W14: first try keeping the model's text with its failing paragraphs replaced
             mixed = (
                 mixed_narrative(deps, state, compliance, rules, attempts=verification.attempts)
-                if compliance is not None and source == "model"
+                if compliance is not None
+                and source in ("model", "fixture")  # a replay is model text
                 else None
             )
             if mixed is not None:

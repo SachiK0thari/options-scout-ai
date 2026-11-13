@@ -340,9 +340,32 @@ def test_a_withheld_thread_drops_the_refused_positions_from_its_state(
 
 
 # --------------------------------------------- W11: the report records who wrote the narrative
-def test_a_fixture_run_records_a_fixture_narrative(deps: Deps) -> None:
+def test_a_fixture_run_without_a_recording_records_the_rules_narrative(deps: Deps) -> None:
+    # W34 step 4: no recorded model output matches, so the template writer stood in
     _visited, final = _run(deps, REQUEST, "t-source-fixture")
-    assert final["report"].metadata.narrative_source == "fixture"
+    assert final["report"].metadata.narrative_source == "rules"
+
+
+def test_a_replayed_recording_records_a_fixture_narrative(
+    deps: Deps, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    from options_scout.llm.client import TokenUsage
+
+    real = deps.llm.provider.complete
+
+    def replay(**kw: Any) -> Any:
+        out, usage = real(**kw)
+        if (
+            kw["task"] == "explain_report"
+        ):  # stands in for a recording found under tests/fixtures/llm
+            return out, TokenUsage(model=kw["model"], task=kw["task"], cached=True)
+        return out, usage
+
+    monkeypatch.setattr(deps.llm.provider, "complete", replay)
+    _visited, final = _run(deps, REQUEST, "t-source-replay")
+    # the explainer records the replay (this stand-in recording is template text held to the
+    # model's rules, so the report may still replace it; the report's own label then says so)
+    assert final["narrative_source"] == "fixture"
 
 
 def test_a_model_failure_records_the_rules_narrative(

@@ -1,0 +1,44 @@
+{
+ "task": "classify_news",
+ "model": "deepseek/deepseek-v4.1-flash",
+ "output": {
+  "items": [
+   {
+    "id": "tn-ff1719d2e1",
+    "category": "earnings",
+    "relevance": "high",
+    "summary": "Nike earnings missed estimates as China sales declined."
+   },
+   {
+    "id": "tn-bb96283a60",
+    "category": "guidance",
+    "relevance": "high",
+    "summary": "Nike cut its full-year outlook and warned about North America demand."
+   },
+   {
+    "id": "tn-c96de5a722",
+    "category": "product",
+    "relevance": "medium",
+    "summary": "Nike launched a new running shoe line ahead of marathon season."
+   },
+   {
+    "id": "tn-da6d4d89ad",
+    "category": "legal_regulatory",
+    "relevance": "high",
+    "summary": "Nike settled a wage lawsuit with retail workers for $45 million."
+   },
+   {
+    "id": "tn-9c49bbfc5f",
+    "category": "macro",
+    "relevance": "low",
+    "summary": "Tariffs on footwear imports are expected to increase next year."
+   },
+   {
+    "id": "tn-2d5fb6ef08",
+    "category": "other",
+    "relevance": "low",
+    "summary": "Nike appointed a new chief marketing officer."
+   }
+  ]
+ }
+}

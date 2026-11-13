@@ -1,0 +1,44 @@
+{
+ "task": "classify_news",
+ "model": "deepseek/deepseek-v4.1-flash",
+ "output": {
+  "items": [
+   {
+    "id": "tn-8f2fe534d9",
+    "category": "earnings",
+    "relevance": "high",
+    "summary": "Nasdaq-100 rises as megacap earnings beat expectations."
+   },
+   {
+    "id": "tn-b281029fc3",
+    "category": "guidance",
+    "relevance": "high",
+    "summary": "Analysts expect the technology capital expenditure boom to continue."
+   },
+   {
+    "id": "tn-a9267248b7",
+    "category": "product",
+    "relevance": "medium",
+    "summary": "Invesco launches a new Nasdaq-100 option income ETF."
+   },
+   {
+    "id": "tn-68bc1e9f58",
+    "category": "legal_regulatory",
+    "relevance": "high",
+    "summary": "Antitrust scrutiny of big technology companies increases in Washington."
+   },
+   {
+    "id": "tn-02a41b3dce",
+    "category": "macro",
+    "relevance": "low",
+    "summary": "The inflation report came in cooler than expected."
+   },
+   {
+    "id": "tn-0d4161be68",
+    "category": "other",
+    "relevance": "low",
+    "summary": "Nasdaq plans to open a new office in Dallas."
+   }
+  ]
+ }
+}

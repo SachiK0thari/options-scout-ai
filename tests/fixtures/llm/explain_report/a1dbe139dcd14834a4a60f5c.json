@@ -1,0 +1,67 @@
+{
+ "task": "explain_report",
+ "model": "deepseek/deepseek-v4.1-flash",
+ "output": {
+  "paragraphs": [
+   {
+    "mode": "screen_result",
+    "text": "The regime is labelled {{regime.label}}, with a VIX of {{regime.vix}} and a 30-day risk-free rate of {{regime.risk_free_rate_pct}}%. The sizer split buying power across the strategies into {{allocation.csp_pct}} for cash-secured puts, {{allocation.leaps_pct}} for LEAPS, and {{allocation.cash_pct}} in cash, giving budget of {{allocation.csp_dollars|money}}, {{allocation.leaps_dollars|money}} and {{allocation.cash_dollars|money}} respectively.",
+    "citations": []
+   },
+   {
+    "mode": "education",
+    "text": "A cash-secured put is a short put position in which the writer sets aside enough cash to buy the shares at the strike price if the put is assigned [S1]. The writer sells the put, collects the premium up front, and accepts the obligation to buy 100 shares per contract at the strike any time before expiration [S1]. The word secured refers to the cash: in a cash account the broker holds the full purchase price as collateral for the whole life of the trade [S1]. Assignment is the process by which an option writer is selected to fulfil the obligation of a contract that a holder has exercised [S2]. When a put holder exercises, some put writer is obliged to take the shares at the strike [S2].",
+    "citations": [
+     "S1",
+     "S2"
+    ]
+   },
+   {
+    "mode": "screen_result",
+    "text": "The good-to-own quality gate passed {{quality_screen.passed_count}} underlyings: {{quality_screen.passed_tickers|list}}. No underlyings were excluded on quality ({{quality_screen.excluded_count}} excluded); the reason the universe was restricted is shown in the run errors: trending tickers that are not on the good-to-own list, such as CAVA and ONON, were skipped. The board is a secondary signal only, and the top trend scores are CAVA and ONON.",
+    "citations": []
+   },
+   {
+    "mode": "education",
+    "text": "Intrinsic value is the amount by which the option is in the money: for a call, the stock price minus the strike when positive, otherwise zero; for a put, the strike minus the stock price when positive, otherwise zero [S4]. Extrinsic value, also called time value, is everything else: premium minus intrinsic value [S4]. LEAPS is the exchanges' name for listed options with more than a year until expiration, and they trade and settle exactly like shorter options; only the time horizon is different [S3]. A poor man's covered call is a two-leg position: a long, deep in-the-money LEAPS call and a short, near-term, out-of-the-money call on the same stock, formally a long call diagonal spread [S5].",
+    "citations": [
+     "S3",
+     "S4",
+     "S5"
+    ]
+   },
+   {
+    "mode": "screen_result",
+    "text": "The bottleneck board re-orders quality-gated stocks and never adds one; its leading layers are {{bottlenecks.layers[0].name}} at {{bottlenecks.layers[0].score}} and holding, and {{bottlenecks.layers[1].name}} at {{bottlenecks.layers[1].score}} and holding. Of the sized candidate, only CSP-NKE-2026-11-20-35P has flags: {{positions[0].bottleneck_flags|list}}. The sized position is CSP-NKE-2026-11-20-35P, with expiry 2026-11-20, breakeven {{positions[0].payoff.breakeven|money}}, max loss {{positions[0].payoff.max_loss|money}} and a realistic loss of {{positions[0].realistic_loss|money}}. The sizer then filtered the remaining candidates: the skipped list names CSP-SPY-2026-11-30-735P, at rank 1, with realistic loss per contract {{skipped_candidates[0].realistic_loss_per_contract|money}}, and CSP-SPY-2026-11-30-750P, at rank 2, with {{skipped_candidates[1].realistic_loss_per_contract|money}}.",
+    "citations": []
+   },
+   {
+    "mode": "education",
+    "text": "A naked put (also uncovered or short put on margin) is the same contract as a cash-secured put: the writer sells a put, collects the premium and takes on the obligation to buy 100 shares at the strike if assigned [S6]. The difference is how the obligation is collateralised; in a margin account the broker holds only a margin requirement, a fraction of the purchase price computed under exchange and FINRA minimum rules, and the writer keeps the rest of their buying power free for other positions [S6].",
+    "citations": [
+     "S6"
+    ]
+   },
+   {
+    "mode": "screen_result",
+    "text": "The risk checks all passed: {{risk.checks_passed}} of {{risk.checks_total}} constraints, including a short put notional of {{risk.checks[0].value|percent}} of the limit, margin usage of {{risk.checks[1].value|percent}}, and a portfolio loss of {{risk.checks[5].value|percent}} at a {{risk.realistic_loss_drop_pct}}% drop. The stress tests give a loss of {{risk.stress[0].pnl|money}} at a {{risk.stress[0].shock}} move with {{risk.stress[0].iv_shock}} IV, and a loss of {{risk.stress[1].pnl|money}} at a {{risk.stress[1].shock}} move, with a loss of {{risk.stress[2].pnl|money}} at a {{risk.stress[2].shock}} move. The portfolio uses margin of {{portfolio.margin_used|money}} and has a total realistic loss of {{portfolio.realistic_loss|money}}.",
+    "citations": []
+   },
+   {
+    "mode": "screen_result",
+    "text": "The sizer's warnings explain the deployment: the numbered warnings include that the account is a one-stock portfolio in NKE, that the highest-ranked underlying(s) SPY and QQQ did not fit this account size, and that only {{portfolio.capital_used|money}} of the {{allocation.csp_dollars|money}} set aside is used. The warnings also flag an HV proxy for CSP-NKE-2026-11-20-35P and a margin caveat: the puts are sized as naked puts on the Reg T requirement of {{positions[0].margin_used|money}}, while a {{risk.realistic_loss_drop_pct}}% move gives a loss of {{positions[0].realistic_loss|money}} and assignment of every put would need {{portfolio.short_put_notional|money}} in cash.",
+    "citations": []
+   },
+   {
+    "mode": "notice",
+    "text": "{{ delayed_data_notice }} **Warnings and limitations.** {{risk.warnings[0]}} {{risk.warnings[1]}}",
+    "citations": []
+   },
+   {
+    "mode": "notice",
+    "text": "{{ disclaimer }}",
+    "citations": []
+   }
+  ]
+ }
+}

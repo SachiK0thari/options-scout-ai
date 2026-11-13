@@ -24,7 +24,7 @@ from options_scout.llm.client import LLMClient
 from options_scout.llm.prompts import load_prompt
 
 REPO = Path(__file__).resolve().parents[2]
-DATASET = REPO / "evals" / "datasets" / "bottleneck_snippets_labeled.jsonl"
+DATASET = REPO / "evals" / "datasets" / "dev" / "bottleneck_snippets_labeled.jsonl"
 
 
 def _rows() -> list[dict[str, Any]]:

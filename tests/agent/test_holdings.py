@@ -26,7 +26,7 @@ from options_scout.data.market import MarketData
 from options_scout.llm.rules import is_holdings_message, rule_parse_holdings, rule_route
 from tests.conftest import REPO_ROOT
 
-DATASETS = REPO_ROOT / "evals" / "datasets"
+DATASETS = REPO_ROOT / "evals" / "datasets" / "dev"
 
 
 @pytest.fixture(scope="module")

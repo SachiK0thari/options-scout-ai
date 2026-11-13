@@ -1,0 +1,20 @@
+{"id": "t-tax-01", "question": "sold a put in december for $300 and it expires in february. do i owe tax on that $300 this year or next?", "doc_id": "short-put-premium-taxation"}
+{"id": "t-tax-02", "question": "if i sell a put 400 days out and just let it expire, is that a long term gain since it was open over a year?", "doc_id": "short-put-premium-taxation"}
+{"id": "t-tax-03", "question": "got assigned on a $40 put i sold for $1.50. what's my cost basis on the 100 shares?", "doc_id": "assignment-cost-basis"}
+{"id": "t-tax-04", "question": "bought shares on march 10 last year. if i sell them on march 10 this year is that long term or short term?", "doc_id": "short-term-vs-long-term"}
+{"id": "t-tax-05", "question": "sold my 100 AAPL shares at a $400 loss, then a put i'd sold on AAPL got assigned a week later. is my loss just gone?", "doc_id": "wash-sales-and-options"}
+{"id": "t-tax-06", "question": "took a loss selling NKE in my taxable account, then got assigned NKE shares in my roth 10 days later. what happens to that loss?", "doc_id": "wash-sales-and-options"}
+{"id": "t-tax-07", "question": "my 1099-B shows a put with proceeds $120 and cost basis $0. is that a mistake from my broker?", "doc_id": "form-1099b-and-8949"}
+{"id": "t-tax-08", "question": "where do all my option trades actually go on my tax return? do i have to list every single one?", "doc_id": "form-1099b-and-8949"}
+{"id": "t-tax-09", "question": "someone on reddit said index options get 60/40 tax treatment. does that apply to my QQQ puts too?", "doc_id": "section-1256-contracts"}
+{"id": "t-tax-10", "question": "i have an SPX put open over new year's sitting on a gain. do i owe tax on it even though i haven't closed it?", "doc_id": "section-1256-contracts"}
+{"id": "t-tax-11", "question": "bought a LEAPS 11 months ago and it's up about $1000. does it matter tax-wise if i wait another month or two to sell?", "doc_id": "leaps-holding-period"}
+{"id": "t-tax-12", "question": "is rolling my LEAPS out to a later expiration a taxable event or does it push the gain off?", "doc_id": "leaps-exercise-vs-sale"}
+{"id": "t-tax-13", "question": "my $100 strike LEAPS that i paid $25 for is now worth $40. what's the tax difference between exercising it and just selling it?", "doc_id": "leaps-exercise-vs-sale"}
+{"id": "t-tax-14", "question": "want to sell a 2 week covered call on shares i've held 8 months. does that screw up my holding period at all?", "doc_id": "qualified-covered-calls"}
+{"id": "t-tax-15", "question": "does selling calls against my LEAPS (pmcc) count as a covered call for tax purposes or is it treated differently?", "doc_id": "qualified-covered-calls"}
+{"id": "t-tax-16", "question": "if i sell puts inside my roth do i still have to worry about short term vs long term gains?", "doc_id": "options-in-an-ira"}
+{"id": "t-tax-17", "question": "i'm 35. can i pull $5k out of my traditional IRA to cover an assigned put in my other account without getting hit with a penalty?", "doc_id": "early-withdrawal-from-an-ira"}
+{"id": "t-tax-18", "question": "i have $15k in a margin account. sold a put this morning and want to buy it back this afternoon, will that get me flagged?", "doc_id": "pattern-day-trading-rule"}
+{"id": "t-tax-19", "question": "can i do a poor man's covered call in a plain cash account or do i need margin for that?", "doc_id": "account-types-for-options"}
+{"id": "t-tax-20", "question": "my broker gave me portfolio margin. why doesn't the app's margin number for my naked put match what my broker shows?", "doc_id": "reg-t-vs-portfolio-margin"}

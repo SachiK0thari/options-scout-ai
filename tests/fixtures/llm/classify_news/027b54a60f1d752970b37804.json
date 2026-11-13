@@ -1,0 +1,38 @@
+{
+ "task": "classify_news",
+ "model": "deepseek/deepseek-v4.1-flash",
+ "output": {
+  "items": [
+   {
+    "id": "tn-8da0d26f84",
+    "category": "earnings",
+    "relevance": "high",
+    "summary": "Apple reports record services revenue while iPhone sales remain steady."
+   },
+   {
+    "id": "tn-d6e80b4516",
+    "category": "guidance",
+    "relevance": "high",
+    "summary": "Apple raises holiday-quarter outlook citing strong wearables demand."
+   },
+   {
+    "id": "tn-da10911de9",
+    "category": "product",
+    "relevance": "medium",
+    "summary": "Apple unveils new MacBook lineup featuring refreshed in-house silicon."
+   },
+   {
+    "id": "tn-3b0329086d",
+    "category": "legal_regulatory",
+    "relevance": "high",
+    "summary": "EU regulator opens new investigation into Apple App Store fees."
+   },
+   {
+    "id": "tn-4800c0dec4",
+    "category": "other",
+    "relevance": "low",
+    "summary": "Apple expands retail presence with three new stores in India."
+   }
+  ]
+ }
+}

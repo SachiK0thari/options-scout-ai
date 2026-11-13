@@ -1,0 +1,24 @@
+{
+ "task": "parse_profile",
+ "model": "deepseek/deepseek-v4.1-flash",
+ "output": {
+  "buying_power": 250000.0,
+  "account_value": 250000.0,
+  "account_type": "portfolio_margin",
+  "risk_profile": "aggressive",
+  "strategies": [
+   "csp",
+   "leaps",
+   "pmcc"
+  ],
+  "watchlist": [
+   "AAPL",
+   "MSFT",
+   "SPY"
+  ],
+  "exclude": [],
+  "max_positions": null,
+  "knowledge_level": null,
+  "needs_clarification": []
+ }
+}
