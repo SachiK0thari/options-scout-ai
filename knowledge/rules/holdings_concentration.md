@@ -5,7 +5,7 @@ source: PRD.md section 3.10 and config/risk_profiles.yaml, config/holdings.yaml
 url: PRD.md#310-holdings-and-concentration-after-assignment-seventh-constraint
 kind: rules
 level: intermediate
-as_of: '2026-11-12'
+as_of: '2026-11-13'
 ---
 
 # Rule 3.10 Holdings and concentration after assignment (seventh constraint)
@@ -41,7 +41,7 @@ Covered-call lot: 100 shares. Beta: daily log returns over 252 trading days agai
 | DIA | 0.16% |
 | IVV | 0.03% |
 | IWM | 0.19% |
-| QQQ | 0.2% |
+| QQQ | 0.18% |
 | SPY | 0.0945% |
 | VOO | 0.03% |
 | VTI | 0.03% |

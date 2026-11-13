@@ -5,7 +5,7 @@ source: "SEC investor.gov, Mutual Funds and Exchange-Traded Funds (ETFs); Bogleh
 url: https://www.investor.gov/introduction-investing/investing-basics/investment-products/mutual-funds-and-exchange-traded-funds-etfs
 kind: basics
 level: beginner
-as_of: 2026-11-04
+as_of: 2026-11-13
 ---
 
 # Index funds: what an index is, the S&P 500 and Nasdaq-100, and passive versus active
@@ -32,7 +32,7 @@ An index fund promises nothing except to roughly match its index, including in a
 
 ## Where this shows up in OptionsScout
 
-The Quality Screen tab displays every ticker from the curated universe and whether it passed the quality gate on the day of the run, with the two index ETFs at the top of the list. The ranking that follows blends option economics (55%), a quality score (35%) and a consumer-trend signal (10%); the trend signal can re-order names but never adds one that is not on the list or that fails the gate. When the Scout chat is asked whether the universe is "like an index fund", it cites this document to explain that it is a filter, not an index.
+The Quality Screen tab displays every ticker from the curated universe and whether it passed the quality gate on the day of the run, with the two index ETFs at the top of the list. The ranking that follows blends option economics ({{ranking.option_quality_pct}}), a quality score ({{ranking.stock_quality_pct}}) and a consumer-trend signal ({{ranking.social_pct}}); the trend signal can re-order names but never adds one that is not on the list or that fails the gate. When the Scout chat is asked whether the universe is "like an index fund", it cites this document to explain that it is a filter, not an index.
 
 ## Sources
 

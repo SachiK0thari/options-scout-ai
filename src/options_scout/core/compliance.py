@@ -1220,11 +1220,15 @@ def check_sources_fresh(
     """Check 7 (warn): a cited rule, filing or bottleneck evidence item older than
     ``max_age_days`` may be out of date; a cited bottleneck board whose snapshot ``as_of`` is older
     than ``max_snapshot_age_days`` reports a constraint the daily job has not re-measured (Phase 11,
-    step 11.5). Both compare against the data clock passed as ``today``."""
+    step 11.5); a cited document past its ``review_by`` date states a rule that may have changed
+    (W26). All compare against the data clock passed as ``today``."""
     today = today or date.today()
     stale: list[str] = []
     old_board: list[str] = []
+    overdue: list[str] = []
     for c in citations:
+        if c.review_by is not None and today > c.review_by:
+            overdue.append(c.tag or c.doc_id)  # W26: a dated rule past its review date
         if c.as_of is None:
             continue
         age = (today - c.as_of).days
@@ -1238,6 +1242,11 @@ def check_sources_fresh(
         problems.append(
             f"{', '.join(stale)} older than {cfg.max_age_days} days (source may be out of date)"
         )
+    if overdue:
+        problems.append(
+            f"{', '.join(dict.fromkeys(overdue))} past its review date (the rule it states may "
+            "have changed)"
+        )
     if old_board:
         problems.append(
             f"{', '.join(old_board)} snapshot older than {cfg.max_snapshot_age_days} days "
@@ -1248,7 +1257,7 @@ def check_sources_fresh(
         passed=not problems,
         severity="warn",
         detail="; ".join(problems) or "cited rules and filings are current",
-        locations=stale + old_board,
+        locations=stale + old_board + list(dict.fromkeys(overdue)),
     )
 
 

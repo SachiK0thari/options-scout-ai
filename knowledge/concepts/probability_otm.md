@@ -5,7 +5,7 @@ source: "OCC disclosure document chapter X; PRD.md section 3.6 (Black-Scholes-Me
 url: https://www.theocc.com/company-information/documents-and-archives/options-disclosure-document
 kind: concepts
 level: advanced
-as_of: 2026-11-03
+as_of: 2026-11-13
 ---
 
 # Probability of expiring out of the money
@@ -18,7 +18,7 @@ In the Black-Scholes-Merton framework, the risk-neutral probability that a put e
 
 ## Why it is not the same as delta
 
-Traders often use the absolute value of delta as a shorthand for the probability of finishing in the money. Delta is e^(−qT) × N(d1) for a call, and d1 is larger than d2 by σ√T, so delta always overstates the probability of finishing in the money a little, and the gap grows with volatility and time. For a 40-day put at 0.25 delta the difference is a couple of percentage points; for a two-year LEAPS it is substantial. This app shows both numbers because they answer different questions: delta is exposure, probability OTM is a model odds estimate.
+Traders often use the absolute value of delta as a shorthand for the probability of finishing in the money. Call delta is e^(−qT) × N(d1) and the call's probability of finishing in the money is N(d2); d1 is larger than d2 by σ√T, so call delta overstates that probability. For a put the direction reverses: the absolute put delta, e^(−qT) × N(−d1), *understates* the probability of finishing in the money, N(−d2). The gap grows with volatility and time. At 25% implied volatility, a 40-day put at 0.25 delta has a 27.7% model probability of finishing in the money, and a 40-day call at 0.25 delta 22.4%; for a two-year LEAPS the gap is substantial. This app shows both numbers because they answer different questions: delta is exposure, probability OTM is a model odds estimate.
 
 ## What "risk-neutral" means for a reader
 
@@ -26,11 +26,11 @@ The probability is computed under the assumption that the stock drifts at the sh
 
 ## Probability of touching versus probability at expiration
 
-N(d2) is the probability that the stock is below the strike **at expiration**. The probability that the stock trades below the strike **at some point** before expiration is considerably higher, close to twice as high for options that are not far from the money. A put writer who intends to hold to expiration cares about the first number; a writer who will close or roll if the strike is breached cares about the second. The report uses the expiration figure and says so.
+For a put, N(d2) is the probability that the stock is above the strike **at expiration**, so the put expires worthless; N(−d2) is the probability that it finishes below. The probability that the stock trades below the strike **at some point** before expiration is considerably higher, close to twice as high for options that are not far from the money. A put writer who intends to hold to expiration cares about the first number; a writer who will close or roll if the strike is breached cares about the second. The report uses the expiration figure and says so.
 
 ## How it is used in ranking
 
-The CSP screener scores candidates on four components: annualised return on collateral, probability OTM, liquidity and fit of IV rank to the preferred range. Probability OTM carries 30% of that option-quality score, which itself carries 55% of the final ranking alongside the stock's quality score and the consumer-trend signal. A put with a very high probability OTM but almost no premium does not rank well, and neither does a fat premium with a coin-flip chance of assignment; the ranking rewards the balance.
+The CSP screener scores candidates on four components: annualised return on collateral, probability OTM, liquidity and fit of IV rank to the preferred range. Probability OTM carries {{ranking.option.prob_otm_pct}} of that option-quality score, which itself carries {{ranking.option_quality_pct}} of the final ranking alongside the stock's quality score and the consumer-trend signal. A put with a very high probability OTM but almost no premium does not rank well, and neither does a fat premium with a coin-flip chance of assignment; the ranking rewards the balance.
 
 ## Sources
 

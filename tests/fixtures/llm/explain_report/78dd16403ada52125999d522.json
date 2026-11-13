@@ -1,0 +1,85 @@
+{
+ "task": "explain_report",
+ "model": "deepseek/deepseek-v4.1-flash",
+ "output": {
+  "paragraphs": [
+   {
+    "mode": "screen_result",
+    "text": "The regime was flagged {{regime.label}} with the VIX at {{regime.vix}} ({{regime.vix_percentile}}th percentile) and a risk-free rate of {{regime.risk_free_rate_pct}}. Buying power was split evenly: {{allocation.csp_pct}} of the {{profile.buying_power|money}} account to cash-secured puts and {{allocation.cash_pct}} left in cash, a {{allocation.tilt}} tilt.",
+    "citations": []
+   },
+   {
+    "mode": "education",
+    "text": "A **cash-secured put** is a short put position in which the writer sets aside enough cash to buy the shares at the strike price if the put is assigned [S1]. The **Cboe Volatility Index (VIX)** measures the market's expectation of 30-day volatility in the S&P 500, derived from the prices of a wide strip of S&P 500 index options [S5]. Because it is computed from option prices rather than from past returns, the VIX moves with fear and relief in real time, rising sharply in sell-offs and drifting down in calm markets [S5].",
+    "citations": [
+     "S1",
+     "S5"
+    ]
+   },
+   {
+    "mode": "education",
+    "text": "The quality gate is a **filter, not a discovery engine**: it decides which tickers are allowed into the option screeners at all, records a reason for every rejection, and produces a score for the survivors [S3].",
+    "citations": [
+     "S3"
+    ]
+   },
+   {
+    "mode": "screen_result",
+    "text": "{{quality_screen.passed_count}} underlyings passed the good-to-own screen: {{quality_screen.passed_tickers|list}}. {{quality_screen.excluded_count}} were excluded.",
+    "citations": []
+   },
+   {
+    "mode": "education",
+    "text": "A rising consumer-trend score can look attractive for a short put, but for the structure of a short put the opposite is closer to the truth, and the app is built around that fact [S4].",
+    "citations": [
+     "S4"
+    ]
+   },
+   {
+    "mode": "screen_result",
+    "text": "The trend board is a secondary signal only; the trending names it surfaced, such as {{trends[0].ticker}}, were not on the good-to-own list and could not be added. The bottleneck board likewise re-orders quality-gated stocks and never adds one; its top layers were {{bottlenecks.layers[0].name}} at {{bottlenecks.layers[0].score}} ({{bottlenecks.layers[0].thesis_state}}) and {{bottlenecks.layers[1].name}} at {{bottlenecks.layers[1].score}} ({{bottlenecks.layers[1].thesis_state}}). No sized position carried a bottleneck flag.",
+    "citations": []
+   },
+   {
+    "mode": "education",
+    "text": "**Assignment** is the process by which an option writer is selected to fulfil the obligation of a contract that a holder has exercised; when a put holder exercises, some put writer is obliged to take the shares at the strike [S2]. Next to every short put the app shows a **probability OTM**: the model's estimate of the chance that the option finishes out of the money at expiration and therefore expires worthless, which for a cash-secured put writer is the outcome in which the whole premium is kept and no shares are bought [S6].",
+    "citations": [
+     "S2",
+     "S6"
+    ]
+   },
+   {
+    "mode": "screen_result",
+    "text": "One position was sized: {{positions[0].candidate_id}}, {{positions[0].contracts}} contracts at a strike of {{positions[0].strike}}, with an at-expiry breakeven of {{positions[0].payoff.breakeven}} and a maximum loss of {{positions[0].payoff.max_loss|money}}. Its realistic loss is {{positions[0].realistic_loss|money}}, and it carries no bottleneck flags.",
+    "citations": []
+   },
+   {
+    "mode": "education",
+    "text": "The word *secured* refers to the cash: in a cash account the broker holds the full purchase price (strike \u00d7 100, less the premium received) as collateral for the whole life of the trade [S1].",
+    "citations": [
+     "S1"
+    ]
+   },
+   {
+    "mode": "screen_result",
+    "text": "All {{risk.checks_passed}} of {{risk.checks_total}} constraint checks passed, with the short-put notional at {{risk.checks[0].value|percent}} of the {{risk.checks[0].limit|percent}} limit. A {{risk.stress[0].shock}} move with a {{risk.stress[0].iv_shock}} IV shock gives {{risk.stress[0].pnl|money}}, and a {{risk.stress[2].shock}} move gives {{risk.stress[2].pnl|money}}. Four candidates were skipped for the allocation budget, including {{skipped_candidates[0].candidate_id}}, whose realistic loss of one contract is {{skipped_candidates[0].realistic_loss_per_contract|money}}.",
+    "citations": []
+   },
+   {
+    "mode": "screen_result",
+    "text": "**Warnings and limitations.** {{risk.warnings[0]}} {{risk.warnings[1]}} {{risk.warnings[2]}} {{risk.warnings[3]}}",
+    "citations": []
+   },
+   {
+    "mode": "notice",
+    "text": "{{ delayed_data_notice }}",
+    "citations": []
+   },
+   {
+    "mode": "notice",
+    "text": "{{ disclaimer }}",
+    "citations": []
+   }
+  ]
+ }
+}

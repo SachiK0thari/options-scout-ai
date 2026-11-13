@@ -5,12 +5,12 @@ source: "TreasuryDirect, Treasury Bills (U.S. Department of the Treasury)"
 url: https://www.treasurydirect.gov/marketable-securities/treasury-bills/
 kind: basics
 level: beginner
-as_of: 2026-11-04
+as_of: 2026-11-13
 ---
 
 # Treasury bills and the risk-free rate
 
-A **Treasury bill** (T-bill) is a short-term loan to the U.S. government. TreasuryDirect describes bills as securities with maturities of one year or less, sold at a discount to their face value and paying face value at maturity, with the difference being the interest. Bills are issued in 4-, 8-, 13-, 17-, 26- and 52-week terms. Because they are backed by the Treasury and mature quickly, their yield is used throughout finance as the **risk-free rate**: the return available for taking essentially no credit risk and little interest-rate risk over a short period.
+A **Treasury bill** (T-bill) is a short-term loan to the U.S. government. TreasuryDirect describes bills as securities with maturities of one year or less, sold at a discount to their face value and paying face value at maturity, with the difference being the interest. Bills are issued in 4-, 6-, 8-, 13-, 17-, 26- and 52-week terms (the 6-week bill became a regular offering in February 2025), and Treasury also sells cash management bills at irregular terms. Because they are backed by the Treasury and mature quickly, their yield is used throughout finance as the **risk-free rate**: the return available for taking essentially no credit risk and little interest-rate risk over a short period.
 
 ## The 13-week rate
 

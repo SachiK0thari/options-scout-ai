@@ -605,6 +605,7 @@ class Citation(Model):
     kind: str = "concepts"  # concepts | basics | tax | rules | filings | evidence | run
     tag: str = ""  # "S1"… once numbered for a narrative
     as_of: date | None = None  # the source document's date (freshness check)
+    review_by: date | None = None  # W26: the document states a dated rule to re-check by then
 
 
 class ParagraphDraft(Model):
@@ -1126,6 +1127,7 @@ class ScreeningReport(Model):
     universe: list[str]
     quality: list[QualityCheck] = Field(default_factory=list)  # passed + excluded, in run order
     csp_candidates: list[OptionCandidate]
+    csp_exclusions: list[str] = Field(default_factory=list)  # W26: dropped by an earnings rule
     leaps_candidates: list[OptionCandidate]
     pmcc_candidates: list[PMCCCandidate]
     ranked: list[RankedCandidate]

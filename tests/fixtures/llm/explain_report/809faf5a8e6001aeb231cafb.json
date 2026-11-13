@@ -1,0 +1,57 @@
+{
+ "task": "explain_report",
+ "model": "deepseek/deepseek-v4.1-flash",
+ "output": {
+  "paragraphs": [
+   {
+    "mode": "education",
+    "text": "A **cash-secured put** is a short put position in which the writer sets aside enough cash to buy the shares at the strike price if the put is assigned [S1]. The writer sells the put, collects the premium up front, and accepts the obligation to buy 100 shares per contract at the strike any time before expiration [S1]. In a cash account the broker holds the full purchase price as collateral for the whole life of the trade [S1]. The app also shows a **probability OTM**: the model's estimate of the chance that the option finishes out of the money at expiration and therefore expires worthless [S6]. If the put is exercised against the writer, **assignment** is the process by which an option writer is selected to fulfil the obligation of a contract that a holder has exercised [S2].",
+    "citations": [
+     "S1"
+    ]
+   },
+   {
+    "mode": "screen_result",
+    "text": "Buying power was split with a tilt of {{allocation.tilt}}: {{allocation.csp_pct|pct}} to cash-secured puts ({{allocation.csp_dollars|money}}) and the remainder in cash. The regime label was {{regime.label}}, with the VIX at {{regime.vix}} and a risk-free rate of {{regime.risk_free_rate_pct|pct}}.",
+    "citations": []
+   },
+   {
+    "mode": "education",
+    "text": "The **VIX** measures the market's expectation of 30-day volatility in the S&P 500, quoted as an annualised percentage [S5]. It is computed from option prices rather than from past returns, so it moves with fear and relief in real time [S5].",
+    "citations": [
+     "S5"
+    ]
+   },
+   {
+    "mode": "screen_result",
+    "text": "The good-to-own quality screen passed {{quality_screen.passed_count}} underlyings and excluded {{quality_screen.excluded_count}}; the passed set was {{quality_screen.passed_tickers|list}} [S3]. The momentum board listed {{trends[0].ticker}}, {{trends[1].ticker}}, {{trends[2].ticker}}, {{trends[3].ticker}} and {{trends[4].ticker}}, but none of them was on the quality list, so each was filtered out. The top bottleneck layer was {{bottlenecks.layers[0].name}} with a score of {{bottlenecks.layers[0].score}} and thesis {{bottlenecks.layers[0].thesis_state}}, and the weakest layer was {{bottlenecks.layers[7].name}} with a score of {{bottlenecks.layers[7].score}} and thesis {{bottlenecks.layers[7].thesis_state}}.",
+    "citations": []
+   },
+   {
+    "mode": "screen_result",
+    "text": "The scheduler sized {{counts.positions_sized}} position: {{positions[0].candidate_id}}, a cash-secured put on {{positions[0].ticker}} with strike {{positions[0].strike}}, expiry {{positions[0].expiry}}, {{positions[0].contracts}} contracts, and mid {{positions[0].mid|money}}. Its payoff summary is breakeven {{positions[0].payoff.breakeven|money}} and maximum loss {{positions[0].payoff.max_loss|money}}, with a realistic loss of {{positions[0].realistic_loss|money}}.",
+    "citations": []
+   },
+   {
+    "mode": "screen_result",
+    "text": "The bottleneck board gave {{bottlenecks.companies[4].ticker}} the flags {{bottlenecks.companies[4].flags|list}}, so that underlying was not a candidate for a short put at this time.",
+    "citations": []
+   },
+   {
+    "mode": "screen_result",
+    "text": "The risk picture: {{risk.checks_passed}} of {{risk.checks_total}} constraint checks passed, including maximum loss per position at {{risk.checks[1].value|percent}} against a limit of {{risk.checks[1].limit|percent}} and portfolio loss at {{risk.checks[4].value|percent}} against a limit of {{risk.checks[4].limit|percent}}. A {{risk.stress[0].shock}} market move with an {{risk.stress[0].iv_shock}} IV shock gives a P&L of {{risk.stress[0].pnl|money}}, and a {{risk.stress[2].shock}} move gives {{risk.stress[2].pnl|money}}. Sizing left several items behind: {{risk.warnings[0]}} {{risk.warnings[1]}} {{risk.warnings[2]}} {{risk.warnings[3]}}",
+    "citations": []
+   },
+   {
+    "mode": "notice",
+    "text": "{{ delayed_data_notice }}",
+    "citations": []
+   },
+   {
+    "mode": "notice",
+    "text": "{{ disclaimer }}",
+    "citations": []
+   }
+  ]
+ }
+}

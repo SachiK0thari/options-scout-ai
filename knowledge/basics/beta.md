@@ -5,7 +5,7 @@ source: "SEC investor.gov, Glossary (beta); Cboe Options Institute education"
 url: https://www.investor.gov/introduction-investing/investing-basics/glossary
 kind: basics
 level: intermediate
-as_of: 2026-11-04
+as_of: 2026-11-13
 ---
 
 # Beta: sensitivity to SPY, what 1.2 means, beta-weighted exposure, and the limits of the number
@@ -32,7 +32,7 @@ Treating beta-weighted exposure as a precise forecast is the main error. The num
 
 ## Where this shows up in OptionsScout
 
-The Portfolio & Risk tab reports total dollar delta of the proposed positions and applies the **max dollar delta** constraint (0.8x, 1.0x or 1.5x account value for the conservative, balanced and aggressive profiles). The planned holdings section adds beta-weighted exposure of the user's existing shares against SPY, so the combined figure shows how much of the account's result depends on a single market move; the -10/-20/-30% stress test is the same question asked three ways. The Scout chat cites this document when explaining why two accounts of equal size can have very different stress-test losses.
+The Portfolio & Risk tab reports total dollar delta of the proposed positions and applies the **max dollar delta** constraint (0.8x, 1.0x or 1.5x account value for the conservative, balanced and aggressive profiles). The holdings section adds beta-weighted exposure of the user's existing shares against SPY, so the combined figure shows how much of the account's result depends on a single market move; the -10/-20/-30% stress test is the same question asked three ways. The Scout chat cites this document when explaining why two accounts of equal size can have very different stress-test losses.
 
 ## Sources
 

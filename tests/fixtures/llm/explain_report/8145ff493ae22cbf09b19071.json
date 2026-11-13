@@ -1,0 +1,81 @@
+{
+ "task": "explain_report",
+ "model": "deepseek/deepseek-v4.1-flash",
+ "output": {
+  "paragraphs": [
+   {
+    "mode": "education",
+    "text": "A **cash-secured put** is a short put position in which the writer sets aside enough cash to buy the shares at the strike price if the put is assigned [S1]. The writer sells the put, collects the premium up front, and accepts the obligation to buy 100 shares per contract at the strike any time before expiration [S1]. The word *secured* refers to the cash: in a cash account the broker holds the full purchase price as collateral for the whole life of the trade [S1].",
+    "citations": [
+     "S1"
+    ]
+   },
+   {
+    "mode": "education",
+    "text": "**Assignment** is the process by which an option writer is selected to fulfil the obligation of a contract that a holder has exercised [S2]. When a put holder exercises, some put writer is obliged to take the shares at the strike [S2]. The Options Clearing Corporation assigns exercise notices at random to clearing members with short positions in the same series [S2].",
+    "citations": [
+     "S2"
+    ]
+   },
+   {
+    "mode": "education",
+    "text": "The good-to-own quality gate is a **filter, not a discovery engine**: it decides which tickers are allowed into the option screeners at all, records a reason for every rejection, and produces a score for the survivors [S5].",
+    "citations": [
+     "S5"
+    ]
+   },
+   {
+    "mode": "education",
+    "text": "**LEAPS** (Long-term Equity AnticiPation Securities) is the exchanges' name for listed options with more than a year until expiration [S3]. They trade and settle exactly like shorter options; only the time horizon is different [S3].",
+    "citations": [
+     "S3"
+    ]
+   },
+   {
+    "mode": "screen_result",
+    "text": "The screen is a {{ regime.label }} regime with a VIX of {{ regime.vix }} at the {{ regime.vix_percentile|percent }} percentile and a risk-free rate of {{ regime.risk_free_rate_pct|pct }}. Buying power was allocated {{ allocation.csp_pct|pct }} to cash-secured puts, {{ allocation.leaps_pct|pct }} to LEAPS calls and {{ allocation.cash_pct|pct }} to cash, a {{ allocation.tilt }} tilt; that is {{ allocation.csp_dollars|money }}, {{ allocation.leaps_dollars|money }} and {{ allocation.cash_dollars|money }} respectively.",
+    "citations": []
+   },
+   {
+    "mode": "screen_result",
+    "text": "{{ quality_screen.passed_count }} underlyings passed the quality gate: {{ quality_screen.passed_tickers|list }}. Reasons given: SPY '{{ quality_screen.passed[0].why }}', AAPL '{{ quality_screen.passed[1].why }}' and NKE '{{ quality_screen.passed[6].why }}'. {{ counts.quality_excluded }} underlyings were excluded by the gate.",
+    "citations": []
+   },
+   {
+    "mode": "screen_result",
+    "text": "The trend board is a secondary signal only, and consumer-trend names are not added to the universe: {{ errors[0] }} through {{ errors[7] }}.",
+    "citations": []
+   },
+   {
+    "mode": "screen_result",
+    "text": "The bottleneck board is also a secondary signal: it re-orders quality-gated stocks but never adds one. The top-scoring layer is {{ bottlenecks.layers[0].name }} at {{ bottlenecks.layers[0].score }} with a thesis state of {{ bottlenecks.layers[0].thesis_state }}, followed by {{ bottlenecks.layers[1].name }} at {{ bottlenecks.layers[1].score }} ({{ bottlenecks.layers[1].thesis_state }}); the softest layer shown is {{ bottlenecks.layers[7].name }} at {{ bottlenecks.layers[7].score }} ({{ bottlenecks.layers[7].thesis_state }}). CSCO sits in {{ bottlenecks.companies[4].layer }} with flags {{ bottlenecks.companies[4].flags|list }}.",
+    "citations": []
+   },
+   {
+    "mode": "screen_result",
+    "text": "No position was sized this run: capital used is {{ portfolio.capital_used|money }}, premium income is {{ portfolio.premium_income|money }} and the residual cash reserve is {{ portfolio.cash_reserve|money }}.",
+    "citations": []
+   },
+   {
+    "mode": "screen_result",
+    "text": "Every required constraint check passed: {{ risk.checks_passed }} of {{ risk.checks_total }}, with short put notional at {{ risk.checks[0].value|percent }} of the limit and portfolio loss at {{ risk.checks[4].value|percent }} against a limit of {{ risk.checks[4].limit|percent }}. The stress rows are an unrealised P&L of {{ risk.stress[0].pnl|money }} on a {{ risk.stress[0].shock }} move with a {{ risk.stress[0].iv_shock }} IV shock, {{ risk.stress[1].pnl|money }} on a {{ risk.stress[1].shock }} move, and {{ risk.stress[2].pnl|money }} on a {{ risk.stress[2].shock }} move, using a realistic loss drop of {{ risk.realistic_loss_drop_pct|pct }}.",
+    "citations": []
+   },
+   {
+    "mode": "screen_result",
+    "text": "The sizer left candidates behind rather than cheapening the criteria: {{ counts.skipped_total }} candidates were skipped and {{ counts.warnings }} warning applies. LEAPS-SPY-2028-01-21-600C was not sized, and its realistic loss per contract is {{ skipped_candidates[0].realistic_loss_per_contract|money }}. {{ risk.warnings[0] }}",
+    "citations": []
+   },
+   {
+    "mode": "notice",
+    "text": "{{ delayed_data_notice }}",
+    "citations": []
+   },
+   {
+    "mode": "notice",
+    "text": "{{ disclaimer }}",
+    "citations": []
+   }
+  ]
+ }
+}

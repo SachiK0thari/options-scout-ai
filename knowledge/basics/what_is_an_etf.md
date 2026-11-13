@@ -5,7 +5,7 @@ source: "SEC investor.gov, Mutual Funds and Exchange-Traded Funds (ETFs); OCC, C
 url: https://www.investor.gov/introduction-investing/investing-basics/investment-products/mutual-funds-and-exchange-traded-funds-etfs
 kind: basics
 level: beginner
-as_of: 2026-11-04
+as_of: 2026-11-13
 ---
 
 # What is an ETF: exchange-traded funds, SPY and QQQ, and why their options are liquid
@@ -26,7 +26,7 @@ The two ETFs in this app's universe are **SPY**, the SPDR S&P 500 ETF, which hol
 
 ## Why ETF options are liquid
 
-**Liquidity** means a security can be bought or sold quickly, in size, without moving the price. SPY and QQQ options are among the most actively traded contracts in the world. Several features cause this: the underlying ETFs themselves trade hundreds of millions of dollars a day; thousands of institutions use the options to hedge whole portfolios; and strikes and expiries are listed densely, including multiple expiries per week. The result is tight bid-ask spreads and deep open interest, so a retail order to open or close a position fills near the quoted mid price. Options on a single large stock are usually liquid too, but seldom to the same degree.
+**Liquidity** means a security can be bought or sold quickly, in size, without moving the price. SPY and QQQ options are among the most actively traded contracts in the world. Several features cause this: the underlying ETFs themselves trade tens of billions of dollars a day; thousands of institutions use the options to hedge whole portfolios; and strikes and expiries are listed densely, including multiple expiries per week. The result is tight bid-ask spreads and deep open interest, so a retail order to open or close a position fills near the quoted mid price. Options on a single large stock are usually liquid too, but seldom to the same degree.
 
 ## What can go wrong
 

@@ -5,7 +5,7 @@ source: "FINRA Rule 2360 (Options), including account approval requirements; FIN
 url: https://www.finra.org/rules-guidance/rulebook/finra-rules/2360
 kind: tax
 level: beginner
-as_of: 2026-11-04
+as_of: 2026-11-13
 ---
 
 # Account types for options: cash, margin and IRA accounts for a CSP, LEAPS or PMCC writer
@@ -36,7 +36,7 @@ An investor approved for cash-secured puts but not for spreads cannot place the 
 
 ## Where this shows up in OptionsScout
 
-The Setup tab asks which account type the user is working with and uses the answer to decide whether to show return on collateral (cash and IRA) or return on margin (margin account), and the Portfolio & Risk tab applies the matching constraint. The planned Tax & Accounts page in Learn reproduces the table above and reminds the user that the app never connects to a brokerage, so the broker's own approval level is the one that governs.
+The Setup tab asks which account type the user is working with (cash, margin or portfolio margin; an IRA is entered as a cash account) and uses the answer to decide whether to show return on collateral (cash) or return on margin (margin), and the Portfolio & Risk tab applies the matching constraints. The Tax & Accounts page in Learn reproduces the table above and reminds the user that the app never connects to a brokerage, so the broker's own approval level is the one that governs.
 
 ## Sources
 

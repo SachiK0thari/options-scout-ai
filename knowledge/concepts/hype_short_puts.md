@@ -5,7 +5,7 @@ source: "FINRA, 'Social Sentiment Investing Tools' investor insight; OCC disclos
 url: https://www.finra.org/investors/insights/social-sentiment-investing-tools
 kind: concepts
 level: intermediate
-as_of: 2026-11-08
+as_of: 2026-11-13
 ---
 
 # Why hype is a risk for short puts
@@ -25,7 +25,7 @@ Mentions of a product tell you people are talking about it. They do not tell you
 Every design choice in the trend engine is a constraint on what the signal is allowed to do:
 
 - **Good-to-own first.** The universe is a curated list of large, profitable companies and broad ETFs, and every name must pass a deterministic quality gate on price, volume, realised volatility, implied volatility and drawdown. A trending ticker that is not on the list is noted in the report and skipped; a curated ticker whose volatility has been pushed above the gate by a hype wave fails the gate on that day.
-- **Re-ordering only.** The consumer-trend score carries 15% of the final ranking, the smallest weight, behind the option's own economics (50%) and the stock's quality score (35%). It can move a qualified name up or down the list; it cannot put a name on the list.
+- **Re-ordering only.** The consumer-trend score carries {{ranking.social_pct}} of the final ranking, the smallest weight, behind the option's own economics ({{ranking.option_quality_pct}}) and the stock's quality score ({{ranking.stock_quality_pct}}), and a trend score below the neutral 50 counts as 50, so it can lift a name but not lower it. It can move a qualified name up or down the list; it cannot put a name on the list.
 - **Hype is penalised, not rewarded.** The score's components include a *stock-hype penalty* for posts that talk about the stock rather than the product, a novelty penalty for entities that only just appeared, and spam filters on author age, karma and duplicated text. Posts that read like "to the moon" lower the score.
 - **Cross-source confirmation.** A trend counts more when Wikipedia pageviews, Google Trends and news attention confirm it, and a gap between social attention and news attention is reported rather than assumed to be an edge.
 - **Evidence shown.** Every trend in the report links to the posts and items behind it, so the user can judge whether the conversation is customers or promoters.

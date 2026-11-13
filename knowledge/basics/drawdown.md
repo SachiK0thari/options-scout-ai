@@ -5,7 +5,7 @@ source: "SEC investor.gov, Introduction to Investing (understanding risk); OCC, 
 url: https://www.investor.gov/introduction-investing
 kind: basics
 level: beginner
-as_of: 2026-11-04
+as_of: 2026-11-13
 ---
 
 # Drawdown
@@ -26,7 +26,7 @@ A stock that has already fallen a long way from its recent high is in a drawdown
 
 ## The -10 / -20 / -30% stress test
 
-Every sized portfolio is run through a **stress test** that assumes every underlying falls 10%, 20% and 30% at once and reports the resulting loss as dollars and as a share of account value. The 30% case is also the definition of each CSP's **realistic loss**, the number the six portfolio constraints are measured against. The stress test is a drawdown shown in advance: it lets a user see what a 30% market decline would do to the account before the market shows them.
+Every sized portfolio is run through a **stress test** that assumes every underlying falls 10%, 20% and 30% at once and reports the resulting loss as dollars and as a share of account value. The 30% case is also the definition of each CSP's **realistic loss**, the number the portfolio constraints are measured against. The stress test is a drawdown shown in advance: it lets a user see what a 30% market decline would do to the account before the market shows them.
 
 ## What can go wrong
 

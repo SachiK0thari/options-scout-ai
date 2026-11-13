@@ -5,7 +5,7 @@ source: "SEC investor.gov, Introduction to Investing (assessing your risk tolera
 url: https://www.investor.gov/introduction-investing
 kind: basics
 level: beginner
-as_of: 2026-11-04
+as_of: 2026-11-13
 ---
 
 # Risk tolerance and time horizon
@@ -22,7 +22,7 @@ Over a few months, the risk of a stock position is that its price falls before i
 
 ## How the app encodes them
 
-OptionsScout collapses both inputs into one of three **risk profiles**, chosen on the Setup tab: conservative, balanced and aggressive, as named in `config/risk_profiles.yaml`. The profile sets the split of buying power between cash-secured puts, LEAPS calls and a cash reserve, and the tightness of six portfolio constraints. The conservative profile keeps 35% in cash and caps the realistic loss of any single position at 2% of the account; the aggressive profile keeps 20% in cash and allows 5%. A user who selects conservative is saying, in the app's language, that a 30% drop in one stock must not cost more than 2% of the account. See the *Risk profiles* document for the full table.
+OptionsScout collapses both inputs into one of three **risk profiles**, chosen on the Setup tab: conservative, balanced and aggressive, as named in `config/risk_profiles.yaml`. The profile sets the split of buying power between cash-secured puts, LEAPS calls and a cash reserve, and the tightness of the portfolio constraints. The conservative profile keeps 35% in cash and caps the realistic loss of any single position at 2% of the account; the aggressive profile keeps 20% in cash and allows 5%. A user who selects conservative is saying, in the app's language, that a 30% drop in one stock must not cost more than 2% of the account. See the *Risk profiles* document for the full table.
 
 ## Why a short horizon and short puts conflict
 

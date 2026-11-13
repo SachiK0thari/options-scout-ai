@@ -1,11 +1,11 @@
 ---
 id: position-sizing-debate
-title: "Position sizing: fixed fraction, the Kelly criterion, and the app's greedy fill under six constraints"
+title: "Position sizing: fixed fraction, the Kelly criterion, and the app's greedy fill under its portfolio constraints"
 source: "FINRA, Margin accounts investor page; FINRA Rule 4210; config/risk_profiles.yaml; PRD.md section 3.2"
 url: https://www.finra.org/investors/investing/investment-accounts/margin-accounts
 kind: concepts
 level: advanced
-as_of: 2026-11-04
+as_of: 2026-11-13
 ---
 
 # Position sizing: fixed fraction, Kelly, and the app's greedy fill
@@ -24,9 +24,9 @@ The **Kelly criterion** sizes a bet to maximise the long-run growth rate of capi
 
 The inputs are the problem. The probability that a put expires out of the money is read from a pricing model and is wrong by several points in exactly the markets where sizing matters most; the loss if assigned is a distribution with a fat left tail, not a number. Moving p from 0.80 to 0.75 and the loss from $400 to $600 takes f* from 13% to under zero. A rule whose output swings from 13% of the account to zero on estimation error of that size is not one an automated system should apply to real money.
 
-## What the app does instead: greedy fill under six constraints
+## What the app does instead: greedy fill under portfolio constraints
 
-The sizing step takes the ranked candidates in order and adds contracts to each until any constraint would be breached, then moves on. The six constraints, per risk profile, are: short-put notional (strike x 100 x contracts) as a multiple of account value; margin usage, margin accounts only; **realistic loss** per position as a fraction of account value; realistic loss per ticker; realistic loss per sector; and total dollar delta as a multiple of account value. For the conservative profile these are 1.0x, 30%, 2%, 5%, 25% and 0.8x; balanced and aggressive widen each in turn, aggressive to 1.5x, 50%, 5%, 10%, 35% and 1.5x (`config/risk_profiles.yaml`).
+The sizing step takes the ranked candidates in order and adds contracts to each until any constraint would be breached, then moves on. The {{risk.constraints_margin}} constraints, per risk profile, are: short-put notional (strike x 100 x contracts) as a multiple of account value; margin usage, margin accounts only; **realistic loss** per position as a fraction of account value; realistic loss per ticker; realistic loss per sector; the realistic loss of the whole portfolio; the cash needed if every put were assigned, plus LEAPS debits, as a multiple of buying power; and total dollar delta as a multiple of account value. For the conservative profile these are {{risk.conservative.max_short_put_notional_x}}, {{risk.conservative.max_margin_usage}}, {{risk.conservative.max_loss_per_position}}, {{risk.conservative.max_exposure_per_ticker}}, {{risk.conservative.max_per_sector}}, {{risk.conservative.max_portfolio_loss}}, {{risk.conservative.max_assignment_cash_x}} and {{risk.conservative.max_dollar_delta_x}}; for aggressive {{risk.aggressive.max_short_put_notional_x}}, {{risk.aggressive.max_margin_usage}}, {{risk.aggressive.max_loss_per_position}}, {{risk.aggressive.max_exposure_per_ticker}}, {{risk.aggressive.max_per_sector}}, {{risk.aggressive.max_portfolio_loss}}, {{risk.aggressive.max_assignment_cash_x}} and {{risk.aggressive.max_dollar_delta_x}} (`config/risk_profiles.yaml`). With holdings entered, a concentration-after-assignment limit is added.
 
 The **realistic-loss cap** does the work Kelly tries to do, without estimating a probability. Realistic loss is the loss if the stock falls 30% by expiry, a scenario that is severe, has happened to large companies, and is the same for every candidate. Capping it at 2% per position and 5% per ticker says that no single stock's bad year can cost more than a small fixed share of capital, whatever the model thinks the odds are.
 

@@ -5,7 +5,7 @@ source: "Cboe Options Institute (the Greeks); OCC disclosure document chapter X"
 url: https://www.cboe.com/education/
 kind: concepts
 level: intermediate
-as_of: 2026-11-03
+as_of: 2026-11-13
 ---
 
 # Theta (time decay)
@@ -14,7 +14,7 @@ as_of: 2026-11-03
 
 ## Only extrinsic value decays
 
-Intrinsic value does not decay; a put that is $5 in the money is worth at least $5 at any time. Theta acts only on **extrinsic value**, the part of the premium above intrinsic value. That is why deep in-the-money LEAPS, which carry little extrinsic value relative to their price, lose little to theta each day, while at-the-money options with months to run lose the most in absolute terms.
+Intrinsic value does not decay; a put that is $5 in the money is worth at least $5 at any time. Theta acts only on **extrinsic value**, the part of the premium above intrinsic value. That is why deep in-the-money LEAPS, which carry little extrinsic value relative to their price, lose little to theta each day, while at-the-money options, which carry the most extrinsic value, lose it fastest in the final weeks before expiry.
 
 ## Decay is not linear
 
@@ -24,7 +24,7 @@ For an at-the-money option the extrinsic value falls roughly with the square roo
 
 The cash-secured put screener looks 30 to 45 days out. That window sits in the steep part of the decay curve, so the writer collects a disproportionate share of the option's total time value for the time they are exposed, while still receiving a premium large enough to matter after transaction costs. Shorter expiries decay even faster per day but offer less premium and more gamma risk; longer expiries pay more total premium but tie up collateral through the slow part of the curve.
 
-The LEAPS screener does the opposite, buying a year or more of time so that the position sits on the flat part of the curve and the daily decay is small relative to the stock exposure. The "roll or close" flag at 240 days to expiration exists because a LEAPS that has decayed into the final eight months is approaching the steep section and will start to behave less like stock.
+The LEAPS screener does the opposite, buying a year or more of time so that the position sits on the flat part of the curve and the daily decay is small relative to the stock exposure. The common rule of rolling or closing a LEAPS below about 240 days to expiration exists because a LEAPS that has decayed into its final eight months is approaching the steep section of the curve, where each day costs more extrinsic value.
 
 ## Theta is a model estimate
 

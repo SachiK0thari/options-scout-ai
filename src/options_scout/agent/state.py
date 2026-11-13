@@ -109,6 +109,7 @@ class AgentState(TypedDict, total=False):
     quality: Annotated[dict[str, QualityCheck], merge_dicts]  # every ticker, passed or not
     candidates: Annotated[list[OptionCandidate], operator.add]
     pmcc_pairs: Annotated[list[PMCCCandidate], operator.add]
+    csp_exclusions: list[str]  # W26: puts dropped by an earnings rule, one line per ticker
     ranked: list[RankedCandidate]
     # News Desk (Phase 12, 12.5)
     news_items: list[NewsItem]
@@ -206,6 +207,7 @@ class StrategySlice(BaseModel):
 
     candidates: list[OptionCandidate] = Field(default_factory=list)
     pmcc_pairs: list[PMCCCandidate] = Field(default_factory=list)
+    csp_exclusions: list[str] = Field(default_factory=list)
     ranked: list[RankedCandidate] = Field(default_factory=list)
 
 

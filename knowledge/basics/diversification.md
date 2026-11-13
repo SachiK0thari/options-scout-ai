@@ -5,7 +5,7 @@ source: "SEC investor.gov, Introduction to Investing (diversification); Boglehea
 url: https://www.investor.gov/introduction-investing
 kind: basics
 level: beginner
-as_of: 2026-11-04
+as_of: 2026-11-13
 ---
 
 # Diversification: idiosyncratic versus market risk, and why five tech puts are one bet
@@ -30,7 +30,7 @@ In a severe market decline, correlations rise and almost everything falls togeth
 
 ## Where this shows up in OptionsScout
 
-Every ticker in `config/quality_universe.yaml` carries a **sector** field (Technology, Healthcare, Consumer Defensive, Consumer Cyclical, Communication Services, Financials, ETF and so on), and the Portfolio & Risk tab groups the realistic loss of the proposed positions by that field. One of the six portfolio constraints, **max per sector**, caps the realistic loss in any single sector at 25%, 30% or 35% of account value for the conservative, balanced and aggressive profiles, and a separate **max exposure per ticker** constraint caps any one name. The planned holdings section of the same tab will apply the same grouping to shares the user already owns, so the screen can show whether a new put would add to an existing sector tilt. The -10/-20/-30% stress test applies a single market-wide shock to every position, which is the market risk that no sector mix removes.
+Every ticker in `config/quality_universe.yaml` carries a **sector** field (Technology, Healthcare, Consumer Defensive, Consumer Cyclical, Communication Services, Financials, ETF and so on), and the Portfolio & Risk tab groups the realistic loss of the proposed positions by that field. One of the portfolio constraints, **max per sector**, caps the realistic loss in any single sector at 25%, 30% or 35% of account value for the conservative, balanced and aggressive profiles, and a separate **max exposure per ticker** constraint caps any one name. The holdings section of the same tab applies the same grouping to shares the user already owns, so the screen can show whether a new put would add to an existing sector tilt. The -10/-20/-30% stress test applies a single market-wide shock to every position, which is the market risk that no sector mix removes.
 
 ## Sources
 

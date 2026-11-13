@@ -35,6 +35,8 @@ class Document(BaseModel):
     kind: Kind
     level: Level = DEFAULT_LEVEL  # reading level; the retriever can cap it (max_level)
     as_of: date
+    # W26 step 3: a dated rule (day trading, settlement, contribution limits) to re-check by then
+    review_by: date | None = None
     body: str
     path: str = ""  # repo-relative path, informational
 
@@ -58,6 +60,7 @@ class Chunk(BaseModel):
     url: str
     source: str
     as_of: date
+    review_by: date | None = None  # from the document (W26)
     heading: str = ""  # heading path inside the document, e.g. "Risks › Assignment"
     text: str  # the span itself; what gets quoted and shown to the LLM
 
@@ -130,6 +133,7 @@ def citation_of(chunk: Chunk, tag: str = "") -> Citation:
         kind=chunk.kind,
         tag=tag,
         as_of=chunk.as_of,
+        review_by=chunk.review_by,
     )
 
 

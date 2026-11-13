@@ -5,7 +5,7 @@ source: "SEC investor.gov, Compound Interest Calculator; SEC investor.gov, Bonds
 url: https://www.investor.gov/financial-tools-calculators/calculators/compound-interest-calculator
 kind: basics
 level: beginner
-as_of: 2026-11-04
+as_of: 2026-11-13
 ---
 
 # Compound growth: the rule of 72, regular contributions, and why option premium is not a bond coupon
@@ -40,7 +40,7 @@ Compounding works in reverse: a 30% loss requires a 43% gain to recover, and a s
 
 ## Where this shows up in OptionsScout
 
-The planned Goals tab and its Goal Planning agent cite this document when they show a projection. Every projection states its assumptions (starting balance, contribution, assumed return, horizon) next to the result, is computed by tested Python code rather than by the language model, and shows a range of rates rather than a single figure. The agent treats premium from the Candidates tab as a conditional return with a realistic loss attached, never as a coupon, and the Compliance agent rejects any sentence that presents a projected figure as a prediction.
+The Goals tab and its Goal Planning agent cite this document when they show a projection. Every projection states its assumptions (starting balance, contribution, assumed return, horizon) next to the result, is computed by tested Python code rather than by the language model, and shows a range of rates rather than a single figure. The agent treats premium from the Candidates tab as a conditional return with a realistic loss attached, never as a coupon, and the Compliance agent rejects any sentence that presents a projected figure as a prediction.
 
 ## Sources
 

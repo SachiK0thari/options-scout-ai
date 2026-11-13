@@ -5,7 +5,7 @@ source: "SEC investor.gov, Mutual Funds and Exchange-Traded Funds (ETFs), fees a
 url: https://www.investor.gov/introduction-investing/investing-basics/investment-products/mutual-funds-and-exchange-traded-funds-etfs
 kind: basics
 level: beginner
-as_of: 2026-11-04
+as_of: 2026-11-13
 ---
 
 # Expense ratios
@@ -14,7 +14,7 @@ An **expense ratio** is the annual cost of running a mutual fund or exchange-tra
 
 ## Where the number comes from
 
-Every fund publishes its expense ratio in its prospectus and fact sheet, and the SEC's investor.gov pages on mutual funds and ETFs explain how to read the fee table. Two of the ETFs in this app's universe illustrate the range among large index funds. The SPDR S&P 500 ETF Trust (SPY) reports an expense ratio of about 0.09%, and the Invesco QQQ Trust (QQQ) about 0.20%, according to the fund documents as of this writing. The word "about" matters: sponsors change fees, and the current figure is the one in the latest prospectus, not the one in a knowledge document.
+Every fund publishes its expense ratio in its prospectus and fact sheet, and the SEC's investor.gov pages on mutual funds and ETFs explain how to read the fee table. Two of the ETFs in this app's universe illustrate the range among large index funds. The SPDR S&P 500 ETF Trust (SPY) reports an expense ratio of about 0.09%, and Invesco QQQ (QQQ) 0.18%, cut from 0.20% when the fund converted from a unit investment trust to an open-end fund in December 2025, according to the fund documents as of this writing. The word "about" matters: sponsors change fees, and the current figure is the one in the latest prospectus, not the one in a knowledge document.
 
 ## Why a small number matters over time
 
@@ -30,7 +30,7 @@ A low expense ratio does not make a fund low risk. SPY and QQQ fell by roughly a
 
 ## Where this shows up in OptionsScout
 
-The holdings section of the Portfolio & Risk tab computes a **weighted expense ratio** for the ETFs a user enters: each ETF's expense ratio from `config/etf_expense_ratios.yaml`, weighted by its share of the portfolio's market value. A portfolio that is 60% SPY and 40% QQQ would show about 0.13% at the ratios above. The number is deterministic Python, the Portfolio agent only describes it, and individual stocks contribute zero because they carry no fund fee. The figure is shown so the user can see the annual drag on the part of the account that a cash-secured put's collateral or a LEAPS position would sit alongside.
+The holdings section of the Portfolio & Risk tab computes a **weighted expense ratio** for the ETFs a user enters: each ETF's expense ratio from `config/holdings.yaml`, weighted by its share of the portfolio's market value. A portfolio that is 60% SPY and 40% QQQ would show about 0.13% at the ratios above. The number is deterministic Python, the Portfolio agent only describes it, and individual stocks contribute zero because they carry no fund fee. The figure is shown so the user can see the annual drag on the part of the account that a cash-secured put's collateral or a LEAPS position would sit alongside.
 
 ## Sources
 

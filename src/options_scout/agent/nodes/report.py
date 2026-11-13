@@ -76,7 +76,7 @@ def render_markdown(rep: ScreeningReport) -> str:
         md.render_quality(rep.quality),
         "",
         "## CSP candidates",
-        md.render_csp(rep.csp_candidates),
+        md.render_csp(rep.csp_candidates, exclusions=rep.csp_exclusions),
         "",
         "## LEAPS / PMCC candidates",
         md.render_leaps(rep.leaps_candidates, pairs),
@@ -390,6 +390,7 @@ def make(deps: Deps) -> Callable[[AgentState], dict[str, Any]]:
                 q for t in state.get("universe", []) if (q := state.get("quality", {}).get(t))
             ],
             csp_candidates=[c for c in cands if c.strategy == "csp"],
+            csp_exclusions=list(state.get("csp_exclusions") or []),
             leaps_candidates=[c for c in cands if c.strategy == "leaps"],
             pmcc_candidates=pairs,
             ranked=ranked,

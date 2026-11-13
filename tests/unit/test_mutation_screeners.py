@@ -593,3 +593,33 @@ def test_leaps_probability_term_is_the_model_probability_of_finishing_itm() -> N
     )
     rules = ScreenerRules(csp=CSP, leaps=LEAPS, pmcc=PMCC)
     assert ranking.option_quality(c, only_prob, rules) == pytest.approx(0.69)
+
+
+def test_puts_dropped_by_the_earnings_rules_are_reported() -> None:
+    """W26: an excluded put is collected and described, not dropped silently."""
+    chains = [_chain(38, puts=[_quote("put", 95, 38)])]
+    excluded: list[OptionCandidate] = []
+    snap = _snap(chains, earnings=TODAY + timedelta(days=10))
+    assert (
+        screeners.screen_csp(
+            snap, CSP, today=TODAY, r=R, realistic_loss_drop=0.3, excluded=excluded
+        )
+        == []
+    )
+    (line,) = screeners.describe_csp_exclusions(snap, excluded)
+    assert line == (
+        f"TEST: 1 put(s) expiring {_exp(38).isoformat()} excluded, earnings "
+        f"{(TODAY + timedelta(days=10)).isoformat()} falls before expiry"
+    )
+    clear: list[OptionCandidate] = []
+    kept = screeners.screen_csp(
+        _snap(chains), CSP, today=TODAY, r=R, realistic_loss_drop=0.3, excluded=clear
+    )
+    assert kept and clear == []
+    unknown = _snap(chains).model_copy(update={"earnings_date": None, "earnings_known": False})
+    dropped: list[OptionCandidate] = []
+    screeners.screen_csp(unknown, CSP, today=TODAY, r=R, realistic_loss_drop=0.3, excluded=dropped)
+    assert screeners.describe_csp_exclusions(unknown, dropped) == [
+        f"TEST: 1 put(s) expiring {_exp(38).isoformat()} excluded, next earnings date unknown"
+    ]
+    assert screeners.describe_csp_exclusions(snap, []) == []

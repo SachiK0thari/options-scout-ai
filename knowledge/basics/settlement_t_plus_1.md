@@ -5,7 +5,8 @@ source: "SEC press release 2023-29, SEC Finalizes Rules to Reduce Risks in Clear
 url: https://www.sec.gov/news/press-release/2023-29
 kind: basics
 level: beginner
-as_of: 2026-11-04
+as_of: 2026-11-13
+review_by: 2027-11-13
 ---
 
 # Settlement and T+1: when a trade becomes final, and why CSP cash must be there at assignment
@@ -36,7 +37,7 @@ In a cash account, buying with unsettled funds and then selling before they sett
 
 ## Where this shows up in OptionsScout
 
-The Setup tab asks for account value and account type, and the collateral column in the Candidates tab shows the cash a CSP would tie up: strike times 100 minus the premium, for a cash account. The Portfolio & Risk tab's six constraints include a cap on total short-put notional relative to account value, which is a way of making sure the shares could actually be paid for if every put were assigned at once. The planned Tax & Accounts page in Learn will link to this document when it explains settled cash. The app never places trades, so settlement itself happens entirely at the user's broker.
+The Setup tab asks for account value and account type, and the collateral column in the Candidates tab shows the cash a CSP would tie up: strike times 100 minus the premium, for a cash account. The Portfolio & Risk tab's constraints include a cap on total short-put notional relative to account value, which is a way of making sure the shares could actually be paid for if every put were assigned at once. The Tax & Accounts page in Learn links to this document when it explains settled cash. The app never places trades, so settlement itself happens entirely at the user's broker.
 
 ## Sources
 

@@ -1,0 +1,25 @@
+# W26 step 2: every sentence in knowledge/{basics,concepts,tax} that starts "This app", "The app",
+# "The report", "The <CSP|LEAPS|PMCC> screener" or "The <tab> tab" and names a flag or a backticked
+# identifier must be listed here with the code that makes it true (a negative statement, one with
+# "not", "no" or "never", is exempt). tests/unit/test_knowledge_consistency.py imports each
+# `implemented_by` (module:attribute, dotted; a pydantic field counts) and fails on an unlisted
+# claim, so an article cannot promise a feature the code does not have.
+claims:
+  - doc: pe-and-earnings
+    contains: "The Trends & News tab flags an earnings date"
+    implemented_by: options_scout.core.news:event_flags
+  - doc: bottleneck-arbitrage
+    contains: "The app states the flag"
+    implemented_by: options_scout.core.screeners:apply_bottleneck_flags
+  - doc: earnings-risk
+    contains: "The report flags any short call whose life spans an earnings date"
+    implemented_by: options_scout.core.screeners:pair_pmcc
+  - doc: exercise-styles
+    contains: "`exclude_earnings_before_expiry` rule"
+    implemented_by: options_scout.config:CSPRules.exclude_earnings_before_expiry
+  - doc: dollar-cost-averaging
+    contains: "`project_balance` function"
+    implemented_by: options_scout.core.goals:project_balance
+  - doc: expiration-cycles-and-weeklies
+    contains: "marks fallback picks with `dte_outside_preferred`"
+    implemented_by: options_scout.core.screeners:screen_csp

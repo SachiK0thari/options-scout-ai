@@ -5,7 +5,7 @@ source: "OCC disclosure document chapter VIII; SEC, 'Ex-Dividend Dates: When Are
 url: https://www.theocc.com/company-information/documents-and-archives/options-disclosure-document
 kind: concepts
 level: advanced
-as_of: 2026-11-03
+as_of: 2026-11-13
 ---
 
 # Early assignment and dividends
@@ -28,9 +28,9 @@ Option prices incorporate expected dividends before the fact. A stock is expecte
 
 ## What this app does about it
 
-The market data layer fetches each ticker's next ex-dividend date. The report shows it alongside the candidate, flags any short call whose life spans an ex-dividend date, and reminds PMCC holders of the assignment risk described above. The app does not try to predict early assignment; it only makes the dates visible so the user can plan. Early exercise, dividends and the detailed settlement mechanics are simplified in this tool and are listed among its known limitations.
+The app does **not** know ex-dividend dates: none of its data providers supplies them, so no short call is flagged for spanning one. It prices every option with the stock's dividend yield, which captures the expected drop in price but not the date. A PMCC holder must look up the next ex-dividend date with the broker or the company's investor-relations page and compare it with the short call's expiry, because that date is the main trigger for early assignment described above. The app does not try to predict early assignment. Early exercise, dividends and the detailed settlement mechanics are simplified in this tool and are listed among its known limitations.
 
 ## Sources
 
-- OCC, *Characteristics and Risks of Standardized Options*, chapter VIII, "Exercise and Assignment", and the discussion of dividends in chapter III: https://www.theocc.com/company-information/documents-and-archives/options-disclosure-document
+- OCC, *Characteristics and Risks of Standardized Options*, chapter VIII, "Exercise and Settlement", and the discussion of dividends in chapter III: https://www.theocc.com/company-information/documents-and-archives/options-disclosure-document
 - U.S. Securities and Exchange Commission, "Ex-Dividend Dates: When Are You Entitled to Stock and Cash Dividends": https://www.sec.gov/fast-answers/answersdividenhtm.html

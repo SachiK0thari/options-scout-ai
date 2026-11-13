@@ -5,7 +5,7 @@ source: "26 U.S.C. §1092 (straddles), including §1092(c)(4) qualified covered 
 url: https://www.law.cornell.edu/uscode/text/26/1092
 kind: tax
 level: advanced
-as_of: 2026-11-04
+as_of: 2026-11-13
 ---
 
 # Qualified covered calls and the straddle rules: when a short call touches the shares' holding period
@@ -14,7 +14,7 @@ Writing a call against shares you own looks like one position, but the tax code 
 
 ## What the straddle rules do
 
-A **straddle**, in the section 1092 sense, is a set of offsetting positions in actively traded personal property, where holding one position substantially reduces the risk of loss on the other. The **loss deferral rule** says a loss realised on one leg can be deducted only to the extent it exceeds the unrecognised gain in the offsetting leg; the excess is carried to the next year. The **holding period rule** says the holding period of a position does not begin, or is suspended, while it is part of a straddle, unless the position was already held for more than one year when the straddle was created. Publication 550 explains both under "Straddles"; deferred losses are reported on Form 6781, Part II.
+A **straddle**, in the section 1092 sense, is a set of offsetting positions in actively traded personal property, where holding one position substantially reduces the risk of loss on the other. The **loss deferral rule** says a loss realised on one leg can be deducted only to the extent it exceeds the unrecognised gain in the offsetting leg; the excess is carried to the next year. The **holding period rule** says that a position not yet held for more than one year when the straddle is created loses the holding period it had: the clock is eliminated, not paused, and starts again only when the offsetting position is closed. A position already held for more than one year keeps its long-term status. Publication 550 explains both under "Straddles"; deferred losses are reported on Form 6781, Part II.
 
 ## The qualified covered call exception
 
@@ -26,7 +26,7 @@ Even a qualified covered call is not entirely outside the rules. Section 1092(f)
 
 ## Relevance to a poor man's covered call
 
-A **poor man's covered call** (PMCC) pairs a long LEAPS call with a short call at a higher strike. The qualified covered call exception is written for calls covered by **stock**. In a PMCC the "stock" is itself an option, so the exception generally does not apply and the long LEAPS and short call are offsetting positions in the plain section 1092 sense. The loss deferral rule can then catch a loss on a short call bought back while the LEAPS carries an unrecognised gain, and the LEAPS holding period may be suspended while the short call is open. These are mechanisms, not conclusions; Publication 550's "Straddles" section and the Form 6781 instructions should be checked before filing.
+A **poor man's covered call** (PMCC) pairs a long LEAPS call with a short call at a higher strike. The qualified covered call exception is written for calls covered by **stock**. In a PMCC the "stock" is itself an option, so the exception generally does not apply and the long LEAPS and short call are offsetting positions in the plain section 1092 sense. The loss deferral rule can then catch a loss on a short call bought back while the LEAPS carries an unrecognised gain, and a LEAPS not yet held for more than a year loses its holding period while the short call is open, starting again from zero when the short call is closed. These are mechanisms, not conclusions; Publication 550's "Straddles" section and the Form 6781 instructions should be checked before filing.
 
 ## What can go wrong
 
@@ -40,4 +40,5 @@ The PMCC screener in this app pairs each LEAPS with a 30-45 DTE short call, whic
 
 - 26 U.S.C. Section 1092, straddles, including section 1092(c)(4) and section 1092(f): https://www.law.cornell.edu/uscode/text/26/1092
 - IRS Publication 550, *Investment Income and Expenses*, chapter 4, "Straddles" and "Qualified covered call options and optioned stock": https://www.irs.gov/publications/p550
+- Treas. Reg. § 1.1092(b)-2T(a), holding period of a straddle position: https://www.law.cornell.edu/cfr/text/26/1.1092(b)-2T
 - IRS Form 6781, Gains and Losses From Section 1256 Contracts and Straddles: https://www.irs.gov/forms-pubs/about-form-6781

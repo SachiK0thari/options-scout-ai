@@ -5,7 +5,7 @@ source: "Regulation T, 12 CFR Part 220; FINRA Rule 4210 (Margin Requirements), i
 url: https://www.finra.org/rules-guidance/rulebook/finra-rules/4210
 kind: tax
 level: advanced
-as_of: 2026-11-04
+as_of: 2026-11-13
 ---
 
 # Reg T vs portfolio margin: strategy-based and risk-based requirements, and what this app computes
@@ -34,7 +34,7 @@ Lower margin is not lower risk. A naked put under portfolio margin can be writte
 
 ## Where this shows up in OptionsScout
 
-The Candidates tab shows return on margin for CSP candidates when the Setup tab records a margin account, computed from the Reg T minimum, with a note that broker margin differs. Return on collateral, which assumes the full strike is set aside, is shown for cash and IRA accounts. On a margin account the app's short puts are sized on the Reg T requirement, which makes them naked puts, and the report says so. A portfolio margin account is sized with the same Reg T rules: the app does not model a broker's risk-based requirement, so the margin figure shown will differ from the broker's.
+The Candidates tab shows return on margin for CSP candidates when the Setup tab records a margin account, computed from the Reg T minimum, with a note that broker margin differs. Return on collateral, which assumes the full strike is set aside, is shown for cash accounts, which is how an IRA is entered. On a margin account the app's short puts are sized on the Reg T requirement, which makes them naked puts, and the report says so. A portfolio margin account is sized with the same Reg T rules: the app does not model a broker's risk-based requirement, so the margin figure shown will differ from the broker's.
 
 ## Sources
 

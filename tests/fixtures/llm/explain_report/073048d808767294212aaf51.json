@@ -1,0 +1,70 @@
+{
+ "task": "explain_report",
+ "model": "deepseek/deepseek-v4.1-flash",
+ "output": {
+  "paragraphs": [
+   {
+    "mode": "education",
+    "text": "A **cash-secured put** is a short put position in which the writer sets aside enough cash to buy the shares at the strike price if the put is assigned; the writer sells the put, collects the premium up front, and accepts the obligation to buy 100 shares per contract at the strike any time before expiration [S1]. The word *secured* refers to the cash: in a cash account the broker holds the full purchase price (strike \u00d7 100, less the premium received) as collateral for the whole life of the trade [S1].",
+    "citations": [
+     "S1"
+    ]
+   },
+   {
+    "mode": "screen_result",
+    "text": "Buying power was split with a {{allocation.cash_pct|pct}} cash reserve, {{allocation.csp_pct|pct}} for cash-secured puts and {{allocation.leaps_pct|pct}} for LEAPS, under a regime the screen labels {{regime.label}} with a {{regime.risk_free_rate_pct|pct}} risk-free rate and VIX at {{regime.vix}}.",
+    "citations": []
+   },
+   {
+    "mode": "education",
+    "text": "**LEAPS** (Long-term Equity AnticiPation Securities) is the exchanges' name for listed options with more than a year until expiration; they trade and settle exactly like shorter options, and the app screens deep in-the-money LEAPS calls as a way to hold long exposure to a good-to-own stock while committing less capital than buying the shares outright [S3]. An option premium splits into intrinsic value \u2014 the amount by which the option is in the money \u2014 and extrinsic value, also called time value, everything else [S4].",
+    "citations": [
+     "S3",
+     "S4"
+    ]
+   },
+   {
+    "mode": "screen_result",
+    "text": "The good-to-own quality screen passed {{quality_screen.passed_count}} underlyings: {{quality_screen.passed_tickers|list}}. Each passed name carries a stated reason \u2014 SPY: \"Owns the whole S&P 500; the most liquid option chain in the market.\", AAPL: \"Huge installed base, large recurring services revenue, consistent buybacks and dividend.\", COST: \"Membership model with very high renewal rates and decades of dividend growth.\", MSFT: \"Enterprise software and cloud with long-term contracts and 20+ years of dividend growth.\", QQQ: \"Owns the 100 largest Nasdaq companies; very liquid options.\", SBUX: \"Global coffee brand with a 14-year streak of dividend increases.\", NKE: \"Leading athletic brand with 20+ years of dividend increases.\" No underlyings were excluded.",
+    "citations": []
+   },
+   {
+    "mode": "screen_result",
+    "text": "The trend board is a secondary signal only: the highest-scoring trend names, such as {{trends[0].ticker}} at a score of {{trends[0].score}} and {{trends[1].ticker}} at {{trends[1].score}}, were skipped because they are not on the good-to-own list. The bottleneck board likewise re-orders quality-gated stocks and never adds one; its top layers are {{bottlenecks.layers[0].name}} at a score of {{bottlenecks.layers[0].score}} ({{bottlenecks.layers[0].thesis_state}}) and {{bottlenecks.layers[1].name}} at {{bottlenecks.layers[1].score}} ({{bottlenecks.layers[1].thesis_state}}), while the weakest is {{bottlenecks.layers[7].name}} at {{bottlenecks.layers[7].score}} ({{bottlenecks.layers[7].thesis_state}}). No sized position carries a non-empty bottleneck flag.",
+    "citations": []
+   },
+   {
+    "mode": "education",
+    "text": "**Assignment** is the process by which an option writer is selected to fulfil the obligation of a contract that a holder has exercised; when a put holder exercises, some put writer is obliged to take the shares at the strike [S2]. The OCC assigns exercise notices at random to clearing members with short positions in the same series, and each clearing member then assigns its own customers by a method governed by FINRA Rule 2360, usually random selection or first-in first-out [S2].",
+    "citations": [
+     "S2"
+    ]
+   },
+   {
+    "mode": "screen_result",
+    "text": "No positions were sized: {{counts.skipped_total}} candidates were skipped, among them LEAPS-SPY-2028-01-21-600C with a realistic loss of {{skipped_candidates[0].realistic_loss_per_contract|money}} per contract and CSP-SPY-2026-11-30-735P with a realistic loss of {{skipped_candidates[2].realistic_loss_per_contract|money}} per contract, which would fit only from account sizes of {{skipped_candidates[0].fits_from_account|money}} and {{skipped_candidates[2].fits_from_account|money}} respectively.",
+    "citations": []
+   },
+   {
+    "mode": "screen_result",
+    "text": "Every constraint check passed \u2014 {{risk.checks_passed}} of {{risk.checks_total}} \u2014 so short-put notional stood at {{risk.checks[0].value|percent}} of the limit and margin usage at {{risk.checks[1].value|percent}} of the limit, but with nothing sized the stress rows show a {{risk.stress[2].shock}} move with a {{risk.stress[2].iv_shock}} IV shock giving {{risk.stress[2].pnl|money}}.",
+    "citations": []
+   },
+   {
+    "mode": "screen_result",
+    "text": "The sizer left behind a flag that the account is too small: the warning reads, \"{{risk.warnings[0]}}\"",
+    "citations": []
+   },
+   {
+    "mode": "notice",
+    "text": "{{ delayed_data_notice }}",
+    "citations": []
+   },
+   {
+    "mode": "notice",
+    "text": "{{ disclaimer }}",
+    "citations": []
+   }
+  ]
+ }
+}

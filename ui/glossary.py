@@ -109,8 +109,8 @@ TERMS: dict[str, Term] = {
     ),
     "Supply constraint": Term(
         "bottleneck-arbitrage",
-        "Notes from the bottleneck board (Phase 11): the company sells into a tight supply layer, "
-        "the constraint is easing (new supply or slower prices, a reason not to sell puts), or an "
+        "Notes from the bottleneck board: the company sells into a tight supply layer, "
+        "the constraint is easing (new supply or slower prices), or an "
         "earnings date or data release falls before expiry. Never a filter.",
     ),
     # the advanced view's extra columns

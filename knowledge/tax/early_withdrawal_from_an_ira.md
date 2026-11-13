@@ -5,7 +5,7 @@ source: "IRS Tax Topic 557, Additional tax on early distributions from tradition
 url: https://www.irs.gov/taxtopics/tc557
 kind: tax
 level: beginner
-as_of: 2026-11-04
+as_of: 2026-11-13
 ---
 
 # Early withdrawal from an IRA: the additional tax and why near-term goals do not belong there
@@ -36,7 +36,7 @@ Taking a distribution to cover an assigned put, or to meet a margin call in anot
 
 ## Where this shows up in OptionsScout
 
-The planned Goal Planning agent in the Goals tab treats IRA balances as not available for any goal whose target date falls before the user reaches 59 1/2. A user who enters an IRA as the funding account for a two-year goal will see it excluded from the available-funds figure and a pointer to this document, with no estimate of the tax itself.
+The Goals tab does not know which account funds a goal, so it does not set IRA balances aside for a goal whose target date falls before the user reaches 59 1/2. A reader planning a near-term goal should leave IRA money out of the starting balance they enter, for the reasons above. The app never estimates the tax itself.
 
 ## Sources
 

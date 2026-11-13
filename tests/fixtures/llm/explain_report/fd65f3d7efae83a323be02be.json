@@ -1,0 +1,54 @@
+{
+ "task": "explain_report",
+ "model": "deepseek/deepseek-v4.1-flash",
+ "output": {
+  "paragraphs": [
+   {
+    "mode": "education",
+    "text": "A **cash-secured put** is a short put position in which the writer sets aside enough cash to buy the shares at the strike price if the put is assigned [S1]. The writer sells the put, collects the premium up front, and accepts the obligation to buy 100 shares per contract at the strike any time before expiration [S1]. In a margin account the broker holds only a **margin requirement**, a fraction of the purchase price computed under exchange and FINRA minimum rules, and the writer keeps the rest of their buying power free for other positions [S4]. **Assignment** is the process by which an option writer is selected to fulfil the obligation of a contract that a holder has exercised [S2]. The Options Clearing Corporation (OCC) receives exercise notices from clearing members, assigns them at random to clearing members with short positions in the same series, and each clearing member then assigns its own customers by a method governed by FINRA Rule 2360 [S2]. A **poor man's covered call** is a two-leg position: a long, deep in-the-money LEAPS call and a short, near-term, out-of-the-money call on the same stock [S3]. The quality gate is a **filter, not a discovery engine**: it decides which tickers are allowed into the option screeners at all, records a reason for every rejection, and produces a score for the survivors [S5].",
+    "citations": [
+     "S1",
+     "S4",
+     "S2",
+     "S3",
+     "S5"
+    ]
+   },
+   {
+    "mode": "screen_result",
+    "text": "This run screened in {{quality_screen.passed_tickers|list}} under the {{regime.label}} regime, with a risk-free rate of {{regime.risk_free_rate_pct|pct}} and a VIX percentile of {{regime.vix_percentile|pct}}. The strategy budget was split {{allocation.csp_pct|pct}} to cash-secured puts, {{allocation.leaps_pct|pct}} to LEAPS legs and {{allocation.cash_pct|pct}} left in cash, a tilt of {{allocation.tilt}}.",
+    "citations": []
+   },
+   {
+    "mode": "screen_result",
+    "text": "{{counts.quality_passed}} underlyings passed the good-to-own gate and {{counts.quality_excluded}} were excluded, leaving {{quality_screen.passed_tickers|list}}; the trending tickers CAVA, ONON, DECK, ELF, CROX, BROS, ANF and BIRK were skipped because they are not on the good-to-own list.",
+    "citations": []
+   },
+   {
+    "mode": "screen_result",
+    "text": "The trend board is a secondary signal only: the top consumer-trend names CAVA and ONON were not investable through this universe, and the bottleneck board likewise re-orders quality-gated stocks and never adds one. In the bottleneck board, the power generation and grid equipment layer scored {{bottlenecks.layers[0].score}} with a thesis state of {{bottlenecks.layers[0].thesis_state}}, and the networking layer scored {{bottlenecks.layers[5].score}} with a thesis state of {{bottlenecks.layers[5].thesis_state}}.",
+    "citations": []
+   },
+   {
+    "mode": "screen_result",
+    "text": "No positions were sized: {{counts.positions_sized}} positions remain, with {{counts.skipped_total}} candidates skipped, including the top-ranked LEAPS-SPY-2028-01-21-600C, whose realistic loss per contract is {{skipped_candidates[0].realistic_loss_per_contract|money}}, and CSP-SPY-2026-11-30-735P, whose realistic loss per contract is {{skipped_candidates[2].realistic_loss_per_contract|money}}. The risk picture shows {{risk.checks_passed}} of {{risk.checks_total}} constraint checks passing, with portfolio loss limit of {{risk.checks[5].limit|percent}} and a stress loss of {{risk.stress[0].pnl|money}} on a {{risk.stress[0].shock}} move with a {{risk.stress[0].iv_shock}} IV shock.",
+    "citations": []
+   },
+   {
+    "mode": "notice",
+    "text": "{{ delayed_data_notice }}",
+    "citations": []
+   },
+   {
+    "mode": "notice",
+    "text": "**Warnings and limitations.** {{risk.warnings[0]}}",
+    "citations": []
+   },
+   {
+    "mode": "notice",
+    "text": "{{ disclaimer }}",
+    "citations": []
+   }
+  ]
+ }
+}

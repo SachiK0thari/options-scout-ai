@@ -5,7 +5,7 @@ source: "OCC disclosure document chapter X; SEC EDGAR (Form 10-Q and 8-K filings
 url: https://www.sec.gov/edgar/search/
 kind: concepts
 level: intermediate
-as_of: 2026-11-03
+as_of: 2026-11-13
 ---
 
 # Earnings risk
@@ -18,7 +18,7 @@ Because everyone knows a large move is possible, options expiring after the anno
 
 ## Why this app excludes earnings from short puts
 
-A cash-secured put is written on the premise that the writer is content to own the stock near the strike. An earnings gap of −15% does not deliver the stock near the strike; it delivers the stock far below it, and the realistic-loss arithmetic assumes an ordinary decline, not an overnight repricing of the business. The CSP screener in this repository therefore **excludes any put whose expiration falls after the next earnings date**. The rule is `exclude_earnings_before_expiry: true` in `config/screener_rules.yaml`; switching it to false would turn the exclusion into a flag that is shown but not enforced. The excluded candidates are listed in the report with the reason "earnings before expiry" so the user can see what was dropped and why.
+A cash-secured put is written on the premise that the writer is content to own the stock near the strike. An earnings gap of −15% does not deliver the stock near the strike; it delivers the stock far below it, and the realistic-loss arithmetic assumes an ordinary decline, not an overnight repricing of the business. The CSP screener in this repository therefore **excludes any put whose expiration falls after the next earnings date**. The rule is `exclude_earnings_before_expiry: true` in `config/screener_rules.yaml`; switching it to false would turn the exclusion into a flag that is shown but not enforced. The puts dropped this way are listed under the CSP table, in a block headed "Excluded by the earnings rules", with the ticker, the expiries and the earnings date, so the user can see what was dropped and why. A put on a stock whose next earnings date is unknown is dropped and listed the same way.
 
 ## LEAPS and PMCC are affected differently
 

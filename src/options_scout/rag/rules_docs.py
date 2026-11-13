@@ -38,6 +38,9 @@ RULE_FILES: dict[str, tuple[str, tuple[str, ...]]] = {
 }
 
 
+_IV = "applies only once 30 daily IV snapshots are stored; until then IV/HV is shown and not scored"  # W4
+
+
 def github_anchor(heading: str) -> str:
     slug = re.sub(r"[^\w\- ]", "", heading.lower().replace(".", ""))
     return re.sub(r"\s+", "-", slug.strip())
@@ -140,7 +143,7 @@ def _values_3_3(cfg: AppConfig) -> str:
         ),
         ("Underlying price", f"≥ ${r.min_underlying_price:g}"),
         ("Average volume", f"≥ {r.min_avg_volume:,} shares/day"),
-        ("IV rank", f"prefer ≥ {_pct(r.preferred_iv_rank_min)} (soft score, not a filter)"),
+        ("IV rank", f"prefer ≥ {_pct(r.preferred_iv_rank_min)} (soft score, not a filter; {_IV})"),
     ]
     return _table(["Rule", "Value in force"], rows)
 
@@ -162,10 +165,12 @@ def _values_3_4(cfg: AppConfig) -> str:
         ),
         ("Open interest", f"≥ {r.min_open_interest:,}"),
         ("Bid-ask spread", f"≤ {_pct(r.max_spread_pct)} of mid"),
-        ("IV rank", f"prefer ≤ {_pct(r.preferred_iv_rank_max)} (soft score)"),
+        ("IV rank", f"prefer ≤ {_pct(r.preferred_iv_rank_max)} (soft score; {_IV})"),
         (
             "Roll warning",
-            f'flag "roll or close" when days to expiry fall below {r.roll_warning_dte}',
+            f"roll or close guidance below {r.roll_warning_dte} days to expiry (education only: "
+            "the app does not track held LEAPS, and a screened LEAPS has at least "
+            f"{r.dte_min} days)",
         ),
     ]
     return _table(["Rule", "Value in force"], rows)

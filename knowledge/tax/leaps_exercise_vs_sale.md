@@ -5,7 +5,7 @@ source: "IRS Publication 550, Investment Income and Expenses, chapter 4, Holders
 url: https://www.irs.gov/publications/p550
 kind: tax
 level: advanced
-as_of: 2026-11-04
+as_of: 2026-11-13
 ---
 
 # LEAPS: exercise versus sale, and why a roll warning is not a tax signal
@@ -26,11 +26,11 @@ A **roll** means selling the current LEAPS and buying another with a later expir
 
 ## Why the roll warning is a trading signal
 
-This app warns when a held LEAPS is approaching the window in which time decay accelerates and the delta no longer tracks the stock the way the screener intended. That warning is derived from the option's remaining days to expiration and its Greeks. It says nothing about the holder's purchase date, tax year or holding period, and acting on it may realise a short-term gain a few weeks before it would have turned long-term, or realise a gain in a year when the holder would rather not. The app informs the first decision only.
+The usual advice to roll a LEAPS approaching the window in which time decay accelerates (below about 240 days) is about the option's remaining days to expiration and its Greeks; the app does not track held LEAPS, so it does not give that warning itself. Either way, the advice says nothing about the holder's purchase date, tax year or holding period, and acting on it may realise a short-term gain a few weeks before it would have turned long-term, or realise a gain in a year when the holder would rather not. The app informs the first decision only.
 
 ## What can go wrong
 
-The common errors are treating a roll as tax-neutral, assuming the LEAPS holding period transfers to shares on exercise, and exercising without the cash to pay for the shares, which in a margin account creates a loan and in a cash account can fail. There is also a straddle angle: if the LEAPS is the long leg of a poor man's covered call, section 1092 may defer losses and suspend holding periods, so the clean picture above should be checked against Publication 550's "Straddles" section before relying on it.
+The common errors are treating a roll as tax-neutral, assuming the LEAPS holding period transfers to shares on exercise, and exercising without the cash to pay for the shares, which in a margin account creates a loan and in a cash account can fail. There is also a straddle angle: if the LEAPS is the long leg of a poor man's covered call, section 1092 may defer losses and eliminate the holding period of a leg not yet long-term (it restarts when the straddle ends), so the clean picture above should be checked against Publication 550's "Straddles" section before relying on it.
 
 ## Where this shows up in OptionsScout
 
@@ -41,3 +41,4 @@ The Portfolio & Risk tab's roll warning for LEAPS and PMCC positions is labelled
 - IRS Publication 550, *Investment Income and Expenses*, chapter 4, "Holders of puts and calls": https://www.irs.gov/publications/p550
 - IRS Tax Topic 409, Capital gains and losses: https://www.irs.gov/taxtopics/tc409
 - 26 U.S.C. Section 1092, straddles: https://www.law.cornell.edu/uscode/text/26/1092
+- Treas. Reg. § 1.1092(b)-2T(a), holding period of a straddle position: https://www.law.cornell.edu/cfr/text/26/1.1092(b)-2T

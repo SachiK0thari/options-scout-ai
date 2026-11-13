@@ -286,7 +286,7 @@ Measured by `make eval` on 2026-11-13 (LLM: openrouter (deepseek/deepseek-v4.1-f
 | Latency per specialist, mean over six screens | Market Intelligence 308 ms · Strategy 228 ms · Education 118 ms · Market Data 85 ms · Compliance 83 ms · News Desk 79 ms · Risk 79 ms · Portfolio 78 ms · Orchestrator 3 ms |
 | Chat turns on a finished screen's thread, each through Compliance | goal 0.44 s · holdings 0.48 s · news 0.52 s · tax 0.48 s · concept question 0.01 s |
 | Market-data cache across the six screens | 82% hit rate (516 hits, 110 misses; the first screen is cold) |
-| Knowledge base | <!-- n:docs -->124<!-- /n --> documents, <!-- n:chunks -->1,081<!-- /n --> chunks indexed in 0.34 s; a hybrid query takes 1.2 ms mean, 1.6 ms p95 over the labelled dev questions |
+| Knowledge base | <!-- n:docs -->124<!-- /n --> documents, <!-- n:chunks -->1,080<!-- /n --> chunks indexed in 0.34 s; a hybrid query takes 1.2 ms mean, 1.6 ms p95 over the labelled dev questions |
 | Tokens and cost per screen | 0 in fixture mode; with `OPTIONS_SCOUT_LLM_MODE=live` the same report shows the measured usage of DeepSeek V4.1 Flash through OpenRouter (about $0.14 per million input tokens) |
 
 In live mode each specialist's latency grows by its provider calls: one quote, one chain and one history per ticker for Market Data (cached 15 minutes per provider), one `NEWS_SENTIMENT` call per ticker for News Desk (cached 30 minutes), and one structured LLM call per text for the writers, plus at most two Compliance retries.

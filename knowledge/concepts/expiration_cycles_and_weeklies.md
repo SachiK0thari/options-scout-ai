@@ -5,7 +5,7 @@ source: "OCC, Characteristics and Risks of Standardized Options, chapter II (exp
 url: https://www.theocc.com/company-information/documents-and-archives/options-disclosure-document
 kind: concepts
 level: beginner
-as_of: 2026-11-04
+as_of: 2026-11-13
 ---
 
 # Expiration cycles and weeklies: third Fridays, weekly series and the 30-45 DTE window
@@ -30,7 +30,7 @@ Because weekly series can fail the open-interest filter of 500 contracts, there 
 
 ## What can go wrong
 
-A monthly that expires on a Thursday because of a holiday has one fewer day than a calendar count suggests. A weekly that qualifies today because its open interest crossed 500 can be the only liquid series at that expiration, so a fill at a reasonable price depends on that one strike. Earnings dates fall inside the window for roughly a quarter of the year for every company, and the screener excludes those expirations, which shrinks the choice further in earnings season.
+A monthly that expires on a Thursday because of a holiday has one fewer day than a calendar count suggests. A weekly that qualifies today because its open interest crossed 500 can be the only liquid series at that expiration, so a fill at a reasonable price depends on that one strike. Companies report about every 91 days, so a company's next earnings date falls within 45 days of today about half the time, excluding some of the window's expirations, and within 30 days about a third of the time, excluding all of them; that shrinks the choice further in earnings season.
 
 ## Where this shows up in OptionsScout
 

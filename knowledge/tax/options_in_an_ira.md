@@ -5,7 +5,7 @@ source: "IRS, Individual Retirement Arrangements (IRAs); FINRA, Margin Accounts 
 url: https://www.irs.gov/retirement-plans/individual-retirement-arrangements-iras
 kind: tax
 level: intermediate
-as_of: 2026-11-04
+as_of: 2026-11-13
 ---
 
 # Options in an IRA: no margin, cash-secured strategies, and why holding periods stop mattering inside
@@ -34,7 +34,7 @@ The tax shelter does not change the market risk: an assigned put in an IRA loses
 
 ## Where this shows up in OptionsScout
 
-When the Setup tab records an IRA as the account type, the app shows return on collateral rather than return on margin, skips the Reg T margin figure, and the Portfolio & Risk constraints treat the account's cash as the hard ceiling. The planned Goals tab treats IRA balances as unavailable for goals that fall before age 59 1/2.
+The Setup tab offers cash, margin and portfolio margin accounts; it has no separate IRA type. An IRA should be entered as a **cash** account (a request that says "IRA" or "Roth" is read that way), which gives the IRA treatment: return on collateral rather than return on margin, no Reg T sizing, and the account's cash as the hard ceiling. The Goals tab does not know which account funds a goal, so it does not hold IRA balances back for goals that fall before age 59 1/2; that judgment is the reader's.
 
 ## Sources
 

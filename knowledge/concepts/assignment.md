@@ -1,16 +1,16 @@
 ---
 id: assignment
 title: "Assignment: what happens when a short option is exercised against you"
-source: "OCC, Characteristics and Risks of Standardized Options, chapter VIII (Exercise and Assignment)"
+source: "OCC, Characteristics and Risks of Standardized Options, chapter VIII (Exercise and Settlement)"
 url: https://www.theocc.com/company-information/documents-and-archives/options-disclosure-document
 kind: concepts
 level: intermediate
-as_of: 2026-11-03
+as_of: 2026-11-13
 ---
 
 # Assignment
 
-**Assignment** is the process by which an option writer is selected to fulfil the obligation of a contract that a holder has exercised. When a put holder exercises, some put writer is obliged to take the shares at the strike; when a call holder exercises, some call writer must deliver them. The Options Clearing Corporation (OCC) receives exercise notices from clearing members, assigns them at random to clearing members with short positions in the same series, and each clearing member then assigns its own customers by a method approved by the exchanges, usually random selection or first-in first-out.
+**Assignment** is the process by which an option writer is selected to fulfil the obligation of a contract that a holder has exercised. When a put holder exercises, some put writer is obliged to take the shares at the strike; when a call holder exercises, some call writer must deliver them. The Options Clearing Corporation (OCC) receives exercise notices from clearing members, assigns them at random to clearing members with short positions in the same series, and each clearing member then assigns its own customers by a method governed by FINRA Rule 2360 and disclosed to them, usually random selection or first-in first-out.
 
 ## What the writer experiences
 
@@ -36,5 +36,5 @@ Tax and cost basis: an assigned put's premium is folded into the cost basis of t
 
 ## Sources
 
-- OCC, *Characteristics and Risks of Standardized Options*, chapter VIII, "Exercise and Assignment": https://www.theocc.com/company-information/documents-and-archives/options-disclosure-document
+- OCC, *Characteristics and Risks of Standardized Options*, chapter VIII, "Exercise and Settlement": https://www.theocc.com/company-information/documents-and-archives/options-disclosure-document
 - OCC, exercise and assignment overview for market participants: https://www.theocc.com/clearance-and-settlement/clearing/exercise-and-assignment

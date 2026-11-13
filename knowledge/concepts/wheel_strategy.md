@@ -5,7 +5,7 @@ source: "OCC, Characteristics and Risks of Standardized Options, chapter X; Cboe
 url: https://www.theocc.com/company-information/documents-and-archives/options-disclosure-document
 kind: concepts
 level: intermediate
-as_of: 2026-11-04
+as_of: 2026-11-13
 ---
 
 # The wheel: cash-secured put, assignment, covered call, repeat
@@ -34,7 +34,7 @@ The app screens the first leg only, with a 30-45 DTE window, |delta| 0.15-0.30, 
 
 ## Where this shows up in OptionsScout
 
-The Candidates tab shows cash-secured puts, which is the wheel's first spoke, and the Portfolio & Risk tab reports each put's **realistic loss**, the loss if the stock drops 30% at expiry, which is the number that matters if the wheel turns to step two. Phase 12's holdings section lets a user record assigned shares, but the app does not screen covered calls against them and never suggests when to turn the wheel.
+The Candidates tab shows cash-secured puts, which is the wheel's first spoke, and the Portfolio & Risk tab reports each put's **realistic loss**, the loss if the stock drops 30% at expiry, which is the number that matters if the wheel turns to step two. The holdings section lets a user record assigned shares, but the app does not screen covered calls against them and never suggests when to turn the wheel.
 
 ## Sources
 

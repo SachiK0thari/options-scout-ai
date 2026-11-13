@@ -10,7 +10,7 @@ beta_min_returns: 60          # W25: daily returns on dates both series share; f
 # prospectuses as of 2026; the Learn tab says "about" and cites investor.gov on fees.
 expense_ratios_pct:
   SPY: 0.0945
-  QQQ: 0.20
+  QQQ: 0.18          # cut from 0.20 when QQQ became an open-end fund, 2025-12-22 (Invesco)
   VOO: 0.03
   IVV: 0.03
   VTI: 0.03

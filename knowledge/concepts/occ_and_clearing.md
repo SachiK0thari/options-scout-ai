@@ -1,11 +1,11 @@
 ---
 id: occ-and-clearing
 title: "The OCC and clearing: who stands behind every listed option and how assignment is allocated"
-source: "OCC, Characteristics and Risks of Standardized Options, chapter I (Introduction) and chapter VIII (Exercise and Assignment); FINRA Rule 2360"
+source: "OCC, Characteristics and Risks of Standardized Options, chapter I (Introduction) and chapter VIII (Exercise and Settlement); FINRA Rule 2360"
 url: https://www.theocc.com/company-information/documents-and-archives/options-disclosure-document
 kind: concepts
 level: beginner
-as_of: 2026-11-04
+as_of: 2026-11-13
 ---
 
 # The OCC and clearing
@@ -29,7 +29,7 @@ The booklet *Characteristics and Risks of Standardized Options*, usually called 
 
 ## How assignment is allocated
 
-When a holder exercises, their broker submits the exercise to the OCC through its clearing member. The OCC then **assigns** the exercise to a clearing member with a short position in that series, chosen by a random process. The clearing member in turn allocates the assignment to one of its own customers who is short the series, using a method it has disclosed to customers and the OCC has approved: random selection or first-in, first-out are the usual choices. Suppose 5,000 contracts of a $50 put are open and 300 are exercised on a given night. Three hundred writers learn the next morning that they have bought 100 shares each at $50; the other 4,700 contracts are untouched. A writer with ten contracts open may be assigned on three of them, and cannot influence which.
+When a holder exercises, their broker submits the exercise to the OCC through its clearing member. The OCC then **assigns** the exercise to a clearing member with a short position in that series, chosen by a random process. The clearing member in turn allocates the assignment to one of its own customers who is short the series, using a method it must disclose to customers under FINRA Rule 2360: random selection or first-in, first-out are the usual choices. Suppose 5,000 contracts of a $50 put are open and 300 are exercised on a given night. Three hundred writers learn the next morning that they have bought 100 shares each at $50; the other 4,700 contracts are untouched. A writer with ten contracts open may be assigned on three of them, and cannot influence which.
 
 ## Why counterparty risk is not the retail writer's problem
 
@@ -45,6 +45,6 @@ Every Sources section in the Learn tab that cites the OCC is citing the ODD desc
 
 ## Sources
 
-- OCC, *Characteristics and Risks of Standardized Options*, chapter I (Introduction) and chapter VIII (Exercise and Assignment): https://www.theocc.com/company-information/documents-and-archives/options-disclosure-document
+- OCC, *Characteristics and Risks of Standardized Options*, chapter I (Introduction) and chapter VIII (Exercise and Settlement): https://www.theocc.com/company-information/documents-and-archives/options-disclosure-document
 - FINRA Rule 2360, Options (delivery of the disclosure document): https://www.finra.org/rules-guidance/rulebook/finra-rules/2360
 - SIPC, what SIPC protects: https://www.sipc.org/for-investors/what-sipc-protects

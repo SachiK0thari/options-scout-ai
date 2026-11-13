@@ -5,7 +5,7 @@ source: "Cboe Options Institute; OCC disclosure document chapter III; PRD.md sec
 url: https://www.cboe.com/education/
 kind: concepts
 level: intermediate
-as_of: 2026-11-03
+as_of: 2026-11-13
 ---
 
 # LEAPS calls
@@ -32,7 +32,7 @@ The report's "Carry/yr" column ("Yearly cost vs owning the shares" in the app) p
 
 ## The screener rules in force
 
-This app requires at least 365 days to expiration and prefers the longest available series (540 days or more), a call delta between 0.70 and 0.85, extrinsic value of no more than 5% of the stock price **per year** (so a two-year option may carry up to 10%), open interest of at least 100 contracts and a bid-ask spread of at most 5% of the mid price. An IV rank at or below 40% is preferred because LEAPS are a purchase of volatility: buying them when implied volatility is elevated means paying more extrinsic value for the same exposure. When a held LEAPS falls below 240 days to expiration the report flags it "roll or close", because time decay accelerates as expiration approaches and the position stops behaving like stock.
+This app requires at least 365 days to expiration and prefers the longest available series (540 days or more), a call delta between 0.70 and 0.85, extrinsic value of no more than 5% of the stock price **per year** (so a two-year option may carry up to 10%), open interest of at least 100 contracts and a bid-ask spread of at most 5% of the mid price. An IV rank at or below 40% is preferred because LEAPS are a purchase of volatility: buying them when implied volatility is elevated means paying more extrinsic value for the same exposure. A common rule of thumb is to roll or close a LEAPS once it falls below about 240 days to expiration: time decay accelerates as expiration approaches and the horizon left for the thesis shrinks. A deep in-the-money call actually behaves *more* like stock near expiry, as its delta approaches 1; the reason to roll is the faster decay and the shorter runway, not a loss of stock-like behaviour. The app screens LEAPS to open, all with at least 365 days to run, and does not track LEAPS a user already holds, so it never raises this warning itself.
 
 ## Relation to the other strategies
 

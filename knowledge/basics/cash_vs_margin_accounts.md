@@ -5,7 +5,7 @@ source: "FINRA, Margin Accounts (investor page); Regulation T, 12 CFR Part 220; 
 url: https://www.finra.org/investors/investing/investment-accounts/margin-accounts
 kind: basics
 level: beginner
-as_of: 2026-11-04
+as_of: 2026-11-13
 ---
 
 # Cash versus margin accounts: borrowing, Regulation T, and why the app asks which one you have
@@ -14,7 +14,7 @@ A brokerage account comes in two basic forms. In a **cash account**, every purch
 
 ## Borrowing on margin
 
-**Margin** is a loan from the broker, with the account's holdings as collateral. Suppose an investor has $10,000 and buys $20,000 of stock on margin; the broker lends the other $10,000 and charges interest on it daily. If the stock rises 10%, the investor's equity rises from $10,000 to $12,000, a 20% gain. If the stock falls 10%, equity falls to $8,000, a 20% loss. Margin magnifies both outcomes. If equity falls below the broker's **maintenance requirement**, the investor receives a **margin call** and must deposit cash or the broker sells holdings, at a time of the broker's choosing, to restore it. FINRA's investor page on margin accounts sets out these risks.
+**Margin** is a loan from the broker, with the account's holdings as collateral. Suppose an investor has $10,000 and buys $20,000 of stock on margin; the broker lends the other $10,000 and charges interest on it daily. If the stock rises 10%, the investor's equity rises from $10,000 to $12,000, a 20% gain. If the stock falls 10%, equity falls to $8,000, a 20% loss. Margin magnifies both outcomes. If equity falls below the broker's **maintenance requirement**, the investor receives a **margin call** and must deposit cash or the broker sells holdings, at a time of the broker's choosing, to restore it. The broker may also sell without notice, choosing what to sell, and a loss can exceed the deposit; the investor owes the difference. FINRA's investor page on margin accounts sets out these risks.
 
 ## Regulation T in one paragraph
 
@@ -30,7 +30,7 @@ Margin interest is a steady cost that continues in flat markets. A margin call i
 
 ## Where this shows up in OptionsScout
 
-The Setup tab asks for the account type because the arithmetic depends on it. For a cash account the Candidates tab reports **return on collateral** using the full cash-secured amount; for a margin account it adds **return on margin** using the Reg T and FINRA requirement, and the Portfolio & Risk tab applies a **max margin usage** constraint (30%, 40% or 50% of buying power for the conservative, balanced and aggressive profiles). When the Scout chat says "cash-secured", it means cash-account logic: the full purchase price is treated as tied up, whichever account the user actually holds. The planned Tax & Accounts page in Learn will cover account types in more depth.
+The Setup tab asks for the account type because the arithmetic depends on it. For a cash account the Candidates tab reports **return on collateral** using the full cash-secured amount; for a margin account it adds **return on margin** using the Reg T and FINRA requirement, and the Portfolio & Risk tab applies a **max margin usage** constraint ({{risk.conservative.max_margin_usage}}, {{risk.balanced.max_margin_usage}} or {{risk.aggressive.max_margin_usage}} of buying power by profile). "Cash-secured" in the Scout chat means the full purchase price is treated as tied up. The Tax & Accounts page in Learn covers account types in more depth.
 
 ## Sources
 

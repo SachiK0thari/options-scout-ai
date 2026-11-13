@@ -5,7 +5,7 @@ source: "OCC disclosure document chapter X; Cboe Options Institute; PRD.md secti
 url: https://www.cboe.com/education/
 kind: concepts
 level: intermediate
-as_of: 2026-11-03
+as_of: 2026-11-13
 ---
 
 # Rolling and closing an option position
@@ -22,7 +22,7 @@ These rules are widely taught and are the ones this app's report will flag in it
 
 - **Take profit at 50%.** When a short put can be bought back for half the premium received, most of the expected gain has been earned while a large share of the gamma risk remains; many writers close and redeploy rather than wait for the last cents.
 - **Close or roll at 21 days to expiration.** The last three weeks hold the fastest time decay but also the highest gamma; a put that is still comfortably out of the money at 21 days has little left to give relative to what a sudden move could take.
-- **Rolling a LEAPS below 240 days.** This app flags "roll or close" when a held LEAPS falls below 240 days to expiration. At that point the option is leaving the flat part of the time-decay curve, its extrinsic value starts to erode faster, and it stops behaving like a stock substitute. The LEAPS screener prefers series with 540 or more days for the same reason.
+- **Rolling a LEAPS below 240 days.** A common rule of thumb is to roll or close a LEAPS once it falls below about 240 days to expiration. At that point the option is leaving the flat part of the time-decay curve and its extrinsic value starts to erode faster; a deep in-the-money call still tracks the stock closely (more so as delta nears 1), but the horizon left for the thesis is short. The app screens new LEAPS only and does not track ones already held, so the warning is the reader's to apply. The LEAPS screener prefers series with 540 or more days for the same reason.
 - **Rolling the PMCC short call before an ex-dividend date** when it is in the money and its extrinsic value is below the dividend, to avoid early assignment.
 
 ## Costs and limits of rolling
@@ -37,4 +37,4 @@ The current screening report selects new positions and does not track existing o
 
 - Cboe Options Institute, position management education: https://www.cboe.com/education/
 - OCC, *Characteristics and Risks of Standardized Options*, chapter X, on closing transactions and secondary-market risk: https://www.theocc.com/company-information/documents-and-archives/options-disclosure-document
-- Rule in force in this app (LEAPS roll warning at 240 days): PRD.md section 3.4 and `config/screener_rules.yaml`.
+- The 240-day threshold and the LEAPS screen rules: PRD.md section 3.4 and `config/screener_rules.yaml`.

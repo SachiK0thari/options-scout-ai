@@ -5,7 +5,7 @@ source: "Cboe, VIX Index (Cboe Volatility Index) product page and methodology"
 url: https://www.cboe.com/tradable_products/vix/
 kind: basics
 level: beginner
-as_of: 2026-11-04
+as_of: 2026-11-13
 ---
 
 # The VIX for beginners
@@ -14,7 +14,7 @@ The **VIX** is the Cboe Volatility Index. It measures the **implied volatility**
 
 ## Why option prices contain a volatility number
 
-An option is worth more when the underlying is expected to move more, because a bigger move makes a larger payoff more likely. Given an option's market price, the Black-Scholes model can be solved backward for the volatility that justifies it. That solved-for number is implied volatility. The VIX applies this idea to a whole basket of S&P 500 options and averages the result into one index, published every 15 seconds during trading hours by Cboe.
+An option is worth more when the underlying is expected to move more, because a bigger move makes a larger payoff more likely. Given an option's market price, the Black-Scholes model can be solved backward for the volatility that justifies it. That solved-for number is implied volatility. The VIX measures the same thing without a pricing model: Cboe computes it from a weighted strip of out-of-the-money S&P 500 put and call prices across a range of strikes, scaled to a 30-day horizon, and publishes it every 15 seconds during trading hours.
 
 ## Levels in plain words
 

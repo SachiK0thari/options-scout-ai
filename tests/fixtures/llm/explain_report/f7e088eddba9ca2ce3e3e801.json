@@ -1,0 +1,72 @@
+{
+ "task": "explain_report",
+ "model": "deepseek/deepseek-v4.1-flash",
+ "output": {
+  "paragraphs": [
+   {
+    "mode": "education",
+    "text": "A **cash-secured put** is a short put in which the writer sets aside enough cash to buy the shares at the strike price if the put is assigned [S1]. The writer sells the put, collects the premium up front, and accepts the obligation to buy 100 shares per contract at the strike any time before expiration [S1]. A **naked put**, or short put on margin, is the same contract, but the broker holds only a margin requirement, a fraction of the purchase price, instead of the full purchase price [S4]. **Assignment** is the process by which an option writer is selected to fulfil the obligation of a contract that a holder has exercised [S2]. A **poor man's covered call** is a two-leg position: a long, deep in-the-money LEAPS call and a short, near-term, out-of-the-money call on the same stock [S3].",
+    "citations": [
+     "S1",
+     "S4",
+     "S2",
+     "S3"
+    ]
+   },
+   {
+    "mode": "screen_result",
+    "text": "This run allocated the strategy budget across cash-secured puts and LEAPS legs, with cash left in reserve. The regime label is normal, with a risk-free rate of {{regime.risk_free_rate_pct|pct}} and a VIX of {{regime.vix}} at the {{regime.vix_percentile}}th percentile. The account value is {{profile.account_value|money}} and the account type is {{profile.account_type}}.",
+    "citations": []
+   },
+   {
+    "mode": "education",
+    "text": "The good-to-own quality gate is a filter, not a discovery engine: it decides which tickers are allowed into the option screeners at all, records a reason for every rejection, and produces a score for the survivors [S5]. The product promise is \"stocks you would be happy to own if assigned\" [S5].",
+    "citations": [
+     "S5"
+    ]
+   },
+   {
+    "mode": "screen_result",
+    "text": "{{quality_screen.passed_count}} underlyings passed the quality screen: {{quality_screen.passed_tickers|list}}. {{quality_screen.excluded_count}} were excluded, with the reasons given as {{quality_screen.excluded|list}}. The trend board is a secondary signal only; the trending tickers in the errors list, such as {{errors[0]}}, were skipped because they are not on the good-to-own list.",
+    "citations": []
+   },
+   {
+    "mode": "education",
+    "text": "The app watches public conversation on Reddit, X, Wikipedia pageviews, Google Trends and news feeds for rising discussion of products and brands, resolves that discussion to tickers, and produces a consumer-trend score [S6]. For the structure of a short put, a surging consumer-trend score is closer to the opposite of a good candidate, and the app is built around that fact [S6].",
+    "citations": [
+     "S6"
+    ]
+   },
+   {
+    "mode": "screen_result",
+    "text": "The bottleneck board is a secondary signal: it re-orders quality-gated stocks, never adds one. The top-scoring layer is {{bottlenecks.layers[0].name}} at {{bottlenecks.layers[0].score}}, with thesis state {{bottlenecks.layers[0].thesis_state}}. The networking layer, {{bottlenecks.layers[5].name}}, scores {{bottlenecks.layers[5].score}} with thesis state {{bottlenecks.layers[5].thesis_state}}, and its company {{bottlenecks.companies[4].ticker}} carries flags {{bottlenecks.companies[4].flags|list}}. {{counts.positions_sized}} positions were sized, so no bottleneck flag applies to a sized position in this run.",
+    "citations": []
+   },
+   {
+    "mode": "screen_result",
+    "text": "No position was sized: the sizer reports {{risk.sizing_flags|list}}, and the warning states {{risk.warnings[0]}}. The skipped candidates include {{skipped_candidates[0].candidate_id}}, with a realistic loss of one contract of {{skipped_candidates[0].realistic_loss_per_contract|money}}, and {{skipped_candidates[2].candidate_id}}, with a realistic loss of one contract of {{skipped_candidates[2].realistic_loss_per_contract|money}}. {{counts.skipped_total}} candidates were skipped in total.",
+    "citations": []
+   },
+   {
+    "mode": "screen_result",
+    "text": "The risk picture shows {{risk.checks_passed}} of {{risk.checks_total}} checks passed, with a short-put notional of {{risk.checks[0].value|percent}} against a limit of {{risk.checks[0].limit|percent}} and margin usage of {{risk.checks[1].value|percent}} against a limit of {{risk.checks[1].limit|percent}}. A {{risk.stress[-10%].shock}} move with a {{risk.stress[-10%].iv_shock}} IV shock gives {{risk.stress[-10%].pnl|money}}, a {{risk.stress[-20%].shock}} move gives {{risk.stress[-20%].pnl|money}}, and a {{risk.stress[-30%].shock}} move gives {{risk.stress[-30%].pnl|money}}, with a realistic loss drop threshold of {{risk.realistic_loss_drop_pct|pct}}.",
+    "citations": []
+   },
+   {
+    "mode": "notice",
+    "text": "{{ delayed_data_notice }}",
+    "citations": []
+   },
+   {
+    "mode": "notice",
+    "text": "**Warnings and limitations.** {{risk.warnings[0]}}",
+    "citations": []
+   },
+   {
+    "mode": "notice",
+    "text": "{{ disclaimer }}",
+    "citations": []
+   }
+  ]
+ }
+}

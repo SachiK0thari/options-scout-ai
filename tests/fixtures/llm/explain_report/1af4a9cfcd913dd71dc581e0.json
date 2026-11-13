@@ -1,0 +1,64 @@
+{
+ "task": "explain_report",
+ "model": "deepseek/deepseek-v4.1-flash",
+ "output": {
+  "paragraphs": [
+   {
+    "mode": "education",
+    "text": "A **cash-secured put** is a short put position in which the writer sets aside enough cash to buy the shares at the strike price if the put is assigned, collects the premium up front, and accepts the obligation to buy 100 shares per contract at the strike any time before expiration [S1]. A **naked put** on margin is the same contract, but the broker holds only a margin requirement, a fraction of the purchase price computed under exchange and FINRA minimum rules, leaving the rest of the buying power free [S6].",
+    "citations": [
+     "S1"
+    ]
+   },
+   {
+    "mode": "screen_result",
+    "text": "The screen allocated {{allocation.csp_pct|pct}} of the strategy budget to cash-secured puts, {{allocation.leaps_pct|pct}} to LEAPS and {{allocation.cash_pct|pct}} to cash, with a tilt of {{allocation.tilt}}. The market regime label was {{regime.label}}, with a VIX of {{regime.vix}}.",
+    "citations": []
+   },
+   {
+    "mode": "education",
+    "text": "**LEAPS** (Long-term Equity AnticiPation Securities) are listed options with more than a year until expiration that trade and settle like shorter options [S3]. A **poor man's covered call** is a two-leg position: a long, deep in-the-money LEAPS call and a short, near-term, out-of-the-money call on the same stock, formally a long call diagonal spread with different strikes and different expirations [S5]. Every option premium splits into **intrinsic value**, the amount by which the option is in the money, and **extrinsic value**, or time value, everything else; at expiration extrinsic value is always zero [S4].",
+    "citations": [
+     "S3",
+     "S4",
+     "S5"
+    ]
+   },
+   {
+    "mode": "screen_result",
+    "text": "The good-to-own quality screen passed {{quality_screen.passed_count}} underlyings: {{quality_screen.passed_tickers|list}}. No underlyings were excluded, so the excluded list is empty. The trend board is a secondary signal only: CAVA, ONON, DECK, ELF and CROX scored highly, but none is on the good-to-own list and all were skipped.",
+    "citations": []
+   },
+   {
+    "mode": "screen_result",
+    "text": "The bottleneck board re-orders quality-gated stocks and never adds one; the top layer is {{bottlenecks.layers[0].name}} with score {{bottlenecks.layers[0].score}} and thesis state {{bottlenecks.layers[0].thesis_state}}, and the next is {{bottlenecks.layers[1].name}} with score {{bottlenecks.layers[1].score}}. CSCO carries the flags {{bottlenecks.companies[4].flags|list}}.",
+    "citations": []
+   },
+   {
+    "mode": "screen_result",
+    "text": "No positions were sized. The skipped candidates include LEAPS-SPY-2028-01-21-600C with a realistic loss of one contract of {{skipped_candidates[0].realistic_loss_per_contract|money}}, and CSP-SPY-2026-11-30-735P with a realistic loss of one contract of {{skipped_candidates[2].realistic_loss_per_contract|money}}; the candidates were left out for allocation budget and max loss per position reasons.",
+    "citations": []
+   },
+   {
+    "mode": "screen_result",
+    "text": "The risk picture: {{risk.checks_passed}} of {{risk.checks_total}} checks passed, including margin usage at {{risk.checks[margin_usage].value|percent}} against a limit of {{risk.checks[margin_usage].limit|percent}}. Stress rows show a {{risk.stress[-10%].shock}} move with a {{risk.stress[-10%].iv_shock}} IV shock giving {{risk.stress[-10%].pnl|money}}, a {{risk.stress[-20%].shock}} move giving {{risk.stress[-20%].pnl|money}}, and a {{risk.stress[-30%].shock}} move giving {{risk.stress[-30%].pnl|money}}.",
+    "citations": []
+   },
+   {
+    "mode": "notice",
+    "text": "{{ delayed_data_notice }}",
+    "citations": []
+   },
+   {
+    "mode": "notice",
+    "text": "**Warnings and limitations.** {{risk.warnings[0]}}",
+    "citations": []
+   },
+   {
+    "mode": "notice",
+    "text": "{{ disclaimer }}",
+    "citations": []
+   }
+  ]
+ }
+}

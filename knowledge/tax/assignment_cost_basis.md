@@ -5,7 +5,7 @@ source: "IRS Publication 550, Investment Income and Expenses, chapter 4, Writers
 url: https://www.irs.gov/publications/p550
 kind: tax
 level: intermediate
-as_of: 2026-11-04
+as_of: 2026-11-13
 ---
 
 # Assignment and cost basis: how the premium folds into the shares you receive
@@ -30,7 +30,7 @@ Three things cause confusion. First, brokers report the adjusted basis for share
 
 ## Where this shows up in OptionsScout
 
-The Candidates tab lists the breakeven of every CSP as strike minus premium, which happens to equal the tax basis per share an assigned writer would start with, before commissions. The planned holdings section in Portfolio & Risk will let a user record assigned shares with that basis and acquisition date so the app can show how far the holding is from the one-year mark; it will not compute a tax figure, because the broker's records are the ones that matter on Form 8949.
+The Candidates tab lists the breakeven of every CSP as strike minus premium, which happens to equal the tax basis per share an assigned writer would start with, before commissions. The holdings section in Portfolio & Risk lets a user record shares with a cost basis per share, such as this one, but not an acquisition date, so it cannot show how far a holding is from the one-year mark; it does not compute a tax figure either, because the broker's records are the ones that matter on Form 8949.
 
 ## Sources
 

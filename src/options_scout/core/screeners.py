@@ -157,6 +157,7 @@ def _csp_pass(
     dte_max: int,
     fallback: bool,
     iv_rules: ImpliedVolRules,
+    excluded: list[OptionCandidate] | None = None,
 ) -> list[OptionCandidate]:
     out: list[OptionCandidate] = []
     for chain in snap.chains:
@@ -184,12 +185,16 @@ def _csp_pass(
             if c.earnings_before_expiry:
                 c.flags.append("earnings_before_expiry")
                 if rules.exclude_earnings_before_expiry:
+                    if excluded is not None:  # W26: reported, not dropped silently
+                        excluded.append(c)
                     continue  # pragma: no mutate (same expiry: every later put is excluded too)
             if snap.earnings_estimated and snap.earnings_known:
                 c.flags.append(FLAG_EARNINGS_ESTIMATED)  # tested from the earliest plausible day
             if earnings_unknown(snap):
                 c.flags.append(FLAG_EARNINGS_UNKNOWN)
                 if rules.exclude_when_earnings_unknown:
+                    if excluded is not None:
+                        excluded.append(c)
                     continue  # pragma: no mutate (per ticker: every later put is excluded too)
             c.collateral = margin.csp_collateral(c.strike, c.mid)
             c.margin_req = margin.reg_t_put_margin(snap.spot.price, c.strike, c.mid)
@@ -217,8 +222,12 @@ def screen_csp(
     r: float,
     realistic_loss_drop: float,
     iv_rules: ImpliedVolRules = _DEFAULT_IV_RULES,
+    excluded: list[OptionCandidate] | None = None,
 ) -> list[OptionCandidate]:
-    """Cash-secured put screen. Strict 30–45 DTE first; a flagged wider window only if empty."""
+    """Cash-secured put screen. Strict 30–45 DTE first; a flagged wider window only if empty.
+
+    ``excluded`` collects the puts that passed every other test but were dropped by an earnings
+    rule (date before expiry, or date unknown), so the report can list them (W26)."""
     if snap.spot.price < rules.min_underlying_price or snap.spot.avg_volume < rules.min_avg_volume:
         return []
     out = _csp_pass(
@@ -230,6 +239,7 @@ def screen_csp(
         dte_max=rules.dte_max,
         fallback=False,
         iv_rules=iv_rules,
+        excluded=excluded,
     )
     if not out and rules.dte_fallback_max > rules.dte_fallback_min:
         out = _csp_pass(
@@ -241,11 +251,39 @@ def screen_csp(
             dte_max=rules.dte_fallback_max,
             fallback=True,
             iv_rules=iv_rules,
+            excluded=excluded,
         )
         if out:
             out = [c for c in out if c.expiry == _fallback_expiry(out, rules)]
     out.sort(key=lambda c: c.annualized_return or 0.0, reverse=True)
     return out
+
+
+def describe_csp_exclusions(snap: TickerSnapshot, excluded: list[OptionCandidate]) -> list[str]:
+    """One line per ticker and earnings rule for the puts :func:`screen_csp` dropped (W26), e.g.
+    ``NKE: 6 puts expiring 2026-12-19 excluded, earnings 2026-12-18 falls before expiry``."""
+    if not excluded:
+        return []
+    unknown = [c for c in excluded if FLAG_EARNINGS_UNKNOWN in c.flags]
+    before = [c for c in excluded if FLAG_EARNINGS_UNKNOWN not in c.flags]
+    lines: list[str] = []
+
+    def expiries(cs: list[OptionCandidate]) -> str:
+        return ", ".join(sorted({c.expiry.isoformat() for c in cs}))
+
+    if before:
+        when = snap.earnings_date.isoformat() if snap.earnings_date else "n/a"
+        what = "estimated earnings window opening" if snap.earnings_estimated else "earnings"
+        lines.append(
+            f"{snap.ticker}: {len(before)} put(s) expiring {expiries(before)} excluded, "
+            f"{what} {when} falls before expiry"
+        )
+    if unknown:
+        lines.append(
+            f"{snap.ticker}: {len(unknown)} put(s) expiring {expiries(unknown)} excluded, "
+            "next earnings date unknown"
+        )
+    return lines
 
 
 def _fallback_expiry(cands: list[OptionCandidate], rules: CSPRules) -> date:

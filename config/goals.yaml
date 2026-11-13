@@ -34,6 +34,5 @@ max_assumed_return:
 expected_drift: 0.06         # stock price drift a year
 realised_to_implied: 0.85    # realised volatility as a multiple of implied volatility
 
-retirement_age: 59.5         # IRA balances are treated as unavailable before this age
 savings_rate_table:          # illustration on the Goals tab: savings rates x years to independence,
   rates: [0.10, 0.20, 0.30, 0.50]   # at the profile's assumed return less inflation (as the FIRE card)

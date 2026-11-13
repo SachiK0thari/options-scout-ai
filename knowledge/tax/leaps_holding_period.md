@@ -5,7 +5,7 @@ source: "IRS Publication 550, Investment Income and Expenses, chapter 4, Holders
 url: https://www.irs.gov/publications/p550
 kind: tax
 level: intermediate
-as_of: 2026-11-04
+as_of: 2026-11-13
 ---
 
 # LEAPS and the holding period: sale, expiry and exercise of a long-dated call
@@ -26,14 +26,15 @@ Exercise is not a taxable event for the holder. Publication 550 says that when y
 
 ## What can go wrong
 
-The one-year boundary is a cliff. An investor who sells a LEAPS a few days short of the anniversary converts what would have been a long-term gain into a short-term one, and nothing in the option's quote warns of this. The reverse trap is exercising near the anniversary in the belief that the clock has been met; exercise resets it. A LEAPS also decays: the time value paid up front is lost by expiry whatever the stock does, and a long-term loss is still a loss. Finally, if the LEAPS is the long leg of a poor man's covered call, the straddle rules in section 1092 can suspend or alter these holding period results; see *Qualified covered calls and the straddle rules*.
+The one-year boundary is a cliff. An investor who sells a LEAPS a few days short of the anniversary converts what would have been a long-term gain into a short-term one, and nothing in the option's quote warns of this. The reverse trap is exercising near the anniversary in the belief that the clock has been met; exercise resets it. A LEAPS also decays: the time value paid up front is lost by expiry whatever the stock does, and a long-term loss is still a loss. Finally, if the LEAPS is the long leg of a poor man's covered call, the straddle rules in section 1092 can eliminate the holding period of a LEAPS not yet held more than a year, which then starts again only when the short call is closed; see *Qualified covered calls and the straddle rules*.
 
 ## Where this shows up in OptionsScout
 
-The Candidates tab shows the expiration date and DTE of every LEAPS candidate, and the planned holdings section in Portfolio & Risk will show the purchase date of a held LEAPS so a user can see where it stands against the one-year mark. The app's roll warning, which flags a LEAPS approaching the point where time decay accelerates, is about the trade, not the tax year; the document *LEAPS: exercise versus sale* explains the difference.
+The Candidates tab shows the expiration date and DTE of every LEAPS candidate. The holdings section in Portfolio & Risk records shares only, with no purchase dates, so the app cannot tell where a held LEAPS stands against the one-year mark; the broker's records can. The usual advice to roll a LEAPS below about 240 days is about the trade, not the tax year; the document *LEAPS: exercise versus sale* explains the difference.
 
 ## Sources
 
 - IRS Publication 550, *Investment Income and Expenses*, chapter 4, "Holders of puts and calls" and "Holding Period": https://www.irs.gov/publications/p550
 - IRS Tax Topic 409, Capital gains and losses: https://www.irs.gov/taxtopics/tc409
+- Treas. Reg. § 1.1092(b)-2T(a), holding period of a straddle position: https://www.law.cornell.edu/cfr/text/26/1.1092(b)-2T
 - 26 U.S.C. Section 1234, options to buy or sell: https://www.law.cornell.edu/uscode/text/26/1234

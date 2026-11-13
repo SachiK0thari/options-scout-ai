@@ -5,7 +5,7 @@ source: "SEC investor.gov, Ex-Dividend Dates (glossary); OCC, Characteristics an
 url: https://www.investor.gov/introduction-investing/investing-basics/glossary/ex-dividend-dates
 kind: basics
 level: beginner
-as_of: 2026-11-04
+as_of: 2026-11-13
 ---
 
 # Dividends and ex-dividend dates: the four dates, the price drop, and why they matter for a short call
@@ -37,7 +37,7 @@ Dividends can be cut with no notice, and a cut often arrives alongside a large p
 
 ## Where this shows up in OptionsScout
 
-Today the screeners price every option with the stock's dividend yield but do not check the calendar for ex-dividend dates. The planned News Desk agent adds an `ex_dividend_before_expiry` flag on any short call whose expiry falls after a known ex-dividend date of the underlying, shown on the Candidates tab, and the Scout chat will cite this document when a user asks why a short call was marked. The CSP screener uses a different calendar check, excluding expiries that span an earnings date, which the *P/E and earnings* document explains. The app's market data is delayed free-tier data, so dividend dates are only as current as the feed that supplies them.
+The screeners price every option with the stock's dividend yield but do not check the calendar for ex-dividend dates: none of the app's data providers supplies them, so no short call is flagged for spanning one. Check the next ex-dividend date with the broker before writing a short call, the PMCC short leg in particular. The CSP screener uses a different calendar check, excluding expiries that span an earnings date, which the *P/E and earnings* document explains. The app's market data is delayed free-tier data, so dividend dates are only as current as the feed that supplies them.
 
 ## Sources
 

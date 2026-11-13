@@ -5,7 +5,7 @@ source: "IRS Publication 550, Investment Income and Expenses, chapter 4, Writers
 url: https://www.irs.gov/publications/p550
 kind: tax
 level: intermediate
-as_of: 2026-11-04
+as_of: 2026-11-13
 ---
 
 # Short put premium: when the premium is taxed and why the gain is short-term
@@ -30,7 +30,7 @@ Suppose an investor writes one put with a $50 strike and receives a $1.20 premiu
 
 ## What can go wrong
 
-Because recognition waits for the close, a premium collected in one year can become taxable in the next, which surprises people who budget for taxes using the cash they saw arrive. A string of expired puts is a string of short-term gains, which Tax Topic 409 explains are netted against short-term losses and then taxed differently from long-term gains; this document does not state rates, because they depend on the reader's situation and change over time. Finally, a loss from buying back a put can be caught by the wash sale rule if the investor has a loss on the same stock within the 61-day window; see *Wash sales and options*.
+Because recognition waits for the close, a premium collected in one year can become taxable in the next, which surprises people who budget for taxes using the cash they saw arrive. A string of expired puts is a string of short-term gains, which Tax Topic 409 explains are netted against short-term losses and then taxed differently from long-term gains; this document does not state rates, because they depend on the reader's situation and change over time. Finally, a loss from buying back a put can be caught by the wash sale rule if, within 30 days before or after, the investor acquires substantially identical stock or a contract or option to acquire it (the 61-day window); see *Wash sales and options*.
 
 ## Where this shows up in OptionsScout
 

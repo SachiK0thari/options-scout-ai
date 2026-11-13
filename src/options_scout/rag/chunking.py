@@ -126,6 +126,7 @@ def chunk_document(doc: Document, params: ChunkParams | None = None) -> list[Chu
                     url=doc.url,
                     source=doc.source,
                     as_of=doc.as_of,
+                    review_by=doc.review_by,
                     heading=section.heading,
                     text=text,
                 )

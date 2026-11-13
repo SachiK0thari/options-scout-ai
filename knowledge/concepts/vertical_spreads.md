@@ -5,7 +5,7 @@ source: "OCC, Characteristics and Risks of Standardized Options, chapters VIII a
 url: https://www.theocc.com/company-information/documents-and-archives/options-disclosure-document
 kind: concepts
 level: intermediate
-as_of: 2026-11-04
+as_of: 2026-11-13
 ---
 
 # Vertical spreads: the bull put spread and the bear call spread
@@ -44,6 +44,6 @@ Vertical spreads are not screened by this app and do not appear in the Candidate
 
 ## Sources
 
-- OCC, *Characteristics and Risks of Standardized Options*, chapter VIII (Options Spreads and Combinations) and chapter X: https://www.theocc.com/company-information/documents-and-archives/options-disclosure-document
+- OCC, *Characteristics and Risks of Standardized Options*, chapter X (Principal Risks of Options Positions), including spread positions: https://www.theocc.com/company-information/documents-and-archives/options-disclosure-document
 - FINRA Rule 4210, Margin Requirements: https://www.finra.org/rules-guidance/rulebook/finra-rules/4210
 - Cboe Options Institute, vertical spread education: https://www.cboe.com/education/

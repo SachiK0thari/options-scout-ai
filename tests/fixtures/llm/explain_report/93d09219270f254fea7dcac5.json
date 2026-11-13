@@ -1,0 +1,40 @@
+{
+ "task": "explain_report",
+ "model": "deepseek/deepseek-v4.1-flash",
+ "output": {
+  "paragraphs": [
+   {
+    "mode": "notice",
+    "text": "Market data is delayed and Greeks are model-derived; these are screened candidates that meet the configured criteria, not recommendations. **Warnings and limitations.** This account is too small for this universe: no candidate on the 5 highest-ranked underlyings (SPY, AAPL, QQQ, MSFT, COST) fits even one contract inside the limits, so nothing was sized. The smallest account at which the top-ranked LEAPS-SPY-2028-01-21-600C fits is $1,059,050. Educational screening tool. Not investment, tax or legal advice. Options involve significant risk, including loss exceeding the premium received on margin. Data may be delayed or inaccurate.",
+    "citations": []
+   },
+   {
+    "mode": "education",
+    "text": "A cash-secured put (CSP) is a short put position where the writer sets aside enough cash to purchase the shares at the strike price should the put be assigned [S1]. Assignment is the mechanism by which an option writer is required to fulfill a contract that a holder has chosen to exercise [S2]. LEAPS, which stands for Long-term Equity AnticiPation Securities, are listed options with more than a year remaining until expiration [S3]. The total premium paid for an option can be separated into intrinsic value\u2014the amount the option is currently in the money\u2014and extrinsic value, which is the remaining time value [S4].",
+    "citations": [
+     "S1",
+     "S2",
+     "S3",
+     "S4"
+    ]
+   },
+   {
+    "mode": "screen_result",
+    "text": "The screen found no sized positions, as indicated by the zero count for {{positions|count}} positions. Because no positions were sized, no realistic loss figures were computed for any candidate.",
+    "citations": []
+   },
+   {
+    "mode": "education",
+    "text": "The quality gate acts as a filter to ensure the underlying stocks meet the product promise: \"stocks you would be happy to own if assigned\" [S5]. This process scores tickers based on specific criteria. In this screening run, {{quality_screen.passed_count}} underlyings passed the quality checks, including SPY, AAPL, and COST, while other tickers were excluded based on the gate's internal logic [S5].",
+    "citations": [
+     "S5"
+    ]
+   },
+   {
+    "mode": "screen_result",
+    "text": "The risk profile assessment showed that {{risk.checks_passed}} of {{risk.checks_total}} risk checks passed successfully for the run. No specific constraint violations were noted across the required risk measures.",
+    "citations": []
+   }
+  ]
+ }
+}

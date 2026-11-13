@@ -5,7 +5,7 @@ source: "IRS Tax Topic 409, Capital gains and losses; IRS Publication 550, chapt
 url: https://www.irs.gov/taxtopics/tc409
 kind: tax
 level: beginner
-as_of: 2026-11-12
+as_of: 2026-11-13
 ---
 
 # Short-term vs long-term: the more-than-one-year test for shares and LEAPS
@@ -34,7 +34,7 @@ The one-year boundary is sharp, and nothing in a brokerage quote shows it, so sa
 
 ## Where this shows up in OptionsScout
 
-The planned holdings section in Portfolio & Risk records an acquisition date for each share lot or LEAPS so the app can show whether a position has crossed the one-year mark. The Scout chat will answer "is this long-term yet?" by comparing dates, and the Compliance agent requires the answer to point to Tax Topic 409 for what the label means rather than to state a rate.
+The holdings section in Portfolio & Risk records shares and cost basis but no acquisition dates, so the app cannot say whether a lot has crossed the one-year mark; the broker's lot detail shows it. Asked "is this long-term yet?", the Scout chat explains the test and the Compliance agent requires the answer to point to Tax Topic 409 for what the label means rather than to state a rate.
 
 ## Sources
 

@@ -47,6 +47,7 @@ def run_deterministic_pipeline(
     allocation = allocate(profile, regime, cfg.risk)
     snapshots: dict[str, TickerSnapshot] = {}
     csp: list[OptionCandidate] = []
+    exclusions: list[str] = []
     leaps: list[OptionCandidate] = []
     pairs: list[PMCCCandidate] = []
     errors: list[str] = []
@@ -67,6 +68,7 @@ def run_deterministic_pipeline(
         snapshots[t] = snap
         errors.extend(f"{t}: {e}" for e in snap.source_errors)
         if "csp" in profile.strategies:
+            dropped: list[OptionCandidate] = []
             csp += screeners.screen_csp(
                 snap,
                 cfg.rules.csp,
@@ -74,7 +76,9 @@ def run_deterministic_pipeline(
                 r=r,
                 realistic_loss_drop=cfg.risk.realistic_loss_drop,
                 iv_rules=cfg.rules.implied_vol,
+                excluded=dropped,
             )
+            exclusions += screeners.describe_csp_exclusions(snap, dropped)
         if {"leaps", "pmcc"} & profile.strategies:
             lp = screeners.screen_leaps(
                 snap, cfg.rules.leaps, today=today, r=r, iv_rules=cfg.rules.implied_vol
@@ -132,6 +136,7 @@ def run_deterministic_pipeline(
         "quality": list(quality.values()),
         "snapshots": snapshots,
         "csp": csp,
+        "csp_exclusions": sorted(exclusions),
         "leaps": leaps,
         "pairs": pairs,
         "ranked": ranked,
@@ -156,7 +161,7 @@ def render_demo(cfg: AppConfig, profile: UserProfile, out: dict[str, Any]) -> st
         report.render_quality(out["quality"]),
         "",
         "### CSP candidates",
-        report.render_csp(out["csp"]),
+        report.render_csp(out["csp"], exclusions=out["csp_exclusions"]),
         "",
         "### LEAPS / PMCC candidates",
         report.render_leaps(out["leaps"], out["pairs"]),

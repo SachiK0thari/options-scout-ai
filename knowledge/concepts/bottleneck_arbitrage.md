@@ -5,7 +5,7 @@ source: "SEC EDGAR full-text search; Federal Reserve Bank of St. Louis, FRED; OC
 url: https://www.sec.gov/edgar/search/
 kind: concepts
 level: intermediate
-as_of: 2026-11-08
+as_of: 2026-11-13
 ---
 
 # Bottleneck arbitrage: a shortage signal and what it means for a short put
@@ -16,7 +16,7 @@ This app computes a bottleneck score as its second Market Intelligence signal. I
 
 ## A shortage is not a trade: why the signal re-orders only
 
-The bottleneck score cannot put a stock on the list. The universe is the curated good-to-own list, every name must pass the deterministic quality gate, and the score then carries 5% of the final ranking. The two Market Intelligence signals together are capped at 15%, behind the option's own economics and the stock's quality score. A pure play off the list appears on the board marked *not on the good-to-own list* and is skipped; a user may add it, and it then faces the same gate as everything else.
+The bottleneck score cannot put a stock on the list. The universe is the curated good-to-own list, every name must pass the deterministic quality gate, and the score then carries {{ranking.bottleneck_pct}} of the final ranking. The two Market Intelligence signals together are capped at 15%, behind the option's own economics and the stock's quality score. A pure play off the list appears on the board marked *not on the good-to-own list* and is skipped; a user may add it, and it then faces the same gate as everything else.
 
 The score is also damped on purpose. For the large, profitable companies on the list the constrained layer is usually a side business, so the curated *materiality* field is low or medium and the company score is a fraction of the layer score. A *priced-in* penalty (the stock's run relative to SPY, its distance to the 52-week high, news coverage and IV rank) lowers it further when the story is already widely held.
 

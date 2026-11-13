@@ -157,6 +157,11 @@ _Headlines never change the ranking; they flag what to read before trading._
 
 IV/HV: no IV rank yet (fewer than 30 stored IV snapshots); showing implied over realised volatility. Options usually trade above realised volatility, so it is context and does not affect the score.
 
+**Excluded by the earnings rules:**
+- AAPL: 8 put(s) expiring 2026-11-20, 2026-12-18 excluded, earnings 2026-11-02 falls before expiry
+- MSFT: 8 put(s) expiring 2026-11-20, 2026-12-18 excluded, earnings 2026-10-28 falls before expiry
+- SBUX: 1 put(s) expiring 2026-11-20 excluded, earnings 2026-10-29 falls before expiry
+
 ## LEAPS / PMCC candidates
 | ID | Strike | Expiry | DTE | Delta | Mid | Extrinsic/yr | Carry/yr | Breakeven | OI / spread | PMCC short call | Flags |
 |---|---|---|---|---|---|---|---|---|---|---|---|

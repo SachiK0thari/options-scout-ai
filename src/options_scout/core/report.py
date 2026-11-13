@@ -302,9 +302,18 @@ def earnings_cell(c: OptionCandidate) -> str:
     return "no (estimated)" if "earnings_estimated" in c.flags else "no"
 
 
-def render_csp(cands: Sequence[OptionCandidate], limit: int = 15) -> str:
+def _exclusion_block(exclusions: Sequence[str]) -> str:
+    """The puts the earnings rules dropped (W26), listed as the quality gate lists tickers."""
+    if not exclusions:
+        return ""
+    return "\n\n**Excluded by the earnings rules:**\n" + "\n".join(f"- {e}" for e in exclusions)
+
+
+def render_csp(
+    cands: Sequence[OptionCandidate], limit: int = 15, *, exclusions: Sequence[str] = ()
+) -> str:
     if not cands:
-        return "_No CSP candidates met the criteria._"
+        return "_No CSP candidates met the criteria._" + _exclusion_block(exclusions)
     rows = [
         [
             c.id,
@@ -346,7 +355,7 @@ def render_csp(cands: Sequence[OptionCandidate], limit: int = 15) -> str:
         )
         + "\n\nIV/HV: no IV rank yet (fewer than 30 stored IV snapshots); showing implied over "
         "realised volatility. Options usually trade above realised volatility, so it is context "
-        "and does not affect the score."
+        "and does not affect the score." + _exclusion_block(exclusions)
     )
 
 

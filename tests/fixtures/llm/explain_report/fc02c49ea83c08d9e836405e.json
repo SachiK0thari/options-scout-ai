@@ -1,0 +1,59 @@
+{
+ "task": "explain_report",
+ "model": "deepseek/deepseek-v4.1-flash",
+ "output": {
+  "paragraphs": [
+   {
+    "mode": "education",
+    "text": "A cash-secured put involves a writer setting aside enough cash to purchase shares at the strike price should the put be assigned. The writer initially sells the put, collecting a premium, and accepts the obligation to buy one hundred shares per contract at the specified strike price before expiration [S1]. Assignment is the mechanism through which an option writer is required to meet an obligation when a contract holder exercises their right [S2]. LEAPS, or Long-term Equity AnticiPation Securities, are listed options with an expiration date greater than one year, allowing investors to gain long exposure to a stock with less capital than outright purchase [S3].",
+    "citations": [
+     "S1",
+     "S2",
+     "S3"
+    ]
+   },
+   {
+    "mode": "screen_result",
+    "text": "The quality screen passed a total of {{quality_screen.passed_count}} underlyings, specifically {{quality_screen.passed_tickers|list}}, while {{quality_screen.excluded_count}} were excluded.",
+    "citations": []
+   },
+   {
+    "mode": "education",
+    "text": "An option premium is composed of intrinsic value and extrinsic value, which is also called time value. Intrinsic value measures how much the option is currently 'in the money,' whereas extrinsic value is the remainder of the premium. For an out-of-the-money option, the premium represents pure extrinsic value [S4].",
+    "citations": [
+     "S4"
+    ]
+   },
+   {
+    "mode": "screen_result",
+    "text": "In this screening, {{positions|count}} total positions were sized for deployment.",
+    "citations": []
+   },
+   {
+    "mode": "screen_result",
+    "text": "The portfolio currently utilizes {{allocation.csp_pct|pct}} of its capital in cash-secured puts, and {{allocation.leaps_pct|pct}} of its capital in LEAPS positions.",
+    "citations": []
+   },
+   {
+    "mode": "screen_result",
+    "text": "The sized positions include CSP-NKE-2026-11-20-35P, which has a realistic loss of ${{positions[CSP-NKE-2026-11-20-35P].realistic_loss|money}}. Additionally, LEAPS-AAPL-2029-01-19-260C has a realistic loss of ${{positions[LEAPS-AAPL-2029-01-19-260C].realistic_loss|money}}, and LEAPS-MSFT-2028-12-15-360C has a realistic loss of ${{positions[LEAPS-MSFT-2028-12-15-360C].realistic_loss|money}}.",
+    "citations": []
+   },
+   {
+    "mode": "screen_result",
+    "text": "For the positions screened, the current portfolio has a realistic loss of ${{portfolio.realistic_loss|money}}.",
+    "citations": []
+   },
+   {
+    "mode": "screen_result",
+    "text": "The risk profile shows that {{risk.checks_passed}} of the {{risk.checks_total}} defined risk checks passed, and the portfolio experienced a realistic loss drop of {{risk.realistic_loss_drop_pct|percent}} during stress tests.",
+    "citations": []
+   },
+   {
+    "mode": "notice",
+    "text": "{{ delayed_data_notice }} **Warnings and limitations.** {{risk.warnings[0]}} {{risk.warnings[1]}} {{ risk.warnings[2]}} {{ risk.warnings[3]}} {{ risk.warnings[4]}} {{ risk.warnings[5]}} {{ risk.warnings[6]}} {{ risk.warnings[7]}} {{ disclaimer }}",
+    "citations": []
+   }
+  ]
+ }
+}

@@ -5,7 +5,7 @@ source: "OCC, Characteristics and Risks of Standardized Options, chapter X; Cboe
 url: https://www.theocc.com/company-information/documents-and-archives/options-disclosure-document
 kind: concepts
 level: intermediate
-as_of: 2026-11-04
+as_of: 2026-11-13
 ---
 
 # Exit rules and profit taking
@@ -34,7 +34,7 @@ This app's job ends when a candidate is ranked, sized and explained. Managing an
 
 ## Where this shows up in OptionsScout
 
-The Candidates tab shows puts to open with their premium at the mid, from which a reader can compute the 50% level themselves. The *Rolling* document in Learn covers the LEAPS roll warning at 240 DTE, the one time-based flag the app raises. The Scout chat answers questions about exit rules as education and does not evaluate a user's open position.
+The Candidates tab shows puts to open with their premium at the mid, from which a reader can compute the 50% level themselves. The *Rolling* document in Learn covers the rule of thumb of rolling a LEAPS below about 240 DTE; the app does not track open positions, so it raises no time-based exit flag itself. The Scout chat answers questions about exit rules as education and does not evaluate a user's open position.
 
 ## Sources
 

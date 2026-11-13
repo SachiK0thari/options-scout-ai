@@ -929,7 +929,6 @@ class GoalsConfig(_Strict):
     # realised volatility at realised_to_implied x its implied vol
     expected_drift: float = Field(ge=-0.5, le=0.5)
     realised_to_implied: float = Field(gt=0.0, le=2.0)
-    retirement_age: float = Field(gt=0.0)
     savings_rate_table: SavingsRateTable
 
     @model_validator(mode="after")

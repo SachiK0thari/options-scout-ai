@@ -5,7 +5,7 @@ source: "OptionsScout config/risk_profiles.yaml (PRD sections 3.1 and 3.2); SEC 
 url: https://www.investor.gov/introduction-investing
 kind: basics
 level: intermediate
-as_of: 2026-11-04
+as_of: 2026-11-13
 ---
 
 # Risk profiles in OptionsScout
@@ -24,18 +24,23 @@ Each profile divides buying power into three buckets: cash-secured puts (CSP), L
 
 Moving from conservative to aggressive shifts money from the reserve into LEAPS, the strategy with the largest possible loss (the whole premium paid). The volatility regime can tilt 10 points between CSP and LEAPS, but never touches the cash reserve.
 
-## The six constraints
+## The constraints
 
-The constraints are fractions of account value unless noted, and a candidate that would breach any of them is sized down or dropped. The **realistic loss** of a CSP is the loss if the stock falls 30% at expiry, not the premium at risk.
+A margin account is sized under {{risk.constraints_margin}} constraints and a cash account under {{risk.constraints_cash}} (margin usage does not apply); entering holdings adds one more. The constraints are fractions of account value unless noted, and a candidate that would breach any of them is sized down or dropped. The **realistic loss** of a CSP is the loss if the stock falls {{risk.realistic_loss_drop_pct}} at expiry, not the premium at risk.
 
 | Constraint | Conservative | Balanced | Aggressive |
 |---|---|---|---|
-| Realistic loss per position | 2% | 3% | 5% |
-| Realistic loss per ticker | 5% | 8% | 10% |
-| Realistic loss per sector | 25% | 30% | 35% |
-| Dollar delta / account | 0.8x | 1.0x | 1.5x |
+| Realistic loss per position | {{risk.conservative.max_loss_per_position}} | {{risk.balanced.max_loss_per_position}} | {{risk.aggressive.max_loss_per_position}} |
+| Realistic loss per ticker | {{risk.conservative.max_exposure_per_ticker}} | {{risk.balanced.max_exposure_per_ticker}} | {{risk.aggressive.max_exposure_per_ticker}} |
+| Realistic loss per sector | {{risk.conservative.max_per_sector}} | {{risk.balanced.max_per_sector}} | {{risk.aggressive.max_per_sector}} |
+| Realistic loss, whole portfolio | {{risk.conservative.max_portfolio_loss}} | {{risk.balanced.max_portfolio_loss}} | {{risk.aggressive.max_portfolio_loss}} |
+| Dollar delta / account | {{risk.conservative.max_dollar_delta_x}} | {{risk.balanced.max_dollar_delta_x}} | {{risk.aggressive.max_dollar_delta_x}} |
+| Short put notional / account | {{risk.conservative.max_short_put_notional_x}} | {{risk.balanced.max_short_put_notional_x}} | {{risk.aggressive.max_short_put_notional_x}} |
+| Cash if every put is assigned, plus LEAPS debits / buying power | {{risk.conservative.max_assignment_cash_x}} | {{risk.balanced.max_assignment_cash_x}} | {{risk.aggressive.max_assignment_cash_x}} |
+| Margin usage / buying power (margin accounts only) | {{risk.conservative.max_margin_usage}} | {{risk.balanced.max_margin_usage}} | {{risk.aggressive.max_margin_usage}} |
+| Concentration after assignment (only with holdings) | {{risk.conservative.max_ticker_concentration_after_assignment}} | {{risk.balanced.max_ticker_concentration_after_assignment}} | {{risk.aggressive.max_ticker_concentration_after_assignment}} |
 
-The two remaining constraints are short put notional (strike times 100 times contracts) of at most 1.0x account value for conservative and balanced and 1.5x for aggressive, and, in margin accounts only, margin usage of at most 30%, 40% or 50% of buying power. The 2% to 5% realistic-loss cap is what limits the number of contracts.
+The realistic-loss cap per position usually limits the number of contracts.
 
 ## The profile caps the return a goal can assume
 

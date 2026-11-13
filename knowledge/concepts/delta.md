@@ -5,7 +5,7 @@ source: "OCC disclosure document chapter X; Cboe Options Institute (the Greeks);
 url: https://www.cboe.com/education/
 kind: concepts
 level: intermediate
-as_of: 2026-11-03
+as_of: 2026-11-13
 ---
 
 # Delta
@@ -18,7 +18,7 @@ In the Black-Scholes-Merton model used by this app, call delta equals e^(−qT) 
 
 ## Delta as a probability proxy
 
-Delta is often read as the approximate probability that the option finishes **in the money**: a 0.25 delta put is loosely a "25% chance of being assigned" put. This is a convenience, not a theorem. The quantity that actually measures the model probability of finishing in the money is N(d2) for a put expiring out of the money (and N(−d2) for a call), which is close to delta but not identical; the gap widens with longer time to expiration, higher volatility and larger dividends. This app reports **probability OTM** separately using N(d2) so the two are not confused, and uses delta for what it is: a measure of exposure.
+Delta is often read as the approximate probability that the option finishes **in the money**: a 0.25 delta put is loosely a "25% chance of being assigned" put. This is a convenience, not a theorem. The model probabilities are N(d2) that a put expires worthless and N(−d2) that it finishes in the money and is assigned (for a call, N(d2) that it finishes in the money); these are close to delta but not identical, and for a put the absolute delta slightly understates the chance of assignment; the gap widens with longer time to expiration, higher volatility and larger dividends. This app reports **probability OTM** separately using N(d2) so the two are not confused, and uses delta for what it is: a measure of exposure.
 
 ## How the screeners use delta
 

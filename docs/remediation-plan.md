@@ -2295,6 +2295,50 @@ fraction, fund names, internal "Phase 11/12" wording shown to users). Fix them i
 
 Suggested commit: `docs(knowledge): correct app claims, stale rules and three technical errors; consistency test`
 
+**Status, 2026-11-13:** done in the working tree, steps 1 to 3; step 4 (qualified review of the
+straddle wording) is the user's.
+- **Group 1.** Earnings exclusions were *built*: `screen_csp(excluded=...)` collects the puts an
+  earnings rule drops, `describe_csp_exclusions` summarises them per ticker, and the report and
+  `demo-core` print "Excluded by the earnings rules" under the CSP table (state key
+  `csp_exclusions`, `ScreeningReport.csp_exclusions`). Every other claim was corrected in the
+  article: no ex-dividend data (no provider has it), an IRA is entered as a cash account, Goals
+  does not hold IRA money back (the unused `goals.retirement_age` was removed), the 240-day roll
+  rule is advice the app cannot apply (it does not track held LEAPS; also fixed in PRD 3.4 and the
+  generated LEAPS rule page), holdings have no dates, "planned" features that exist, the
+  expense-ratio config path. The naked-put and IV/HV rows were already fixed by W24 and W4.
+- **Group 2.** Pattern day trading rewritten from FINRA Regulatory Notice 26-10 (approved
+  2026-04-14, effective 2026-06-04, phase-in to 2027-10-20). Ranking weights now 55/35/10 with the
+  bottleneck at 0 (W29 had changed them again; PRD 3.7 item 4 rewritten, so the generated
+  quality-gate rule page is current). Constraint counts: eight on margin, seven on cash, one more
+  with holdings. QQQ 0.18% (Invesco, conversion 2025-12-22) in the article and
+  `config/holdings.yaml`; the 6-week bill (regular since 2025-02-18).
+- **Group 3.** All fourteen rows. The put/call probability example is stated at 25% implied
+  volatility (27.7% / 22.4%, re-computed). The OCC disclosure document's chapter VIII is
+  "Exercise and Settlement" (June 2024 edition); citations naming "Exercise and Assignment" or
+  "Options Spreads and Combinations" for it were fixed. The glossary tooltip no longer says "a
+  reason not to sell puts" or "Phase 11".
+- **Step 2.** `rag/tokens.py`: `{{ranking.*}}` and `{{risk.*}}` tokens rendered from config in
+  `load_corpus` (unknown token = error); used for weights, limits and constraint counts.
+  `tests/unit/test_knowledge_consistency.py`: no "the planned", "Phase N", hard-coded constraint
+  counts or "N% of the ranking"; config/src paths exist; tokens all render; every
+  "This app / The report / The <tab> tab" sentence naming a flag or identifier is registered in
+  `knowledge/app_claims.yaml` with an importable `implemented_by` (the test found two
+  hard-coded weights, one stale, on its first run).
+- **Step 3.** `review_by` front matter (Document → Chunk → Citation); `check_sources_fresh` warns
+  past it. Set on the day-trading article (2027-10-20) and T+1 settlement (2027-11-13).
+- **Step 4, checked against the primary texts (2026-11-13), not by a tax professional:** the
+  straddle wording matches Treas. Reg. § 1.1092(b)-2T(a)(1) (the holding period "shall not begin
+  earlier than" the day the offsetting position is gone; its example counts none of the earlier
+  holding) and (a)(2) (no effect on a position already held long-term); the regulation is now cited
+  in the three articles. The wash-sale attribution matches Rev. Rul. 85-87 (an in-the-money put
+  with no substantial likelihood of going unexercised is a contract to acquire), now worded to
+  its test and cited. A professional review remains advisable before relying on them.
+- **Minor items:** the earnings-window fraction was `concepts/expiration_cycles_and_weeklies.md`
+  ("roughly a quarter of the year"); corrected to about half (some expiries, earnings within 45
+  days) to a third (all, within 30 days), from the 91-day reporting cadence.
+- **LLM recordings:** re-recorded by the user 2026-11-13 (10 new; all 6 recorder runs
+  model-written, up from 4 of 6); an offline replay finds every recording.
+
 Sources for the day-trading rule change:
 [FINRA Regulatory Notice 26-10](https://www.finra.org/sites/default/files/2026-04/Regulatory-Notice-26-10.pdf),
 [Schwab: SEC approves scrapping the $25,000 day trader minimum](https://international.schwab.com/story/sec-approves-scrapping-25000-day-trader-minimum).

@@ -5,7 +5,7 @@ source: "26 U.S.C. §1091 (loss from wash sales of stock or securities); IRS Pub
 url: https://www.law.cornell.edu/uscode/text/26/1091
 kind: tax
 level: advanced
-as_of: 2026-11-04
+as_of: 2026-11-13
 ---
 
 # Wash sales and options: how the 61-day window reaches a short put
@@ -18,7 +18,7 @@ The window runs from 30 days before the loss sale to 30 days after it, which wit
 
 ## How a cash-secured put can trigger it
 
-Consider an investor who sells 100 shares of a stock at a loss and, within 30 days, is assigned on a put written on that same stock. The assignment is an acquisition of substantially identical stock inside the window, so the earlier loss is disallowed. Publication 550 and the Internal Revenue Service's published rulings also treat writing a put as acquiring a contract to acquire the stock when, at the time it is written, the put is so far in the money that exercise is close to certain. A 0.15-0.30 delta put of the kind this app screens is out of the money when written, so the mere writing of it is usually not the trigger; the assignment is. The precise test is in Publication 550 under "Wash Sales", which should be read for edge cases rather than relying on a delta rule of thumb.
+Consider an investor who sells 100 shares of a stock at a loss and, within 30 days, is assigned on a put written on that same stock. The assignment is an acquisition of substantially identical stock inside the window, so the earlier loss is disallowed. Revenue Ruling 85-87 also treats writing a put as entering into a contract or option to acquire the stock when, at the time it is written, the put is so deep in the money that there is no substantial likelihood it will go unexercised. A 0.15-0.30 delta put of the kind this app screens is out of the money when written, so the mere writing of it is usually not the trigger; the assignment is. The precise test is in Publication 550 under "Wash Sales", which should be read for edge cases rather than relying on a delta rule of thumb.
 
 ## What happens to the disallowed loss
 
@@ -34,10 +34,11 @@ Brokers are required to report wash sales on Form 1099-B only for identical secu
 
 ## Where this shows up in OptionsScout
 
-The Portfolio & Risk tab's planned holdings section will record acquisition dates for assigned shares, and the Tax & Accounts page in Learn links to this document when a user asks the Scout chat about selling a stock they also write puts on. The app does not compute wash sale adjustments; it points to the broker's 1099-B and this rule.
+The holdings section of the Portfolio & Risk tab records shares and cost basis but no acquisition dates, so it cannot tell whether a sale falls inside a wash-sale window; the Tax & Accounts page in Learn links to this document when a user asks the Scout chat about selling a stock they also write puts on. The app does not compute wash sale adjustments; it points to the broker's 1099-B and this rule.
 
 ## Sources
 
 - 26 U.S.C. Section 1091, loss from wash sales of stock or securities: https://www.law.cornell.edu/uscode/text/26/1091
 - IRS Publication 550, *Investment Income and Expenses*, chapter 4, "Wash Sales": https://www.irs.gov/publications/p550
+- Revenue Ruling 85-87, 1985-1 C.B. 205 (writing a deep in-the-money put as a contract to acquire for section 1091): https://www.taxnotes.com/research/federal/irs-guidance/revenue-rulings
 - IRS Form 1099-B, Proceeds From Broker and Barter Exchange Transactions: https://www.irs.gov/forms-pubs/about-form-1099-b

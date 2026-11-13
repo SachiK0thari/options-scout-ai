@@ -5,7 +5,7 @@ source: "SEC investor.gov, Glossary (earnings per share, price-to-earnings ratio
 url: https://www.investor.gov/introduction-investing/investing-basics/glossary
 kind: basics
 level: beginner
-as_of: 2026-11-04
+as_of: 2026-11-13
 ---
 
 # P/E and earnings: earnings per share, the price-to-earnings ratio, earnings season, and why the CSP screener avoids earnings dates
@@ -38,7 +38,7 @@ Earnings dates can move, and a company can pre-announce bad results at any time.
 
 ## Where this shows up in OptionsScout
 
-In the Candidates tab, the CSP list only contains expiries with no earnings date before expiry; the Under the hood tab shows the rule, which lives in `config/screener_rules.yaml` alongside the 30-45 DTE window, the open-interest floor of 500 contracts and the spread cap of 10% of mid. The planned News panel will surface upcoming report dates for universe names. When a user asks the Scout chat why a particular expiry is missing, the answer cites this document and the rule in force.
+In the Candidates tab, the CSP list only contains expiries with no earnings date before expiry; the Under the hood tab shows the rule, which lives in `config/screener_rules.yaml` alongside the 30-45 DTE window, the open-interest floor of 500 contracts and the spread cap of 10% of mid. The Trends & News tab flags an earnings date that falls before a candidate's expiry. When a user asks the Scout chat why a particular expiry is missing, the answer cites this document and the rule in force.
 
 ## Sources
 

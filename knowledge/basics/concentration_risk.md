@@ -5,7 +5,7 @@ source: "SEC investor.gov, Introduction to Investing (diversification); OCC, Cha
 url: https://www.investor.gov/introduction-investing
 kind: basics
 level: beginner
-as_of: 2026-11-04
+as_of: 2026-11-13
 ---
 
 # Concentration risk: single names, sectors, and how assignment on a put quietly increases it
@@ -32,7 +32,7 @@ Concentration limits measured on today's holdings miss this effect, because a sh
 
 ## Where this shows up in OptionsScout
 
-The Portfolio & Risk tab applies six constraints to the proposed positions today, including **max exposure per ticker** (5%, 8% or 10% of account value in realistic loss for the conservative, balanced and aggressive profiles) and **max per sector** (25%, 30% or 35%). Phase 12 plans a **seventh sizing constraint, max concentration after assignment**: for each candidate, the app will compute what the user's holdings would look like if that put and every other open put were assigned, add the resulting shares to the holdings list entered in the new holdings section, and reject sizes that would push any single name or sector past its cap. Until that constraint lands, the Scout chat cites this document to explain why the realistic-loss figures understate the portfolio effect of assignment.
+The Portfolio & Risk tab applies {{risk.constraints_margin}} constraints to the proposed positions on a margin account ({{risk.constraints_cash}} on a cash account, where margin usage does not apply), including **max exposure per ticker** ({{risk.conservative.max_exposure_per_ticker}}, {{risk.balanced.max_exposure_per_ticker}} or {{risk.aggressive.max_exposure_per_ticker}} of account value in realistic loss for the conservative, balanced and aggressive profiles) and **max per sector** ({{risk.conservative.max_per_sector}}, {{risk.balanced.max_per_sector}} or {{risk.aggressive.max_per_sector}}). When the user enters holdings, a further constraint, **max concentration after assignment**, applies: for each put, the app adds the shares an assignment would deliver to the shares already held and rejects sizes that would push one name past {{risk.conservative.max_ticker_concentration_after_assignment}}, {{risk.balanced.max_ticker_concentration_after_assignment}} or {{risk.aggressive.max_ticker_concentration_after_assignment}} of holdings plus buying power. It works per ticker, not per sector, and it cannot see shares held at other brokers that were not entered.
 
 ## Sources
 

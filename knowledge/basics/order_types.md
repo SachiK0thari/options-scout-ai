@@ -5,7 +5,7 @@ source: "SEC investor.gov, Glossary (market order, limit order, stop order); FIN
 url: https://www.investor.gov/introduction-investing/investing-basics/glossary
 kind: basics
 level: beginner
-as_of: 2026-11-04
+as_of: 2026-11-13
 ---
 
 # Order types: market, limit, stop, day and good-til-cancelled, and why options are traded with limit orders
@@ -25,7 +25,7 @@ An **order** is an instruction to a broker to buy or sell a security. Every orde
 
 ## Why options should be traded with limit orders
 
-The case for limit orders on options rests on the bid-ask spread, covered in the *Bid and ask* document. Suppose a put is quoted $1.10 bid, $1.30 ask. A market order to sell it receives $1.10, the bid, and sometimes less if the quote moves between the click and the fill. A limit order to sell at $1.20, the mid, often fills when a market maker is willing to improve on their quote, and if it does not fill, the writer has lost nothing but time. On a contract with a 10% spread, that difference is around 8% of the premium.
+The case for limit orders on options rests on the bid-ask spread, covered in the *Bid and ask* document. Suppose a put is quoted $1.10 bid, $1.30 ask. A market order to sell it receives $1.10, the bid, and sometimes less if the quote moves between the click and the fill. A limit order to sell at $1.20, the mid, often fills when a market maker is willing to improve on their quote, and if it does not fill, the writer has lost nothing but time. Here the spread is $0.20 on a $1.20 mid, about 17%, and the $0.10 difference is about 8% of the premium; on a contract with a 10% spread it would be about 5%.
 
 Options quotes are also less reliable than stock quotes. Many strikes trade only a few times a day, so the "last" price can be hours old, and a market order fills against the current quote, not the last print. Opening a short put with a market order in a fast-moving market is one of the common ways beginners receive far less premium than they expected. For the same reason, a stop order on an option is a weak protection: a thin contract can gap past the stop and fill at a price that bears little relation to it. Stops on the underlying stock, or simply closing the option with a limit order when a rule is hit, are more predictable.
 
