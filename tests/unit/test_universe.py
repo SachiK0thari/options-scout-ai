@@ -134,3 +134,54 @@ def test_exclusions_beat_signals() -> None:
     scores, kinds = combine_signal_scores({"COST": 80.0}, {"HON": 40.0})
     universe, notes = _build(scores, kinds, exclude=["cost", "HON"])
     assert "COST" not in universe and "HON" not in universe and notes == []
+
+
+# ---------------------------------------------------------------- W29 step 5: rotation by day
+def test_rotation_screens_every_curated_name_within_a_few_trading_days() -> None:
+    from datetime import date, timedelta
+
+    monday = date(2026, 11, 9)
+    seen: set[str] = set()
+    for k in range(3):  # 8 names, 3 slots: three trading days cover all of them
+        universe, notes = _build({}, max_tickers=3, run_date=monday + timedelta(days=k))
+        assert len(universe) == 3
+        assert any("take turns, 3 per trading day" in n for n in notes)
+        seen |= set(universe)
+    assert seen == set(CURATED)
+
+
+def test_rotation_keeps_the_watchlist_and_promoted_names_in_front() -> None:
+    from datetime import date
+
+    for day in (date(2026, 11, 9), date(2026, 11, 10), date(2026, 11, 11)):
+        universe, _ = _build({"NKE": 70.0}, watchlist=["TSLA"], max_tickers=4, run_date=day)
+        assert universe[:2] == ["TSLA", "NKE"]
+
+
+def test_weekend_screens_fridays_set() -> None:
+    from datetime import date
+
+    friday = _build({}, max_tickers=3, run_date=date(2026, 11, 13))[0]
+    assert _build({}, max_tickers=3, run_date=date(2026, 11, 14))[0] == friday
+    assert _build({}, max_tickers=3, run_date=date(2026, 11, 15))[0] == friday
+
+
+def test_no_rotation_when_everything_fits() -> None:
+    from datetime import date
+
+    universe, notes = _build({}, run_date=date(2026, 11, 10))  # 8 names, cap 10
+    assert universe == CURATED and notes == []
+
+
+def test_the_real_curated_list_is_covered_within_three_trading_days(config: AppConfig) -> None:
+    from datetime import date, timedelta
+
+    curated = config.quality.symbols
+    cap = config.quality.universe.max_tickers
+    seen: set[str] = set()
+    monday = date(2026, 11, 9)
+    days = -(-len(curated) // cap)
+    for k in range(days):
+        seen |= set(_build({}, curated=curated, max_tickers=cap, run_date=monday + timedelta(k))[0])
+    assert seen == set(curated)
+    assert days <= 3

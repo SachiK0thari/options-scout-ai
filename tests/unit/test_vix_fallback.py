@@ -88,7 +88,7 @@ def test_the_provider_wins_when_it_has_vix() -> None:
 
 def test_too_few_fred_closes_is_an_error_not_a_percentile() -> None:
     md = _md(_NoIndexSource(), _fred([20.0] * 5))
-    with pytest.raises(MarketDataError, match="too few"):
+    with pytest.raises(MarketDataError, match="fewer than the 200 needed"):
         md.get_vix_percentile()
 
 
@@ -97,7 +97,7 @@ def test_both_failing_names_both_reasons() -> None:
         raise MarketDataError("FRED VIXCLS: HTTP 400 from api.stlouisfed.org")
 
     md = _md(_NoIndexSource(), FredVix(broken))
-    with pytest.raises(MarketDataError, match=r"provider \(.*VIX closes\) and FRED \(.*HTTP 400"):
+    with pytest.raises(MarketDataError, match=r"provider \(.*VIX closes.*\) and FRED \(.*HTTP 400"):
         md.get_vix_percentile()
 
 

@@ -1,0 +1,71 @@
+{
+ "task": "explain_report",
+ "model": "deepseek/deepseek-v4.1-flash",
+ "output": {
+  "paragraphs": [
+   {
+    "mode": "education",
+    "text": "A cash-secured put is a short put in which the writer sets aside enough cash to buy the shares at the strike if the put is assigned, collecting the premium up front and accepting the obligation to buy 100 shares per contract at the strike any time before expiration [S1]. In a margin account the same contract is a naked put, where the broker holds only a margin requirement, a fraction of the purchase price computed under exchange and FINRA minimum rules, and the writer keeps the rest of their buying power free for other positions [S6]. Assignment is the process by which an option writer is selected to fulfil the obligation of a contract that a holder has exercised [S2]. LEAPS are listed options with more than a year until expiration, and a poor man's covered call pairs a long deep in-the-money LEAPS call with a short near-term out-of-the-money call on the same stock, formally a long call diagonal spread [S3][S5].",
+    "citations": [
+     "S1",
+     "S6",
+     "S2",
+     "S3",
+     "S5"
+    ]
+   },
+   {
+    "mode": "screen_result",
+    "text": "The regime was screened as {{regime.label}} with VIX at {{regime.vix}} and a risk-free rate of {{regime.risk_free_rate_pct|pct}}. Buying power was allocated with {{allocation.csp_pct|pct}} to cash-secured puts, {{allocation.leaps_pct|pct}} to LEAPS and {{allocation.cash_pct|pct}} held as cash, a {{allocation.tilt}} tilt, so the sizer placed {{positions|count}} positions using {{portfolio.capital_used|money}} of capital.",
+    "citations": []
+   },
+   {
+    "mode": "education",
+    "text": "The good-to-own quality screen checks that an underlying is a business worth holding over time, so that a short put obligation or a long LEAPS exposure is taken only in a stock the investor would want to own; this app screens deep in-the-money LEAPS calls as a way to hold long exposure to a good-to-own stock [S3].",
+    "citations": [
+     "S3"
+    ]
+   },
+   {
+    "mode": "screen_result",
+    "text": "{{quality_screen.passed_count}} underlyings passed the quality screen: {{quality_screen.passed_tickers|list}}. The stated reasons included \"{{quality_screen.passed[0].why}}\" for AAPL and \"{{quality_screen.passed[2].why}}\" for MSFT. {{quality_screen.excluded_count}} underlyings were excluded by the quality gate. The trend board is a secondary signal only. Tickers such as CAVA and ONON scored highly on trend but were skipped: \"{{errors[0]}}\".",
+    "citations": []
+   },
+   {
+    "mode": "screen_result",
+    "text": "The bottleneck board also re-orders quality-gated stocks and never adds one. Among its layers, \"{{bottlenecks.layers[0].name}}\" scored {{bottlenecks.layers[0].score}} with thesis state {{bottlenecks.layers[0].thesis_state}}, and \"{{bottlenecks.layers[5].name}}\" scored {{bottlenecks.layers[5].score}} with thesis state {{bottlenecks.layers[5].thesis_state}}. None of the sized positions carried a non-empty bottleneck flag.",
+    "citations": []
+   },
+   {
+    "mode": "screen_result",
+    "text": "Among the sized positions, LEAPS-AAPL-2029-01-19-260C has a breakeven of {{positions[0].payoff.breakeven|money}}, a max loss of {{positions[0].payoff.max_loss|money}} and a realistic loss of {{positions[0].realistic_loss|money}}; LEAPS-MSFT-2028-12-15-360C has a breakeven of {{positions[1].payoff.breakeven|money}}, a max loss of {{positions[1].payoff.max_loss|money}} and a realistic loss of {{positions[1].realistic_loss|money}}; and LEAPS-COST-2028-12-15-800C has a breakeven of {{positions[2].payoff.breakeven|money}}, a max loss of {{positions[2].payoff.max_loss|money}} and a realistic loss of {{positions[2].realistic_loss|money}}.",
+    "citations": []
+   },
+   {
+    "mode": "screen_result",
+    "text": "The short put CSP-NKE-2026-11-20-35P has a breakeven of {{positions[3].payoff.breakeven|money}}, a max loss of {{positions[3].payoff.max_loss|money}} and a realistic loss of {{positions[3].realistic_loss|money}}. The diagonal spread LEAPS-NKE-2028-12-15-20C, paired with PMCCSC-NKE-2026-11-20-40C, has a breakeven of {{positions[4].payoff.breakeven|money}}, a max loss of {{positions[4].payoff.max_loss|money}} and a realistic loss of {{positions[4].realistic_loss|money}}.",
+    "citations": []
+   },
+   {
+    "mode": "screen_result",
+    "text": "{{risk.checks_passed}} of {{risk.checks_total}} constraint checks passed, with margin usage at {{risk.checks[1].value|percent}} against a {{risk.checks[1].limit|percent}} limit and the dollar-delta ratio at {{risk.checks[7].value|percent}}. In the stress tests, a {{risk.stress[-10%].shock}} move with a {{risk.stress[-10%].iv_shock}} IV shock gives {{risk.stress[-10%].pnl|money}}, and a {{risk.stress[-30%].shock}} move gives {{risk.stress[-30%].pnl|money}}.",
+    "citations": []
+   },
+   {
+    "mode": "screen_result",
+    "text": "On sizing, the sizer flagged {{risk.sizing_flags|list}}: \"{{risk.warnings[0]}}\". The IV-rank warnings note \"fewer than 30 stored IV snapshots\" for CSP-NKE-2026-11-20-35P. The LEAPS-NKE-2028-12-15-20C spread is a diagonal that \"brokers approve spreads separately, usually at options level 3\". On margin: \"{{risk.warnings[7]}}\".",
+    "citations": []
+   },
+   {
+    "mode": "notice",
+    "text": "{{ delayed_data_notice }}",
+    "citations": []
+   },
+   {
+    "mode": "notice",
+    "text": "{{ disclaimer }}",
+    "citations": []
+   }
+  ]
+ }
+}

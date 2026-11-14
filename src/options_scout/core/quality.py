@@ -49,7 +49,9 @@ def check_quality(
         reasons.append("not on the curated good-to-own list")
     if spot.price < g.min_price:
         reasons.append(f"price ${spot.price:,.2f} is below the ${g.min_price:,.0f} minimum")
-    if spot.avg_volume < g.min_avg_volume:
+    if spot.avg_volume is None:  # W28: a failed lookup, not an illiquid stock
+        reasons.append("average volume unavailable")
+    elif spot.avg_volume < g.min_avg_volume:
         reasons.append(
             f"average volume {spot.avg_volume / 1e6:.1f}M shares is below the "
             f"{g.min_avg_volume / 1e6:.1f}M minimum"

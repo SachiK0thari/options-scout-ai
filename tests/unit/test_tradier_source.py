@@ -2,7 +2,7 @@
 
 from __future__ import annotations
 
-from datetime import UTC, date, datetime, timedelta
+from datetime import date, timedelta
 from typing import Any
 
 import httpx
@@ -10,10 +10,12 @@ import pytest
 
 from options_scout.config import AppConfig
 from options_scout.data.market import MarketData, MarketDataError, TradierSource
+from options_scout.data.sessions import market_today
 
 KEY = "tradier-test-key-123"
-TODAY = datetime.now(tz=UTC).date()
+TODAY = market_today()  # W28: the code dates by New York, not UTC
 EXP = (TODAY + timedelta(days=37)).isoformat()
+QUOTE_MS = 1_762_462_800_000  # 2025-11-06 21:00 UTC, 16:00 in New York
 
 
 def _routes(request: httpx.Request) -> httpx.Response:
@@ -33,6 +35,7 @@ def _routes(request: httpx.Request) -> httpx.Response:
                         "last": 347.1,
                         "average_volume": 44_000_000,
                         "close": 346.0,
+                        "trade_date": QUOTE_MS,  # W10: epoch milliseconds
                     }
                 }
             },
@@ -56,6 +59,8 @@ def _routes(request: httpx.Request) -> httpx.Response:
                             "volume": 120,
                             "open_interest": 2500,
                             "greeks": {"mid_iv": 0.27, "delta": -0.25},
+                            "bid_date": QUOTE_MS - 120_000,
+                            "ask_date": QUOTE_MS - 60_000,
                         },
                         {
                             "symbol": "AAPL261204C00360000",
@@ -65,6 +70,8 @@ def _routes(request: httpx.Request) -> httpx.Response:
                             "ask": 5.2,
                             "open_interest": 900,
                             "greeks": {"mid_iv": 0.26},
+                            "bid_date": QUOTE_MS,
+                            "ask_date": QUOTE_MS - 300_000,
                         },
                         {"symbol": "junk", "option_type": "put"},  # bad row: skipped, not fatal
                     ]
@@ -151,14 +158,18 @@ def test_index_series_use_tradier_then_fallback(src: TradierSource) -> None:
 
 
 def test_bad_key_is_a_clear_error_and_never_echoed() -> None:
-    def deny(_: httpx.Request) -> httpx.Response:
+    calls: list[str] = []
+
+    def deny(req: httpx.Request) -> httpx.Response:
+        calls.append(req.url.path)
         return httpx.Response(401, json={"fault": "Invalid Access Token"})
 
     client = httpx.Client(transport=httpx.MockTransport(deny), base_url=TradierSource.SANDBOX_URL)
     bad = TradierSource("secret-key-xyz", http_client=client)
-    bad._get.retry.sleep = lambda *_: None  # type: ignore[attr-defined]
+    bad._fetch.retry.sleep = lambda *_: None  # type: ignore[attr-defined]
     with pytest.raises(MarketDataError, match="401"):
         bad.get_spot("AAPL")
+    assert len(calls) == 1  # W28 step 6: a rejected key is not retried (it was, four times)
     assert "secret-key-xyz" not in repr(bad) and "secret-key-xyz" not in str(bad)
     with pytest.raises(MarketDataError):
         TradierSource("   ")
@@ -210,7 +221,7 @@ def _failing_src(fragment: str, status: int, calls: dict[str, int]) -> TradierSo
         headers={"Authorization": f"Bearer {KEY}", "Accept": "application/json"},
     )
     src = TradierSource(KEY, sandbox=True, http_client=client)
-    src._get.retry.sleep = lambda *_: None  # type: ignore[attr-defined]
+    src._fetch.retry.sleep = lambda *_: None  # type: ignore[attr-defined]
     return src
 
 

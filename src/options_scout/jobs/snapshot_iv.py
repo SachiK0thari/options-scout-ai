@@ -46,13 +46,22 @@ class IVSnapshotStore:
             )
             self._conn.commit()
 
-    def history(self, ticker: str, limit: int = 252) -> list[float]:
+    def _session_rows(self, ticker: str) -> list[tuple[date, float]]:
+        """Rows dated on NYSE sessions, oldest first (W28 step 12). Earlier versions stored a
+        weekend run under the run's date, one stale value two or three times; those rows are
+        not trading days and do not count."""
+        from options_scout.data.sessions import is_session
+
         with self._lock:
             rows = self._conn.execute(
-                "SELECT atm_iv FROM iv_snapshots WHERE ticker = ? ORDER BY day DESC LIMIT ?",
-                (ticker.upper(), limit),
+                "SELECT day, atm_iv FROM iv_snapshots WHERE ticker = ? ORDER BY day",
+                (ticker.upper(),),
             ).fetchall()
-        return [float(r[0]) for r in reversed(rows)]
+        out = [(date.fromisoformat(d), float(v)) for d, v in rows]
+        return [(d, v) for d, v in out if is_session(d)]
+
+    def history(self, ticker: str, limit: int = 252) -> list[float]:
+        return [v for _, v in self._session_rows(ticker)[-limit:]]
 
     def has(self, ticker: str, day: date) -> bool:
         with self._lock:
@@ -63,11 +72,8 @@ class IVSnapshotStore:
         return row is not None
 
     def count(self, ticker: str) -> int:
-        with self._lock:
-            row = self._conn.execute(
-                "SELECT COUNT(*) FROM iv_snapshots WHERE ticker = ?", (ticker.upper(),)
-            ).fetchone()
-        return int(row[0]) if row else 0
+        """Distinct trading sessions stored for ``ticker`` (what counts toward MIN_HISTORY)."""
+        return len(self._session_rows(ticker))
 
     def has_enough_history(self, ticker: str) -> bool:
         return self.count(ticker) >= MIN_HISTORY
@@ -77,15 +83,26 @@ class IVSnapshotStore:
 
 
 def expected_session(md: object) -> date | None:
-    """The session a historical chain feed will return (the weekday before New York's today),
-    or None for a feed whose session cannot be known before fetching."""
+    """The session a historical chain feed will return (the last NYSE session before New York's
+    today, holidays skipped, W10), or None for a feed whose session cannot be known before
+    fetching."""
+    from options_scout.data.sessions import last_session_before
+
     source = getattr(md, "source", None)
     if getattr(source, "chain_feed", None) != "historical":
         return None
-    day = source._today() - timedelta(days=1)  # type: ignore[union-attr]
-    while day.weekday() >= 5:
-        day -= timedelta(days=1)
-    return day
+    return last_session_before(source._today())  # type: ignore[union-attr]
+
+
+def quoted_session(snap: Any) -> date:
+    """The trading session a snapshot's quotes are from (W28 step 12), not the day the job ran:
+    the provider's timestamp in New York, else the chains' ``as_of``, else the run's; a weekend
+    or holiday maps to the session before it, so Friday's close run on Sunday is Friday's row."""
+    from options_scout.data.freshness import session_of, snapshot_quote_day
+    from options_scout.data.sessions import session_on_or_before
+
+    stamp = min(c.as_of for c in snap.chains) if snap.chains else snap.as_of
+    return session_on_or_before(snapshot_quote_day(snap, session_of(stamp)))
 
 
 BACKFILL_SLACK = 10  # extra weekdays tried for holidays while looking for N sessions
@@ -194,10 +211,7 @@ def main(argv: list[str] | None = None) -> int:
         if snap.atm_iv is None:
             print(f"{t}: no ATM IV available", file=sys.stderr)
             continue
-        # the session the quotes are from (a delayed or historical feed is a session behind),
-        # not the day the job ran
-        day = min(c.as_of for c in snap.chains).date() if snap.chains else snap.as_of.date()
-        store.record(t, day, snap.atm_iv)
+        store.record(t, quoted_session(snap), snap.atm_iv)
         print(f"{t}: atm_iv={snap.atm_iv:.4f} rows={store.count(t)}")
     return 0
 

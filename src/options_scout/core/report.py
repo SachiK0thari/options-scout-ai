@@ -59,10 +59,21 @@ def render_profile(p: UserProfile) -> str:
 
 
 def render_regime(r: MarketRegime) -> str:
+    vix = (
+        f"VIX {r.vix:.2f} ({r.vix_percentile:.0f}th percentile, {r.label.replace('_', ' ')})"
+        if r.vix_known
+        else "VIX unavailable (too little history to place it in its year), regime unknown, "
+        "no allocation tilt"  # W28
+    )
+    rate = (
+        f"risk-free rate assumed {pct(r.risk_free_rate, 2)} (no T-bill quote)"  # W28
+        if r.risk_free_assumed
+        else f"risk-free rate {pct(r.risk_free_rate, 2)}"
+    )
     return (
-        f"VIX {r.vix:.2f} ({r.vix_percentile:.0f}th percentile, {r.label.replace('_', ' ')}), "
-        f"risk-free rate {pct(r.risk_free_rate, 2)} ({r.source} data)."
+        f"{vix}, {rate} ({r.source} data)."
         + (f"\n\nVIX source: {r.vix_source}" if r.vix_source else "")
+        + (f"\n\nRisk-free rate source: {r.risk_free_source}" if r.risk_free_source else "")
     )
 
 

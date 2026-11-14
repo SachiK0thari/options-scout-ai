@@ -1,0 +1,78 @@
+{
+ "task": "explain_report",
+ "model": "deepseek/deepseek-v4.1-flash",
+ "output": {
+  "paragraphs": [
+   {
+    "mode": "education",
+    "text": "A **cash-secured put** is a short put position in which the writer sets aside enough cash to buy the shares at the strike price if the put is assigned [S1]. The word *secured* refers to the cash: in a cash account the broker holds the full purchase price as collateral for the whole life of the trade [S1]. **Assignment** is the process by which an option writer is selected to fulfil the obligation of a contract that a holder has exercised [S2].",
+    "citations": [
+     "S1",
+     "S2"
+    ]
+   },
+   {
+    "mode": "screen_result",
+    "text": "Allocation put {{allocation.csp_pct|pct}} of buying power toward the cash-secured-put sleeve, {{allocation.leaps_pct|pct}} toward LEAPS and {{allocation.cash_pct|pct}} in cash, under a regime labelled {{regime.label}} with VIX at {{regime.vix}}.",
+    "citations": []
+   },
+   {
+    "mode": "education",
+    "text": "**LEAPS** (Long-term Equity AnticiPation Securities) is the exchanges' name for listed options with more than a year until expiration, and this app screens deep in-the-money LEAPS calls as a way to hold long exposure to a good-to-own stock for a year or more while committing less capital than buying the shares outright [S3]. **Intrinsic value** is the amount by which the option is in the money, and **extrinsic value**, also called time value, is everything else: premium minus intrinsic value [S4].",
+    "citations": [
+     "S3",
+     "S4"
+    ]
+   },
+   {
+    "mode": "education",
+    "text": "The product promise is \"stocks you would be happy to own if assigned\", and the quality gate is a **filter, not a discovery engine**: it decides which tickers are allowed into the option screeners at all, and records a reason for every rejection [S5].",
+    "citations": [
+     "S5"
+    ]
+   },
+   {
+    "mode": "screen_result",
+    "text": "{{counts.quality_passed}} underlyings passed the good-to-own gate this run: {{quality_screen.passed_tickers|list}}, while {{counts.quality_excluded}} were excluded, so the excluded list is empty and the gates' reasons do not apply to any name. The trend board is a secondary signal only: it flagged surging consumer interest in names such as {{trends[0].ticker}} and {{trends[1].ticker}}, but those tickers are not on the good-to-own list, so they were skipped: {{errors[0]}}.",
+    "citations": []
+   },
+   {
+    "mode": "education",
+    "text": "It would be natural to assume a stock with a surging consumer-trend score is a good candidate for selling puts; for the structure of a short put, the opposite is closer to the truth [S6].",
+    "citations": [
+     "S6"
+    ]
+   },
+   {
+    "mode": "screen_result",
+    "text": "The bottleneck board also re-orders rather than adds: its top layer is {{bottlenecks.layers[0].name}} at a score of {{bottlenecks.layers[0].score}}, in state {{bottlenecks.layers[0].thesis_state}}, while {{bottlenecks.companies[4].ticker}} carries the flags {{bottlenecks.companies[4].flags|list}}.",
+    "citations": []
+   },
+   {
+    "mode": "screen_result",
+    "text": "Nothing was sized this run: {{counts.positions_sized}} positions came out of the sizer, and the account-too-small limit is stated as {{risk.warnings[0]}}. The skipped candidates include {{skipped_candidates[0].candidate_id}}, whose realistic loss of one contract is {{skipped_candidates[0].realistic_loss_per_contract|money}}, and {{skipped_candidates[4].candidate_id}}, whose realistic loss of one contract is {{skipped_candidates[4].realistic_loss_per_contract|money}}.",
+    "citations": []
+   },
+   {
+    "mode": "screen_result",
+    "text": "The constraint checks passed {{risk.checks_passed}} of {{risk.checks_total}}, and the stress test shows a {{risk.stress[0].shock}} move with a {{risk.stress[0].iv_shock}} IV shock giving {{risk.stress[0].pnl|money}}, a {{risk.stress[1].shock}} move giving {{risk.stress[1].pnl|money}} and a {{risk.stress[2].shock}} move giving {{risk.stress[2].pnl|money}}.",
+    "citations": []
+   },
+   {
+    "mode": "notice",
+    "text": "{{ delayed_data_notice }}",
+    "citations": []
+   },
+   {
+    "mode": "notice",
+    "text": "**Warnings and limitations.** {{risk.warnings[0]}}",
+    "citations": []
+   },
+   {
+    "mode": "notice",
+    "text": "{{ disclaimer }}",
+    "citations": []
+   }
+  ]
+ }
+}

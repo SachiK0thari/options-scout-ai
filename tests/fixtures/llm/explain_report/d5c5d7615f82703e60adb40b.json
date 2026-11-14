@@ -1,0 +1,90 @@
+{
+ "task": "explain_report",
+ "model": "deepseek/deepseek-v4.1-flash",
+ "output": {
+  "paragraphs": [
+   {
+    "mode": "education",
+    "text": "A **cash-secured put** is a short put position in which the writer sets aside enough cash to buy the shares at the strike price if the put is assigned [S1]. The writer sells the put, collects the premium up front, and accepts the obligation to buy 100 shares per contract at the strike any time before expiration [S1]. The word *secured* refers to the cash: in a cash account the broker holds the full purchase price (strike \u00d7 100, less the premium received) as collateral for the whole life of the trade [S1].",
+    "citations": [
+     "S1"
+    ]
+   },
+   {
+    "mode": "education",
+    "text": "A **naked put** is the same contract as a cash-secured put, but the difference is how the obligation is collateralised [S6]. In a margin account the broker holds only a **margin requirement**, a fraction of the purchase price computed under exchange and FINRA minimum rules, and the writer keeps the rest of their buying power free for other positions [S6]. **Assignment** is the process by which an option writer is selected to fulfil the obligation of a contract that a holder has exercised [S2].",
+    "citations": [
+     "S6",
+     "S2"
+    ]
+   },
+   {
+    "mode": "education",
+    "text": "**LEAPS** (Long-term Equity AnticiPation Securities) is the exchanges' name for listed options with more than a year until expiration, and they trade and settle exactly like shorter options [S3]. A **poor man's covered call** is a two-leg position: a long, deep in-the-money LEAPS call and a short, near-term, out-of-the-money call on the same stock; formally it is a **long call diagonal spread** [S5].",
+    "citations": [
+     "S3",
+     "S5"
+    ]
+   },
+   {
+    "mode": "screen_result",
+    "text": "The screen allocated the strategy budget with {{allocation.csp_pct|pct}} to cash-secured puts, {{allocation.leaps_pct|pct}} to LEAPS and {{allocation.cash_pct|pct}} held in cash, against a {{regime.label}} regime where the VIX sits at {{regime.vix}} in roughly the {{regime.vix_percentile|pct}} percentile.",
+    "citations": []
+   },
+   {
+    "mode": "education",
+    "text": "**Intrinsic value** is the amount by which the option is in the money: for a call, the stock price minus the strike when positive, otherwise zero [S4]. **Extrinsic value**, also called time value, is everything else: premium minus intrinsic value, and at expiration extrinsic value is always zero [S4].",
+    "citations": [
+     "S4"
+    ]
+   },
+   {
+    "mode": "screen_result",
+    "text": "The good-to-own quality screen passed {{quality_screen.passed_count}} underlyings: {{quality_screen.passed_tickers|list}}. {{quality_screen.excluded_count}} were excluded, and each passing name carries its reason, for example SPY is in because it \"{{quality_screen.passed[0].why}}\" while NKE is in because it has \"{{quality_screen.passed[6].why}}\".",
+    "citations": []
+   },
+   {
+    "mode": "screen_result",
+    "text": "The trend board is a secondary signal only: it shows CAVA, ONON, DECK and CROX trending, but none is on the good-to-own list, so the universe screen skipped them with the reason \"{{errors[0]}}\".",
+    "citations": []
+   },
+   {
+    "mode": "screen_result",
+    "text": "The bottleneck board is also secondary and only re-orders quality-gated names: the tightest layer is {{bottlenecks.layers[0].name}} at a layer score of {{bottlenecks.layers[0].score}} with thesis state {{bottlenecks.layers[0].thesis_state}}, while {{bottlenecks.layers[5].name}} scores {{bottlenecks.layers[5].score}} and its thesis state is {{bottlenecks.layers[5].thesis_state}}. Among companies, CSCO carries flags {{bottlenecks.companies[4].flags|list}} in the {{bottlenecks.companies[4].layer}} layer.",
+    "citations": []
+   },
+   {
+    "mode": "screen_result",
+    "text": "No position was sized this run: {{counts.positions_sized}} sized positions, {{counts.quality_passed}} underlyings passed quality, and {{counts.skipped_total}} candidates were left unsized, including LEAPS-SPY-2028-01-21-600C with a realistic loss of {{skipped_candidates[0].realistic_loss_per_contract|money}} per contract and CSP-SPY-2026-11-30-735P with a realistic loss of {{skipped_candidates[2].realistic_loss_per_contract|money}} per contract at a reason of {{skipped_candidates[2].reason}}.",
+    "citations": []
+   },
+   {
+    "mode": "education",
+    "text": "The **Reg T requirement** on a short put is the collateral the broker holds against the obligation, a fraction of the purchase price rather than the full cash amount [S6].",
+    "citations": [
+     "S6"
+    ]
+   },
+   {
+    "mode": "screen_result",
+    "text": "The constraint checks all passed: {{risk.checks_passed}} of {{risk.checks_total}} checks at a margin usage of {{risk.checks[1].value|percent}} and a portfolio loss limit of {{risk.checks[5].value|percent}}. In the stress grid, a {{risk.stress[0].shock}} move with an IV shock of {{risk.stress[0].iv_shock}} gives {{risk.stress[0].pnl|money}}, and a {{risk.stress[2].shock}} move gives {{risk.stress[2].pnl|money}}.",
+    "citations": []
+   },
+   {
+    "mode": "notice",
+    "text": "{{ delayed_data_notice }}",
+    "citations": []
+   },
+   {
+    "mode": "notice",
+    "text": "**Warnings and limitations.** {{risk.warnings[0]}}",
+    "citations": []
+   },
+   {
+    "mode": "notice",
+    "text": "{{ disclaimer }}",
+    "citations": []
+   }
+  ]
+ }
+}

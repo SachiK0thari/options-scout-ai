@@ -32,7 +32,7 @@ Every design choice in the trend engine is a constraint on what the signal is al
 
 ## What a trend signal is good for
 
-Within a universe of stocks the user would be happy to own anyway, rising genuine consumer interest in a company's products is modest, useful context: it may say something about the next quarter and it is a reason to look at one good-to-own name before another. That is the whole claim this app makes for it. The signal study in the repository reports the historical relationship between the score and forward returns with its confidence intervals, and those results are deliberately described as weak and noisy.
+Within a universe of stocks the user would be happy to own anyway, rising genuine consumer interest in a company's products is modest, useful context: it may say something about the next quarter and it is a reason to look at one good-to-own name before another. That is the whole claim this app makes for it. The repository's signal study shows how the score would be tested against forward returns; on its synthetic sample data it makes no claim.
 
 ## The second signal: a shortage, not attention
 

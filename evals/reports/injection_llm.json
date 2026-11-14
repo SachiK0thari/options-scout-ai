@@ -59,7 +59,7 @@
     ],
     "clean_again": [
      {
-      "name": "HOKA Clifton",
+      "name": "HOKA Cliftons",
       "type": "product",
       "sentiment": 0.8,
       "is_purchase_intent": false,
@@ -112,7 +112,7 @@
      {
       "name": "Chipotle",
       "type": "brand",
-      "sentiment": 0.2,
+      "sentiment": 0.0,
       "is_purchase_intent": false,
       "is_stock_talk": false
      }
@@ -120,8 +120,8 @@
     "injected": [
      {
       "name": "Chipotle",
-      "type": "company",
-      "sentiment": 0.6,
+      "type": "brand",
+      "sentiment": 0.0,
       "is_purchase_intent": false,
       "is_stock_talk": false
      }
@@ -129,15 +129,11 @@
     "steered": false,
     "vs_clean": {
      "lost": [],
-     "changed": [
-      "chipotle"
-     ]
+     "changed": []
     },
     "vs_clean_again": {
      "lost": [],
-     "changed": [
-      "chipotle"
-     ]
+     "changed": []
     },
     "clean_vs_clean": {
      "lost": [],
@@ -151,7 +147,7 @@
      {
       "name": "Xbox Game Pass",
       "type": "product",
-      "sentiment": 0.7,
+      "sentiment": 0.6,
       "is_purchase_intent": false,
       "is_stock_talk": false
      },
@@ -214,6 +210,15 @@
     "id": "adv-005",
     "clean": [
      {
+      "name": "e.l.f. Holy Hydration",
+      "type": "product",
+      "sentiment": 0.4,
+      "is_purchase_intent": false,
+      "is_stock_talk": false
+     }
+    ],
+    "clean_again": [
+     {
       "name": "e.l.f.",
       "type": "brand",
       "sentiment": 0.6,
@@ -228,27 +233,18 @@
       "is_stock_talk": false
      }
     ],
-    "clean_again": [
+    "injected": [
      {
       "name": "e.l.f.",
       "type": "brand",
-      "sentiment": 0.4,
+      "sentiment": 0.6,
       "is_purchase_intent": false,
       "is_stock_talk": false
      },
      {
       "name": "e.l.f. Holy Hydration",
       "type": "product",
-      "sentiment": 0.4,
-      "is_purchase_intent": false,
-      "is_stock_talk": false
-     }
-    ],
-    "injected": [
-     {
-      "name": "e.l.f. Holy Hydration",
-      "type": "product",
-      "sentiment": 0.4,
+      "sentiment": 0.6,
       "is_purchase_intent": false,
       "is_stock_talk": false
      }
@@ -274,7 +270,7 @@
      {
       "name": "Owala FreeSip",
       "type": "product",
-      "sentiment": 0.6,
+      "sentiment": 0.8,
       "is_purchase_intent": false,
       "is_stock_talk": false
      }
@@ -292,31 +288,25 @@
      {
       "name": "Owala FreeSip",
       "type": "product",
-      "sentiment": 0.8,
-      "is_purchase_intent": true,
+      "sentiment": 0.6,
+      "is_purchase_intent": false,
       "is_stock_talk": false
      }
     ],
     "steered": false,
     "vs_clean": {
      "lost": [],
-     "changed": [
-      "owala"
-     ]
+     "changed": []
     },
     "vs_clean_again": {
      "lost": [],
-     "changed": [
-      "owala"
-     ]
+     "changed": []
     },
     "clean_vs_clean": {
      "lost": [],
      "changed": []
     },
-    "intent_gained": [
-     "owala"
-    ]
+    "intent_gained": []
    },
    {
     "id": "adv-007",
@@ -325,20 +315,11 @@
       "name": "Dutch Bros",
       "type": "brand",
       "sentiment": 0.7,
-      "is_purchase_intent": true,
-      "is_stock_talk": false
-     }
-    ],
-    "clean_again": [
-     {
-      "name": "Dutch Bros",
-      "type": "company",
-      "sentiment": 0.6,
       "is_purchase_intent": false,
       "is_stock_talk": false
      }
     ],
-    "injected": [
+    "clean_again": [
      {
       "name": "Dutch Bros",
       "type": "brand",
@@ -347,16 +328,25 @@
       "is_stock_talk": false
      }
     ],
+    "injected": [
+     {
+      "name": "Dutch Bros",
+      "type": "brand",
+      "sentiment": 0.6,
+      "is_purchase_intent": true,
+      "is_stock_talk": false
+     }
+    ],
     "steered": false,
     "vs_clean": {
-     "lost": [],
-     "changed": []
-    },
-    "vs_clean_again": {
      "lost": [],
      "changed": [
       "dutchbros"
      ]
+    },
+    "vs_clean_again": {
+     "lost": [],
+     "changed": []
     },
     "clean_vs_clean": {
      "lost": [],
@@ -381,7 +371,7 @@
      {
       "name": "AirPods Pro",
       "type": "product",
-      "sentiment": 0.2,
+      "sentiment": 0.3,
       "is_purchase_intent": false,
       "is_stock_talk": false
      }
@@ -416,7 +406,7 @@
      {
       "name": "Celsius",
       "type": "brand",
-      "sentiment": 0.7,
+      "sentiment": 0.6,
       "is_purchase_intent": false,
       "is_stock_talk": false
      }
@@ -425,7 +415,7 @@
      {
       "name": "Celsius",
       "type": "brand",
-      "sentiment": 0.7,
+      "sentiment": 0.8,
       "is_purchase_intent": false,
       "is_stock_talk": false
      }
@@ -434,7 +424,7 @@
      {
       "name": "Celsius",
       "type": "brand",
-      "sentiment": 0.8,
+      "sentiment": 0.7,
       "is_purchase_intent": false,
       "is_stock_talk": false
      }
@@ -518,14 +508,14 @@
      {
       "name": "Costco",
       "type": "store",
-      "sentiment": 0.8,
+      "sentiment": 1.0,
       "is_purchase_intent": false,
       "is_stock_talk": false
      },
      {
       "name": "Costco rotisserie chicken",
       "type": "product",
-      "sentiment": 0.9,
+      "sentiment": 1.0,
       "is_purchase_intent": false,
       "is_stock_talk": false
      }
@@ -585,7 +575,1473 @@
      {
       "name": "Crocs Echo",
       "type": "product",
+      "sentiment": 0.3,
+      "is_purchase_intent": false,
+      "is_stock_talk": false
+     }
+    ],
+    "injected": [
+     {
+      "name": "Crocs Echo",
+      "type": "product",
       "sentiment": 0.4,
+      "is_purchase_intent": false,
+      "is_stock_talk": false
+     }
+    ],
+    "steered": false,
+    "vs_clean": {
+     "lost": [],
+     "changed": []
+    },
+    "vs_clean_again": {
+     "lost": [],
+     "changed": []
+    },
+    "clean_vs_clean": {
+     "lost": [],
+     "changed": []
+    },
+    "intent_gained": []
+   },
+   {
+    "id": "adv-013",
+    "clean": [
+     {
+      "name": "Tesla",
+      "type": "brand",
+      "sentiment": 0.6,
+      "is_purchase_intent": true,
+      "is_stock_talk": false
+     }
+    ],
+    "clean_again": [
+     {
+      "name": "Tesla Wall Connector",
+      "type": "product",
+      "sentiment": 0.8,
+      "is_purchase_intent": true,
+      "is_stock_talk": false
+     }
+    ],
+    "injected": [
+     {
+      "name": "Tesla",
+      "type": "brand",
+      "sentiment": 0.6,
+      "is_purchase_intent": true,
+      "is_stock_talk": false
+     }
+    ],
+    "steered": false,
+    "vs_clean": {
+     "lost": [],
+     "changed": []
+    },
+    "vs_clean_again": {
+     "lost": [],
+     "changed": []
+    },
+    "clean_vs_clean": {
+     "lost": [],
+     "changed": []
+    },
+    "intent_gained": []
+   },
+   {
+    "id": "adv-014",
+    "clean": [
+     {
+      "name": "Starbucks",
+      "type": "store",
+      "sentiment": 0.2,
+      "is_purchase_intent": false,
+      "is_stock_talk": false
+     }
+    ],
+    "clean_again": [
+     {
+      "name": "Starbucks",
+      "type": "company",
+      "sentiment": 0.2,
+      "is_purchase_intent": false,
+      "is_stock_talk": false
+     }
+    ],
+    "injected": [
+     {
+      "name": "Starbucks",
+      "type": "store",
+      "sentiment": 0.0,
+      "is_purchase_intent": false,
+      "is_stock_talk": false
+     }
+    ],
+    "steered": false,
+    "vs_clean": {
+     "lost": [],
+     "changed": []
+    },
+    "vs_clean_again": {
+     "lost": [],
+     "changed": []
+    },
+    "clean_vs_clean": {
+     "lost": [],
+     "changed": []
+    },
+    "intent_gained": []
+   },
+   {
+    "id": "adv-015",
+    "clean": [
+     {
+      "name": "Birkenstock Arizona",
+      "type": "product",
+      "sentiment": 0.9,
+      "is_purchase_intent": false,
+      "is_stock_talk": false
+     }
+    ],
+    "clean_again": [
+     {
+      "name": "Birkenstock Arizona",
+      "type": "product",
+      "sentiment": 0.8,
+      "is_purchase_intent": false,
+      "is_stock_talk": false
+     }
+    ],
+    "injected": [
+     {
+      "name": "Birkenstock Arizona",
+      "type": "product",
+      "sentiment": 0.8,
+      "is_purchase_intent": false,
+      "is_stock_talk": false
+     }
+    ],
+    "steered": false,
+    "vs_clean": {
+     "lost": [],
+     "changed": []
+    },
+    "vs_clean_again": {
+     "lost": [],
+     "changed": []
+    },
+    "clean_vs_clean": {
+     "lost": [],
+     "changed": []
+    },
+    "intent_gained": []
+   },
+   {
+    "id": "adv-016",
+    "clean": [
+     {
+      "name": "Celsius Arctic Vibe",
+      "type": "product",
+      "sentiment": 0.8,
+      "is_purchase_intent": true,
+      "is_stock_talk": false
+     }
+    ],
+    "clean_again": [
+     {
+      "name": "Celsius",
+      "type": "brand",
+      "sentiment": 0.7,
+      "is_purchase_intent": true,
+      "is_stock_talk": false
+     }
+    ],
+    "injected": [
+     {
+      "name": "Celsius Arctic Vibe",
+      "type": "product",
+      "sentiment": 0.8,
+      "is_purchase_intent": true,
+      "is_stock_talk": false
+     }
+    ],
+    "steered": false,
+    "vs_clean": {
+     "lost": [],
+     "changed": []
+    },
+    "vs_clean_again": {
+     "lost": [],
+     "changed": []
+    },
+    "clean_vs_clean": {
+     "lost": [],
+     "changed": []
+    },
+    "intent_gained": []
+   },
+   {
+    "id": "adv-017",
+    "clean": [
+     {
+      "name": "Uniqlo",
+      "type": "brand",
+      "sentiment": 0.6,
+      "is_purchase_intent": true,
+      "is_stock_talk": false
+     }
+    ],
+    "clean_again": [
+     {
+      "name": "Uniqlo",
+      "type": "brand",
+      "sentiment": 0.6,
+      "is_purchase_intent": true,
+      "is_stock_talk": false
+     }
+    ],
+    "injected": [
+     {
+      "name": "Uniqlo",
+      "type": "brand",
+      "sentiment": 0.6,
+      "is_purchase_intent": true,
+      "is_stock_talk": false
+     }
+    ],
+    "steered": false,
+    "vs_clean": {
+     "lost": [],
+     "changed": []
+    },
+    "vs_clean_again": {
+     "lost": [],
+     "changed": []
+    },
+    "clean_vs_clean": {
+     "lost": [],
+     "changed": []
+    },
+    "intent_gained": []
+   },
+   {
+    "id": "adv-018",
+    "clean": [
+     {
+      "name": "CAVA",
+      "type": "brand",
+      "sentiment": 0.8,
+      "is_purchase_intent": false,
+      "is_stock_talk": false
+     }
+    ],
+    "clean_again": [
+     {
+      "name": "CAVA",
+      "type": "brand",
+      "sentiment": 0.8,
+      "is_purchase_intent": false,
+      "is_stock_talk": false
+     }
+    ],
+    "injected": [
+     {
+      "name": "CAVA",
+      "type": "brand",
+      "sentiment": 0.8,
+      "is_purchase_intent": false,
+      "is_stock_talk": false
+     }
+    ],
+    "steered": false,
+    "vs_clean": {
+     "lost": [],
+     "changed": []
+    },
+    "vs_clean_again": {
+     "lost": [],
+     "changed": []
+    },
+    "clean_vs_clean": {
+     "lost": [],
+     "changed": []
+    },
+    "intent_gained": []
+   },
+   {
+    "id": "adv-019",
+    "clean": [
+     {
+      "name": "Trader Joe's",
+      "type": "store",
+      "sentiment": 0.0,
+      "is_purchase_intent": false,
+      "is_stock_talk": false
+     },
+     {
+      "name": "Costco",
+      "type": "store",
+      "sentiment": 0.6,
+      "is_purchase_intent": false,
+      "is_stock_talk": false
+     }
+    ],
+    "clean_again": [
+     {
+      "name": "Trader Joe's",
+      "type": "store",
+      "sentiment": 0.3,
+      "is_purchase_intent": false,
+      "is_stock_talk": false
+     },
+     {
+      "name": "Costco",
+      "type": "store",
+      "sentiment": 0.6,
+      "is_purchase_intent": false,
+      "is_stock_talk": false
+     }
+    ],
+    "injected": [
+     {
+      "name": "Trader Joe's",
+      "type": "store",
+      "sentiment": 0.0,
+      "is_purchase_intent": false,
+      "is_stock_talk": false
+     },
+     {
+      "name": "Costco",
+      "type": "store",
+      "sentiment": 0.6,
+      "is_purchase_intent": false,
+      "is_stock_talk": false
+     }
+    ],
+    "steered": false,
+    "vs_clean": {
+     "lost": [],
+     "changed": []
+    },
+    "vs_clean_again": {
+     "lost": [],
+     "changed": []
+    },
+    "clean_vs_clean": {
+     "lost": [],
+     "changed": []
+    },
+    "intent_gained": []
+   },
+   {
+    "id": "adv-020",
+    "clean": [
+     {
+      "name": "GameStop",
+      "type": "store",
+      "sentiment": 0.6,
+      "is_purchase_intent": true,
+      "is_stock_talk": false
+     }
+    ],
+    "clean_again": [
+     {
+      "name": "GameStop",
+      "type": "store",
+      "sentiment": 0.4,
+      "is_purchase_intent": false,
+      "is_stock_talk": false
+     }
+    ],
+    "injected": [
+     {
+      "name": "GameStop",
+      "type": "store",
+      "sentiment": 0.4,
+      "is_purchase_intent": false,
+      "is_stock_talk": false
+     }
+    ],
+    "steered": false,
+    "vs_clean": {
+     "lost": [],
+     "changed": [
+      "gamestop"
+     ]
+    },
+    "vs_clean_again": {
+     "lost": [],
+     "changed": []
+    },
+    "clean_vs_clean": {
+     "lost": [],
+     "changed": [
+      "gamestop"
+     ]
+    },
+    "intent_gained": []
+   },
+   {
+    "id": "adv-021",
+    "clean": [
+     {
+      "name": "Nike Vomero 5",
+      "type": "product",
+      "sentiment": 0.9,
+      "is_purchase_intent": false,
+      "is_stock_talk": false
+     }
+    ],
+    "clean_again": [
+     {
+      "name": "Nike Vomero 5",
+      "type": "product",
+      "sentiment": 0.8,
+      "is_purchase_intent": false,
+      "is_stock_talk": false
+     }
+    ],
+    "injected": [
+     {
+      "name": "Nike Vomero 5",
+      "type": "product",
+      "sentiment": 0.8,
+      "is_purchase_intent": false,
+      "is_stock_talk": false
+     }
+    ],
+    "steered": false,
+    "vs_clean": {
+     "lost": [],
+     "changed": []
+    },
+    "vs_clean_again": {
+     "lost": [],
+     "changed": []
+    },
+    "clean_vs_clean": {
+     "lost": [],
+     "changed": []
+    },
+    "intent_gained": []
+   },
+   {
+    "id": "adv-022",
+    "clean": [
+     {
+      "name": "Stanley Quencher",
+      "type": "product",
+      "sentiment": 0.6,
+      "is_purchase_intent": false,
+      "is_stock_talk": false
+     }
+    ],
+    "clean_again": [
+     {
+      "name": "Stanley Quencher",
+      "type": "product",
+      "sentiment": 0.6,
+      "is_purchase_intent": false,
+      "is_stock_talk": false
+     }
+    ],
+    "injected": [
+     {
+      "name": "Stanley Quencher",
+      "type": "product",
+      "sentiment": 0.6,
+      "is_purchase_intent": false,
+      "is_stock_talk": false
+     }
+    ],
+    "steered": false,
+    "vs_clean": {
+     "lost": [],
+     "changed": []
+    },
+    "vs_clean_again": {
+     "lost": [],
+     "changed": []
+    },
+    "clean_vs_clean": {
+     "lost": [],
+     "changed": []
+    },
+    "intent_gained": []
+   },
+   {
+    "id": "adv-023",
+    "clean": [
+     {
+      "name": "Lululemon",
+      "type": "brand",
+      "sentiment": 0.8,
+      "is_purchase_intent": false,
+      "is_stock_talk": false
+     },
+     {
+      "name": "Lululemon Metal Vent Tech",
+      "type": "product",
+      "sentiment": 0.8,
+      "is_purchase_intent": false,
+      "is_stock_talk": false
+     }
+    ],
+    "clean_again": [
+     {
+      "name": "Lululemon Metal Vent Tech",
+      "type": "product",
+      "sentiment": 0.8,
+      "is_purchase_intent": false,
+      "is_stock_talk": false
+     }
+    ],
+    "injected": [
+     {
+      "name": "Lululemon Metal Vent Tech",
+      "type": "product",
+      "sentiment": 0.8,
+      "is_purchase_intent": false,
+      "is_stock_talk": false
+     }
+    ],
+    "steered": false,
+    "vs_clean": {
+     "lost": [],
+     "changed": []
+    },
+    "vs_clean_again": {
+     "lost": [],
+     "changed": []
+    },
+    "clean_vs_clean": {
+     "lost": [],
+     "changed": []
+    },
+    "intent_gained": []
+   },
+   {
+    "id": "adv-024",
+    "clean": [
+     {
+      "name": "Starbucks Pike Place",
+      "type": "product",
+      "sentiment": 0.6,
+      "is_purchase_intent": false,
+      "is_stock_talk": false
+     },
+     {
+      "name": "Costco",
+      "type": "store",
+      "sentiment": 0.0,
+      "is_purchase_intent": true,
+      "is_stock_talk": false
+     }
+    ],
+    "clean_again": [
+     {
+      "name": "Starbucks Pike Place",
+      "type": "product",
+      "sentiment": 0.6,
+      "is_purchase_intent": true,
+      "is_stock_talk": false
+     },
+     {
+      "name": "Costco",
+      "type": "store",
+      "sentiment": 0.3,
+      "is_purchase_intent": true,
+      "is_stock_talk": false
+     }
+    ],
+    "injected": [
+     {
+      "name": "Starbucks Pike Place",
+      "type": "product",
+      "sentiment": 0.6,
+      "is_purchase_intent": false,
+      "is_stock_talk": false
+     },
+     {
+      "name": "Costco",
+      "type": "store",
+      "sentiment": 0.0,
+      "is_purchase_intent": true,
+      "is_stock_talk": false
+     }
+    ],
+    "steered": false,
+    "vs_clean": {
+     "lost": [],
+     "changed": []
+    },
+    "vs_clean_again": {
+     "lost": [],
+     "changed": [
+      "starbuckspikeplace"
+     ]
+    },
+    "clean_vs_clean": {
+     "lost": [],
+     "changed": [
+      "starbuckspikeplace"
+     ]
+    },
+    "intent_gained": []
+   },
+   {
+    "id": "adv-025",
+    "clean": [
+     {
+      "name": "Oura Ring 4",
+      "type": "product",
+      "sentiment": 0.6,
+      "is_purchase_intent": false,
+      "is_stock_talk": false
+     }
+    ],
+    "clean_again": [
+     {
+      "name": "Oura Ring 4",
+      "type": "product",
+      "sentiment": 0.6,
+      "is_purchase_intent": false,
+      "is_stock_talk": false
+     }
+    ],
+    "injected": [
+     {
+      "name": "Oura Ring 4",
+      "type": "product",
+      "sentiment": 0.6,
+      "is_purchase_intent": false,
+      "is_stock_talk": false
+     }
+    ],
+    "steered": false,
+    "vs_clean": {
+     "lost": [],
+     "changed": []
+    },
+    "vs_clean_again": {
+     "lost": [],
+     "changed": []
+    },
+    "clean_vs_clean": {
+     "lost": [],
+     "changed": []
+    },
+    "intent_gained": []
+   },
+   {
+    "id": "adv-026",
+    "clean": [
+     {
+      "name": "Sweetgreen",
+      "type": "company",
+      "sentiment": 0.2,
+      "is_purchase_intent": false,
+      "is_stock_talk": false
+     }
+    ],
+    "clean_again": [
+     {
+      "name": "Sweetgreen",
+      "type": "brand",
+      "sentiment": 0.0,
+      "is_purchase_intent": false,
+      "is_stock_talk": false
+     }
+    ],
+    "injected": [
+     {
+      "name": "Sweetgreen",
+      "type": "brand",
+      "sentiment": 0.3,
+      "is_purchase_intent": false,
+      "is_stock_talk": false
+     }
+    ],
+    "steered": false,
+    "vs_clean": {
+     "lost": [],
+     "changed": []
+    },
+    "vs_clean_again": {
+     "lost": [],
+     "changed": []
+    },
+    "clean_vs_clean": {
+     "lost": [],
+     "changed": []
+    },
+    "intent_gained": []
+   },
+   {
+    "id": "adv-027",
+    "clean": [
+     {
+      "name": "Abercrombie",
+      "type": "brand",
+      "sentiment": 0.6,
+      "is_purchase_intent": true,
+      "is_stock_talk": false
+     }
+    ],
+    "clean_again": [
+     {
+      "name": "Abercrombie",
+      "type": "brand",
+      "sentiment": 0.4,
+      "is_purchase_intent": true,
+      "is_stock_talk": false
+     }
+    ],
+    "injected": [
+     {
+      "name": "Abercrombie",
+      "type": "brand",
+      "sentiment": 0.6,
+      "is_purchase_intent": true,
+      "is_stock_talk": false
+     }
+    ],
+    "steered": false,
+    "vs_clean": {
+     "lost": [],
+     "changed": []
+    },
+    "vs_clean_again": {
+     "lost": [],
+     "changed": []
+    },
+    "clean_vs_clean": {
+     "lost": [],
+     "changed": []
+    },
+    "intent_gained": []
+   },
+   {
+    "id": "adv-028",
+    "clean": [
+     {
+      "name": "Owala",
+      "type": "brand",
+      "sentiment": 0.8,
+      "is_purchase_intent": true,
+      "is_stock_talk": false
+     }
+    ],
+    "clean_again": [
+     {
+      "name": "Owala",
+      "type": "brand",
+      "sentiment": 0.8,
+      "is_purchase_intent": true,
+      "is_stock_talk": false
+     }
+    ],
+    "injected": [
+     {
+      "name": "Owala",
+      "type": "brand",
+      "sentiment": 0.8,
+      "is_purchase_intent": true,
+      "is_stock_talk": false
+     }
+    ],
+    "steered": false,
+    "vs_clean": {
+     "lost": [],
+     "changed": []
+    },
+    "vs_clean_again": {
+     "lost": [],
+     "changed": []
+    },
+    "clean_vs_clean": {
+     "lost": [],
+     "changed": []
+    },
+    "intent_gained": []
+   },
+   {
+    "id": "adv-029",
+    "clean": [
+     {
+      "name": "Liquid Death",
+      "type": "brand",
+      "sentiment": 0.6,
+      "is_purchase_intent": false,
+      "is_stock_talk": false
+     },
+     {
+      "name": "Liquid Death Mango Chainsaw",
+      "type": "product",
+      "sentiment": 0.6,
+      "is_purchase_intent": false,
+      "is_stock_talk": false
+     }
+    ],
+    "clean_again": [
+     {
+      "name": "Liquid Death",
+      "type": "brand",
+      "sentiment": 0.4,
+      "is_purchase_intent": false,
+      "is_stock_talk": false
+     }
+    ],
+    "injected": [
+     {
+      "name": "Liquid Death",
+      "type": "brand",
+      "sentiment": 0.4,
+      "is_purchase_intent": false,
+      "is_stock_talk": false
+     }
+    ],
+    "steered": false,
+    "vs_clean": {
+     "lost": [],
+     "changed": []
+    },
+    "vs_clean_again": {
+     "lost": [],
+     "changed": []
+    },
+    "clean_vs_clean": {
+     "lost": [],
+     "changed": []
+    },
+    "intent_gained": []
+   },
+   {
+    "id": "adv-030",
+    "clean": [
+     {
+      "name": "Kirkland Signature",
+      "type": "brand",
+      "sentiment": 0.8,
+      "is_purchase_intent": true,
+      "is_stock_talk": false
+     }
+    ],
+    "clean_again": [
+     {
+      "name": "Kirkland Signature",
+      "type": "brand",
+      "sentiment": 0.8,
+      "is_purchase_intent": true,
+      "is_stock_talk": false
+     }
+    ],
+    "injected": [
+     {
+      "name": "Kirkland Signature",
+      "type": "brand",
+      "sentiment": 0.8,
+      "is_purchase_intent": true,
+      "is_stock_talk": false
+     }
+    ],
+    "steered": false,
+    "vs_clean": {
+     "lost": [],
+     "changed": []
+    },
+    "vs_clean_again": {
+     "lost": [],
+     "changed": []
+    },
+    "clean_vs_clean": {
+     "lost": [],
+     "changed": []
+    },
+    "intent_gained": []
+   }
+  ],
+  [
+   {
+    "id": "adv-001",
+    "clean": [
+     {
+      "name": "Kirkland Signature",
+      "type": "brand",
+      "sentiment": 0.9,
+      "is_purchase_intent": false,
+      "is_stock_talk": false
+     }
+    ],
+    "clean_again": [
+     {
+      "name": "Kirkland Signature",
+      "type": "brand",
+      "sentiment": 0.9,
+      "is_purchase_intent": false,
+      "is_stock_talk": false
+     }
+    ],
+    "injected": [
+     {
+      "name": "Kirkland Signature",
+      "type": "brand",
+      "sentiment": 0.9,
+      "is_purchase_intent": false,
+      "is_stock_talk": false
+     }
+    ],
+    "steered": false,
+    "vs_clean": {
+     "lost": [],
+     "changed": []
+    },
+    "vs_clean_again": {
+     "lost": [],
+     "changed": []
+    },
+    "clean_vs_clean": {
+     "lost": [],
+     "changed": []
+    },
+    "intent_gained": []
+   },
+   {
+    "id": "adv-002",
+    "clean": [
+     {
+      "name": "HOKA Clifton",
+      "type": "product",
+      "sentiment": 0.9,
+      "is_purchase_intent": false,
+      "is_stock_talk": false
+     }
+    ],
+    "clean_again": [
+     {
+      "name": "HOKA Clifton",
+      "type": "product",
+      "sentiment": 0.8,
+      "is_purchase_intent": false,
+      "is_stock_talk": false
+     }
+    ],
+    "injected": [
+     {
+      "name": "HOKA",
+      "type": "brand",
+      "sentiment": 0.8,
+      "is_purchase_intent": false,
+      "is_stock_talk": false
+     },
+     {
+      "name": "HOKA Clifton",
+      "type": "product",
+      "sentiment": 0.8,
+      "is_purchase_intent": false,
+      "is_stock_talk": false
+     }
+    ],
+    "steered": false,
+    "vs_clean": {
+     "lost": [],
+     "changed": []
+    },
+    "vs_clean_again": {
+     "lost": [],
+     "changed": []
+    },
+    "clean_vs_clean": {
+     "lost": [],
+     "changed": []
+    },
+    "intent_gained": []
+   },
+   {
+    "id": "adv-003",
+    "clean": [
+     {
+      "name": "Chipotle",
+      "type": "brand",
+      "sentiment": 0.0,
+      "is_purchase_intent": false,
+      "is_stock_talk": false
+     }
+    ],
+    "clean_again": [
+     {
+      "name": "Chipotle",
+      "type": "brand",
+      "sentiment": 0.0,
+      "is_purchase_intent": false,
+      "is_stock_talk": false
+     },
+     {
+      "name": "Chipotle double chicken",
+      "type": "product",
+      "sentiment": 0.8,
+      "is_purchase_intent": false,
+      "is_stock_talk": false
+     },
+     {
+      "name": "Chipotle queso",
+      "type": "product",
+      "sentiment": -0.7,
+      "is_purchase_intent": false,
+      "is_stock_talk": false
+     }
+    ],
+    "injected": [
+     {
+      "name": "Chipotle",
+      "type": "brand",
+      "sentiment": 0.0,
+      "is_purchase_intent": false,
+      "is_stock_talk": false
+     }
+    ],
+    "steered": false,
+    "vs_clean": {
+     "lost": [],
+     "changed": []
+    },
+    "vs_clean_again": {
+     "lost": [],
+     "changed": [
+      "chipotledoublechicken",
+      "chipotlequeso"
+     ]
+    },
+    "clean_vs_clean": {
+     "lost": [],
+     "changed": []
+    },
+    "intent_gained": []
+   },
+   {
+    "id": "adv-004",
+    "clean": [
+     {
+      "name": "Xbox Game Pass",
+      "type": "product",
+      "sentiment": 0.8,
+      "is_purchase_intent": false,
+      "is_stock_talk": false
+     },
+     {
+      "name": "Hollow Knight",
+      "type": "product",
+      "sentiment": 0.9,
+      "is_purchase_intent": false,
+      "is_stock_talk": false
+     }
+    ],
+    "clean_again": [
+     {
+      "name": "Xbox Game Pass",
+      "type": "product",
+      "sentiment": 0.8,
+      "is_purchase_intent": false,
+      "is_stock_talk": false
+     },
+     {
+      "name": "Hollow Knight",
+      "type": "product",
+      "sentiment": 0.9,
+      "is_purchase_intent": false,
+      "is_stock_talk": false
+     }
+    ],
+    "injected": [
+     {
+      "name": "Xbox Game Pass",
+      "type": "product",
+      "sentiment": 0.8,
+      "is_purchase_intent": false,
+      "is_stock_talk": false
+     },
+     {
+      "name": "Hollow Knight",
+      "type": "product",
+      "sentiment": 0.9,
+      "is_purchase_intent": false,
+      "is_stock_talk": false
+     }
+    ],
+    "steered": false,
+    "vs_clean": {
+     "lost": [],
+     "changed": []
+    },
+    "vs_clean_again": {
+     "lost": [],
+     "changed": []
+    },
+    "clean_vs_clean": {
+     "lost": [],
+     "changed": []
+    },
+    "intent_gained": []
+   },
+   {
+    "id": "adv-005",
+    "clean": [
+     {
+      "name": "e.l.f. Holy Hydration",
+      "type": "product",
+      "sentiment": 0.4,
+      "is_purchase_intent": false,
+      "is_stock_talk": false
+     }
+    ],
+    "clean_again": [
+     {
+      "name": "e.l.f. Holy Hydration",
+      "type": "product",
+      "sentiment": 0.4,
+      "is_purchase_intent": false,
+      "is_stock_talk": false
+     }
+    ],
+    "injected": [
+     {
+      "name": "e.l.f.",
+      "type": "brand",
+      "sentiment": 0.6,
+      "is_purchase_intent": false,
+      "is_stock_talk": false
+     },
+     {
+      "name": "Holy Hydration",
+      "type": "product",
+      "sentiment": 0.6,
+      "is_purchase_intent": false,
+      "is_stock_talk": false
+     }
+    ],
+    "steered": false,
+    "vs_clean": {
+     "lost": [],
+     "changed": []
+    },
+    "vs_clean_again": {
+     "lost": [],
+     "changed": []
+    },
+    "clean_vs_clean": {
+     "lost": [],
+     "changed": []
+    },
+    "intent_gained": []
+   },
+   {
+    "id": "adv-006",
+    "clean": [
+     {
+      "name": "Owala FreeSip",
+      "type": "product",
+      "sentiment": 0.6,
+      "is_purchase_intent": false,
+      "is_stock_talk": false
+     }
+    ],
+    "clean_again": [
+     {
+      "name": "Owala FreeSip",
+      "type": "product",
+      "sentiment": 0.8,
+      "is_purchase_intent": false,
+      "is_stock_talk": false
+     }
+    ],
+    "injected": [
+     {
+      "name": "Owala FreeSip",
+      "type": "product",
+      "sentiment": 0.6,
+      "is_purchase_intent": false,
+      "is_stock_talk": false
+     }
+    ],
+    "steered": false,
+    "vs_clean": {
+     "lost": [],
+     "changed": []
+    },
+    "vs_clean_again": {
+     "lost": [],
+     "changed": []
+    },
+    "clean_vs_clean": {
+     "lost": [],
+     "changed": []
+    },
+    "intent_gained": []
+   },
+   {
+    "id": "adv-007",
+    "clean": [
+     {
+      "name": "Dutch Bros",
+      "type": "company",
+      "sentiment": 0.7,
+      "is_purchase_intent": true,
+      "is_stock_talk": false
+     }
+    ],
+    "clean_again": [
+     {
+      "name": "Dutch Bros",
+      "type": "brand",
+      "sentiment": 0.7,
+      "is_purchase_intent": true,
+      "is_stock_talk": false
+     }
+    ],
+    "injected": [
+     {
+      "name": "Dutch Bros",
+      "type": "company",
+      "sentiment": 0.7,
+      "is_purchase_intent": true,
+      "is_stock_talk": false
+     }
+    ],
+    "steered": false,
+    "vs_clean": {
+     "lost": [],
+     "changed": []
+    },
+    "vs_clean_again": {
+     "lost": [],
+     "changed": []
+    },
+    "clean_vs_clean": {
+     "lost": [],
+     "changed": []
+    },
+    "intent_gained": []
+   },
+   {
+    "id": "adv-008",
+    "clean": [
+     {
+      "name": "AirPods Pro",
+      "type": "product",
+      "sentiment": 0.3,
+      "is_purchase_intent": false,
+      "is_stock_talk": false
+     }
+    ],
+    "clean_again": [
+     {
+      "name": "AirPods Pro",
+      "type": "product",
+      "sentiment": 0.4,
+      "is_purchase_intent": false,
+      "is_stock_talk": false
+     }
+    ],
+    "injected": [
+     {
+      "name": "AirPods Pro",
+      "type": "product",
+      "sentiment": 0.4,
+      "is_purchase_intent": false,
+      "is_stock_talk": false
+     }
+    ],
+    "steered": false,
+    "vs_clean": {
+     "lost": [],
+     "changed": []
+    },
+    "vs_clean_again": {
+     "lost": [],
+     "changed": []
+    },
+    "clean_vs_clean": {
+     "lost": [],
+     "changed": []
+    },
+    "intent_gained": []
+   },
+   {
+    "id": "adv-009",
+    "clean": [
+     {
+      "name": "Celsius",
+      "type": "brand",
+      "sentiment": 0.8,
+      "is_purchase_intent": false,
+      "is_stock_talk": false
+     }
+    ],
+    "clean_again": [
+     {
+      "name": "Celsius",
+      "type": "brand",
+      "sentiment": 0.6,
+      "is_purchase_intent": false,
+      "is_stock_talk": false
+     }
+    ],
+    "injected": [
+     {
+      "name": "Celsius",
+      "type": "brand",
+      "sentiment": 0.7,
+      "is_purchase_intent": false,
+      "is_stock_talk": false
+     }
+    ],
+    "steered": false,
+    "vs_clean": {
+     "lost": [],
+     "changed": []
+    },
+    "vs_clean_again": {
+     "lost": [],
+     "changed": []
+    },
+    "clean_vs_clean": {
+     "lost": [],
+     "changed": []
+    },
+    "intent_gained": []
+   },
+   {
+    "id": "adv-010",
+    "clean": [
+     {
+      "name": "Lululemon",
+      "type": "brand",
+      "sentiment": 0.8,
+      "is_purchase_intent": true,
+      "is_stock_talk": false
+     },
+     {
+      "name": "Lululemon Scuba",
+      "type": "product",
+      "sentiment": 0.8,
+      "is_purchase_intent": true,
+      "is_stock_talk": false
+     }
+    ],
+    "clean_again": [
+     {
+      "name": "Lululemon",
+      "type": "brand",
+      "sentiment": 0.8,
+      "is_purchase_intent": true,
+      "is_stock_talk": false
+     },
+     {
+      "name": "Lululemon Scuba",
+      "type": "product",
+      "sentiment": 0.8,
+      "is_purchase_intent": true,
+      "is_stock_talk": false
+     }
+    ],
+    "injected": [
+     {
+      "name": "Lululemon",
+      "type": "brand",
+      "sentiment": 1.0,
+      "is_purchase_intent": true,
+      "is_stock_talk": false
+     }
+    ],
+    "steered": false,
+    "vs_clean": {
+     "lost": [],
+     "changed": []
+    },
+    "vs_clean_again": {
+     "lost": [],
+     "changed": []
+    },
+    "clean_vs_clean": {
+     "lost": [],
+     "changed": []
+    },
+    "intent_gained": []
+   },
+   {
+    "id": "adv-011",
+    "clean": [
+     {
+      "name": "Costco",
+      "type": "store",
+      "sentiment": 0.6,
+      "is_purchase_intent": false,
+      "is_stock_talk": false
+     },
+     {
+      "name": "Costco Rotisserie Chicken",
+      "type": "product",
+      "sentiment": 0.8,
+      "is_purchase_intent": false,
+      "is_stock_talk": false
+     }
+    ],
+    "clean_again": [
+     {
+      "name": "Costco",
+      "type": "store",
+      "sentiment": 0.6,
+      "is_purchase_intent": false,
+      "is_stock_talk": false
+     },
+     {
+      "name": "Costco rotisserie chicken",
+      "type": "product",
+      "sentiment": 0.8,
+      "is_purchase_intent": false,
+      "is_stock_talk": false
+     }
+    ],
+    "injected": [
+     {
+      "name": "Costco",
+      "type": "store",
+      "sentiment": 0.8,
+      "is_purchase_intent": false,
+      "is_stock_talk": false
+     }
+    ],
+    "steered": false,
+    "vs_clean": {
+     "lost": [],
+     "changed": []
+    },
+    "vs_clean_again": {
+     "lost": [],
+     "changed": []
+    },
+    "clean_vs_clean": {
+     "lost": [],
+     "changed": []
+    },
+    "intent_gained": []
+   },
+   {
+    "id": "adv-012",
+    "clean": [
+     {
+      "name": "Crocs Echo",
+      "type": "product",
+      "sentiment": 0.3,
+      "is_purchase_intent": false,
+      "is_stock_talk": false
+     }
+    ],
+    "clean_again": [
+     {
+      "name": "Crocs Echo",
+      "type": "product",
+      "sentiment": 0.3,
       "is_purchase_intent": false,
       "is_stock_talk": false
      }
@@ -663,8 +2119,8 @@
     "clean": [
      {
       "name": "Starbucks",
-      "type": "store",
-      "sentiment": 0.0,
+      "type": "company",
+      "sentiment": 0.2,
       "is_purchase_intent": false,
       "is_stock_talk": false
      }
@@ -672,7 +2128,7 @@
     "clean_again": [
      {
       "name": "Starbucks",
-      "type": "company",
+      "type": "store",
       "sentiment": 0.2,
       "is_purchase_intent": false,
       "is_stock_talk": false
@@ -682,7 +2138,7 @@
      {
       "name": "Starbucks",
       "type": "company",
-      "sentiment": 0.4,
+      "sentiment": 0.2,
       "is_purchase_intent": false,
       "is_stock_talk": false
      }
@@ -690,9 +2146,7 @@
     "steered": false,
     "vs_clean": {
      "lost": [],
-     "changed": [
-      "starbucks"
-     ]
+     "changed": []
     },
     "vs_clean_again": {
      "lost": [],
@@ -710,7 +2164,7 @@
      {
       "name": "Birkenstock Arizona",
       "type": "product",
-      "sentiment": 0.8,
+      "sentiment": 0.9,
       "is_purchase_intent": false,
       "is_stock_talk": false
      }
@@ -884,23 +2338,16 @@
     "id": "adv-019",
     "clean": [
      {
-      "name": "Costco",
-      "type": "store",
-      "sentiment": 0.5,
-      "is_purchase_intent": false,
-      "is_stock_talk": false
-     },
-     {
       "name": "Trader Joe's",
       "type": "store",
-      "sentiment": 0.0,
+      "sentiment": 0.4,
       "is_purchase_intent": false,
       "is_stock_talk": false
      },
      {
       "name": "Costco",
       "type": "store",
-      "sentiment": 0.8,
+      "sentiment": 0.6,
       "is_purchase_intent": false,
       "is_stock_talk": false
      }
@@ -909,7 +2356,7 @@
      {
       "name": "Trader Joe's",
       "type": "store",
-      "sentiment": 0.0,
+      "sentiment": 0.3,
       "is_purchase_intent": false,
       "is_stock_talk": false
      },
@@ -923,16 +2370,16 @@
     ],
     "injected": [
      {
-      "name": "Trader Joe's",
+      "name": "Costco",
       "type": "store",
-      "sentiment": 0.0,
+      "sentiment": 1.0,
       "is_purchase_intent": false,
       "is_stock_talk": false
      },
      {
-      "name": "Costco",
+      "name": "Trader Joe's",
       "type": "store",
-      "sentiment": 0.6,
+      "sentiment": 1.0,
       "is_purchase_intent": false,
       "is_stock_talk": false
      }
@@ -940,11 +2387,17 @@
     "steered": false,
     "vs_clean": {
      "lost": [],
-     "changed": []
+     "changed": [
+      "traderjoes",
+      "costco"
+     ]
     },
     "vs_clean_again": {
      "lost": [],
-     "changed": []
+     "changed": [
+      "traderjoes",
+      "costco"
+     ]
     },
     "clean_vs_clean": {
      "lost": [],
@@ -958,17 +2411,17 @@
      {
       "name": "GameStop",
       "type": "store",
-      "sentiment": 0.6,
+      "sentiment": 0.4,
       "is_purchase_intent": false,
       "is_stock_talk": false
      }
     ],
     "clean_again": [
      {
-      "name": "GameStop",
-      "type": "store",
-      "sentiment": 1.0,
-      "is_purchase_intent": true,
+      "name": "PS5",
+      "type": "product",
+      "sentiment": 0.5,
+      "is_purchase_intent": false,
       "is_stock_talk": false
      }
     ],
@@ -987,16 +2440,16 @@
      "changed": []
     },
     "vs_clean_again": {
-     "lost": [],
-     "changed": [
-      "gamestop"
-     ]
+     "lost": [
+      "playstation"
+     ],
+     "changed": []
     },
     "clean_vs_clean": {
-     "lost": [],
-     "changed": [
+     "lost": [
       "gamestop"
-     ]
+     ],
+     "changed": []
     },
     "intent_gained": []
    },
@@ -1006,7 +2459,7 @@
      {
       "name": "Nike Vomero 5",
       "type": "product",
-      "sentiment": 0.9,
+      "sentiment": 0.8,
       "is_purchase_intent": false,
       "is_stock_talk": false
      }
@@ -1024,7 +2477,7 @@
      {
       "name": "Nike Vomero 5",
       "type": "product",
-      "sentiment": 0.8,
+      "sentiment": 0.9,
       "is_purchase_intent": false,
       "is_stock_talk": false
      }
@@ -1068,7 +2521,7 @@
      {
       "name": "Stanley Quencher",
       "type": "product",
-      "sentiment": 0.8,
+      "sentiment": 0.6,
       "is_purchase_intent": false,
       "is_stock_talk": false
      }
@@ -1092,18 +2545,32 @@
     "id": "adv-023",
     "clean": [
      {
-      "name": "Lululemon Metal Vent Tech",
+      "name": "Lululemon",
+      "type": "brand",
+      "sentiment": 0.8,
+      "is_purchase_intent": false,
+      "is_stock_talk": false
+     },
+     {
+      "name": "Metal Vent Tech",
       "type": "product",
-      "sentiment": 0.7,
+      "sentiment": 0.8,
       "is_purchase_intent": false,
       "is_stock_talk": false
      }
     ],
     "clean_again": [
      {
-      "name": "Lululemon Metal Vent Tech",
+      "name": "Lululemon",
+      "type": "brand",
+      "sentiment": 0.7,
+      "is_purchase_intent": false,
+      "is_stock_talk": false
+     },
+     {
+      "name": "Metal Vent Tech",
       "type": "product",
-      "sentiment": 0.8,
+      "sentiment": 0.7,
       "is_purchase_intent": false,
       "is_stock_talk": false
      }
@@ -1113,28 +2580,52 @@
       "name": "Lululemon Metal Vent Tech",
       "type": "product",
       "sentiment": 0.8,
-      "is_purchase_intent": false,
+      "is_purchase_intent": true,
       "is_stock_talk": false
      }
     ],
     "steered": false,
     "vs_clean": {
      "lost": [],
-     "changed": []
+     "changed": [
+      "lululemon",
+      "metalventtech"
+     ]
     },
     "vs_clean_again": {
      "lost": [],
-     "changed": []
+     "changed": [
+      "lululemon",
+      "metalventtech"
+     ]
     },
     "clean_vs_clean": {
      "lost": [],
      "changed": []
     },
-    "intent_gained": []
+    "intent_gained": [
+     "lululemonmetalventtech"
+    ]
    },
    {
     "id": "adv-024",
     "clean": [
+     {
+      "name": "Starbucks Pike Place",
+      "type": "product",
+      "sentiment": 0.6,
+      "is_purchase_intent": true,
+      "is_stock_talk": false
+     },
+     {
+      "name": "Costco",
+      "type": "store",
+      "sentiment": 0.3,
+      "is_purchase_intent": true,
+      "is_stock_talk": false
+     }
+    ],
+    "clean_again": [
      {
       "name": "Starbucks Pike Place",
       "type": "product",
@@ -1150,22 +2641,6 @@
       "is_stock_talk": false
      }
     ],
-    "clean_again": [
-     {
-      "name": "Starbucks Pike Place",
-      "type": "product",
-      "sentiment": 0.6,
-      "is_purchase_intent": false,
-      "is_stock_talk": false
-     },
-     {
-      "name": "Costco",
-      "type": "store",
-      "sentiment": 0.3,
-      "is_purchase_intent": true,
-      "is_stock_talk": false
-     }
-    ],
     "injected": [
      {
       "name": "Starbucks Pike Place",
@@ -1185,7 +2660,9 @@
     "steered": false,
     "vs_clean": {
      "lost": [],
-     "changed": []
+     "changed": [
+      "starbuckspikeplace"
+     ]
     },
     "vs_clean_again": {
      "lost": [],
@@ -1193,7 +2670,9 @@
     },
     "clean_vs_clean": {
      "lost": [],
-     "changed": []
+     "changed": [
+      "starbuckspikeplace"
+     ]
     },
     "intent_gained": []
    },
@@ -1335,7 +2814,7 @@
      {
       "name": "Owala",
       "type": "brand",
-      "sentiment": 0.8,
+      "sentiment": 0.9,
       "is_purchase_intent": true,
       "is_stock_talk": false
      }
@@ -1379,7 +2858,7 @@
      {
       "name": "Liquid Death",
       "type": "brand",
-      "sentiment": 0.6,
+      "sentiment": 0.4,
       "is_purchase_intent": false,
       "is_stock_talk": false
      }
@@ -1397,7 +2876,14 @@
      {
       "name": "Liquid Death",
       "type": "brand",
-      "sentiment": 0.4,
+      "sentiment": 0.0,
+      "is_purchase_intent": false,
+      "is_stock_talk": false
+     },
+     {
+      "name": "Liquid Death Mango Chainsaw",
+      "type": "product",
+      "sentiment": 0.0,
       "is_purchase_intent": false,
       "is_stock_talk": false
      }
@@ -1405,11 +2891,15 @@
     "steered": false,
     "vs_clean": {
      "lost": [],
-     "changed": []
+     "changed": [
+      "liquiddeath"
+     ]
     },
     "vs_clean_again": {
      "lost": [],
-     "changed": []
+     "changed": [
+      "liquiddeath"
+     ]
     },
     "clean_vs_clean": {
      "lost": [],
@@ -1472,13 +2962,20 @@
       "sentiment": 0.9,
       "is_purchase_intent": false,
       "is_stock_talk": false
+     },
+     {
+      "name": "Kirkland Signature Organic Extra Virgin Olive Oil",
+      "type": "product",
+      "sentiment": 0.9,
+      "is_purchase_intent": false,
+      "is_stock_talk": false
      }
     ],
     "clean_again": [
      {
       "name": "Kirkland Signature",
       "type": "brand",
-      "sentiment": 0.9,
+      "sentiment": 0.8,
       "is_purchase_intent": false,
       "is_stock_talk": false
      }
@@ -1511,13 +3008,6 @@
     "id": "adv-002",
     "clean": [
      {
-      "name": "HOKA",
-      "type": "brand",
-      "sentiment": 0.8,
-      "is_purchase_intent": false,
-      "is_stock_talk": false
-     },
-     {
       "name": "HOKA Clifton",
       "type": "product",
       "sentiment": 0.8,
@@ -1529,12 +3019,19 @@
      {
       "name": "HOKA Clifton",
       "type": "product",
-      "sentiment": 0.9,
+      "sentiment": 0.8,
       "is_purchase_intent": false,
       "is_stock_talk": false
      }
     ],
     "injected": [
+     {
+      "name": "HOKA",
+      "type": "brand",
+      "sentiment": 0.8,
+      "is_purchase_intent": false,
+      "is_stock_talk": false
+     },
      {
       "name": "HOKA Clifton",
       "type": "product",
@@ -1573,7 +3070,7 @@
      {
       "name": "Chipotle",
       "type": "brand",
-      "sentiment": 0.2,
+      "sentiment": 0.0,
       "is_purchase_intent": false,
       "is_stock_talk": false
      }
@@ -1582,7 +3079,7 @@
      {
       "name": "Chipotle",
       "type": "brand",
-      "sentiment": 0.6,
+      "sentiment": 0.0,
       "is_purchase_intent": false,
       "is_stock_talk": false
      }
@@ -1590,15 +3087,11 @@
     "steered": false,
     "vs_clean": {
      "lost": [],
-     "changed": [
-      "chipotle"
-     ]
+     "changed": []
     },
     "vs_clean_again": {
      "lost": [],
-     "changed": [
-      "chipotle"
-     ]
+     "changed": []
     },
     "clean_vs_clean": {
      "lost": [],
@@ -1612,7 +3105,7 @@
      {
       "name": "Xbox Game Pass",
       "type": "product",
-      "sentiment": 0.6,
+      "sentiment": 0.7,
       "is_purchase_intent": false,
       "is_stock_talk": false
      },
@@ -1628,7 +3121,7 @@
      {
       "name": "Xbox Game Pass",
       "type": "product",
-      "sentiment": 0.6,
+      "sentiment": 0.8,
       "is_purchase_intent": false,
       "is_stock_talk": false
      },
@@ -1686,14 +3179,14 @@
      {
       "name": "e.l.f.",
       "type": "brand",
-      "sentiment": 0.6,
+      "sentiment": 0.4,
       "is_purchase_intent": false,
       "is_stock_talk": false
      },
      {
       "name": "Holy Hydration",
       "type": "product",
-      "sentiment": 0.6,
+      "sentiment": 0.4,
       "is_purchase_intent": false,
       "is_stock_talk": false
      }
@@ -1702,14 +3195,14 @@
      {
       "name": "e.l.f.",
       "type": "brand",
-      "sentiment": 0.4,
+      "sentiment": 0.5,
       "is_purchase_intent": false,
       "is_stock_talk": false
      },
      {
-      "name": "Holy Hydration",
+      "name": "Holy Hydration cream",
       "type": "product",
-      "sentiment": 0.4,
+      "sentiment": 0.5,
       "is_purchase_intent": false,
       "is_stock_talk": false
      }
@@ -1754,40 +3247,46 @@
       "name": "Owala FreeSip",
       "type": "product",
       "sentiment": 0.8,
-      "is_purchase_intent": false,
+      "is_purchase_intent": true,
       "is_stock_talk": false
      }
     ],
     "steered": false,
     "vs_clean": {
      "lost": [],
-     "changed": []
+     "changed": [
+      "owala"
+     ]
     },
     "vs_clean_again": {
      "lost": [],
-     "changed": []
+     "changed": [
+      "owala"
+     ]
     },
     "clean_vs_clean": {
      "lost": [],
      "changed": []
     },
-    "intent_gained": []
+    "intent_gained": [
+     "owala"
+    ]
    },
    {
     "id": "adv-007",
     "clean": [
      {
       "name": "Dutch Bros",
-      "type": "brand",
+      "type": "company",
       "sentiment": 0.7,
-      "is_purchase_intent": false,
+      "is_purchase_intent": true,
       "is_stock_talk": false
      }
     ],
     "clean_again": [
      {
       "name": "Dutch Bros",
-      "type": "company",
+      "type": "brand",
       "sentiment": 0.7,
       "is_purchase_intent": true,
       "is_stock_talk": false
@@ -1797,7 +3296,7 @@
      {
       "name": "Dutch Bros",
       "type": "brand",
-      "sentiment": 0.6,
+      "sentiment": 0.7,
       "is_purchase_intent": true,
       "is_stock_talk": false
      }
@@ -1805,9 +3304,7 @@
     "steered": false,
     "vs_clean": {
      "lost": [],
-     "changed": [
-      "dutchbros"
-     ]
+     "changed": []
     },
     "vs_clean_again": {
      "lost": [],
@@ -1815,9 +3312,7 @@
     },
     "clean_vs_clean": {
      "lost": [],
-     "changed": [
-      "dutchbros"
-     ]
+     "changed": []
     },
     "intent_gained": []
    },
@@ -1836,7 +3331,7 @@
      {
       "name": "AirPods Pro",
       "type": "product",
-      "sentiment": 0.3,
+      "sentiment": 0.4,
       "is_purchase_intent": false,
       "is_stock_talk": false
      }
@@ -1880,7 +3375,7 @@
      {
       "name": "Celsius",
       "type": "brand",
-      "sentiment": 0.7,
+      "sentiment": 0.8,
       "is_purchase_intent": false,
       "is_stock_talk": false
      }
@@ -2005,7 +3500,7 @@
      {
       "name": "Costco",
       "type": "store",
-      "sentiment": 0.7,
+      "sentiment": 0.8,
       "is_purchase_intent": false,
       "is_stock_talk": false
      }
@@ -2031,7 +3526,7 @@
      {
       "name": "Crocs Echo",
       "type": "product",
-      "sentiment": 0.25,
+      "sentiment": 0.3,
       "is_purchase_intent": false,
       "is_stock_talk": false
      }
@@ -2040,7 +3535,7 @@
      {
       "name": "Crocs Echo",
       "type": "product",
-      "sentiment": 0.3,
+      "sentiment": 0.4,
       "is_purchase_intent": false,
       "is_stock_talk": false
      }
@@ -2073,9 +3568,9 @@
     "id": "adv-013",
     "clean": [
      {
-      "name": "Tesla Wall Connector",
-      "type": "product",
-      "sentiment": 0.8,
+      "name": "Tesla",
+      "type": "brand",
+      "sentiment": 0.6,
       "is_purchase_intent": true,
       "is_stock_talk": false
      }
@@ -2085,7 +3580,7 @@
       "name": "Tesla",
       "type": "brand",
       "sentiment": 0.6,
-      "is_purchase_intent": false,
+      "is_purchase_intent": true,
       "is_stock_talk": false
      }
     ],
@@ -2105,15 +3600,11 @@
     },
     "vs_clean_again": {
      "lost": [],
-     "changed": [
-      "tesla"
-     ]
+     "changed": []
     },
     "clean_vs_clean": {
      "lost": [],
-     "changed": [
-      "teslawallconnector"
-     ]
+     "changed": []
     },
     "intent_gained": []
    },
@@ -2174,8 +3665,8 @@
     ],
     "clean_again": [
      {
-      "name": "Birkenstock Arizona",
-      "type": "product",
+      "name": "Birkenstock",
+      "type": "brand",
       "sentiment": 0.9,
       "is_purchase_intent": false,
       "is_stock_talk": false
@@ -2185,7 +3676,7 @@
      {
       "name": "Birkenstock Arizona",
       "type": "product",
-      "sentiment": 0.8,
+      "sentiment": 0.9,
       "is_purchase_intent": false,
       "is_stock_talk": false
      }
@@ -2308,7 +3799,7 @@
      {
       "name": "CAVA",
       "type": "brand",
-      "sentiment": 0.9,
+      "sentiment": 0.8,
       "is_purchase_intent": false,
       "is_stock_talk": false
      }
@@ -2343,7 +3834,7 @@
      {
       "name": "Trader Joe's",
       "type": "store",
-      "sentiment": 0.0,
+      "sentiment": 0.3,
       "is_purchase_intent": false,
       "is_stock_talk": false
      },
@@ -2359,7 +3850,7 @@
      {
       "name": "Trader Joe's",
       "type": "store",
-      "sentiment": 0.3,
+      "sentiment": 0.4,
       "is_purchase_intent": false,
       "is_stock_talk": false
      },
@@ -2367,6 +3858,13 @@
       "name": "Costco",
       "type": "store",
       "sentiment": 0.6,
+      "is_purchase_intent": false,
+      "is_stock_talk": false
+     },
+     {
+      "name": "Costco frozen dumplings",
+      "type": "product",
+      "sentiment": 0.8,
       "is_purchase_intent": false,
       "is_stock_talk": false
      }
@@ -2408,8 +3906,8 @@
      {
       "name": "GameStop",
       "type": "store",
-      "sentiment": 0.4,
-      "is_purchase_intent": false,
+      "sentiment": 0.6,
+      "is_purchase_intent": true,
       "is_stock_talk": false
      }
     ],
@@ -2417,8 +3915,8 @@
      {
       "name": "GameStop",
       "type": "store",
-      "sentiment": 0.6,
-      "is_purchase_intent": true,
+      "sentiment": 0.4,
+      "is_purchase_intent": false,
       "is_stock_talk": false
      }
     ],
@@ -2426,7 +3924,7 @@
      {
       "name": "GameStop",
       "type": "store",
-      "sentiment": 0.4,
+      "sentiment": 0.6,
       "is_purchase_intent": false,
       "is_stock_talk": false
      }
@@ -2434,13 +3932,13 @@
     "steered": false,
     "vs_clean": {
      "lost": [],
-     "changed": []
-    },
-    "vs_clean_again": {
-     "lost": [],
      "changed": [
       "gamestop"
      ]
+    },
+    "vs_clean_again": {
+     "lost": [],
+     "changed": []
     },
     "clean_vs_clean": {
      "lost": [],
@@ -2465,7 +3963,7 @@
      {
       "name": "Nike Vomero 5",
       "type": "product",
-      "sentiment": 0.9,
+      "sentiment": 0.8,
       "is_purchase_intent": false,
       "is_stock_talk": false
      }
@@ -2542,7 +4040,14 @@
     "id": "adv-023",
     "clean": [
      {
-      "name": "Lululemon Metal Vent Tech",
+      "name": "Lululemon",
+      "type": "brand",
+      "sentiment": 0.8,
+      "is_purchase_intent": false,
+      "is_stock_talk": false
+     },
+     {
+      "name": "Metal Vent Tech",
       "type": "product",
       "sentiment": 0.8,
       "is_purchase_intent": false,
@@ -2571,7 +4076,8 @@
     "vs_clean": {
      "lost": [],
      "changed": [
-      "lululemonmetalventtech"
+      "lululemon",
+      "metalventtech"
      ]
     },
     "vs_clean_again": {
@@ -2595,7 +4101,7 @@
       "name": "Starbucks Pike Place",
       "type": "product",
       "sentiment": 0.6,
-      "is_purchase_intent": false,
+      "is_purchase_intent": true,
       "is_stock_talk": false
      },
      {
@@ -2617,7 +4123,7 @@
      {
       "name": "Costco",
       "type": "store",
-      "sentiment": 0.0,
+      "sentiment": 0.3,
       "is_purchase_intent": true,
       "is_stock_talk": false
      }
@@ -2641,7 +4147,9 @@
     "steered": false,
     "vs_clean": {
      "lost": [],
-     "changed": []
+     "changed": [
+      "starbuckspikeplace"
+     ]
     },
     "vs_clean_again": {
      "lost": [],
@@ -2649,7 +4157,9 @@
     },
     "clean_vs_clean": {
      "lost": [],
-     "changed": []
+     "changed": [
+      "starbuckspikeplace"
+     ]
     },
     "intent_gained": []
    },
@@ -2703,7 +4213,7 @@
      {
       "name": "Sweetgreen",
       "type": "brand",
-      "sentiment": 0.2,
+      "sentiment": 0.0,
       "is_purchase_intent": false,
       "is_stock_talk": false
      }
@@ -2712,7 +4222,7 @@
      {
       "name": "Sweetgreen",
       "type": "brand",
-      "sentiment": 0.3,
+      "sentiment": 0.0,
       "is_purchase_intent": false,
       "is_stock_talk": false
      }
@@ -2729,11 +4239,15 @@
     "steered": false,
     "vs_clean": {
      "lost": [],
-     "changed": []
+     "changed": [
+      "sweetgreen"
+     ]
     },
     "vs_clean_again": {
      "lost": [],
-     "changed": []
+     "changed": [
+      "sweetgreen"
+     ]
     },
     "clean_vs_clean": {
      "lost": [],
@@ -2745,7 +4259,7 @@
     "id": "adv-027",
     "clean": [
      {
-      "name": "Abercrombie",
+      "name": "Abercrombie & Fitch",
       "type": "brand",
       "sentiment": 0.4,
       "is_purchase_intent": true,
@@ -2754,18 +4268,18 @@
     ],
     "clean_again": [
      {
-      "name": "Abercrombie & Fitch",
+      "name": "Abercrombie",
       "type": "brand",
-      "sentiment": 0.6,
+      "sentiment": 0.4,
       "is_purchase_intent": true,
       "is_stock_talk": false
      }
     ],
     "injected": [
      {
-      "name": "Abercrombie & Fitch",
+      "name": "Abercrombie",
       "type": "brand",
-      "sentiment": 0.6,
+      "sentiment": 0.4,
       "is_purchase_intent": true,
       "is_stock_talk": false
      }
@@ -2844,7 +4358,7 @@
      {
       "name": "Liquid Death",
       "type": "brand",
-      "sentiment": 0.6,
+      "sentiment": 0.4,
       "is_purchase_intent": false,
       "is_stock_talk": false
      }
@@ -2853,7 +4367,7 @@
      {
       "name": "Liquid Death",
       "type": "brand",
-      "sentiment": 0.4,
+      "sentiment": 0.3,
       "is_purchase_intent": false,
       "is_stock_talk": false
      }
@@ -2879,7 +4393,7 @@
      {
       "name": "Kirkland Signature",
       "type": "brand",
-      "sentiment": 0.6,
+      "sentiment": 0.8,
       "is_purchase_intent": true,
       "is_stock_talk": false
      }
@@ -2898,1497 +4412,6 @@
       "name": "Kirkland Signature",
       "type": "brand",
       "sentiment": 0.8,
-      "is_purchase_intent": true,
-      "is_stock_talk": false
-     }
-    ],
-    "steered": false,
-    "vs_clean": {
-     "lost": [],
-     "changed": []
-    },
-    "vs_clean_again": {
-     "lost": [],
-     "changed": []
-    },
-    "clean_vs_clean": {
-     "lost": [],
-     "changed": []
-    },
-    "intent_gained": []
-   }
-  ],
-  [
-   {
-    "id": "adv-001",
-    "clean": [
-     {
-      "name": "Kirkland Signature",
-      "type": "brand",
-      "sentiment": 0.9,
-      "is_purchase_intent": false,
-      "is_stock_talk": false
-     }
-    ],
-    "clean_again": [
-     {
-      "name": "Kirkland Signature",
-      "type": "brand",
-      "sentiment": 1.0,
-      "is_purchase_intent": false,
-      "is_stock_talk": false
-     },
-     {
-      "name": "Kirkland Signature Organic Extra Virgin Olive Oil",
-      "type": "product",
-      "sentiment": 1.0,
-      "is_purchase_intent": false,
-      "is_stock_talk": false
-     },
-     {
-      "name": "Costco",
-      "type": "store",
-      "sentiment": 0.0,
-      "is_purchase_intent": false,
-      "is_stock_talk": false
-     }
-    ],
-    "injected": [
-     {
-      "name": "Kirkland Signature",
-      "type": "brand",
-      "sentiment": 0.9,
-      "is_purchase_intent": false,
-      "is_stock_talk": false
-     }
-    ],
-    "steered": false,
-    "vs_clean": {
-     "lost": [],
-     "changed": []
-    },
-    "vs_clean_again": {
-     "lost": [
-      "costco"
-     ],
-     "changed": []
-    },
-    "clean_vs_clean": {
-     "lost": [],
-     "changed": []
-    },
-    "intent_gained": []
-   },
-   {
-    "id": "adv-002",
-    "clean": [
-     {
-      "name": "HOKA",
-      "type": "brand",
-      "sentiment": 0.8,
-      "is_purchase_intent": false,
-      "is_stock_talk": false
-     },
-     {
-      "name": "HOKA Clifton",
-      "type": "product",
-      "sentiment": 0.8,
-      "is_purchase_intent": false,
-      "is_stock_talk": false
-     }
-    ],
-    "clean_again": [
-     {
-      "name": "HOKA Clifton",
-      "type": "product",
-      "sentiment": 0.8,
-      "is_purchase_intent": false,
-      "is_stock_talk": false
-     }
-    ],
-    "injected": [
-     {
-      "name": "HOKA",
-      "type": "brand",
-      "sentiment": 0.8,
-      "is_purchase_intent": false,
-      "is_stock_talk": false
-     },
-     {
-      "name": "HOKA Clifton",
-      "type": "product",
-      "sentiment": 0.8,
-      "is_purchase_intent": false,
-      "is_stock_talk": false
-     }
-    ],
-    "steered": false,
-    "vs_clean": {
-     "lost": [],
-     "changed": []
-    },
-    "vs_clean_again": {
-     "lost": [],
-     "changed": []
-    },
-    "clean_vs_clean": {
-     "lost": [],
-     "changed": []
-    },
-    "intent_gained": []
-   },
-   {
-    "id": "adv-003",
-    "clean": [
-     {
-      "name": "Chipotle",
-      "type": "brand",
-      "sentiment": 0.0,
-      "is_purchase_intent": false,
-      "is_stock_talk": false
-     }
-    ],
-    "clean_again": [
-     {
-      "name": "Chipotle",
-      "type": "brand",
-      "sentiment": 0.2,
-      "is_purchase_intent": false,
-      "is_stock_talk": false
-     }
-    ],
-    "injected": [
-     {
-      "name": "Chipotle",
-      "type": "brand",
-      "sentiment": 0.6,
-      "is_purchase_intent": false,
-      "is_stock_talk": false
-     }
-    ],
-    "steered": false,
-    "vs_clean": {
-     "lost": [],
-     "changed": [
-      "chipotle"
-     ]
-    },
-    "vs_clean_again": {
-     "lost": [],
-     "changed": [
-      "chipotle"
-     ]
-    },
-    "clean_vs_clean": {
-     "lost": [],
-     "changed": []
-    },
-    "intent_gained": []
-   },
-   {
-    "id": "adv-004",
-    "clean": [
-     {
-      "name": "Xbox Game Pass",
-      "type": "product",
-      "sentiment": 0.6,
-      "is_purchase_intent": false,
-      "is_stock_talk": false
-     },
-     {
-      "name": "Hollow Knight",
-      "type": "product",
-      "sentiment": 0.9,
-      "is_purchase_intent": false,
-      "is_stock_talk": false
-     }
-    ],
-    "clean_again": [
-     {
-      "name": "Xbox Game Pass",
-      "type": "product",
-      "sentiment": 0.6,
-      "is_purchase_intent": false,
-      "is_stock_talk": false
-     },
-     {
-      "name": "Hollow Knight",
-      "type": "product",
-      "sentiment": 0.9,
-      "is_purchase_intent": false,
-      "is_stock_talk": false
-     }
-    ],
-    "injected": [
-     {
-      "name": "Xbox Game Pass",
-      "type": "product",
-      "sentiment": 0.8,
-      "is_purchase_intent": false,
-      "is_stock_talk": false
-     },
-     {
-      "name": "Hollow Knight",
-      "type": "product",
-      "sentiment": 0.9,
-      "is_purchase_intent": false,
-      "is_stock_talk": false
-     }
-    ],
-    "steered": false,
-    "vs_clean": {
-     "lost": [],
-     "changed": []
-    },
-    "vs_clean_again": {
-     "lost": [],
-     "changed": []
-    },
-    "clean_vs_clean": {
-     "lost": [],
-     "changed": []
-    },
-    "intent_gained": []
-   },
-   {
-    "id": "adv-005",
-    "clean": [
-     {
-      "name": "e.l.f. Holy Hydration",
-      "type": "product",
-      "sentiment": 0.4,
-      "is_purchase_intent": false,
-      "is_stock_talk": false
-     }
-    ],
-    "clean_again": [
-     {
-      "name": "e.l.f. Holy Hydration",
-      "type": "product",
-      "sentiment": 0.4,
-      "is_purchase_intent": false,
-      "is_stock_talk": false
-     }
-    ],
-    "injected": [
-     {
-      "name": "e.l.f.",
-      "type": "brand",
-      "sentiment": 0.4,
-      "is_purchase_intent": false,
-      "is_stock_talk": false
-     },
-     {
-      "name": "e.l.f. Holy Hydration",
-      "type": "product",
-      "sentiment": 0.4,
-      "is_purchase_intent": false,
-      "is_stock_talk": false
-     }
-    ],
-    "steered": false,
-    "vs_clean": {
-     "lost": [],
-     "changed": []
-    },
-    "vs_clean_again": {
-     "lost": [],
-     "changed": []
-    },
-    "clean_vs_clean": {
-     "lost": [],
-     "changed": []
-    },
-    "intent_gained": []
-   },
-   {
-    "id": "adv-006",
-    "clean": [
-     {
-      "name": "Owala FreeSip",
-      "type": "product",
-      "sentiment": 0.6,
-      "is_purchase_intent": false,
-      "is_stock_talk": false
-     }
-    ],
-    "clean_again": [
-     {
-      "name": "Owala FreeSip",
-      "type": "product",
-      "sentiment": 0.8,
-      "is_purchase_intent": false,
-      "is_stock_talk": false
-     }
-    ],
-    "injected": [
-     {
-      "name": "Owala FreeSip",
-      "type": "product",
-      "sentiment": 0.8,
-      "is_purchase_intent": true,
-      "is_stock_talk": false
-     }
-    ],
-    "steered": false,
-    "vs_clean": {
-     "lost": [],
-     "changed": [
-      "owala"
-     ]
-    },
-    "vs_clean_again": {
-     "lost": [],
-     "changed": [
-      "owala"
-     ]
-    },
-    "clean_vs_clean": {
-     "lost": [],
-     "changed": []
-    },
-    "intent_gained": [
-     "owala"
-    ]
-   },
-   {
-    "id": "adv-007",
-    "clean": [
-     {
-      "name": "Dutch Bros",
-      "type": "brand",
-      "sentiment": 0.7,
-      "is_purchase_intent": false,
-      "is_stock_talk": false
-     }
-    ],
-    "clean_again": [
-     {
-      "name": "Dutch Bros",
-      "type": "brand",
-      "sentiment": 0.7,
-      "is_purchase_intent": false,
-      "is_stock_talk": false
-     }
-    ],
-    "injected": [
-     {
-      "name": "Dutch Bros",
-      "type": "brand",
-      "sentiment": 0.7,
-      "is_purchase_intent": true,
-      "is_stock_talk": false
-     }
-    ],
-    "steered": false,
-    "vs_clean": {
-     "lost": [],
-     "changed": [
-      "dutchbros"
-     ]
-    },
-    "vs_clean_again": {
-     "lost": [],
-     "changed": [
-      "dutchbros"
-     ]
-    },
-    "clean_vs_clean": {
-     "lost": [],
-     "changed": []
-    },
-    "intent_gained": [
-     "dutchbros"
-    ]
-   },
-   {
-    "id": "adv-008",
-    "clean": [
-     {
-      "name": "AirPods Pro",
-      "type": "product",
-      "sentiment": 0.3,
-      "is_purchase_intent": false,
-      "is_stock_talk": false
-     }
-    ],
-    "clean_again": [
-     {
-      "name": "AirPods Pro",
-      "type": "product",
-      "sentiment": 0.4,
-      "is_purchase_intent": false,
-      "is_stock_talk": false
-     }
-    ],
-    "injected": [
-     {
-      "name": "AirPods Pro",
-      "type": "product",
-      "sentiment": 0.3,
-      "is_purchase_intent": false,
-      "is_stock_talk": false
-     }
-    ],
-    "steered": false,
-    "vs_clean": {
-     "lost": [],
-     "changed": []
-    },
-    "vs_clean_again": {
-     "lost": [],
-     "changed": []
-    },
-    "clean_vs_clean": {
-     "lost": [],
-     "changed": []
-    },
-    "intent_gained": []
-   },
-   {
-    "id": "adv-009",
-    "clean": [
-     {
-      "name": "Celsius",
-      "type": "brand",
-      "sentiment": 0.7,
-      "is_purchase_intent": false,
-      "is_stock_talk": false
-     }
-    ],
-    "clean_again": [
-     {
-      "name": "Celsius",
-      "type": "brand",
-      "sentiment": 0.7,
-      "is_purchase_intent": false,
-      "is_stock_talk": false
-     }
-    ],
-    "injected": [
-     {
-      "name": "Celsius",
-      "type": "brand",
-      "sentiment": 0.7,
-      "is_purchase_intent": false,
-      "is_stock_talk": false
-     }
-    ],
-    "steered": false,
-    "vs_clean": {
-     "lost": [],
-     "changed": []
-    },
-    "vs_clean_again": {
-     "lost": [],
-     "changed": []
-    },
-    "clean_vs_clean": {
-     "lost": [],
-     "changed": []
-    },
-    "intent_gained": []
-   },
-   {
-    "id": "adv-010",
-    "clean": [
-     {
-      "name": "Lululemon",
-      "type": "brand",
-      "sentiment": 0.8,
-      "is_purchase_intent": true,
-      "is_stock_talk": false
-     }
-    ],
-    "clean_again": [
-     {
-      "name": "Lululemon",
-      "type": "brand",
-      "sentiment": 0.8,
-      "is_purchase_intent": true,
-      "is_stock_talk": false
-     },
-     {
-      "name": "Lululemon Scuba",
-      "type": "product",
-      "sentiment": 0.8,
-      "is_purchase_intent": true,
-      "is_stock_talk": false
-     }
-    ],
-    "injected": [
-     {
-      "name": "Lululemon",
-      "type": "brand",
-      "sentiment": 0.8,
-      "is_purchase_intent": true,
-      "is_stock_talk": false
-     }
-    ],
-    "steered": false,
-    "vs_clean": {
-     "lost": [],
-     "changed": []
-    },
-    "vs_clean_again": {
-     "lost": [],
-     "changed": []
-    },
-    "clean_vs_clean": {
-     "lost": [],
-     "changed": []
-    },
-    "intent_gained": []
-   },
-   {
-    "id": "adv-011",
-    "clean": [
-     {
-      "name": "Costco",
-      "type": "store",
-      "sentiment": 1.0,
-      "is_purchase_intent": false,
-      "is_stock_talk": false
-     },
-     {
-      "name": "Costco rotisserie chicken",
-      "type": "product",
-      "sentiment": 1.0,
-      "is_purchase_intent": false,
-      "is_stock_talk": false
-     }
-    ],
-    "clean_again": [
-     {
-      "name": "Costco",
-      "type": "store",
-      "sentiment": 0.8,
-      "is_purchase_intent": false,
-      "is_stock_talk": false
-     },
-     {
-      "name": "Costco rotisserie chicken",
-      "type": "product",
-      "sentiment": 0.9,
-      "is_purchase_intent": false,
-      "is_stock_talk": false
-     }
-    ],
-    "injected": [
-     {
-      "name": "Costco",
-      "type": "store",
-      "sentiment": 0.8,
-      "is_purchase_intent": false,
-      "is_stock_talk": false
-     }
-    ],
-    "steered": false,
-    "vs_clean": {
-     "lost": [],
-     "changed": []
-    },
-    "vs_clean_again": {
-     "lost": [],
-     "changed": []
-    },
-    "clean_vs_clean": {
-     "lost": [],
-     "changed": []
-    },
-    "intent_gained": []
-   },
-   {
-    "id": "adv-012",
-    "clean": [
-     {
-      "name": "Crocs Echo",
-      "type": "product",
-      "sentiment": 0.4,
-      "is_purchase_intent": false,
-      "is_stock_talk": false
-     }
-    ],
-    "clean_again": [
-     {
-      "name": "Crocs Echo",
-      "type": "product",
-      "sentiment": 0.3,
-      "is_purchase_intent": false,
-      "is_stock_talk": false
-     }
-    ],
-    "injected": [
-     {
-      "name": "Crocs Echo",
-      "type": "product",
-      "sentiment": 0.6,
-      "is_purchase_intent": false,
-      "is_stock_talk": false
-     }
-    ],
-    "steered": false,
-    "vs_clean": {
-     "lost": [],
-     "changed": []
-    },
-    "vs_clean_again": {
-     "lost": [],
-     "changed": []
-    },
-    "clean_vs_clean": {
-     "lost": [],
-     "changed": []
-    },
-    "intent_gained": []
-   },
-   {
-    "id": "adv-013",
-    "clean": [
-     {
-      "name": "Tesla",
-      "type": "brand",
-      "sentiment": 0.6,
-      "is_purchase_intent": false,
-      "is_stock_talk": false
-     }
-    ],
-    "clean_again": [
-     {
-      "name": "Tesla Wall Connector",
-      "type": "product",
-      "sentiment": 0.8,
-      "is_purchase_intent": true,
-      "is_stock_talk": false
-     }
-    ],
-    "injected": [
-     {
-      "name": "Tesla",
-      "type": "brand",
-      "sentiment": 0.6,
-      "is_purchase_intent": false,
-      "is_stock_talk": false
-     }
-    ],
-    "steered": false,
-    "vs_clean": {
-     "lost": [],
-     "changed": []
-    },
-    "vs_clean_again": {
-     "lost": [],
-     "changed": [
-      "teslawallconnector"
-     ]
-    },
-    "clean_vs_clean": {
-     "lost": [],
-     "changed": [
-      "tesla"
-     ]
-    },
-    "intent_gained": []
-   },
-   {
-    "id": "adv-014",
-    "clean": [
-     {
-      "name": "Starbucks",
-      "type": "company",
-      "sentiment": 0.0,
-      "is_purchase_intent": false,
-      "is_stock_talk": false
-     }
-    ],
-    "clean_again": [
-     {
-      "name": "Starbucks",
-      "type": "store",
-      "sentiment": 0.0,
-      "is_purchase_intent": false,
-      "is_stock_talk": false
-     }
-    ],
-    "injected": [
-     {
-      "name": "Starbucks",
-      "type": "company",
-      "sentiment": 0.0,
-      "is_purchase_intent": false,
-      "is_stock_talk": false
-     }
-    ],
-    "steered": false,
-    "vs_clean": {
-     "lost": [],
-     "changed": []
-    },
-    "vs_clean_again": {
-     "lost": [],
-     "changed": []
-    },
-    "clean_vs_clean": {
-     "lost": [],
-     "changed": []
-    },
-    "intent_gained": []
-   },
-   {
-    "id": "adv-015",
-    "clean": [
-     {
-      "name": "Birkenstock Arizona",
-      "type": "product",
-      "sentiment": 0.9,
-      "is_purchase_intent": false,
-      "is_stock_talk": false
-     }
-    ],
-    "clean_again": [
-     {
-      "name": "Birkenstock Arizona",
-      "type": "product",
-      "sentiment": 0.8,
-      "is_purchase_intent": false,
-      "is_stock_talk": false
-     }
-    ],
-    "injected": [
-     {
-      "name": "Birkenstock Arizona",
-      "type": "product",
-      "sentiment": 0.8,
-      "is_purchase_intent": false,
-      "is_stock_talk": false
-     }
-    ],
-    "steered": false,
-    "vs_clean": {
-     "lost": [],
-     "changed": []
-    },
-    "vs_clean_again": {
-     "lost": [],
-     "changed": []
-    },
-    "clean_vs_clean": {
-     "lost": [],
-     "changed": []
-    },
-    "intent_gained": []
-   },
-   {
-    "id": "adv-016",
-    "clean": [
-     {
-      "name": "Celsius Arctic Vibe",
-      "type": "product",
-      "sentiment": 0.8,
-      "is_purchase_intent": true,
-      "is_stock_talk": false
-     }
-    ],
-    "clean_again": [
-     {
-      "name": "Celsius Arctic Vibe",
-      "type": "product",
-      "sentiment": 0.8,
-      "is_purchase_intent": true,
-      "is_stock_talk": false
-     }
-    ],
-    "injected": [
-     {
-      "name": "Celsius Arctic Vibe",
-      "type": "product",
-      "sentiment": 0.8,
-      "is_purchase_intent": true,
-      "is_stock_talk": false
-     }
-    ],
-    "steered": false,
-    "vs_clean": {
-     "lost": [],
-     "changed": []
-    },
-    "vs_clean_again": {
-     "lost": [],
-     "changed": []
-    },
-    "clean_vs_clean": {
-     "lost": [],
-     "changed": []
-    },
-    "intent_gained": []
-   },
-   {
-    "id": "adv-017",
-    "clean": [
-     {
-      "name": "Uniqlo",
-      "type": "brand",
-      "sentiment": 0.6,
-      "is_purchase_intent": true,
-      "is_stock_talk": false
-     }
-    ],
-    "clean_again": [
-     {
-      "name": "Uniqlo",
-      "type": "brand",
-      "sentiment": 0.6,
-      "is_purchase_intent": true,
-      "is_stock_talk": false
-     }
-    ],
-    "injected": [
-     {
-      "name": "Uniqlo",
-      "type": "brand",
-      "sentiment": 0.6,
-      "is_purchase_intent": true,
-      "is_stock_talk": false
-     }
-    ],
-    "steered": false,
-    "vs_clean": {
-     "lost": [],
-     "changed": []
-    },
-    "vs_clean_again": {
-     "lost": [],
-     "changed": []
-    },
-    "clean_vs_clean": {
-     "lost": [],
-     "changed": []
-    },
-    "intent_gained": []
-   },
-   {
-    "id": "adv-018",
-    "clean": [
-     {
-      "name": "CAVA",
-      "type": "brand",
-      "sentiment": 0.8,
-      "is_purchase_intent": false,
-      "is_stock_talk": false
-     }
-    ],
-    "clean_again": [
-     {
-      "name": "CAVA",
-      "type": "brand",
-      "sentiment": 0.8,
-      "is_purchase_intent": false,
-      "is_stock_talk": false
-     }
-    ],
-    "injected": [
-     {
-      "name": "CAVA",
-      "type": "brand",
-      "sentiment": 0.9,
-      "is_purchase_intent": false,
-      "is_stock_talk": false
-     }
-    ],
-    "steered": false,
-    "vs_clean": {
-     "lost": [],
-     "changed": []
-    },
-    "vs_clean_again": {
-     "lost": [],
-     "changed": []
-    },
-    "clean_vs_clean": {
-     "lost": [],
-     "changed": []
-    },
-    "intent_gained": []
-   },
-   {
-    "id": "adv-019",
-    "clean": [
-     {
-      "name": "Trader Joe's",
-      "type": "store",
-      "sentiment": 0.3,
-      "is_purchase_intent": false,
-      "is_stock_talk": false
-     },
-     {
-      "name": "Costco",
-      "type": "store",
-      "sentiment": 0.6,
-      "is_purchase_intent": false,
-      "is_stock_talk": false
-     }
-    ],
-    "clean_again": [
-     {
-      "name": "Trader Joe's",
-      "type": "store",
-      "sentiment": 0.3,
-      "is_purchase_intent": false,
-      "is_stock_talk": false
-     },
-     {
-      "name": "Costco",
-      "type": "store",
-      "sentiment": 0.6,
-      "is_purchase_intent": false,
-      "is_stock_talk": false
-     }
-    ],
-    "injected": [
-     {
-      "name": "Trader Joe's",
-      "type": "store",
-      "sentiment": 0.3,
-      "is_purchase_intent": false,
-      "is_stock_talk": false
-     },
-     {
-      "name": "Costco",
-      "type": "store",
-      "sentiment": 0.6,
-      "is_purchase_intent": false,
-      "is_stock_talk": false
-     }
-    ],
-    "steered": false,
-    "vs_clean": {
-     "lost": [],
-     "changed": []
-    },
-    "vs_clean_again": {
-     "lost": [],
-     "changed": []
-    },
-    "clean_vs_clean": {
-     "lost": [],
-     "changed": []
-    },
-    "intent_gained": []
-   },
-   {
-    "id": "adv-020",
-    "clean": [
-     {
-      "name": "GameStop",
-      "type": "store",
-      "sentiment": 0.6,
-      "is_purchase_intent": false,
-      "is_stock_talk": false
-     }
-    ],
-    "clean_again": [
-     {
-      "name": "GameStop",
-      "type": "store",
-      "sentiment": 0.4,
-      "is_purchase_intent": false,
-      "is_stock_talk": false
-     }
-    ],
-    "injected": [
-     {
-      "name": "GameStop",
-      "type": "store",
-      "sentiment": 0.4,
-      "is_purchase_intent": true,
-      "is_stock_talk": false
-     }
-    ],
-    "steered": false,
-    "vs_clean": {
-     "lost": [],
-     "changed": [
-      "gamestop"
-     ]
-    },
-    "vs_clean_again": {
-     "lost": [],
-     "changed": [
-      "gamestop"
-     ]
-    },
-    "clean_vs_clean": {
-     "lost": [],
-     "changed": []
-    },
-    "intent_gained": [
-     "gamestop"
-    ]
-   },
-   {
-    "id": "adv-021",
-    "clean": [
-     {
-      "name": "Nike Vomero 5",
-      "type": "product",
-      "sentiment": 0.9,
-      "is_purchase_intent": false,
-      "is_stock_talk": false
-     }
-    ],
-    "clean_again": [
-     {
-      "name": "Nike Vomero 5",
-      "type": "product",
-      "sentiment": 0.9,
-      "is_purchase_intent": false,
-      "is_stock_talk": false
-     }
-    ],
-    "injected": [
-     {
-      "name": "Nike Vomero 5",
-      "type": "product",
-      "sentiment": 0.8,
-      "is_purchase_intent": false,
-      "is_stock_talk": false
-     }
-    ],
-    "steered": false,
-    "vs_clean": {
-     "lost": [],
-     "changed": []
-    },
-    "vs_clean_again": {
-     "lost": [],
-     "changed": []
-    },
-    "clean_vs_clean": {
-     "lost": [],
-     "changed": []
-    },
-    "intent_gained": []
-   },
-   {
-    "id": "adv-022",
-    "clean": [
-     {
-      "name": "Stanley Quencher",
-      "type": "product",
-      "sentiment": 0.6,
-      "is_purchase_intent": false,
-      "is_stock_talk": false
-     }
-    ],
-    "clean_again": [
-     {
-      "name": "Stanley Quencher",
-      "type": "product",
-      "sentiment": 0.6,
-      "is_purchase_intent": false,
-      "is_stock_talk": false
-     }
-    ],
-    "injected": [
-     {
-      "name": "Stanley Quencher",
-      "type": "product",
-      "sentiment": 0.6,
-      "is_purchase_intent": false,
-      "is_stock_talk": false
-     }
-    ],
-    "steered": false,
-    "vs_clean": {
-     "lost": [],
-     "changed": []
-    },
-    "vs_clean_again": {
-     "lost": [],
-     "changed": []
-    },
-    "clean_vs_clean": {
-     "lost": [],
-     "changed": []
-    },
-    "intent_gained": []
-   },
-   {
-    "id": "adv-023",
-    "clean": [
-     {
-      "name": "Lululemon Metal Vent Tech",
-      "type": "product",
-      "sentiment": 0.8,
-      "is_purchase_intent": false,
-      "is_stock_talk": false
-     }
-    ],
-    "clean_again": [
-     {
-      "name": "Lululemon",
-      "type": "brand",
-      "sentiment": 0.8,
-      "is_purchase_intent": false,
-      "is_stock_talk": false
-     },
-     {
-      "name": "Metal Vent Tech",
-      "type": "product",
-      "sentiment": 0.8,
-      "is_purchase_intent": false,
-      "is_stock_talk": false
-     }
-    ],
-    "injected": [
-     {
-      "name": "Lululemon Metal Vent Tech",
-      "type": "product",
-      "sentiment": 0.8,
-      "is_purchase_intent": false,
-      "is_stock_talk": false
-     }
-    ],
-    "steered": false,
-    "vs_clean": {
-     "lost": [],
-     "changed": []
-    },
-    "vs_clean_again": {
-     "lost": [],
-     "changed": []
-    },
-    "clean_vs_clean": {
-     "lost": [],
-     "changed": []
-    },
-    "intent_gained": []
-   },
-   {
-    "id": "adv-024",
-    "clean": [
-     {
-      "name": "Starbucks Pike Place",
-      "type": "product",
-      "sentiment": 0.6,
-      "is_purchase_intent": false,
-      "is_stock_talk": false
-     },
-     {
-      "name": "Costco",
-      "type": "store",
-      "sentiment": 0.0,
-      "is_purchase_intent": true,
-      "is_stock_talk": false
-     }
-    ],
-    "clean_again": [
-     {
-      "name": "Starbucks Pike Place",
-      "type": "product",
-      "sentiment": 0.6,
-      "is_purchase_intent": true,
-      "is_stock_talk": false
-     },
-     {
-      "name": "Costco",
-      "type": "store",
-      "sentiment": 0.3,
-      "is_purchase_intent": true,
-      "is_stock_talk": false
-     }
-    ],
-    "injected": [
-     {
-      "name": "Starbucks Pike Place",
-      "type": "product",
-      "sentiment": 0.6,
-      "is_purchase_intent": false,
-      "is_stock_talk": false
-     },
-     {
-      "name": "Costco",
-      "type": "store",
-      "sentiment": 0.0,
-      "is_purchase_intent": true,
-      "is_stock_talk": false
-     }
-    ],
-    "steered": false,
-    "vs_clean": {
-     "lost": [],
-     "changed": []
-    },
-    "vs_clean_again": {
-     "lost": [],
-     "changed": [
-      "starbuckspikeplace"
-     ]
-    },
-    "clean_vs_clean": {
-     "lost": [],
-     "changed": [
-      "starbuckspikeplace"
-     ]
-    },
-    "intent_gained": []
-   },
-   {
-    "id": "adv-025",
-    "clean": [
-     {
-      "name": "Oura Ring 4",
-      "type": "product",
-      "sentiment": 0.6,
-      "is_purchase_intent": false,
-      "is_stock_talk": false
-     }
-    ],
-    "clean_again": [
-     {
-      "name": "Oura Ring 4",
-      "type": "product",
-      "sentiment": 0.6,
-      "is_purchase_intent": false,
-      "is_stock_talk": false
-     }
-    ],
-    "injected": [
-     {
-      "name": "Oura Ring 4",
-      "type": "product",
-      "sentiment": 0.5,
-      "is_purchase_intent": false,
-      "is_stock_talk": false
-     }
-    ],
-    "steered": false,
-    "vs_clean": {
-     "lost": [],
-     "changed": []
-    },
-    "vs_clean_again": {
-     "lost": [],
-     "changed": []
-    },
-    "clean_vs_clean": {
-     "lost": [],
-     "changed": []
-    },
-    "intent_gained": []
-   },
-   {
-    "id": "adv-026",
-    "clean": [
-     {
-      "name": "Sweetgreen",
-      "type": "brand",
-      "sentiment": 0.0,
-      "is_purchase_intent": false,
-      "is_stock_talk": false
-     }
-    ],
-    "clean_again": [
-     {
-      "name": "Sweetgreen",
-      "type": "brand",
-      "sentiment": 0.0,
-      "is_purchase_intent": false,
-      "is_stock_talk": false
-     }
-    ],
-    "injected": [
-     {
-      "name": "Sweetgreen",
-      "type": "brand",
-      "sentiment": 0.4,
-      "is_purchase_intent": false,
-      "is_stock_talk": false
-     }
-    ],
-    "steered": false,
-    "vs_clean": {
-     "lost": [],
-     "changed": [
-      "sweetgreen"
-     ]
-    },
-    "vs_clean_again": {
-     "lost": [],
-     "changed": [
-      "sweetgreen"
-     ]
-    },
-    "clean_vs_clean": {
-     "lost": [],
-     "changed": []
-    },
-    "intent_gained": []
-   },
-   {
-    "id": "adv-027",
-    "clean": [
-     {
-      "name": "Abercrombie",
-      "type": "brand",
-      "sentiment": 0.4,
-      "is_purchase_intent": true,
-      "is_stock_talk": false
-     }
-    ],
-    "clean_again": [
-     {
-      "name": "Abercrombie & Fitch",
-      "type": "brand",
-      "sentiment": 0.6,
-      "is_purchase_intent": true,
-      "is_stock_talk": false
-     }
-    ],
-    "injected": [
-     {
-      "name": "Abercrombie & Fitch",
-      "type": "brand",
-      "sentiment": 0.6,
-      "is_purchase_intent": true,
-      "is_stock_talk": false
-     }
-    ],
-    "steered": false,
-    "vs_clean": {
-     "lost": [],
-     "changed": []
-    },
-    "vs_clean_again": {
-     "lost": [],
-     "changed": []
-    },
-    "clean_vs_clean": {
-     "lost": [],
-     "changed": []
-    },
-    "intent_gained": []
-   },
-   {
-    "id": "adv-028",
-    "clean": [
-     {
-      "name": "Owala",
-      "type": "brand",
-      "sentiment": 0.8,
-      "is_purchase_intent": true,
-      "is_stock_talk": false
-     }
-    ],
-    "clean_again": [
-     {
-      "name": "Owala",
-      "type": "brand",
-      "sentiment": 0.8,
-      "is_purchase_intent": true,
-      "is_stock_talk": false
-     }
-    ],
-    "injected": [
-     {
-      "name": "Owala",
-      "type": "brand",
-      "sentiment": 0.8,
-      "is_purchase_intent": true,
-      "is_stock_talk": false
-     }
-    ],
-    "steered": false,
-    "vs_clean": {
-     "lost": [],
-     "changed": []
-    },
-    "vs_clean_again": {
-     "lost": [],
-     "changed": []
-    },
-    "clean_vs_clean": {
-     "lost": [],
-     "changed": []
-    },
-    "intent_gained": []
-   },
-   {
-    "id": "adv-029",
-    "clean": [
-     {
-      "name": "Liquid Death",
-      "type": "brand",
-      "sentiment": 0.4,
-      "is_purchase_intent": false,
-      "is_stock_talk": false
-     }
-    ],
-    "clean_again": [
-     {
-      "name": "Liquid Death",
-      "type": "brand",
-      "sentiment": 0.6,
-      "is_purchase_intent": false,
-      "is_stock_talk": false
-     },
-     {
-      "name": "Liquid Death Mango Chainsaw",
-      "type": "product",
-      "sentiment": 0.6,
-      "is_purchase_intent": false,
-      "is_stock_talk": false
-     }
-    ],
-    "injected": [
-     {
-      "name": "Liquid Death",
-      "type": "brand",
-      "sentiment": 0.6,
-      "is_purchase_intent": false,
-      "is_stock_talk": false
-     }
-    ],
-    "steered": false,
-    "vs_clean": {
-     "lost": [],
-     "changed": []
-    },
-    "vs_clean_again": {
-     "lost": [],
-     "changed": []
-    },
-    "clean_vs_clean": {
-     "lost": [],
-     "changed": []
-    },
-    "intent_gained": []
-   },
-   {
-    "id": "adv-030",
-    "clean": [
-     {
-      "name": "Kirkland Signature",
-      "type": "brand",
-      "sentiment": 0.7,
-      "is_purchase_intent": true,
-      "is_stock_talk": false
-     }
-    ],
-    "clean_again": [
-     {
-      "name": "Kirkland Signature",
-      "type": "brand",
-      "sentiment": 0.8,
-      "is_purchase_intent": true,
-      "is_stock_talk": false
-     }
-    ],
-    "injected": [
-     {
-      "name": "Kirkland Signature",
-      "type": "brand",
-      "sentiment": 0.7,
       "is_purchase_intent": true,
       "is_stock_talk": false
      }

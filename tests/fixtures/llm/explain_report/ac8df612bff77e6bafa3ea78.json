@@ -1,0 +1,50 @@
+{
+ "task": "explain_report",
+ "model": "deepseek/deepseek-v4.1-flash",
+ "output": {
+  "paragraphs": [
+   {
+    "mode": "education",
+    "text": "A cash-secured put is a short put position in which the writer sets aside enough cash to buy the shares at the strike price if the put is assigned [S1]. In a margin account the broker holds only a margin requirement, a fraction of the purchase price computed under exchange and FINRA minimum rules, and the writer keeps the rest of their buying power free for other positions [S4]. Assignment is the process by which an option writer is selected to fulfil the obligation of a contract that a holder has exercised [S2].",
+    "citations": [
+     "S1",
+     "S4"
+    ]
+   },
+   {
+    "mode": "screen_result",
+    "text": "The sizer allocated buying power of {{profile.buying_power|money}} with a cash reserve of {{portfolio.cash_reserve|money}}, splitting the strategy budget into {{allocation.csp_pct|pct}} for cash-secured puts and {{allocation.leaps_pct|pct}} for LEAPS, with the remaining {{allocation.cash_pct|pct}} in cash. The regime was labelled {{regime.label}}, with a VIX of {{regime.vix}} and a risk-free rate assumed at {{regime.risk_free_rate_pct|pct}}. The good-to-own quality gate screened in {{quality_screen.passed_count}} underlyings \u2014 {{quality_screen.passed_tickers|list}} \u2014 and excluded {{quality_screen.excluded_count}}. The reasons the gate recorded for the survivors are: {{quality_screen.passed[0].why}} ({{quality_screen.passed[0].ticker}}); {{quality_screen.passed[1].why}} ({{quality_screen.passed[1].ticker}}); {{quality_screen.passed[2].why}} ({{quality_screen.passed[2].ticker}}); {{quality_screen.passed[3].why}} ({{quality_screen.passed[3].ticker}}); {{quality_screen.passed[4].why}} ({{quality_screen.passed[4].ticker}}); {{quality_screen.passed[5].why}} ({{quality_screen.passed[5].ticker}}); and {{quality_screen.passed[6].why}} ({{quality_screen.passed[6].ticker}}). The trend board is a secondary signal only, and the tickers it flagged were skipped because they are not on the good-to-own list: {{errors|list}}. The bottleneck board is also secondary and re-orders rather than adds: the layer with the highest score is {{bottlenecks.layers[0].name}} at {{bottlenecks.layers[0].score}}, with thesis state {{bottlenecks.layers[0].thesis_state}}; the layer with the lowest score is {{bottlenecks.layers[7].name}} at {{bottlenecks.layers[7].score}}, with thesis state {{bottlenecks.layers[7].thesis_state}}. No position was sized: {{counts.positions_sized}} of the {{counts.underlyings_screened}} screened underlyings were sized, and {{counts.skipped_total}} candidates were skipped. The sizer's warning states: {{risk.warnings[0]}}. The risk-check picture shows {{risk.checks_passed}} of {{risk.checks_total}} checks passing, with a stress loss of {{risk.stress[2].pnl|money}} on a {{risk.stress[2].shock}} move with a {{risk.stress[2].iv_shock}} IV shock.",
+    "citations": []
+   },
+   {
+    "mode": "education",
+    "text": "The good-to-own quality gate is a filter, not a discovery engine: it decides which tickers are allowed into the option screeners at all, records a reason for every rejection, and produces a score for the survivors [S5]. The product promise is stocks you would be happy to own if assigned [S5].",
+    "citations": [
+     "S5"
+    ]
+   },
+   {
+    "mode": "education",
+    "text": "In a margin account the broker holds only a margin requirement, a fraction of the purchase price computed under exchange and FINRA minimum rules, and the writer keeps the rest of their buying power free for other positions [S4].",
+    "citations": [
+     "S4"
+    ]
+   },
+   {
+    "mode": "notice",
+    "text": "{{ delayed_data_notice }}",
+    "citations": []
+   },
+   {
+    "mode": "notice",
+    "text": "**Warnings and limitations.** {{risk.warnings[0]}}",
+    "citations": []
+   },
+   {
+    "mode": "notice",
+    "text": "{{ disclaimer }}",
+    "citations": []
+   }
+  ]
+ }
+}

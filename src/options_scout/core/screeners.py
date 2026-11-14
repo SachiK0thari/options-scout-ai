@@ -228,8 +228,9 @@ def screen_csp(
 
     ``excluded`` collects the puts that passed every other test but were dropped by an earnings
     rule (date before expiry, or date unknown), so the report can list them (W26)."""
-    if snap.spot.price < rules.min_underlying_price or snap.spot.avg_volume < rules.min_avg_volume:
-        return []
+    vol = snap.spot.avg_volume
+    if snap.spot.price < rules.min_underlying_price or vol is None or vol < rules.min_avg_volume:
+        return []  # W28: an unknown volume fails closed, as the quality gate does
     out = _csp_pass(
         snap,
         rules,

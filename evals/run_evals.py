@@ -1975,10 +1975,12 @@ def write_report(res: Results, cfg: Any, llm_label: str) -> Path:
         "",
         "## Signal study",
         "See `notebooks/signal_study.ipynb` (`evals/signal_study.py`). The corpus is synthetic fixture "
-        "data with no stored point-in-time history, so no predictive claim is made. The notebook "
-        "documents the method (point-in-time scores, forward 30/60/90-day returns against SPY, a "
-        "tercile spread with a bootstrap interval) and reports it on the few observations available; "
-        "on a sample that small the interval says nothing about the live signal.",
+        "data with no stored point-in-time history, so no predictive claim is made and the signal "
+        "has not been tested. The notebook documents the method (point-in-time scores, one "
+        "observation per ticker per date, non-overlapping forward 30/60/90-day windows against SPY, "
+        "top against bottom tercile, a t-interval only at 30 or more independent observations). On "
+        "the synthetic corpus it labels every table as illustrating the method and suppresses the "
+        "excess-return figures.",
         "",
     ]
     path = REPORTS / "latest.md"

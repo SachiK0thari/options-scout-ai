@@ -908,6 +908,48 @@ close as two minutes old. The brief asks for data freshness indicators.
 
 Suggested commit: `feat(data): quote timestamps from the provider; stale and mismatched quotes are flagged`
 
+**Status, 2026-11-13:** done in the working tree, steps 1 to 6. One change from the steps as
+written: since W27, MarketData.app's `as_of` on a chain (and on the historical-feed spot) is
+already the provider's timestamp, and `jobs/snapshot_iv.py` and `data/recording.py` read it as
+the session date, so `as_of` was left as it is and the provider time is a new field.
+- **Model:** `quoted_at: datetime | None` on `SpotQuote`, `OptionChain` and `TickerSnapshot`
+  (the snapshot's is the stalest of the spot and chains, set at build time, so it survives the
+  chains being dropped after the report, W19), and `TickerSnapshot.source_notes` for facts that
+  are not failures. None means the provider gave no time (fixtures, older cache entries).
+- **Sources:** MarketData.app: the quote's `updated` (unix seconds); a chain's oldest row
+  `updated`; the historical-feed spot the session stamp. Tradier: the quote's `trade_date`
+  (epoch ms); a chain row is as old as the newer of its `bid_date` and `ask_date` (the mid uses
+  both), the chain as old as its oldest row (chains were not in the steps; without them the
+  step 6 guard could never fire on Tradier).
+- **Config:** `market_data.max_quote_age_minutes: 30` (`MarketDataSettings`, 1 to 10,080),
+  passed to `MarketData`.
+- **Two kinds of feed (user, 2026-11-13).** Judging the previous-session feed by minutes would
+  flag every live run, so the warning would mean nothing on the day the data really is stale.
+  `MarketData.end_of_day` is true for MarketData.app `chain_feed: historical`; `freshness.assess`
+  then labels the data and flags it only when the quoted session is older than the last NYSE
+  session before New York's today. `data/sessions.py` holds the regular NYSE holidays by rule
+  (observance, Good Friday from Easter, Juneteenth from 2022), no dependency; an unscheduled
+  closure is not known, and the note names it as a possible cause. `jobs.snapshot_iv.
+  expected_session` uses the same calendar, so the day after a holiday no longer asks for it.
+  Intraday feeds (Tradier, `chain_feed: live`) keep the minutes limit.
+- **UI:** `data_age` prints "end-of-day data: Fri 2026-11-06 close, fetched 2 min ago" (end of
+  day) or "quotes from Fri 2026-11-06 16:00 ET, fetched 2 min ago" (intraday), with "· older
+  than the last session (Mon 2026-11-09)" or "· market closed or stale" when stale;
+  `MarketStrip` gains `quoted_at`, `stale` and `warning`, shown with `st.warning`. With no
+  provider time the old line stays.
+- **Report:** the report node adds one data note per run under "Notes and degraded sources",
+  not one per ticker: on the end-of-day feed always ("end-of-day prices from the ... close (the
+  previous session); moves since that close are not reflected", or the stale wording when a
+  session is missing); on an intraday feed only past the limit.
+- **Guard:** `build_snapshot` adds a source note when the spot and any chain were quoted more
+  than the limit apart; the market-data node shows it with the errors but the status stays
+  "ok". Helpers in `data/freshness.py`.
+- **Tests:** `tests/unit/test_quote_freshness.py` (both providers, the historical feed,
+  fixtures, the 2026 and 2027 NYSE calendars, the last session across weekends and holidays,
+  intraday and end-of-day judgements, the mismatch note, the node, the strip on both feeds, and
+  a full screen per case: intraday fresh and stale, end of day as expected and with a session
+  missing); the MarketData.app and Tradier mocks gain timestamps.
+
 ---
 
 ### W11. Close the evidence gaps
@@ -2561,6 +2603,65 @@ Extends W10. Each item was reproduced with a mocked provider.
 
 Suggested commit: `fix(data): snapshot fetched and cached as a unit; Eastern market date; honest fallbacks`
 
+**Status, 2026-11-13:** done in the working tree, items 1 to 12. Tests in
+`tests/unit/test_snapshot_consistency.py` (35, at least one per item); the MarketData.app and
+Tradier mocks updated.
+1. `MarketData._quotes` fetches the spot and the chains together and caches them under one key
+   per ticker and market day (`quotes:{ticker}:{day}:{expiries}`), TTL the shorter of `spot` and
+   `option_chain`. A unit with a failed chain is not cached. `get_spot` and `get_option_chain`
+   stay for other callers (the strip, the budget probe).
+2. `spot_price`: the mid when the quote is two-sided and newer than the last trade. Tradier
+   compares `bid_date`/`ask_date` with `trade_date` and dates the spot by the one it used.
+   MarketData.app quotes carry no trade time, so a two-sided quote is taken as the newer one.
+3. `sessions.market_today()` (New York) in `MarketData.today()`, the candle `to=`, both
+   providers' earnings and history windows and the Tradier dividend cutoff; `_as_date` reads
+   unix stamps in New York. The source tests' `TODAY` is the market date now; they failed on
+   the evening this was written, which is the bug.
+4. The screener node and `cli.screen` count days to expiry from `snapshot_quote_day` (the
+   session of the stalest provider stamp, else the run's date). All bids zero gives "market
+   closed, no quotes" in place of "no candidates met the criteria".
+5. `avg_volume` is `float | None`; a failed candle call (or a Tradier quote with no field) is
+   None, a source error, and the gate reason "average volume unavailable"; the CSP screen fails
+   closed on it too.
+6. Tradier's `_fetch` uses the MarketData.app policy (transport errors and 5xx); a 401 is one
+   request (test counts it) and an `AuthenticationError`.
+7. MarketData.app: `reportDate` only. Its docs (checked 2026-11-13) say `date` is the fiscal
+   period end; a body without `reportDate` raises, so the date is unknown, not "none".
+   Tradier: `is_earnings_event` matches an explicit phrase list on the event text; meetings,
+   dividends and splits never count unless the text names earnings. **Open:** Tradier's numeric
+   `event_type` codes are not documented publicly (the one sample shows `8` with no legend), so
+   the text is matched. Follow-up 2026-11-13: no Tradier key is configured, so no real response
+   was read. Public code that reads this endpoint (mnsrulz/mytradingview) filters on the text
+   "Quarter Earnings Result" with `event_status == "Confirmed"`, and has commented-out filters
+   on codes 14 and 9, so the codes are uncertain there too. That wording is now a test case and
+   matches. Confirm against a real response when a Tradier key exists; note the endpoint is beta
+   and may need a brokerage account rather than a sandbox key.
+8. `market_data.min_vix_history: 200`. Below it the regime node marks `vix_known=False`: label
+   normal, no tilt, the report says "VIX unavailable ... regime unknown, no allocation tilt",
+   the strip shows n/a, and the explainer payload drops the placeholder figures (the rule
+   template has a sentence for it).
+9. `market_data.atm_max_distance: 0.05`: a side whose nearest strike is further from spot
+   contributes nothing; None when neither side is near.
+10. `MarketData.risk_free_assumed`; the regime line reads "risk-free rate assumed 4.00% (no
+    T-bill quote)", the strip says "assumed", and the run gets a data note.
+    Follow-up 2026-11-13: the rate now comes from the provider's ^IRX, else FRED's DTB3 (the
+    3-month bill, `market_data.rate_fallback: fred`, the same key and in-memory reader as VIX,
+    nothing cached on disk), else the constant labelled "assumed". The report cites DTB3 with
+    the FRED notice under the regime line. `risk_free_min_percent: 0.2` is now a cross-check,
+    not a hard floor: a provider quote below it is suspect, so FRED is asked, and FRED's value
+    (always in percent) is used even when it is near zero, so a 2021 rate of 0.05% is kept.
+    Only with no FRED is a suspect quote rejected. Checked live once (free): DTB3 4.14% on
+    2026-11-12, VIX 283 closes. Six tests in `test_snapshot_consistency.py`.
+11. `dividends_from_adjustment` recovers each cash dividend from the step in `adj / raw` at its
+    ex-date (`D = P_before * (1 - f_before / f_after)`), summed over 365 calendar days and
+    divided by the latest close; steps under 3e-4 are cent rounding. Series whose dates differ
+    raise (unknown). Tests: a 2% payer that doubles reads 2%; rounding is not a dividend.
+12. Already half done by W4: fixture mode has no IV store and the job refuses fixture mode, so
+    the `mode` column would guard nothing and was not added. The job dates a row by
+    `quoted_session` (provider stamp in New York, weekend or holiday mapped to the session
+    before), and `count`/`history` skip rows that are not NYSE sessions, so old weekend copies
+    no longer count toward the 30.
+
 ---
 
 ### W29. A weak signal promotes a ticker into the run and then lowers its rank
@@ -2641,6 +2742,20 @@ line named the put without its loss (`knowledge_retrieval.py:run_facts_chunk`; t
 day: the fixture betas for AAPL (−0.01) and COST (−0.39) (W25 step 1, see there), and the margin
 warning, the `assignment_cash_x` detail and the report row naming "LEAPS debits" for a
 puts-only book (now only when `leaps_cost > 0`; test in `test_mutation_risk.py`).
+
+**Status, 2026-11-13: step 5 done in the working tree,** so W29 is complete. Rotation, not a
+bigger cap: raising `max_tickers` to 32 multiplies the live credit spend per run, and rotation
+costs nothing. `build_universe(run_date=...)` keeps the watchlist and promoted names in front
+and rotates the rest by trading day (`trading_day_index`: weekdays since 0001-01-01; Saturday
+and Sunday reuse Friday's index, so a weekend run screens Friday's set; holidays are not
+skipped). Each trading day takes the next block of free slots, so with the 32 curated names
+and a cap of 12 every name is screened within three trading days. Rotation applies only when
+the cap would cut names, after the fixture-availability filter, so fixture mode (10 tickers)
+keeps list order and the golden report does not move. A note names the day's rotated names.
+The node passes New York's date (`freshness.session_of`), not UTC's. Tests: 5 new in
+`test_universe.py` (three-day coverage, front kept, weekend equals Friday, no rotation when
+everything fits, the real list covered within three days); `run_date=None` keeps the earlier
+tests on plain list order.
 
 Suggested commit: `fix(universe): signals promote only above a threshold; a low score no longer penalises`
 
@@ -3135,6 +3250,38 @@ apart, and the scores come from a synthetic corpus.
    marked synthetic.
 
 Suggested commit: `fix(signal-study): one observation per ticker, no interval on synthetic or small samples`
+
+**Status, 2026-11-13:** done in the working tree, steps 1 to 7.
+- **Step 1:** `collapse_by_ticker` keeps one row per (date, ticker) with the highest score, as
+  `trend_scout.py` does, and lists every entity merged into it (COST now reads "Costco,
+  Kirkland Signature"). 63 investable signals become 60 rows, 24 with a price fixture.
+- **Step 2:** non-overlapping windows, not an effective-n statement. For each horizon,
+  `independent_dates` keeps the earliest date, then each date at least one horizon later. With
+  weekly dates and a 30-day horizon only 2026-09-15 survives, so the 30-day sample is 8, and
+  each horizon line states its count and dates. Tickers on one date still share the market's
+  move; a caveat says the excess over SPY removes only part of it.
+- **Steps 3 and 4:** `mean_interval` is a 95% t-interval (`scipy.stats.t`) and returns no
+  interval below `MIN_INDEPENDENT_OBS = 30`; the banner uses the same figure, sits above the
+  first table and says it covers every table. The threshold is a module constant in the eval
+  script, not app config. The bottleneck section's banner threshold moved from 10 to 30 too.
+- **Step 5:** `SYNTHETIC_LABEL` above both trend tables; the tercile cells read "suppressed
+  (synthetic)" with the n counts kept; the per-observation table still shows raw forward
+  returns (real closes, no excess figure). `run_study` always marks the fixture corpus
+  synthetic; `render_trend_study(obs, synthetic=False)` is the path a live corpus would take.
+- **Step 6:** the sentence is now at `run_evals.py:1976` and was wrong in a different way than
+  described: it claimed a bootstrap interval the code never computed. Rewritten to the method
+  as built. The same paragraph in `evals/reports/latest.md` was patched to match by hand; the
+  report as a whole was already stale after W10 (`make eval-check` fails) and needs a `make
+  eval` re-run, which spends LLM credits for its live rows.
+- **Step 7:** `tests/unit/test_signal_study.py`, 8 tests: the collapse, the overlap rule, no
+  interval below 30, the t-quantile, a synthetic render of 120 independent rows with no
+  interval and a label on each table, a small real sample with the mean and no interval, a
+  large real sample with an interval and no banner, and the committed notebook has no interval.
+- **Prose:** notebook intro (no "null result" wording for an untested signal), its "real test"
+  steps, README signal-study section, PRD 4A.1 and 11.4, `knowledge/concepts/
+  hype_short_puts.md` (kept under the 800-word concept cap); `make index` rerun; the notebook
+  regenerated with `scripts/build_signal_notebook.py`. The fixture scores in the notebook moved
+  since 2026-11-08 because of W30, not because of this change.
 
 ---
 

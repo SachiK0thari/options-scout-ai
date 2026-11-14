@@ -23,6 +23,7 @@ from options_scout.core.models import (
     SizedPosition,
     TickerSnapshot,
 )
+from options_scout.data import freshness
 from options_scout.data.market import MarketData
 
 
@@ -211,6 +212,12 @@ class MarketStrip:
     live: bool
     fetched_at: datetime | None  # oldest quote shown: the fixture's recording or the fetch time
     age: str
+    # W10: the provider's timestamp of the oldest quote shown (None: the provider gave none),
+    # whether it is stale (intraday: older than ``market_data.max_quote_age_minutes``; end of day:
+    # older than the last session) and the warning the strip shows then
+    quoted_at: datetime | None = None
+    stale: bool = False
+    warning: str | None = None
 
 
 def day_change(price: float, closes: Sequence[float]) -> float | None:
@@ -228,14 +235,26 @@ def day_change(price: float, closes: Sequence[float]) -> float | None:
     return price / history[-1] - 1.0
 
 
-def data_age(live: bool, fetched_at: datetime | None, now: datetime) -> str:
-    """The freshness line under the provider: quotes are recorded or delayed, never real-time."""
+def data_age(
+    live: bool,
+    fetched_at: datetime | None,
+    now: datetime,
+    quote_age: freshness.QuoteAge | None = None,
+) -> str:
+    """The freshness line under the provider: quotes are recorded or delayed, never real-time.
+
+    W10: with the provider's own timestamp the line says when the prices are from ("end-of-day
+    data: Fri 2026-11-06 close" on the historical feed, the quote time otherwise), not two
+    minutes ago, and says when they are stale.
+    """
     if fetched_at is None:
         return "no quotes fetched"
     if not live:
         return f"fixture, recorded {fetched_at:%Y-%m-%d}"
-    minutes = max(int((now - fetched_at).total_seconds() // 60), 0)
-    return f"delayed quotes, fetched {fetched_at:%H:%M} UTC ({minutes} min ago)"
+    minutes = freshness.age_minutes(fetched_at, now)
+    if quote_age is None:  # the provider gave no timestamp: the fetch time is all there is
+        return f"delayed quotes, fetched {fetched_at:%H:%M} UTC ({minutes} min ago)"
+    return f"{quote_age.headline()}, fetched {minutes} min ago{quote_age.suffix()}"
 
 
 def market_strip(
@@ -254,6 +273,7 @@ def market_strip(
     live = md.source.name != "fixture"
     quotes: list[StripQuote] = []
     stamps = [s.spot.as_of for s in snapshots.values()]
+    quoted = [s.quoted_at or s.spot.quoted_at for s in snapshots.values()]
     for ticker in tickers:
         snap = snapshots.get(ticker)
         spot = snap.spot if snap is not None else None
@@ -264,6 +284,7 @@ def market_strip(
                 quotes.append(StripQuote(ticker, None, None, False))
                 continue
         stamps.append(spot.as_of)
+        quoted.append(spot.quoted_at)
         try:
             change = day_change(spot.price, md.get_close_history(ticker, STRIP_HISTORY_DAYS))
         except Exception:  # a price without a history still shows
@@ -272,11 +293,20 @@ def market_strip(
     # the oldest quote on screen: a cache hit keeps its original fetch time, so this is the age
     # of the stalest number, not the time of the run
     fetched_at = min(stamps) if stamps else (regime.as_of if regime is not None else None)
+    known = [t for t in quoted if t is not None]
+    quoted_at = min(known) if known and live else None
+    now = now or md.now()
+    quote_age = freshness.assess(
+        quoted_at, now, end_of_day=md.end_of_day, max_age_minutes=md.max_quote_age_minutes
+    )
     return MarketStrip(
         quotes=tuple(quotes),
         regime=regime,
         provider=md.source.name,
         live=live,
         fetched_at=fetched_at,
-        age=data_age(live, fetched_at, now or md.now()),
+        age=data_age(live, fetched_at, now, quote_age),
+        quoted_at=quoted_at,
+        stale=quote_age is not None and quote_age.stale,
+        warning=quote_age.warning() if quote_age else None,
     )

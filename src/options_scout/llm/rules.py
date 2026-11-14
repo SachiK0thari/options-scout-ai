@@ -606,10 +606,16 @@ def rule_explain(user_prompt: str) -> Narrative:
         "{{profile.account_type}} account and a {{profile.risk_profile}} profile, the plan sets "
         "aside {{allocation.csp_dollars|money}} for cash-secured put collateral, "
         "{{allocation.leaps_dollars|money}} for LEAPS/PMCC and keeps "
-        "{{allocation.cash_dollars|money}} in reserve. The VIX reading of {{regime.vix}} sits at "
-        "the {{regime.vix_percentile}} percentile of its past year, so the regime is "
-        f"{str(regime_label(payload)).replace('_', ' ')} and the tilt applied was "
-        '"{{allocation.tilt}}".'
+        "{{allocation.cash_dollars|money}} in reserve. "
+        + (
+            "The VIX reading of {{regime.vix}} sits at "
+            "the {{regime.vix_percentile}} percentile of its past year, so the regime is "
+            f"{str(regime_label(payload)).replace('_', ' ')} and the tilt applied was "
+            '"{{allocation.tilt}}".'
+            if "vix" in payload.get("regime", {})
+            else "There was too little VIX history to place today's reading in its year, so "
+            'the regime is unknown and the tilt applied was "{{allocation.tilt}}".'  # W28
+        )
     )
     qs = payload.get("quality_screen", {})
     if qs:

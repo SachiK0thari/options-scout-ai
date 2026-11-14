@@ -11,6 +11,7 @@ import logging
 import os
 from collections.abc import Sequence
 from datetime import UTC, date, datetime, timedelta
+from itertools import pairwise
 from pathlib import Path
 from typing import Any, Protocol
 from urllib.parse import quote
@@ -24,6 +25,8 @@ from options_scout.core import pricing, volatility
 from options_scout.core.models import OptionChain, OptionQuote, SpotQuote, TickerSnapshot
 from options_scout.data.cache import MemoryCache, SQLiteCache
 from options_scout.data.fixtures import FixtureStore, IndexFixture, TickerFixture
+from options_scout.data.freshness import oldest_of, session_of, spot_chain_mismatch
+from options_scout.data.sessions import market_today
 from options_scout.jobs.snapshot_iv import IVSnapshotStore
 
 log = logging.getLogger(__name__)
@@ -37,6 +40,14 @@ FRED_VIX_CITATION = (
     "Chicago Board Options Exchange, CBOE Volatility Index: VIX [VIXCLS], retrieved from FRED, "
     "Federal Reserve Bank of St. Louis; https://fred.stlouisfed.org/series/VIXCLS"
 )
+FRED_TBILL_SERIES = "DTB3"
+# DTB3 is the Board of Governors' H.15 release (public domain, no copyright tag), quoted like
+# ^IRX on a discount basis in percent; cited with FRED's suggested form (W28 follow-up)
+FRED_TBILL_CITATION = (
+    "Board of Governors of the Federal Reserve System (US), 3-Month Treasury Bill Secondary "
+    "Market Rate, Discount Basis [DTB3], retrieved from FRED, Federal Reserve Bank of St. Louis; "
+    "https://fred.stlouisfed.org/series/DTB3"
+)
 FRED_NOTICE = (
     "This product uses the FRED® API but is not endorsed or certified by the Federal Reserve "
     "Bank of St. Louis (terms: https://fred.stlouisfed.org/docs/api/terms_of_use.html)."
@@ -44,17 +55,33 @@ FRED_NOTICE = (
 
 
 class FredVix:
-    """VIX daily closes from FRED (VIXCLS) for providers without index data (W27 follow-up).
+    """FRED series for providers without index data: VIX daily closes (VIXCLS, W27 follow-up)
+    and the 3-month T-bill rate (DTB3, W28 follow-up; neither live provider serves ^IRX).
 
     Values are kept in memory for the day only, never in the SQLite cache. Needs the free
     ``FRED_API_KEY``; errors carry the status code and host, never the key (the bottleneck
     engine's adapter does the request)."""
 
     LOOKBACK_CALENDAR_DAYS = 400  # a 252-session window with weekends and holidays
+    TBILL_LOOKBACK_DAYS = 14  # the latest DTB3 print; FRED posts it a day or two behind
 
     def __init__(self, fetch: Any) -> None:
         self._fetch = fetch  # (series_id, start, end) -> list[SeriesPoint]
-        self._memo: dict[date, list[tuple[date, float]]] = {}
+        self._memo: dict[tuple[str, date], list[tuple[date, float]]] = {}
+
+    def _series(self, series_id: str, today: date, days: int) -> list[tuple[date, float]]:
+        key = (series_id, today)
+        if key not in self._memo:
+            points = self._fetch(series_id, today - timedelta(days=days), today)
+            # one day's memo per series: yesterday's values are dropped, not kept
+            self._memo = {k: v for k, v in self._memo.items() if k[1] == today}
+            self._memo[key] = [(p.day, float(p.value)) for p in points if p.value >= 0]
+        return self._memo[key]
+
+    def tbill_3m(self, today: date) -> tuple[date, float] | None:
+        """(day, rate in percent) of the latest DTB3 print, or None when FRED has none."""
+        rows = self._series(FRED_TBILL_SERIES, today, self.TBILL_LOOKBACK_DAYS)
+        return rows[-1] if rows else None
 
     @classmethod
     def from_env(cls) -> FredVix | None:
@@ -75,11 +102,8 @@ class FredVix:
         return cls(fetch)
 
     def closes(self, today: date) -> list[tuple[date, float]]:
-        if today not in self._memo:
-            start = today - timedelta(days=self.LOOKBACK_CALENDAR_DAYS)
-            points = self._fetch(FRED_VIX_SERIES, start, today)
-            self._memo = {today: [(p.day, float(p.value)) for p in points if p.value > 0]}
-        return self._memo[today]
+        rows = self._series(FRED_VIX_SERIES, today, self.LOOKBACK_CALENDAR_DAYS)
+        return [(d, v) for d, v in rows if v > 0]  # a zero VIX is a missing print
 
 
 RISK_FREE_FALLBACK = 0.04
@@ -223,12 +247,6 @@ class FixtureSource:
 
 
 # ------------------------------------------------------------------------------------ live
-_RETRY = retry(
-    reraise=True,
-    stop=stop_after_attempt(4),
-    wait=wait_exponential(multiplier=1, min=1, max=20),
-    retry=retry_if_exception_type(Exception),
-)
 # Transport errors and 5xx only: a 401/402/429 will not fix itself, so it is raised at once.
 _RETRY_HTTP = retry(
     reraise=True,
@@ -401,7 +419,7 @@ class MarketDataAppSource:
         return self._get(
             f"/{kind}/candles/D/{_seg(symbol)}/",
             countback=int(days),
-            to=datetime.now(tz=UTC).date().isoformat(),
+            to=market_today().isoformat(),  # W28: New York's date, not UTC's
             **extra,
         )
 
@@ -410,7 +428,7 @@ class MarketDataAppSource:
         return [_f(c) for c in self._col(body, "c") if _f(c) > 0][-days:]
 
     # -- MarketSource -------------------------------------------------------------------
-    def _session_spot(self, sym: str) -> tuple[float, datetime] | None:
+    def _session_spot(self, sym: str) -> tuple[float, datetime, datetime | None] | None:
         """The underlying's price at the session the chain is from (``underlyingPrice``), so the
         stock and its options are quoted at the same moment (W27; see W28)."""
         try:
@@ -424,7 +442,7 @@ class MarketDataAppSource:
         if not prices:
             return None
         when = datetime.fromtimestamp(max(stamps), tz=UTC) if stamps else datetime.now(tz=UTC)
-        return prices[0], when
+        return prices[0], when, _stamp(max(stamps)) if stamps else None
 
     def get_spot(self, ticker: str) -> SpotQuote:
         sym = ticker.upper()
@@ -437,21 +455,33 @@ class MarketDataAppSource:
                     avg_volume=self._average_volume(sym),
                     as_of=session[1],
                     sector="Unknown",
+                    quoted_at=session[2],
                 )
         body = self._get(f"/stocks/quotes/{_seg(sym)}/")
         last = self._col(body, "last")
         mid = self._col(body, "mid")
         if body.get("s") != "ok" or not (last or mid):
             raise MarketDataError(f"MarketData.app returned no quote for {sym}")
-        price = _f(last[0] if last else None) or _f(mid[0] if mid else None)
+        bids, asks = self._col(body, "bid"), self._col(body, "ask")
+        bid, ask = _f(bids[0] if bids else None), _f(asks[0] if asks else None)
+        price = spot_price(
+            last=_f(last[0] if last else None),
+            mid=_f(mid[0] if mid else None),
+            two_sided=bid > 0 and ask > 0,
+            # the quote carries one time (``updated``) and no trade time, so a live two-sided
+            # quote is taken as newer than the last print
+            quote_newer=True,
+        )
         if price <= 0:
             raise MarketDataError(f"MarketData.app quote for {sym} has no price")
+        updated = [_i(u) for u in self._col(body, "updated") if _i(u) > 0]
         return SpotQuote(
             ticker=sym,
             price=price,
             avg_volume=self._average_volume(sym),
             as_of=datetime.now(tz=UTC),
             sector="Unknown",  # MarketData.app quotes carry no sector; the curated list supplies it
+            quoted_at=_stamp(updated[0]) if updated else None,  # W10: unix seconds
         )
 
     def _session_chain(self, sym: str) -> tuple[date, dict[str, Any]]:
@@ -474,17 +504,20 @@ class MarketDataAppSource:
             day -= timedelta(days=1)
         raise MarketDataError(f"{sym}: MarketData.app has no chain in the last sessions")
 
-    def _average_volume(self, sym: str) -> float:
-        """Quotes carry only the session volume; average the last ~3 months of candles."""
+    def _average_volume(self, sym: str) -> float | None:
+        """Quotes carry only the session volume; average the last ~3 months of candles.
+
+        None when the candles cannot be had (W28): a failed lookup is missing data, which the
+        gate reports as "average volume unavailable", not a stock trading zero shares."""
         try:
             candles = self._year_series(sym, raw=False)
-        except QuotaExceededError:
+        except (AuthenticationError, QuotaExceededError):
             raise
         except Exception as exc:
             log.info("marketdata average volume unavailable for %s: %s", sym, type(exc).__name__)
-            return 0.0
+            return None
         vols = [_f(v) for v in self._col(candles, "v")[-self.AVG_VOLUME_DAYS :] if _f(v) > 0]
-        return sum(vols) / len(vols) if vols else 0.0
+        return sum(vols) / len(vols) if vols else None
 
     def list_expiries(self, ticker: str) -> list[date]:
         sym = ticker.upper()
@@ -598,7 +631,14 @@ class MarketDataAppSource:
             (calls if kind == "call" else puts).append(quote)
         stamps = [_i(u) for u in self._col(body, "updated") if _i(u) > 0]
         as_of = datetime.fromtimestamp(max(stamps), tz=UTC) if stamps else datetime.now(tz=UTC)
-        return OptionChain(ticker=sym, expiry=expiry, as_of=as_of, calls=calls, puts=puts)
+        return OptionChain(
+            ticker=sym,
+            expiry=expiry,
+            as_of=as_of,
+            calls=calls,
+            puts=puts,
+            quoted_at=_stamp(min(stamps)) if stamps else None,  # W10: the stalest row
+        )
 
     def get_earnings_date(self, ticker: str) -> date | None:
         """Next projected report date from /stocks/earnings; None when nothing is scheduled.
@@ -610,7 +650,7 @@ class MarketDataAppSource:
             raise MarketDataError(
                 "MarketData.app: your plan does not allow /stocks/earnings/ (402)"
             )
-        today = datetime.now(tz=UTC).date()
+        today = market_today()
         try:
             body = self._get(
                 f"/stocks/earnings/{_seg(ticker.upper())}/",
@@ -623,8 +663,14 @@ class MarketDataAppSource:
             if "(402)" in str(exc):
                 self._earnings_refused = True
             raise
+        # W28: ``reportDate`` is the announcement (projected until the company reports);
+        # ``date`` is the fiscal period end (MarketData.app docs, checked 2026-11-13), so a
+        # body without ``reportDate`` has no usable earnings date and must not read as "none"
+        has_rows = body.get("s") == "ok" and bool(self._col(body, "symbol"))
+        if has_rows and not self._col(body, "reportDate"):
+            raise MarketDataError("MarketData.app earnings response has no reportDate")
         upcoming: list[date] = []
-        for raw in self._col(body, "reportDate") or self._col(body, "date"):
+        for raw in self._col(body, "reportDate"):
             d = _as_date(raw)
             if d is not None and d >= today:
                 upcoming.append(d)
@@ -654,29 +700,40 @@ class MarketDataAppSource:
         return out[-days:]
 
     def get_dividend_yield(self, ticker: str) -> float:
-        """Trailing yield implied by dividend adjustment: 1 - adjusted/split-only first close.
+        """Trailing 12-month dividends per share over today's price, recovered from the
+        dividend-adjusted and split-only candle series (W28 step 11).
 
         MarketData.app has no dividends endpoint. Its daily candles are dividend-adjusted by
-        default; the split-only series is the raw price. Over one year the ratio of the two
-        oldest closes is the product of (1 - D/P) over every ex-date, i.e. ~ the trailing yield.
+        default; the split-only series is the raw price. The adjustment factor ``adj / raw``
+        steps up at each ex-date; the cash amount is the step times the previous raw close
+        (:func:`dividends_from_adjustment`). Summed over 365 calendar days and divided by the
+        latest close, that is the trailing yield, whatever the price did and however many
+        ex-dates fall in the window.
 
-        Provider errors and series that cannot support the estimate raise (W5) rather than
-        returning 0.0, so the facade can mark the yield unknown instead of assuming none.
+        Series whose dates do not line up, or that cannot support the estimate, raise (W5)
+        rather than returning 0.0, so the facade marks the yield unknown instead of none.
         """
         sym = ticker.upper()
-        days = self.DIVIDEND_LOOKBACK_DAYS
-        adjusted = [_f(c) for c in self._col(self._year_series(sym, raw=False), "c") if _f(c) > 0][
-            -days:
-        ]
-        raw = [_f(c) for c in self._col(self._year_series(sym, raw=True), "c") if _f(c) > 0][-days:]
-        if len(adjusted) != len(raw):
+        adj_body = self._year_series(sym, raw=False)
+        raw_body = self._year_series(sym, raw=True)
+        adj_t, raw_t = self._col(adj_body, "t"), self._col(raw_body, "t")
+        adj_c, raw_c = self._col(adj_body, "c"), self._col(raw_body, "c")
+        if len(adj_c) != len(raw_c) or len(adj_t) != len(adj_c) or adj_t != raw_t:
             raise MarketDataError(f"{sym}: dividend series mismatch")
-        if len(adjusted) < MIN_IV_HISTORY or raw[0] <= 0:
+        rows = [
+            (d, _f(a), _f(r))
+            for t, a, r in zip(adj_t, adj_c, raw_c, strict=True)
+            if (d := _as_date(t)) is not None
+        ]
+        if len(rows) < MIN_IV_HISTORY or any(a <= 0 or r <= 0 for _, a, r in rows):
             raise MarketDataError(f"{sym}: too little price history to infer a dividend yield")
-        implied = 1.0 - adjusted[0] / raw[0]
+        price = rows[-1][2]
+        cutoff = rows[-1][0] - timedelta(days=365)
+        paid = sum(cash for day, cash in dividends_from_adjustment(rows) if day > cutoff)
+        implied = paid / price
         if implied > 0.20:
             raise MarketDataError(f"{sym}: implausible implied dividend yield {implied:.1%}")
-        return max(implied, 0.0)  # a tiny negative is rounding on a non-payer
+        return implied
 
     def get_index_history(self, symbol: str, days: int) -> list[float]:
         mapped = self._INDEX_SYMBOLS.get(symbol.upper())
@@ -745,17 +802,26 @@ class TradierSource:
         return f"TradierSource(sandbox={self.sandbox})"
 
     # -- transport ----------------------------------------------------------------------
-    @_RETRY
-    def _get(self, path: str, **params: Any) -> Any:
+    @_RETRY_HTTP
+    def _fetch(self, path: str, params: dict[str, Any]) -> Any:
+        """W28 step 6: the same policy as MarketData.app, transport errors and 5xx only. A
+        rejected key used to be retried four times (7 seconds a call, 21 a ticker)."""
         resp = self._client.get(path, params=params)
+        if resp.status_code >= 500:
+            resp.raise_for_status()  # retried by the decorator
+        return resp
+
+    def _get(self, path: str, **params: Any) -> Any:
+        resp = self._fetch(path, params)
         if resp.status_code == 401:
-            raise MarketDataError("Tradier rejected the API key (401 Unauthorized)")
+            raise AuthenticationError("Tradier rejected the API key (401 Unauthorized)")
         if resp.status_code == 403:
             raise MarketDataError("Tradier: this key is not allowed to call " + path)
         if resp.status_code in (400, 429) and "quota violation" in resp.text.lower():
             # Tradier signals its rate limit as a 400 with a "Quota Violation" body
             raise QuotaExceededError("Tradier: rate limit reached (Quota Violation)")
-        resp.raise_for_status()
+        if resp.status_code >= 400:
+            raise MarketDataError(f"Tradier error on {path}: HTTP {resp.status_code}")
         return resp.json()
 
     @staticmethod
@@ -772,15 +838,25 @@ class TradierSource:
         if not quotes:
             raise MarketDataError(f"Tradier returned no quote for {ticker}")
         q = quotes[0]
-        price = _f(q.get("last")) or _f(q.get("close")) or _f(q.get("prevclose"))
+        last = _f(q.get("last")) or _f(q.get("close")) or _f(q.get("prevclose"))
+        bid, ask = _f(q.get("bid")), _f(q.get("ask"))
+        trade_ms = _i(q.get("trade_date"))  # W10: epoch milliseconds of the last trade
+        quote_ms = max(_i(q.get("bid_date")), _i(q.get("ask_date")))
+        mid = (bid + ask) / 2 if bid > 0 and ask > 0 else 0.0
+        use_mid = mid > 0 and quote_ms > trade_ms  # W28: a live quote beats an old print
+        price = spot_price(last=last, mid=mid, two_sided=mid > 0, quote_newer=use_mid)
         if price <= 0:
             raise MarketDataError(f"Tradier quote for {ticker} has no price")
+        stamp_ms = quote_ms if use_mid else trade_ms
+        volume = q.get("average_volume")
         return SpotQuote(
             ticker=ticker.upper(),
             price=price,
-            avg_volume=_f(q.get("average_volume")),
+            # W28: an absent field is unknown, not zero shares a day
+            avg_volume=_f(volume) if volume not in (None, "", "null") else None,
             as_of=datetime.now(tz=UTC),
             sector="Unknown",  # Tradier quotes carry no sector; the curated list supplies it
+            quoted_at=_stamp(stamp_ms / 1000) if stamp_ms > 0 else None,
         )
 
     def list_expiries(self, ticker: str) -> list[date]:
@@ -802,6 +878,7 @@ class TradierSource:
         )
         calls: list[OptionQuote] = []
         puts: list[OptionQuote] = []
+        quote_ms: list[int] = []
         for rec in self._as_list((data.get("options") or {}).get("option")):
             kind = str(rec.get("option_type", "")).lower()
             if kind not in {"call", "put"}:
@@ -825,8 +902,17 @@ class TradierSource:
                 log.debug("skipping bad Tradier row %s: %s", rec.get("symbol"), exc)
                 continue
             (calls if kind == "call" else puts).append(quote)
+            # the mid is priced from the bid and ask, so a row is as old as its newer side
+            row_ms = max(_i(rec.get("bid_date")), _i(rec.get("ask_date")))
+            if row_ms > 0:
+                quote_ms.append(row_ms)
         return OptionChain(
-            ticker=ticker.upper(), expiry=expiry, as_of=datetime.now(tz=UTC), calls=calls, puts=puts
+            ticker=ticker.upper(),
+            expiry=expiry,
+            as_of=datetime.now(tz=UTC),
+            calls=calls,
+            puts=puts,
+            quoted_at=_stamp(min(quote_ms) / 1000) if quote_ms else None,  # W10: the stalest row
         )
 
     def get_earnings_date(self, ticker: str) -> date | None:
@@ -835,13 +921,12 @@ class TradierSource:
         Errors (including a plan without fundamentals access) propagate (W5).
         """
         data = self._get("/beta/markets/fundamentals/calendars", symbols=ticker.upper())
-        today = datetime.now(tz=UTC).date()
+        today = market_today()
         upcoming: list[date] = []
         for result in self._as_list(data):
             tables = (result or {}).get("tables") or {}
             for ev in self._as_list(tables.get("corporate_calendars")):
-                text = f"{ev.get('event', '')} {ev.get('event_type', '')}".lower()
-                if "earnings" not in text and "results" not in text:
+                if not is_earnings_event(str(ev.get("event", ""))):
                     continue
                 raw = str(ev.get("begin_date_time") or ev.get("date") or "")[:10]
                 try:
@@ -853,7 +938,7 @@ class TradierSource:
         return min(upcoming) if upcoming else None
 
     def get_close_history(self, ticker: str, days: int) -> list[float]:
-        end = datetime.now(tz=UTC).date()
+        end = market_today()
         start = end - timedelta(days=int(days * 1.6) + 7)  # trading days → calendar days
         data = self._get(
             "/markets/history",
@@ -867,7 +952,7 @@ class TradierSource:
         return closes[-days:]
 
     def get_dated_close_history(self, ticker: str, days: int) -> list[tuple[date, float]]:
-        end = datetime.now(tz=UTC).date()
+        end = market_today()
         start = end - timedelta(days=int(days * 1.6) + 7)  # trading days → calendar days
         data = self._get(
             "/markets/history",
@@ -892,7 +977,7 @@ class TradierSource:
         price = self.get_spot(ticker).price
         if price <= 0:
             raise MarketDataError(f"Tradier quote for {ticker} has no price")
-        cutoff = datetime.now(tz=UTC).date() - timedelta(days=365)
+        cutoff = market_today() - timedelta(days=365)
         total = 0.0
         for result in self._as_list(data):
             tables = (result or {}).get("tables") or {}
@@ -933,6 +1018,62 @@ class TradierSource:
         return datetime.now(tz=UTC)
 
 
+EARNINGS_EVENT_PHRASES = (
+    "earnings",
+    "quarterly results",
+    "quarter results",
+    "full year results",
+    "full-year results",
+    "annual results",
+    "interim results",
+    "financial results",
+)
+NOT_EARNINGS_PHRASES = ("meeting", "dividend", "split", "investor day", "conference")
+
+
+def is_earnings_event(text: str) -> bool:
+    """W28 step 7: an explicit phrase list for Tradier's calendar ``event`` text. The old
+    substring test for "results" picked "Annual General Meeting results" 5 days out over the
+    earnings 40 days out. Tradier's numeric ``event_type`` codes are not documented publicly
+    (2026-11-13), so the text is what is matched; a meeting, dividend or split never counts,
+    unless the text also names earnings ("earnings conference call")."""
+    t = " ".join(text.lower().split())
+    if "earnings" in t:
+        return True
+    if any(p in t for p in NOT_EARNINGS_PHRASES):
+        return False
+    return any(p in t for p in EARNINGS_EVENT_PHRASES)
+
+
+def spot_price(*, last: float, mid: float, two_sided: bool, quote_newer: bool) -> float:
+    """W28 step 2: the live bid-ask midpoint when the stock has a two-sided quote newer than its
+    last trade, else the last trade (and the mid when there is no trade at all). An old print
+    of 100 no longer beats a live 92.00 midpoint; after hours, with bids at zero, the last
+    trade is all there is."""
+    if two_sided and mid > 0 and quote_newer:
+        return mid
+    return last or mid
+
+
+DIVIDEND_MIN_STEP = 3e-4
+"""A rise in the adjustment factor smaller than this is cent rounding of the adjusted close,
+not an ex-date (a 0.1% quarterly dividend is a 1e-3 step)."""
+
+
+def dividends_from_adjustment(
+    rows: Sequence[tuple[date, float, float]],
+) -> list[tuple[date, float]]:
+    """Cash dividends per share from ``(day, dividend-adjusted close, raw close)`` rows, oldest
+    first. At an ex-date the factor ``adj / raw`` of every earlier close is multiplied by
+    ``1 - D / P``, P the raw close before the ex-date, so ``D = P * (1 - f_before / f_after)``."""
+    out: list[tuple[date, float]] = []
+    for (_d0, a0, r0), (d1, a1, r1) in pairwise(rows):
+        f0, f1 = a0 / r0, a1 / r1
+        if f1 > 0 and 1.0 - f0 / f1 > DIVIDEND_MIN_STEP:
+            out.append((d1, r0 * (1.0 - f0 / f1)))
+    return out
+
+
 def _f(x: Any) -> float:
     try:
         v = float(x)
@@ -949,13 +1090,19 @@ def _i(x: Any) -> int:
     return 0 if v != v else int(v)
 
 
+def _stamp(seconds: float) -> datetime:
+    """A provider's unix timestamp (seconds) as an aware UTC datetime."""
+    return datetime.fromtimestamp(seconds, tz=UTC)
+
+
 def _as_date(x: Any) -> date | None:
-    """MarketData.app dates: unix seconds (US Eastern midnight) or ISO strings."""
+    """MarketData.app dates: unix seconds (US Eastern midnight) or ISO strings. A timestamp is
+    read as New York's date (W28): a 16:00 ET expiry stamp is that day, whatever UTC says."""
     if x is None or isinstance(x, bool):
         return None
     if isinstance(x, int | float):
         try:
-            return datetime.fromtimestamp(float(x), tz=UTC).date()
+            return datetime.fromtimestamp(float(x), tz=_NEW_YORK).date()
         except (OverflowError, OSError, ValueError):
             return None
     raw = str(x).strip()
@@ -1028,10 +1175,24 @@ class MarketData:
         far_dte_min: int = 330,
         credits_per_ticker: int = 0,
         vix_fallback: FredVix | None = None,
+        rate_fallback: FredVix | None = None,
         earnings_fallback: Any | None = None,
+        max_quote_age_minutes: int = 30,
+        min_vix_history: int = 200,
+        atm_max_distance: float = 0.05,
+        risk_free_min_percent: float = 0.2,
     ) -> None:
         self.source = source
+        # W28: the regime, ATM vol and risk-free guards (settings.market_data)
+        self.min_vix_history = min_vix_history
+        self.atm_max_distance = atm_max_distance
+        self.risk_free_min_percent = risk_free_min_percent
+        self.risk_free_assumed = False  # set by get_risk_free_rate: True when it is the constant
+        # W10: a quote older than this is flagged stale; spot and chain further apart are flagged
+        self.max_quote_age_minutes = max_quote_age_minutes
         self.vix_fallback = vix_fallback  # used when the provider has no index data
+        self.rate_fallback = rate_fallback  # FRED DTB3 when the provider has no usable ^IRX
+        self.rate_source: str | None = None  # citation when the rate came from FRED
         self.earnings_fallback = earnings_fallback  # AlphaVantageEarnings, when configured
         self.vix_source: str | None = None  # citation of where the last VIX came from
         self.credits_per_ticker = credits_per_ticker  # W27: 0 = no budget check
@@ -1112,6 +1273,7 @@ class MarketData:
         else:
             raise MarketDataError(f"unknown market data provider {chosen!r}")
         cache = SQLiteCache(cfg.paths.cache_db)
+        fred = FredVix.from_env() if "fred" in (md_cfg.vix_fallback, md_cfg.rate_fallback) else None
         return cls(
             source,
             cache,
@@ -1120,8 +1282,13 @@ class MarketData:
             near_dte=near,
             far_dte_min=far,
             credits_per_ticker=md_cfg.marketdata.credits_per_ticker,
-            vix_fallback=FredVix.from_env() if md_cfg.vix_fallback == "fred" else None,
+            vix_fallback=fred if md_cfg.vix_fallback == "fred" else None,
+            rate_fallback=fred if md_cfg.rate_fallback == "fred" else None,
             earnings_fallback=_earnings_fallback(cfg, cache),
+            max_quote_age_minutes=md_cfg.max_quote_age_minutes,
+            min_vix_history=md_cfg.min_vix_history,
+            atm_max_distance=md_cfg.atm_max_distance,
+            risk_free_min_percent=md_cfg.risk_free_min_percent,
         )
 
     @classmethod
@@ -1135,6 +1302,12 @@ class MarketData:
             near_dte=(cfg.rules.csp.dte_min - 10, cfg.rules.csp.dte_max + 15),
             far_dte_min=cfg.rules.leaps.dte_min - 35,
         )
+
+    @property
+    def end_of_day(self) -> bool:
+        """W10: the chains are the previous session's close (MarketData.app's historical feed),
+        so freshness is judged by session, not by minutes."""
+        return getattr(self.source, "chain_feed", None) == "historical"
 
     @property
     def available(self) -> bool:
@@ -1163,7 +1336,9 @@ class MarketData:
         return self.source.now()
 
     def today(self) -> date:
-        return self.now().date()
+        """The market's date (New York) at the source's clock (W28 step 3). From 7 or 8 pm
+        Eastern until midnight the UTC date is a day ahead, which cut a day off every DTE."""
+        return market_today(self.now())
 
     def get_spot(self, ticker: str) -> SpotQuote:
         return self._cached(  # type: ignore[no-any-return]
@@ -1234,8 +1409,6 @@ class MarketData:
             float,
         )
 
-    MIN_VIX_HISTORY = 20  # fewer closes than this cannot place today's VIX in its year
-
     def get_vix_percentile(self, lookback_days: int = 252) -> tuple[float, float]:
         """Returns (vix_now, percentile 0-100 within the lookback window).
 
@@ -1254,8 +1427,11 @@ class MarketData:
                 f"VIX unavailable from the provider ({provider_error}) and FRED ({exc})"
             ) from None
         values = [v for _, v in closes][-lookback_days:]
-        if len(values) < self.MIN_VIX_HISTORY:
-            raise MarketDataError(f"FRED VIXCLS returned {len(values)} closes; too few")
+        if len(values) < self.min_vix_history:
+            raise MarketDataError(
+                f"FRED VIXCLS returned {len(values)} closes, fewer than the "
+                f"{self.min_vix_history} needed to place today's VIX in its year"
+            )
         last_day = closes[-1][0]
         self.vix_source = f"{FRED_VIX_CITATION} (close of {last_day.isoformat()}). {FRED_NOTICE}"
         self.status["^VIX"] = f"FRED VIXCLS, close of {last_day.isoformat()}"
@@ -1268,8 +1444,11 @@ class MarketData:
             lambda: self.source.get_index_history("^VIX", lookback_days),
             lambda v: [float(x) for x in v],
         )
-        if len(history) < self.MIN_VIX_HISTORY:
-            raise MarketDataError(f"the provider returned {len(history)} VIX closes")
+        if len(history) < self.min_vix_history:  # W28: 30 bars moved the label low → normal
+            raise MarketDataError(
+                f"the provider returned {len(history)} VIX closes, fewer than the "
+                f"{self.min_vix_history} needed to place today's VIX in its year"
+            )
         vix_now = self._cached(
             "index_last:^VIX", "spot", lambda: self.source.get_index_last("^VIX"), float
         )
@@ -1278,17 +1457,54 @@ class MarketData:
         return float(vix_now), volatility.percentile_rank(float(vix_now), history)
 
     def get_risk_free_rate(self) -> float:
-        """13-week T-bill (^IRX quotes in percent) as a fraction; falls back to a constant."""
+        """13-week T-bill as a fraction: the provider's ^IRX (percent), else FRED's DTB3, else
+        the constant :data:`RISK_FREE_FALLBACK`, with :attr:`risk_free_assumed` set (W28).
+
+        A provider quote below ``risk_free_min_percent`` may be a fraction sent as a percent
+        (0.0425 read as 0.04%), so FRED is asked instead. FRED's series is always in percent,
+        so a real near-zero rate (2020-21 bills traded at 0.02-0.1%) is kept; only with no
+        FRED is a suspect quote rejected for the constant. :attr:`rate_source` cites FRED."""
+        self.risk_free_assumed = True
+        self.rate_source = None
         try:
-            irx = self._cached(
-                "index_last:^IRX", "spot", lambda: self.source.get_index_last("^IRX"), float
+            irx = float(
+                self._cached(
+                    "index_last:^IRX", "spot", lambda: self.source.get_index_last("^IRX"), float
+                )
             )
-            rate = float(irx) / 100.0
-            if 0.0 <= rate <= 0.20:
-                return rate
+            if self.risk_free_min_percent <= irx <= 20.0:
+                self.risk_free_assumed = False
+                return irx / 100.0
+            self.status["^IRX"] = (
+                f"error: ^IRX {irx:g} is below {self.risk_free_min_percent:g}%, possibly a "
+                "fraction sent as a percent (a units error)"
+                if irx < self.risk_free_min_percent
+                else f"error: ^IRX {irx:g}% is out of range"
+            )
         except Exception as exc:  # degrade gracefully, record why
             self.status["^IRX"] = f"error: {exc}"
+        fred_rate = self._fred_rate()
+        if fred_rate is not None:
+            return fred_rate
         return RISK_FREE_FALLBACK
+
+    def _fred_rate(self) -> float | None:
+        """DTB3 from FRED as a fraction, cited in :attr:`rate_source`; None without FRED."""
+        if self.rate_fallback is None:
+            return None
+        try:
+            found = self.rate_fallback.tbill_3m(self.today())
+        except Exception as exc:
+            self.status["^IRX"] = f"{self.status.get('^IRX', 'error')}; FRED DTB3: {exc}"
+            return None
+        if found is None or not 0.0 <= found[1] <= 20.0:
+            self.status["^IRX"] = f"{self.status.get('^IRX', 'error')}; FRED DTB3: no value"
+            return None
+        day, percent = found
+        self.risk_free_assumed = False
+        self.rate_source = f"{FRED_TBILL_CITATION} (rate of {day.isoformat()}). {FRED_NOTICE}"
+        self.status["^IRX"] = f"FRED DTB3, rate of {day.isoformat()}"
+        return percent / 100.0
 
     # -- snapshot ----------------------------------------------------------------------
     def relevant_expiries(self, ticker: str, today: date | None = None) -> list[date]:
@@ -1340,17 +1556,12 @@ class MarketData:
         if self.credits_per_ticker and ensure is not None:
             ensure(self.credits_per_ticker)  # QuotaExceededError before anything is spent
         now = self.now()
-        spot = self.get_spot(ticker)
-        chains: list[OptionChain] = []
-        for e in expiries if expiries is not None else self.relevant_expiries(ticker, now.date()):
-            try:
-                chains.append(self.get_option_chain(ticker, e))
-            except QuotaExceededError:
-                raise  # W27 step 5: a spent plan is not a fact about the ticker
-            except Exception as exc:
-                errors.append(f"chain {e}: {exc}")
+        today = market_today(now)
+        spot, chains = self._quotes(ticker, today, expiries, errors)
+        if spot.avg_volume is None:  # W28 step 5: missing data, not an illiquid stock
+            errors.append("average volume: unavailable (daily candles could not be fetched)")
         earnings, earnings_known, earnings_estimated, earnings_estimate = self._earnings(
-            ticker, now.date(), errors
+            ticker, today, errors
         )
         hv30: float | None = None
         try:
@@ -1370,10 +1581,17 @@ class MarketData:
             dividend_yield_known = False
 
         atm_iv = atm_implied_vol(
-            chains, spot.price, now.date(), self.near_dte, r=self.get_risk_free_rate(), q=divy
+            chains,
+            spot.price,
+            quote_day(spot, chains, today),
+            self.near_dte,
+            r=self.get_risk_free_rate(),
+            q=divy,
+            max_distance=self.atm_max_distance,
         )
         iv_rank, iv_source = self._iv_rank(ticker, atm_iv, hv30)
         self.status[ticker] = "ok" if not errors else f"partial: {len(errors)} errors"
+        mismatch = spot_chain_mismatch(spot, chains, self.max_quote_age_minutes)
         return TickerSnapshot(
             ticker=ticker,
             as_of=now,
@@ -1391,7 +1609,46 @@ class MarketData:
             iv_rank_source=iv_source,
             iv_hv_ratio=(atm_iv / hv30) if atm_iv is not None and hv30 else None,
             source_errors=errors,
+            source_notes=[mismatch] if mismatch else [],
+            quoted_at=oldest_of(spot, chains),
         )
+
+    def _quotes(
+        self,
+        ticker: str,
+        today: date,
+        expiries: Sequence[date] | None,
+        errors: list[str],
+    ) -> tuple[SpotQuote, list[OptionChain]]:
+        """The spot and its chains, fetched together and cached as one unit (W28 step 1).
+
+        Cached apart, a re-run 901 seconds later refetched only the spot: with the stock down
+        2%, a put read 6.67% annualised where the consistent figure was 11.00%. One key per
+        ticker and market day holds both, under the shorter of the two TTLs. A unit with a
+        failed chain is not cached, so a failure is never served to the next run."""
+        exp_part = ",".join(e.isoformat() for e in expiries) if expiries is not None else "auto"
+        key = f"{self._ns}:quotes:{ticker}:{today.isoformat()}:{exp_part}"
+        hit = self.cache.get(key)
+        if hit is not None:
+            return (
+                SpotQuote.model_validate(hit["spot"]),
+                [OptionChain.model_validate(c) for c in hit["chains"]],
+            )
+        spot = self.source.get_spot(ticker)
+        chains: list[OptionChain] = []
+        failed = False
+        for e in expiries if expiries is not None else self.relevant_expiries(ticker, today):
+            try:
+                chains.append(self.source.get_option_chain(ticker, e))
+            except QuotaExceededError:
+                raise  # W27 step 5: a spent plan is not a fact about the ticker
+            except Exception as exc:
+                failed = True
+                errors.append(f"chain {e}: {exc}")
+        if not failed:
+            ttl = min(self.ttl["spot"], self.ttl["option_chain"])
+            self.cache.set(key, {"spot": _dump(spot), "chains": _dump(chains)}, ttl)
+        return spot, chains
 
     def _earnings(
         self, ticker: str, today: date, errors: list[str]
@@ -1500,11 +1757,14 @@ def atm_implied_vol(
     *,
     r: float = RISK_FREE_FALLBACK,
     q: float = 0.0,
+    max_distance: float = 0.05,
 ) -> float | None:
     """Average IV of the ATM call and put on the nearest chain inside the near-DTE window.
 
     The provider's figure when it has one; otherwise the vol solved from the quote's mid (W27:
-    MarketData.app's previous-session chains carry no IV), as the screeners do since W1."""
+    MarketData.app's previous-session chains carry no IV), as the screeners do since W1.
+    W28 step 9: a strike further than ``max_distance`` (a fraction of spot) from spot is a
+    wing, not the money, so that side contributes nothing; None when neither side is near."""
     near = [c for c in chains if near_dte[0] <= (c.expiry - today).days <= near_dte[1]]
     pool = near or list(chains)
     if not pool:
@@ -1516,6 +1776,8 @@ def atm_implied_vol(
         if not side:
             continue
         quote = min(side, key=lambda x: abs(x.strike - spot))
+        if spot <= 0 or abs(quote.strike - spot) / spot > max_distance:
+            continue
         if quote.iv > 0:
             ivs.append(quote.iv)
         elif quote.mid > 0 and spot > 0:
@@ -1523,6 +1785,14 @@ def atm_implied_vol(
             if solved is not None and solved > 0:
                 ivs.append(solved)
     return sum(ivs) / len(ivs) if ivs else None
+
+
+def quote_day(spot: SpotQuote, chains: Sequence[OptionChain], fallback: date) -> date:
+    """The market date the prices are from (W28 step 4): the session of the oldest provider
+    timestamp, else ``fallback`` (the run's market date). Days to expiry are counted from here,
+    so Friday's $3.00 premium annualises the same on a holiday Monday as it did on Friday."""
+    stamp = oldest_of(spot, chains)
+    return session_of(stamp) if stamp is not None else fallback
 
 
 def _dump(value: Any) -> Any:

@@ -41,6 +41,8 @@ def make(deps: Deps) -> Callable[[AgentState], dict[str, Any]]:
             )
         quality = check_quality(snap, closes, deps.cfg.quality, curated)
         errors = [f"market_data {ticker}: {e}" for e in snap.source_errors]
+        # W10: notes are shown with the errors but are not failures, so the status stays "ok"
+        errors += [f"market_data {ticker}: {n}" for n in snap.source_notes]
         status = "ok" if not snap.source_errors else "partial"
         if not quality.passed:
             errors.append(f"quality {ticker}: excluded: {'; '.join(quality.reasons)}")

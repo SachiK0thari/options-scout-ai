@@ -20,6 +20,7 @@ from options_scout.core.models import (
 from options_scout.core.quality import check_quality
 from options_scout.core.regime import make_regime
 from options_scout.data.fixtures import DEMO_TICKERS
+from options_scout.data.freshness import snapshot_quote_day
 from options_scout.data.market import MarketData
 
 
@@ -34,7 +35,11 @@ def run_deterministic_pipeline(
     """Regime → allocation → screeners → rank → size → risk, with no LLM involved."""
     md = md or MarketData.from_config(cfg)
     today = md.today()
-    vix, pct = md.get_vix_percentile()
+    vix_known = True
+    try:
+        vix, pct = md.get_vix_percentile()
+    except Exception:  # W28: too few VIX closes → regime unknown, no tilt
+        vix, pct, vix_known = 20.0, 50.0, False
     r = md.get_risk_free_rate()
     regime = make_regime(
         vix=vix,
@@ -43,6 +48,9 @@ def run_deterministic_pipeline(
         tilt=cfg.risk.regime_tilt,
         as_of=md.now(),
         source="fixture" if md.source.name == "fixture" else "live",
+        vix_known=vix_known,
+        risk_free_assumed=md.risk_free_assumed,
+        risk_free_source=md.rate_source,
     )
     allocation = allocate(profile, regime, cfg.risk)
     snapshots: dict[str, TickerSnapshot] = {}
@@ -66,13 +74,14 @@ def run_deterministic_pipeline(
             errors.append(f"{t}: excluded by quality gate: {'; '.join(quality[t].reasons)}")
             continue
         snapshots[t] = snap
+        day = snapshot_quote_day(snap, today)  # W28: DTE from the quote's session
         errors.extend(f"{t}: {e}" for e in snap.source_errors)
         if "csp" in profile.strategies:
             dropped: list[OptionCandidate] = []
             csp += screeners.screen_csp(
                 snap,
                 cfg.rules.csp,
-                today=today,
+                today=day,
                 r=r,
                 realistic_loss_drop=cfg.risk.realistic_loss_drop,
                 iv_rules=cfg.rules.implied_vol,
@@ -81,12 +90,12 @@ def run_deterministic_pipeline(
             exclusions += screeners.describe_csp_exclusions(snap, dropped)
         if {"leaps", "pmcc"} & profile.strategies:
             lp = screeners.screen_leaps(
-                snap, cfg.rules.leaps, today=today, r=r, iv_rules=cfg.rules.implied_vol
+                snap, cfg.rules.leaps, today=day, r=r, iv_rules=cfg.rules.implied_vol
             )
             leaps += lp
             if "pmcc" in profile.strategies:
                 pairs += screeners.pair_pmcc(
-                    lp, snap, cfg.rules.pmcc, today=today, r=r, iv_rules=cfg.rules.implied_vol
+                    lp, snap, cfg.rules.pmcc, today=day, r=r, iv_rules=cfg.rules.implied_vol
                 )
     ranked = ranking.rank_candidates(
         csp + leaps,

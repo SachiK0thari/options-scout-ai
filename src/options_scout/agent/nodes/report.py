@@ -32,6 +32,7 @@ from options_scout.core.models import (
     SizedPortfolio,
     utcnow,
 )
+from options_scout.data.freshness import assess, oldest_quote
 from options_scout.llm.prompts import prompt_versions
 from options_scout.llm.rules import rule_explain
 from options_scout.rag.models import citation_of
@@ -283,6 +284,17 @@ def make(deps: Deps) -> Callable[[AgentState], dict[str, Any]]:
         portfolio, risk, verification = state["portfolio"], state["risk"], state["verification"]
         assert profile and regime and alloc and portfolio and risk and verification
         errors = list(state.get("errors", []))
+        # W10: one data note per run on the stalest quote screened: end-of-day data is always
+        # labelled as such, intraday data only when older than the limit
+        quote_age = assess(
+            oldest_quote((state.get("market_data") or {}).values()),
+            deps.md.now(),
+            end_of_day=deps.md.end_of_day,
+            max_age_minutes=deps.md.max_quote_age_minutes,
+        )
+        note = quote_age.report_note(deps.md.max_quote_age_minutes) if quote_age else None
+        if note:
+            errors.append(note)
         narrative: Narrative = state.get("narrative") or Narrative()
         payload = dict(state.get("explain_payload") or {})
         payload.pop("previous_attempt_problems", None)

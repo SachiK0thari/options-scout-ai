@@ -39,7 +39,9 @@ def render(view: session.View) -> None:
         )
     vix, bill, data = cols[len(strip.quotes) :]
     regime = strip.regime
-    if regime is not None:
+    if regime is not None and not regime.vix_known:  # W28: no made-up VIX on the strip
+        vix.metric("VIX", "n/a", "regime unknown · no tilt", delta_color="off")
+    if regime is not None and regime.vix_known:
         vix.metric(
             "VIX",
             f"{regime.vix:.2f}",
@@ -47,9 +49,12 @@ def render(view: session.View) -> None:
             delta_color="off",
             help=glossary.help_for("VIX"),
         )
+    if regime is not None:
         bill.metric(
             "13-week T-bill",
             f"{regime.risk_free_rate:.2%}",
+            "assumed (no quote)" if regime.risk_free_assumed else None,
+            delta_color="off",
             help=glossary.help_for("13-week T-bill"),
         )
     else:
@@ -61,3 +66,5 @@ def render(view: session.View) -> None:
         "never real-time; the VIX regime label drives the allocation tilt "
         "(config/risk_profiles.yaml)."
     )
+    if strip.warning:  # W10: the prices are older than the feed should give
+        st.warning(strip.warning)

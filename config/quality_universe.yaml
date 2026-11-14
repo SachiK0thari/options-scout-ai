@@ -8,7 +8,9 @@
 #
 # Order matters: when more tickers qualify than `universe.max_tickers`, the user's own tickers come
 # first, then curated names whose Market Intelligence score is at least
-# `universe.signal_promotion_min` (highest first), then this order.
+# `universe.signal_promotion_min` (highest first), then this order. When the cap cuts the queue,
+# the names after the promoted ones take turns by trading day (W29 step 5), so each one is
+# screened every few trading days; a run on a list that fits the cap keeps this order exactly.
 
 universe:
   max_tickers: 12            # cap on tickers fetched per run, watchlist included (W40)

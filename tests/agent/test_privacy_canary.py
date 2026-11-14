@@ -75,6 +75,7 @@ def test_no_canary_key_leaves_a_live_run(
                         update={
                             "cache_db": tmp_path / "cache.sqlite",
                             "iv_snapshot_db": tmp_path / "iv.sqlite",
+                            "trends_db": tmp_path / "trends.sqlite",
                             "llm_cache_dir": tmp_path / "llm",
                         }
                     )

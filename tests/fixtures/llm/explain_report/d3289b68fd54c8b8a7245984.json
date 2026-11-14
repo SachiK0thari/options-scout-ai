@@ -1,0 +1,45 @@
+{
+ "task": "explain_report",
+ "model": "deepseek/deepseek-v4.1-flash",
+ "output": {
+  "paragraphs": [
+   {
+    "mode": "education",
+    "text": "A cash-secured put involves selling a put option while holding enough cash to buy the underlying shares at the strike price if you are assigned [S1]. Assignment is the mechanism where an option writer is obliged to take the shares because a holder has exercised their option [S2]. Furthermore, LEAPS, which stand for Long-term Equity AnticiPation Securities, are listed options with more than a year until expiration and can be used to gain long exposure to a stock while requiring less capital than direct share ownership [S3].",
+    "citations": [
+     "S1",
+     "S2",
+     "S3"
+    ]
+   },
+   {
+    "mode": "screen_result",
+    "text": "The quality screening process evaluated the underlying assets and found {{quality_screen.passed_count}} underlyings passed the criteria, while {{counts.skipped_total}} positions were skipped in total, as detailed in the errors regarding tickers like CAVA, ONON, and DECK, which were not on the good-to-own list.",
+    "citations": []
+   },
+   {
+    "mode": "education",
+    "text": "An option premium is composed of intrinsic value, which is the direct monetary value based on whether the option is in-the-money, and extrinsic value, also known as time value, which is the remainder of the premium [S4]. A poor man's covered call (PMCC) is a strategy that uses a long, deep in-the-money LEAPS call paired with a short, near-term, out-of-the-money call on the same stock [S5].",
+    "citations": [
+     "S4",
+     "S5"
+    ]
+   },
+   {
+    "mode": "screen_result",
+    "text": "The strategy deployment resulted in no sized positions, as indicated by {{counts.positions_sized}} positions; this outcome is attributed to the account being too small for the top-ranked candidates, as noted in {{risk.warnings[0]}}.",
+    "citations": []
+   },
+   {
+    "mode": "screen_result",
+    "text": "The risk assessment confirmed that {{risk.checks_passed}} of the {{risk.checks_total}} defined risk checks passed for the portfolio.",
+    "citations": []
+   },
+   {
+    "mode": "notice",
+    "text": "{{ delayed_data_notice }} {{ risk.warnings[0] }} {{ disclaimer }}",
+    "citations": []
+   }
+  ]
+ }
+}

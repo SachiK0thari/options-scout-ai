@@ -15,12 +15,27 @@ from options_scout.data.market import (
     MarketDataAppSource,
     MarketDataError,
 )
+from options_scout.data.sessions import market_today
 
 TOKEN = "md-test-token-123"
-TODAY = datetime.now(tz=UTC).date()
+TODAY = market_today()  # W28: the code dates by New York, not UTC
 EXP = TODAY + timedelta(days=37)
 NEXT_EARNINGS = TODAY + timedelta(days=20)
 PAST_EARNINGS = TODAY - timedelta(days=70)
+
+
+_EX_DATES = (30, 93, 156, 219)  # row index of each ex-date in the 252-row candle mock
+
+
+def _adjusted(raw: list[float], ex_rows: tuple[int, ...], cash: float) -> list[float]:
+    """Dividend-adjusted closes as a provider computes them: every close before an ex-date is
+    multiplied by 1 - D / P, P the raw close on the day before the ex-date."""
+    factor = [1.0] * len(raw)
+    for e in ex_rows:
+        step = 1.0 - cash / raw[e - 1]
+        for i in range(e):
+            factor[i] *= step
+    return [r * f for r, f in zip(raw, factor, strict=True)]
 
 
 def _unix(d: date) -> int:
@@ -49,10 +64,11 @@ def _routes(request: httpx.Request) -> httpx.Response:
     if path == "/v1/stocks/candles/D/AAPL/":
         n = int(q["countback"])
         assert "from" not in q  # countback and from are mutually exclusive
+        raw = [100.0 + i for i in range(n)]
         if q.get("adjustdividends") == "false":  # split-only series: raw prices
-            closes = [100.0 + i for i in range(n)]
-        else:  # dividend-adjusted: oldest closes are scaled down by the trailing yield
-            closes = [(100.0 + i) * (1 - 0.02 * (n - 1 - i) / (n - 1)) for i in range(n)]
+            closes = raw
+        else:  # dividend-adjusted: four quarterly ex-dates paying 2% of the latest price
+            closes = _adjusted(raw, _EX_DATES, 0.02 * raw[-1] / len(_EX_DATES))
         return httpx.Response(
             203,  # served from cache: must be treated as success
             json={
@@ -89,6 +105,8 @@ def _routes(request: httpx.Request) -> httpx.Response:
                 "openInterest": [2500, 900, 0],
                 "iv": [0.27, 0.26, None],
                 "delta": [-0.25, 0.3, 0],
+                # W10: the rows were quoted at different moments; the chain is as old as the oldest
+                "updated": [_unix(TODAY) + 600, _unix(TODAY) + 60, _unix(TODAY) + 900],
             },
         )
     if path == "/v1/stocks/earnings/AAPL/":

@@ -19,6 +19,7 @@ data/*.sqlite-journal
 data/*.sqlite-wal
 data/*.sqlite-shm
 data/iv_snapshots.sqlite
+data/trends.sqlite
 data/knowledge.sqlite
 data/bottleneck_snapshots.sqlite
 .ipynb_checkpoints/

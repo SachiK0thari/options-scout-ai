@@ -129,9 +129,13 @@ class ProfileParse(Model):
 class SpotQuote(Model):
     ticker: str
     price: PositiveFloat
-    avg_volume: float = Field(ge=0)
+    # W28: None when the volume lookup failed; a failed lookup is not an illiquid stock
+    avg_volume: float | None = Field(default=None, ge=0)
     as_of: datetime
     sector: str = "Unknown"
+    # W10: when the provider says the price is from (its own timestamp), not when it was fetched;
+    # None when the provider gives none (fixtures, older cache entries)
+    quoted_at: datetime | None = None
 
 
 class OptionQuote(Model):
@@ -157,6 +161,8 @@ class OptionChain(Model):
     as_of: datetime
     calls: list[OptionQuote] = Field(default_factory=list)
     puts: list[OptionQuote] = Field(default_factory=list)
+    # W10: the oldest row's provider timestamp (the stalest quote in the chain), or None
+    quoted_at: datetime | None = None
 
 
 class TickerSnapshot(Model):
@@ -181,6 +187,12 @@ class TickerSnapshot(Model):
     # W4: ATM implied over 30-day realised vol, shown in place of a rank until history exists
     iv_hv_ratio: float | None = Field(default=None, ge=0)
     source_errors: list[str] = Field(default_factory=list)
+    # W10: facts about the data that are not failures (status stays "ok"), shown in the report's
+    # notes, e.g. the spot and a chain quoted at different moments
+    source_notes: list[str] = Field(default_factory=list)
+    # W10: the stalest provider timestamp across the spot and the chains, set when the snapshot
+    # is built, so it survives the chains being dropped after the screen (W19); None: unknown
+    quoted_at: datetime | None = None
 
     def expiries(self) -> list[date]:
         return sorted({c.expiry for c in self.chains})
@@ -194,6 +206,12 @@ class MarketRegime(Model):
     as_of: datetime
     source: Literal["live", "fixture"] = "fixture"
     vix_source: str | None = None  # citation when VIX came from a secondary source (FRED)
+    # W28: False when too few VIX closes arrived to place today's reading in its year; the
+    # figures are then neutral placeholders, never shown, and no allocation tilt is applied
+    vix_known: bool = True
+    # W28: True when the rate is the configured constant, not a T-bill quote
+    risk_free_assumed: bool = False
+    risk_free_source: str | None = None  # citation when the rate came from FRED (DTB3)
 
 
 class AllocationPlan(Model):

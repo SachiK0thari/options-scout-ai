@@ -36,7 +36,7 @@ def main(argv: list[str] | None = None) -> int:
         get_config.cache_clear()
     cfg = get_config()
     llm = LLMClient.from_config(cfg)
-    store = TrendStore(cfg.paths.cache_db.parent / "trends.sqlite")
+    store = TrendStore(cfg.paths.trends_db)
     # W30: each run adds its daily counts to the store, and the baseline is built from them
     scout = TrendScout(cfg, llm, mode=args.mode)
     run = scout.run(store=store)

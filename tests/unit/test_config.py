@@ -46,6 +46,19 @@ def test_checkpoint_db_env_override(
     )
 
 
+def test_trends_db_is_a_temp_file_under_test_and_overridable(
+    monkeypatch: pytest.MonkeyPatch, config: AppConfig, tmp_path: Path
+) -> None:
+    """The suite never writes trend snapshots or mention counts into data/trends.sqlite: a
+    test's counts would become the next run's baseline (W30) and dirty the working tree."""
+    repo_db = config.root / "data" / "trends.sqlite"
+    assert config.paths.trends_db != repo_db
+    monkeypatch.setenv("OPTIONS_SCOUT_TRENDS_DB", str(tmp_path / "t.sqlite"))
+    assert load_config(config.root).paths.trends_db == tmp_path / "t.sqlite"
+    monkeypatch.delenv("OPTIONS_SCOUT_TRENDS_DB")
+    assert load_config(config.root).paths.trends_db == repo_db
+
+
 def test_social_weights_present(config: AppConfig) -> None:
     w = config.social.weights
     assert w.stock_hype_penalty > w.velocity_z  # hype is penalised harder than it is rewarded

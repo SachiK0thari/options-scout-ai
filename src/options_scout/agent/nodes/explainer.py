@@ -208,11 +208,19 @@ def build_explain_payload(
             "risk_profile": profile.risk_profile,
             "strategies": sorted(profile.strategies),
         },
-        "regime": {
-            "vix": round(regime.vix, 2),
-            "vix_percentile": round(regime.vix_percentile),
-            "label": regime.label,
+        # W28: with no VIX history the placeholders are left out, so no prose can cite them
+        "regime": (
+            {
+                "vix": round(regime.vix, 2),
+                "vix_percentile": round(regime.vix_percentile),
+                "label": regime.label,
+            }
+            if regime.vix_known
+            else {"label": "unknown"}
+        )
+        | {
             "risk_free_rate_pct": round(regime.risk_free_rate * 100, 2),
+            "risk_free_rate_assumed": regime.risk_free_assumed,
         },
         "allocation": {
             "csp_pct": round(alloc.csp_pct * 100),

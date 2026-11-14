@@ -2,26 +2,50 @@
  "writer": "deepseek/deepseek-v4.1-flash",
  "fallbacks": [
   {
-   "run": 0,
-   "request": "I have $50,000 of buying power in a margin account, balanced risk tolerance. CSPs and a few LEAPS/PMCC.",
-   "narrative_source": "rules",
+   "run": 1,
+   "request": "$100k cash account, conservative. Only cash-secured puts. I like COST and NKE, skip TSLA.",
+   "narrative_source": "mixed",
    "failed_attempts": [
     [
-     "check_citations: paragraph 7: screen_result sentence names nothing from this run (no slot, candidate id, run ticker or figure), so it is a general claim and needs a citation: 'The sizer left several caveats.'"
+     "check_numbers: 32 numbers checked, not grounded: paragraph 9: {{risk.checks[margin_usage].value|percent}}: risk.checks has no item 'margin_usage'",
+     "check_citations: paragraph 7: screen_result sentence names nothing from this run (no slot, candidate id, run ticker or figure), so it is a general claim and needs a citation: 'Its bottleneck flags are empty.'"
     ],
     [
-     "check_citations: paragraph 3: S5/S4 does not support 'The good-to-own quality screen is a gate, not a signal: it checks that an underl' (6% of its words occur in the source, need 50%); paragraph 7: S1 does not support 'The payoff summary for a short put describes what happens at expiry: the breakev' (45% of its words occur in the source, need 50%); paragraph 7: S6 does not support \"The realistic loss is the app's own estimate of the loss at the stress level it \" (36% of its words occur in the source, need 50%); paragraph 10: screen_result sentence names nothing from this run (no slot, candidate id, run ticker or figure), so it is a general claim and needs a citation: 'The sizer left several caveats.'"
+     "check_numbers: 42 numbers checked, not grounded: paragraph 8: 'Two' is typed, not a slot, in \"\u2026Two contracts of CSP-NKE-202\u2026\" (name the payload field in double braces; counts too, e.g. passed_count or a list with the count filter)",
+     "check_citations: paragraph 11: screen_result sentence names nothing from this run (no slot, candidate id, run ticker or figure), so it is a general claim and needs a citation: 'The sizer left several things behind.'"
     ],
     [
-     "check_numbers: 9 numbers checked, not grounded: paragraph 7: slot in an education paragraph (run figures belong in screen_result)",
-     "check_citations: paragraph 7: notice paragraph that is not one of the app's fixed notices is checked as education and has no citation (data caveats go in the fixed notice slots)",
-     "check_education_only: paragraph 7: run ticker NKE in education paragraph; paragraph 7: run number $3,500 in education paragraph",
-     "check_suitability: ranking_not_followed_unstated: higher-ranked underlyings did not fit this account size and the text does not say they did not fit"
+     "check_numbers: 36 numbers checked, not grounded: paragraph 12: '2' is typed, not a slot, in \"\u2026NKE, even though the limits passed; the 2 highest-ranked underlyin\u2026\" (name the payload field in double braces; counts too, e.g. passed_count or a list with the count filter)"
     ]
    ],
-   "narrative_patches": [],
+   "narrative_patches": [
+    "paragraph 8: realistic loss added (1 option(s))",
+    "paragraph 12 of the model's text dropped (failed compliance)"
+   ],
    "model_errors": [
-    "report: LLM narrative failed compliance after 3 attempt(s); deterministic narrative used (passed=True)"
+    "report: LLM narrative failed compliance after 3 attempt(s); 1 paragraph(s) dropped and 0 deterministic paragraph(s) added (passed=True)"
+   ]
+  },
+  {
+   "run": 5,
+   "request": "$1.2M margin account, balanced. Exclude QQQ and SPY.",
+   "narrative_source": "mixed",
+   "failed_attempts": [
+    [
+     "check_citations: paragraph 5: quotation not found in the cited source: 're-orders quality-gated stocks, never adds one'; paragraph 5: S5 does not support 'The trend board and the bottleneck board are secondary signals: the bottleneck b' (6% of its words occur in the source, need 50%); paragraph 5: S5 does not support 'They adjust the order in which candidates are presented, not the set of candidat' (0% of its words occur in the source, need 50%)"
+    ],
+    [
+     "check_numbers: 32 numbers checked, not grounded: paragraph 1: 'three' is typed, not a slot, in \"\u2026The screen allocated the account across three uses: {{allocation.csp_p\u2026\" (name the payload field in double braces; counts too, e.g. passed_count or a list with the count filter)"
+    ],
+    [
+     "check_numbers: 49 numbers checked, not grounded: paragraph 6: {{e}}: unknown slot {{e}}: no field 'e' at top"
+    ]
+   ],
+   "narrative_patches": [
+    "paragraph 6 of the model's text dropped (failed compliance)"
+   ],
+   "model_errors": [
+    "report: LLM narrative failed compliance after 3 attempt(s); 1 paragraph(s) dropped and 0 deterministic paragraph(s) added (passed=True)"
    ]
   }
  ]

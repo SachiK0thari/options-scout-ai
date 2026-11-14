@@ -14,10 +14,15 @@ def allocate(profile: UserProfile, regime: MarketRegime, risk: RiskProfiles) -> 
     rationale = [
         f"{profile.risk_profile} profile baseline: CSP {base.csp:.0%}, "
         f"LEAPS/PMCC {base.leaps:.0%}, cash reserve {base.cash:.0%}.",
-        f"VIX {regime.vix:.2f} sits at the {regime.vix_percentile:.0f}th percentile of its "
-        f"last year ({regime.label.replace('_', ' ')}).",
     ]
-    if regime.vix_percentile >= tilt_cfg.high_iv_percentile:
+    if regime.vix_known:
+        rationale.append(
+            f"VIX {regime.vix:.2f} sits at the {regime.vix_percentile:.0f}th percentile of its "
+            f"last year ({regime.label.replace('_', ' ')})."
+        )
+    if not regime.vix_known:  # W28: too few VIX closes to place today's reading
+        rationale.append("VIX history unavailable, so the regime is unknown: no tilt applied.")
+    elif regime.vix_percentile >= tilt_cfg.high_iv_percentile:
         shift = min(tilt_cfg.shift, leaps)  # never go negative
         csp, leaps = csp + shift, leaps - shift
         tilt = "to_csp"

@@ -64,7 +64,7 @@ class Deps:
             md = MarketData.unavailable(cfg, f"{exc}. Or send your own key with the request.")
         llm = LLMClient.from_config(cfg)
         scout = TrendScout(cfg, llm) if with_social else None
-        store = TrendStore(cfg.paths.cache_db.parent / "trends.sqlite")
+        store = TrendStore(cfg.paths.trends_db)
         return cls(cfg=cfg, md=md, llm=llm, scout=scout, trend_store=store)
 
     def with_market(self, md: MarketData) -> Deps:

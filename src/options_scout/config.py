@@ -64,6 +64,7 @@ class Paths(_Strict):
     cache_db: Path
     checkpoint_db: Path
     iv_snapshot_db: Path
+    trends_db: Path  # trend snapshots and the W30 daily mention counts
     prompts_dir: Path
     brand_map: Path
     llm_cache_dir: Path
@@ -199,6 +200,9 @@ class MarketDataSettings(_Strict):
     # VIX when the provider has none (index data is not on every plan): FRED's VIXCLS with the
     # free FRED_API_KEY, cited in the report; "none" falls back to the neutral default
     vix_fallback: Literal["fred", "none"] = "fred"
+    # the 3-month T-bill when the provider has no ^IRX (neither live provider does): FRED's DTB3
+    # with the same key, cited in the report; "none" uses the assumed constant (W28 follow-up)
+    rate_fallback: Literal["fred", "none"] = "fred"
     # next earnings date when the provider has none: Alpha Vantage's confirmed calendar, else an
     # estimate (last report + cadence_days), tested as estimate - margin_days (user, 2026-11-11)
     earnings_fallback: Literal["alphavantage", "none"] = "alphavantage"
@@ -206,6 +210,13 @@ class MarketDataSettings(_Strict):
     earnings_cadence_days: int = Field(default=91, ge=60, le=200)
     earnings_margin_days: int = Field(default=21, ge=0, le=60)
     earnings_stale_after_days: int = Field(default=120, ge=60, le=400)
+    # W10: a quote older than this (provider timestamp) is flagged stale, and a spot and chain
+    # quoted further apart than this are flagged as mixing two moments
+    max_quote_age_minutes: int = Field(default=30, ge=1, le=10_080)
+    # W28: VIX closes needed for a regime; ATM vol strike distance; the ^IRX units guard
+    min_vix_history: int = Field(default=200, ge=20, le=252)
+    atm_max_distance: float = Field(default=0.05, gt=0, le=0.25)
+    risk_free_min_percent: float = Field(default=0.2, ge=0, le=2)
     marketdata: MarketDataAppSettings = MarketDataAppSettings()
     tradier: TradierSettings = TradierSettings()
 
@@ -1286,20 +1297,22 @@ def _load_yaml(path: Path) -> dict[str, Any]:
 def _apply_env_overrides(raw: dict[str, Any]) -> dict[str, Any]:
     """Allow OPTIONS_SCOUT_<KEY> to override top-level scalar settings keys.
 
-    ``OPTIONS_SCOUT_CHECKPOINT_DB`` overrides ``paths.checkpoint_db`` (relative to the repository
-    root unless absolute). The test suite sets it to a temporary file so no test ever writes a
-    conversation thread into the real database.
+    ``OPTIONS_SCOUT_CHECKPOINT_DB`` and ``OPTIONS_SCOUT_TRENDS_DB`` override ``paths.checkpoint_db``
+    and ``paths.trends_db`` (relative to the repository root unless absolute). The test suite sets
+    both to temporary files so no test writes a conversation thread into the real database, and
+    no test's mention counts feed another test's trend baseline.
     """
     out = dict(raw)
     for key in ("data_mode", "llm_mode"):
         env_val = os.environ.get(f"OPTIONS_SCOUT_{key.upper()}", "").strip().lower()
         if env_val:  # W42: case and spaces are normalised ("LIVE" is "live")
             out[key] = env_val
-    checkpoint_db = os.environ.get("OPTIONS_SCOUT_CHECKPOINT_DB")
-    if checkpoint_db:
-        paths = dict(out.get("paths") or {})
-        paths["checkpoint_db"] = checkpoint_db
-        out["paths"] = paths
+    for key in ("checkpoint_db", "trends_db"):
+        env_path = os.environ.get(f"OPTIONS_SCOUT_{key.upper()}")
+        if env_path:
+            paths = dict(out.get("paths") or {})
+            paths[key] = env_path
+            out["paths"] = paths
     return out
 
 

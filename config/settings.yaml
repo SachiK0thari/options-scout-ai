@@ -7,6 +7,7 @@ paths:
   cache_db: data/cache.sqlite
   checkpoint_db: data/checkpoints.sqlite   # OPTIONS_SCOUT_CHECKPOINT_DB overrides (tests use a temp file)
   iv_snapshot_db: data/iv_snapshots.sqlite
+  trends_db: data/trends.sqlite             # OPTIONS_SCOUT_TRENDS_DB overrides (tests use a temp file)
   prompts_dir: prompts
   brand_map: data/brand_map.yaml
   llm_cache_dir: tests/fixtures/llm
@@ -56,6 +57,7 @@ market_data:
   # VIX when the provider has no index data (MarketData.app answered empty on the 2026-11-11 run):
   # FRED's VIXCLS (Cboe, "Copyrighted: Citation Required"), with FRED_API_KEY; cited in the report
   vix_fallback: fred          # fred | none (neutral VIX 20)
+  rate_fallback: fred         # fred (DTB3, the 3-month bill) | none (assumed 4.00%)
   # Next earnings date when the provider has none (MarketData.app's /stocks/earnings answered 402
   # on the 2026-11-11 run). alphavantage: the confirmed date from EARNINGS_CALENDAR, else an
   # estimate, last report + 91 days, which the screens test as estimate - 21 days, so a put is
@@ -66,6 +68,19 @@ market_data:
   earnings_cadence_days: 91
   earnings_margin_days: 21
   earnings_stale_after_days: 120
+  # W10: quotes are dated by the provider's own timestamp. Older than this: "market closed or
+  # stale" on the strip and a note in the report; a spot and chain further apart: a note too
+  max_quote_age_minutes: 30
+  # W28. Fewer daily VIX closes than this cannot place today's VIX in its year: the regime is
+  # "unknown" and no allocation tilt is applied (252 is a full year)
+  min_vix_history: 200
+  # W28. The at-the-money vol comes from the strike nearest spot only when it is within this
+  # fraction of spot; further out it is a wing strike's vol, so the reading is None
+  atm_max_distance: 0.05
+  # W28. ^IRX is quoted in percent. A provider value below this may be a fraction sent as a
+  # percent (0.0425 for 4.25%): FRED's DTB3 is asked instead, which is always in percent, so a
+  # real near-zero rate (2020-21) is kept. With no FRED, the assumed rate is used
+  risk_free_min_percent: 0.2
   marketdata:
     api_key_env: MARKETDATA_TOKEN  # the UI/API can also pass a token per run (never persisted)
     # W27. historical: the previous session's whole chain (every expiry and strike) by date, one
